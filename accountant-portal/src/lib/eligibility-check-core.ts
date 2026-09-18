@@ -35,6 +35,13 @@ export interface EligibilityProgramResult {
   ermisUrl: string
 }
 
+export interface EligibilityBusinessDetails {
+  onomasia: string | null
+  afm: string
+  address: string | null
+  mainKad: string | null
+}
+
 export interface EligibilityCheckResult {
   gemiId: string | null
   businessName: string | null
@@ -42,6 +49,35 @@ export interface EligibilityCheckResult {
   inactive?: boolean
   programs: EligibilityProgramResult[]
   themisUrl: string | null
+  businessDetails?: EligibilityBusinessDetails
+}
+
+function buildBusinessDetails(gemi: {
+  afm: string
+  onomasia: string | null
+  postalAddress: string | null
+  postalAddressNo: string | null
+  postalZipCode: string | null
+  postalAreaDescription: string | null
+  activities: unknown
+}): EligibilityBusinessDetails {
+  const addressParts = [
+    [gemi.postalAddress, gemi.postalAddressNo].filter(Boolean).join(' '),
+    [gemi.postalZipCode, gemi.postalAreaDescription].filter(Boolean).join(' '),
+  ].filter(Boolean)
+
+  const activities = Array.isArray(gemi.activities) ? (gemi.activities as any[]) : []
+  const mainActivity = activities.find(a => a?.firmActKind === 1 || String(a?.firmActKind) === '1') || activities[0]
+  const mainKad = mainActivity
+    ? [mainActivity.firmActCode, mainActivity.firmActDescr].filter(Boolean).join(' — ')
+    : null
+
+  return {
+    onomasia: gemi.onomasia,
+    afm: gemi.afm,
+    address: addressParts.length > 0 ? addressParts.join(', ') : null,
+    mainKad,
+  }
 }
 
 // afm must already be the cleaned 9-digit string; email/phone are optional
@@ -224,10 +260,11 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
   }
 
   const gemiId = gemi!.id
+  const businessDetails = buildBusinessDetails(gemi!)
 
   // Inactive business → no programs
   if (gemi!.deactivationFlag === 'Y' || !!gemi!.stopDate) {
-    return { gemiId, businessName: gemi!.onomasia || gemi!.afm, inactive: true, programs: [], themisUrl: null }
+    return { gemiId, businessName: gemi!.onomasia || gemi!.afm, inactive: true, programs: [], themisUrl: null, businessDetails }
   }
 
   if (!gemi!.matchingDone) {
@@ -261,7 +298,7 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
 
   if (activeMatches.length === 0) {
     const themisUrl = `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
-    return { gemiId, businessName: gemi!.onomasia || gemi!.afm, programs: [], themisUrl }
+    return { gemiId, businessName: gemi!.onomasia || gemi!.afm, programs: [], themisUrl, businessDetails }
   }
 
   const programsWithLinks: EligibilityProgramResult[] = await Promise.all(
@@ -300,5 +337,5 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
     ? `${exMatch.ermisUrl}?type=themis`
     : `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
 
-  return { gemiId, businessName: gemi!.onomasia || gemi!.afm, programs: programsWithLinks, themisUrl }
+  return { gemiId, businessName: gemi!.onomasia || gemi!.afm, programs: programsWithLinks, themisUrl, businessDetails }
 }

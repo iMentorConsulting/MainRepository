@@ -193,7 +193,7 @@ export async function POST(request: NextRequest, { params }: { params: { secret:
     await sendEmail({
       to: email,
       subject: buildEligibilitySubject(result.businessName, result.programs.length),
-      html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs }),
+      html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails }),
     })
 
     logWebhook({ ok: true, summary: `eligible: ${result.programs.length} program(s), email sent`, afm: cleanAfm, email, payload: body })
