@@ -91,11 +91,16 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       }
     }
 
-    // Merge: webhook fields override AADE (webhook may already have correct name/address)
+    // Merge: webhook data as base; AADE always wins for official fields
     const merged = {
-      ...aadeData,
       ...Object.fromEntries(Object.entries(data).filter(([, v]) => v !== null && v !== '' && v !== undefined)),
     };
+    // AADE official data overrides whatever the external system sent
+    if (aadeData.customer_name) merged.customer_name = aadeData.customer_name;
+    if (aadeData.address)       merged.address        = aadeData.address;
+    if (aadeData.city)          merged.city           = aadeData.city;
+    if (aadeData.postal_code)   merged.postal_code    = aadeData.postal_code;
+    if (aadeData.business_activity) merged.business_activity = aadeData.business_activity;
 
     // Set both agent fields from the normalised name
     if (agent) {
