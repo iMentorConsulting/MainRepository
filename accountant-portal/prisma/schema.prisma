@@ -1362,3 +1362,20 @@ enum ProgramDocumentCategory {
   SELF_SERVICE
   VIA_ACCOUNTANT
 }
+
+// ─── Inbound Webhook Delivery Log ─────────────────────────────────────────────
+// Records every inbound call to a public webhook endpoint (e.g. the Moosend
+// signup webhook) so admins can confirm deliveries are actually arriving
+// without needing Railway log access — visible in-app instead.
+model WebhookLog {
+  id        String   @id @default(cuid())
+  source    String   // e.g. "moosend-signup"
+  ok        Boolean  @default(true)
+  summary   String?  // short human-readable outcome, e.g. "eligible: 2 programs, email sent"
+  afm       String?
+  email     String?
+  payload   Json?
+  createdAt DateTime @default(now())
+
+  @@index([source, createdAt])
+}
