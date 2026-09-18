@@ -34,10 +34,19 @@ function logWebhook(params: { ok: boolean; summary?: string; afm?: string | null
 // "chat with Ermis" link. Silent no-op if nothing matches; this isn't a form
 // with a live page to show a "sorry" result on.
 
-// Moosend's exact webhook payload shape isn't confirmed from here (no way to
-// test live from this environment) — this checks every plausible field name
-// and shape. If a real payload doesn't parse, the raw body is logged so the
-// keys can be added.
+// Confirmed real Moosend "Publish a webhook" automation payload shape (from
+// a live delivery, 2026-09-18):
+// {
+//   Event: {
+//     EventName: "SUBSCRIBED",
+//     ContactContext: {
+//       EmailAddress: "...",
+//       ContactToken: "...",     // same as EmailAddress for email lists
+//       CustomFields: { "ΑΦΜ": "..." }  // plain object, keyed by exact field name — NOT an array
+//     }
+//   },
+//   ...
+// }
 function extractField(body: any, candidateKeys: string[]): string | null {
   if (!body || typeof body !== 'object') return null
 
@@ -46,7 +55,28 @@ function extractField(body: any, candidateKeys: string[]): string | null {
     if (direct !== undefined && direct !== null && String(direct).trim()) return String(direct).trim()
   }
 
-  // Moosend "CustomFields": [{ Name, Value }]
+  // Moosend "CustomFields" as a plain object: { "ΑΦΜ": "123456789", ... } —
+  // the real shape, keyed by exact field name (case-sensitive Greek label).
+  const customFieldsObjects = [
+    body.CustomFields, body.customFields,
+    body.Event?.ContactContext?.CustomFields,
+    body.ContactContext?.CustomFields,
+    body.Subscriber?.CustomFields,
+  ]
+  for (const obj of customFieldsObjects) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) continue
+    for (const key of candidateKeys) {
+      if (obj[key] !== undefined && obj[key] !== null && String(obj[key]).trim()) return String(obj[key]).trim()
+    }
+    // Case-insensitive fallback — Moosend field labels are admin-configured free text
+    for (const [k, v] of Object.entries(obj)) {
+      if (candidateKeys.some(ck => ck.toLowerCase() === k.toLowerCase()) && v !== undefined && v !== null && String(v).trim()) {
+        return String(v).trim()
+      }
+    }
+  }
+
+  // Older/alternate Moosend shape: "CustomFields": [{ Name, Value }]
   const customFieldsArrays = [body.CustomFields, body.customFields, body.Subscriber?.CustomFields]
   for (const arr of customFieldsArrays) {
     if (!Array.isArray(arr)) continue
@@ -67,9 +97,13 @@ function extractField(body: any, candidateKeys: string[]): string | null {
     }
   }
 
-  // Nested under a "Subscriber" object
-  if (body.Subscriber && typeof body.Subscriber === 'object') {
-    return extractField(body.Subscriber, candidateKeys)
+  // Nested containers — the real payload nests everything under Event.ContactContext
+  const nestedContainers = [body.Event, body.ContactContext, body.Subscriber]
+  for (const container of nestedContainers) {
+    if (container && typeof container === 'object') {
+      const found = extractField(container, candidateKeys)
+      if (found) return found
+    }
   }
 
   return null
@@ -120,7 +154,7 @@ export async function POST(request: NextRequest, { params }: { params: { secret:
     return NextResponse.json({ ok: false, reason: 'invalid or empty JSON body' })
   }
 
-  const email = extractField(body, ['Email', 'email', 'EMAIL'])
+  const email = extractField(body, ['Email', 'email', 'EMAIL', 'EmailAddress', 'ContactToken'])
   const rawAfm = extractField(body, ['AFM', 'afm', 'ΑΦΜ', 'Afm', 'VAT', 'TaxId'])
 
   if (!rawAfm) {
