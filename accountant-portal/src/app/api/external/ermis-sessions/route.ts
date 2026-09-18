@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
-import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { buildBusinessProfilePayload, buildAadeBusinessDetails, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 import { CM_CATEGORY_LABEL, buildProgramDescription, buildErmisViberMessage, buildErmisEligibilitySubject, buildErmisEligibilityEmailHtml } from '@/lib/ermis-program-payload'
 import { sendViberMessage } from '@/lib/viber'
 import { sendEmail } from '@/lib/email'
@@ -306,6 +306,7 @@ export async function POST(request: NextRequest) {
             businessName,
             eligiblePrograms: eligibleForEmail.map(p => ({ title: p.title, chatUrl: p.chatUrl, description: p.description })),
             consultant: consultant || lead?.consultant || null,
+            businessDetails: buildAadeBusinessDetails(business!),
           }),
         }).catch(err => console.error('[ErmisSession] client email failed:', err?.message))
       }
