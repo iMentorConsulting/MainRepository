@@ -3,10 +3,13 @@ import { prisma } from '@/lib/prisma'
 import { auth } from '@/lib/auth'
 import bcrypt from 'bcryptjs'
 
-// One-shot endpoint — creates the given CONSULTANT users if they don't exist
-// yet (I-MENTOR team members who'll be reaching out to λογιστές). Same
-// pattern as /api/admin/seed-consultant. Auth: admin session OR CRON_SECRET
-// bearer token. Safe to call multiple times — idempotent per email.
+// Seed/repair endpoint — ensures the given CONSULTANT users exist with
+// EXACTLY the password listed below (I-MENTOR team members who'll be
+// reaching out to λογιστές). Auth: admin session OR CRON_SECRET bearer
+// token. Safe to call multiple times: if a user already exists (e.g. from
+// an earlier partial run, or a stale/wrong password), this RESETS their
+// password/role/emailVerified to match this list instead of skipping them —
+// otherwise a re-run after fixing a typo here would silently do nothing.
 const CONSULTANTS = [
   { name: 'Βαρδιάμπασης Μάνος', email: 'manos@i-mentor.gr', password: 'CEFIUu7xipI5' },
   { name: 'Χριστοφάκη Στέλλα', email: 'stella@i-mentor.gr', password: 'aAQI604xyY8' },
@@ -26,12 +29,16 @@ export async function POST(request: NextRequest) {
 
   const results = []
   for (const c of CONSULTANTS) {
+    const passwordHash = await bcrypt.hash(c.password, 12)
     const existing = await prisma.user.findUnique({ where: { email: c.email } })
     if (existing) {
-      results.push({ email: c.email, created: false, id: existing.id, role: existing.role })
+      await prisma.user.update({
+        where: { id: existing.id },
+        data: { name: c.name, passwordHash, role: 'CONSULTANT', emailVerified: existing.emailVerified ?? new Date() },
+      })
+      results.push({ email: c.email, created: false, reset: true, id: existing.id, role: 'CONSULTANT' })
       continue
     }
-    const passwordHash = await bcrypt.hash(c.password, 12)
     const user = await prisma.user.create({
       data: {
         name: c.name,
@@ -41,7 +48,7 @@ export async function POST(request: NextRequest) {
         emailVerified: new Date(),
       },
     })
-    results.push({ email: c.email, created: true, id: user.id, role: user.role })
+    results.push({ email: c.email, created: true, reset: false, id: user.id, role: user.role })
   }
 
   return NextResponse.json({ ok: true, results })
