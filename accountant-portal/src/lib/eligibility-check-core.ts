@@ -75,8 +75,41 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
         })
         const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
         themisUrl = `${appUrl}/gemi-entry/g/${stub.id}?type=themis`
-      } catch {
-        // Non-fatal
+
+        // Even with no AADE data, this is still a real lead that submitted
+        // the form/webhook — it must land in the normal Business table, not
+        // just sit as a bare GEMI stub, so accountants/consultants can
+        // follow up on it like any other business.
+        if (!stub.claimedBusinessId) {
+          let business = await prisma.business.findUnique({ where: { afm: cleanAfm } })
+          if (!business) {
+            try {
+              business = await prisma.business.create({
+                data: {
+                  afm: cleanAfm,
+                  source: 'website-form',
+                  legalStatusDescr: 'ΙΔΙΩΤΗΣ',
+                  email: cleanEmail || undefined,
+                  phone: cleanPhone || undefined,
+                },
+              })
+            } catch (createErr: any) {
+              if (createErr?.code === 'P2002') {
+                business = await prisma.business.findUnique({ where: { afm: cleanAfm } })
+              } else {
+                throw createErr
+              }
+            }
+          }
+          if (business) {
+            await prisma.gemiLookup.update({
+              where: { id: stub.id },
+              data: { claimedBusinessId: business.id, claimedAt: new Date() },
+            })
+          }
+        }
+      } catch (err: any) {
+        console.error('[EligibilityCheck] stub/Business sync failed:', err?.message)
       }
       return { gemiId: null, businessName: null, notFound: true, programs: [], themisUrl }
     }
