@@ -4,6 +4,7 @@
 // with the category-specific numbers shown on the public program page
 // (investment/subsidy % for most programs, ΔΥΠΑ hiring-subsidy figures for
 // ΔΥΠΑ, investment/interest-rate for μικροπιστώσεις).
+import { type AadeBusinessDetails, buildAadeBusinessDetailsCardHtml } from './business-profile'
 
 // Logistis' internal ProgramCategory enum values don't match CM's category
 // vocabulary 1:1 (e.g. "MICROCREDITS" vs "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ").
@@ -159,8 +160,9 @@ export function buildErmisEligibilityEmailHtml(params: {
   businessName: string
   eligiblePrograms: ErmisEmailProgramEntry[]
   consultant?: string | null
+  businessDetails?: AadeBusinessDetails
 }): string {
-  const { businessName, eligiblePrograms, consultant } = params
+  const { businessName, eligiblePrograms, consultant, businessDetails } = params
 
   const cards = eligiblePrograms.map(p => `
     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
@@ -179,6 +181,7 @@ export function buildErmisEligibilityEmailHtml(params: {
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
           Ελέγξαμε τα στοιχεία της επιχείρησής σας και εντοπίσαμε ${eligiblePrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : `τα παρακάτω ${eligiblePrograms.length} προγράμματα`} για τα οποία είστε πιθανώς επιλέξιμοι:
         </p>
+        ${buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${cards}
         ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
         <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>

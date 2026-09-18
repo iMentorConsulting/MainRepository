@@ -8,6 +8,7 @@ import { lookupAfm } from './gsis'
 import { runMatchingForGemi, loadActivePrograms } from './gemi-matching'
 import { runMatchingForBusiness } from './matching'
 import { getOrCreateGemiErmisLink } from './gemi-ermis'
+import { buildAadeBusinessDetails, type AadeBusinessDetails } from './business-profile'
 
 export interface EligibilityProgramResult {
   programId: string
@@ -35,12 +36,7 @@ export interface EligibilityProgramResult {
   ermisUrl: string
 }
 
-export interface EligibilityBusinessDetails {
-  onomasia: string | null
-  afm: string
-  address: string | null
-  mainKad: string | null
-}
+export type EligibilityBusinessDetails = AadeBusinessDetails
 
 export interface EligibilityCheckResult {
   gemiId: string | null
@@ -61,23 +57,15 @@ function buildBusinessDetails(gemi: {
   postalAreaDescription: string | null
   activities: unknown
 }): EligibilityBusinessDetails {
-  const addressParts = [
-    [gemi.postalAddress, gemi.postalAddressNo].filter(Boolean).join(' '),
-    [gemi.postalZipCode, gemi.postalAreaDescription].filter(Boolean).join(' '),
-  ].filter(Boolean)
-
   const activities = Array.isArray(gemi.activities) ? (gemi.activities as any[]) : []
-  const mainActivity = activities.find(a => a?.firmActKind === 1 || String(a?.firmActKind) === '1') || activities[0]
-  const mainKad = mainActivity
-    ? [mainActivity.firmActCode, mainActivity.firmActDescr].filter(Boolean).join(' — ')
-    : null
-
-  return {
-    onomasia: gemi.onomasia,
-    afm: gemi.afm,
-    address: addressParts.length > 0 ? addressParts.join(', ') : null,
-    mainKad,
-  }
+  return buildAadeBusinessDetails({
+    ...gemi,
+    activities: activities.map(a => ({
+      firmActCode: a?.firmActCode,
+      firmActDescr: a?.firmActDescr ?? null,
+      firmActKind: a?.firmActKind != null ? parseInt(String(a.firmActKind)) : null,
+    })),
+  })
 }
 
 // afm must already be the cleaned 9-digit string; email/phone are optional
