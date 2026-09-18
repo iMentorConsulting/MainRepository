@@ -127,42 +127,59 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
   // Sync to Business table so the record appears in the normal businesses dashboard
   if (!gemi!.claimedBusinessId) {
     try {
-      const existingBusiness = await prisma.business.findUnique({ where: { afm: cleanAfm } })
+      let existingBusiness = await prisma.business.findUnique({ where: { afm: cleanAfm } })
       if (!existingBusiness) {
         const activities = Array.isArray(gemi!.activities) ? (gemi!.activities as any[]) : []
-        const business = await prisma.business.create({
-          data: {
-            afm: cleanAfm,
-            source: 'website-form',
-            onomasia: gemi!.onomasia,
-            legalStatusDescr: gemi!.legalStatusDescr,
-            postalAddress: gemi!.postalAddress,
-            postalAddressNo: gemi!.postalAddressNo,
-            postalZipCode: gemi!.postalZipCode,
-            postalAreaDescription: gemi!.postalAreaDescription,
-            doy: gemi!.doy,
-            doyDescr: gemi!.doyDescr,
-            regdate: gemi!.regdate,
-            deactivationFlag: gemi!.deactivationFlag,
-            stopDate: gemi!.stopDate,
-            email: cleanEmail || undefined,
-            phone: cleanPhone || undefined,
-            activities: activities.length > 0 ? {
-              create: activities.map((a: any) => ({
-                firmActCode: a.firmActCode,
-                firmActDescr: a.firmActDescr,
-                firmActKind: a.firmActKind != null ? parseInt(String(a.firmActKind)) : null,
-                firmActKindDescr: a.firmActKindDescr,
-              }))
-            } : undefined,
-          },
-        })
-        await prisma.gemiLookup.update({
-          where: { id: gemi!.id },
-          data: { claimedBusinessId: business.id, claimedAt: new Date() },
-        })
-        runMatchingForBusiness(business.id).catch(err => console.error('[EligibilityCheck] Business matching failed:', err?.message))
-      } else {
+        let createdBusiness: { id: string } | null = null
+        try {
+          createdBusiness = await prisma.business.create({
+            data: {
+              afm: cleanAfm,
+              source: 'website-form',
+              onomasia: gemi!.onomasia,
+              legalStatusDescr: gemi!.legalStatusDescr,
+              postalAddress: gemi!.postalAddress,
+              postalAddressNo: gemi!.postalAddressNo,
+              postalZipCode: gemi!.postalZipCode,
+              postalAreaDescription: gemi!.postalAreaDescription,
+              doy: gemi!.doy,
+              doyDescr: gemi!.doyDescr,
+              regdate: gemi!.regdate,
+              deactivationFlag: gemi!.deactivationFlag,
+              stopDate: gemi!.stopDate,
+              email: cleanEmail || undefined,
+              phone: cleanPhone || undefined,
+              activities: activities.length > 0 ? {
+                create: activities.map((a: any) => ({
+                  firmActCode: a.firmActCode,
+                  firmActDescr: a.firmActDescr,
+                  firmActKind: a.firmActKind != null ? parseInt(String(a.firmActKind)) : null,
+                  firmActKindDescr: a.firmActKindDescr,
+                }))
+              } : undefined,
+            },
+          })
+        } catch (createErr: any) {
+          // Unique constraint on afm — a concurrent request (e.g. a
+          // double-submit) created it a moment ago. Fall through to link
+          // the now-existing record instead of losing this sync entirely.
+          if (createErr?.code === 'P2002') {
+            existingBusiness = await prisma.business.findUnique({ where: { afm: cleanAfm } })
+          } else {
+            throw createErr
+          }
+        }
+
+        if (createdBusiness) {
+          await prisma.gemiLookup.update({
+            where: { id: gemi!.id },
+            data: { claimedBusinessId: createdBusiness.id, claimedAt: new Date() },
+          })
+          runMatchingForBusiness(createdBusiness.id).catch(err => console.error('[EligibilityCheck] Business matching failed:', err?.message))
+        }
+      }
+
+      if (existingBusiness) {
         await prisma.gemiLookup.update({
           where: { id: gemi!.id },
           data: { claimedBusinessId: existingBusiness.id, claimedAt: new Date() },
