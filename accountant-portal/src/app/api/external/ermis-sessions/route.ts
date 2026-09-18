@@ -3,8 +3,9 @@ import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
-import { CM_CATEGORY_LABEL, buildProgramDescription, buildErmisViberMessage } from '@/lib/ermis-program-payload'
+import { CM_CATEGORY_LABEL, buildProgramDescription, buildErmisViberMessage, buildErmisEligibilitySubject, buildErmisEligibilityEmailHtml } from '@/lib/ermis-program-payload'
 import { sendViberMessage } from '@/lib/viber'
+import { sendEmail } from '@/lib/email'
 import { sendErmisWebhook } from '@/lib/ermis-webhook'
 
 // POST /api/external/ermis-sessions
@@ -290,6 +291,23 @@ export async function POST(request: NextRequest) {
         })
         sendViberMessage({ to: contactPhoneStr, text, senderName: 'iMentor Consulting' })
           .catch(err => console.error('[ErmisSession] client Viber failed:', err?.message))
+      }
+
+      // Same "here's what you're eligible for" event, as an email — clients
+      // without Viber (or who miss it) still get told.
+      const contactEmailStr = lead?.email || null
+      const eligibleForEmail = matchedPrograms.filter(p => p.isEligible)
+      if (contactEmailStr && eligibleForEmail.length > 0) {
+        const businessName = business!.onomasia || business!.commercialTitle || afmStr
+        sendEmail({
+          to: contactEmailStr,
+          subject: buildErmisEligibilitySubject(businessName, eligibleForEmail.length),
+          html: buildErmisEligibilityEmailHtml({
+            businessName,
+            eligiblePrograms: eligibleForEmail.map(p => ({ title: p.title, chatUrl: p.chatUrl, description: p.description })),
+            consultant: consultant || lead?.consultant || null,
+          }),
+        }).catch(err => console.error('[ErmisSession] client email failed:', err?.message))
       }
 
       const profile = await buildBusinessProfilePayload(business!)
