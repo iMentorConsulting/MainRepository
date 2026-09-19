@@ -75,7 +75,8 @@ function GemiMatchesPageInner() {
       .then(r => r.json())
       .then(data => {
         const list = Array.isArray(data) ? data : (data.programs || [])
-        setProgramOptions(list.map((p: any) => ({ value: p.id, label: p.title })))
+        const active = list.filter((p: any) => p.active && !p.archived)
+        setProgramOptions(active.map((p: any) => ({ value: p.id, label: p.title })))
       })
       .catch(() => {})
     fetch('/api/gemi/matches/filter-options')
