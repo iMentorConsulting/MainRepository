@@ -4,15 +4,12 @@ import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { normalizeLegalForm } from '@/lib/legal-forms'
 import { resolveRegdate, formatRegdateDisplay } from '@/lib/matching'
+import { evaluateKadCriterion } from '@/lib/kad-matching'
 
 interface DiagnosisResult {
   pass: boolean
   criterion: string
   detail: string
-}
-
-function normalizeKad(code: string): string {
-  return /^\d{7}$/.test(code) ? '0' + code : code
 }
 
 function diagnoseGemiMatch(
@@ -28,6 +25,7 @@ function diagnoseGemiMatch(
   program: {
     kadRules: string[]
     excludedKadRules: string[]
+    excludedKadExceptions: string[]
     regionRules: string[]
     zipCodeRules: string[]
     minRegdate: string | null
@@ -54,25 +52,15 @@ function diagnoseGemiMatch(
   }
 
   if (program.kadRules.length > 0) {
-    const matchedKad = business.activities.find(activity => {
-      const activityCode = normalizeKad(activity.firmActCode)
-      const matchesRule = program.kadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      if (!matchesRule) return false
-      const isExcluded = program.excludedKadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      return !isExcluded
-    })
-    const excludedNote = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')})` : ''
+    const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
+    const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
+    const excludedNote = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')}${program.excludedKadExceptions.length > 0 ? `, εκτός από: ${program.excludedKadExceptions.join(', ')}` : ''})` : ''
+    const exceptionNote = kadResult.matchedViaException ? ' (μέσω επιτρεπόμενης εξαίρεσης αποκλεισμού)' : ''
     out.push({
-      pass: !!matchedKad,
+      pass: kadResult.pass,
       criterion: 'kadRules',
       detail: matchedKad
-        ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}${matchedKad.firmActDescr ? ` — ${matchedKad.firmActDescr}` : ''}`
+        ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}${matchedKad.firmActDescr ? ` — ${matchedKad.firmActDescr}` : ''}${exceptionNote}`
         : `Κανένα ΚΑΔ (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει${excludedNote}`,
     })
   }

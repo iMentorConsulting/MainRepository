@@ -290,6 +290,14 @@ model Program {
   // e.g. kadRules=["1521"] but excludedKadRules=["15212345"] means all 1521* children
   // match EXCEPT 15212345.
   excludedKadRules   String[]
+  // Exact ΚΑΔ codes that override (cancel) ONE excludedKadRules match — e.g.
+  // excludedKadRules=["01"] (all of γεωργία excluded) but
+  // excludedKadExceptions=["1630104"] still allows that one specific code.
+  // Does NOT make a business eligible by itself; it only stops that one
+  // exclusion rule from rejecting that one activity code — every other
+  // program criterion (region, ΤΚ, legal form, dates, ...) still applies.
+  // See src/lib/kad-matching.ts for the matching logic.
+  excludedKadExceptions String[]         @default([])
   minRegdate         String?
   maxRegdate         String?
   // Businesses whose legal form (see src/lib/legal-forms.ts) is in this list

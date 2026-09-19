@@ -3,6 +3,7 @@ import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
 import { normalizeLegalForm } from './legal-forms'
 import { isProgramOpen, resolveRegdate } from './matching'
+import { evaluateKadCriterion } from './kad-matching'
 
 interface GemiBusinessView {
   id: string
@@ -26,6 +27,7 @@ interface ProgramCriteria {
   title: string
   kadRules: string[]
   excludedKadRules: string[]
+  excludedKadExceptions: string[]
   regionRules: string[]
   zipCodeRules: string[]
   minRegdate: string | null
@@ -33,10 +35,6 @@ interface ProgramCriteria {
   excludedLegalForms: string[]
   excludeTags: string[]
   requireTags: string[]
-}
-
-function normalizeKad(code: string): string {
-  return /^\d{7}$/.test(code) ? '0' + code : code
 }
 
 function matchesBusiness(
@@ -78,20 +76,8 @@ function matchesBusiness(
   let allMatched = true
 
   if (program.kadRules.length > 0) {
-    const allKad = program.kadRules.includes('*')
-    const matchedKad = business.activities.find(activity => {
-      const activityCode = normalizeKad(activity.firmActCode)
-      const matchesRule = allKad || program.kadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      if (!matchesRule) return false
-      const isExcluded = program.excludedKadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      return !isExcluded
-    })
+    const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
+    const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
     if (matchedKad) {
       reasons.push(`ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)
     } else {

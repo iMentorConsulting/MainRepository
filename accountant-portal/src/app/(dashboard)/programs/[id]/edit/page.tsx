@@ -298,6 +298,7 @@ export default function EditProgramPage() {
   const [loading, setLoading] = useState(true)
   const [kadRules, setKadRules] = useState<string[]>([])
   const [excludedKadRules, setExcludedKadRules] = useState<string[]>([])
+  const [excludedKadExceptions, setExcludedKadExceptions] = useState<string[]>([])
   const [excludedLegalForms, setExcludedLegalForms] = useState<string[]>([])
   const [regionRules, setRegionRules] = useState<string[]>([])
   const [zipCodeRules, setZipCodeRules] = useState<string[]>([])
@@ -354,6 +355,7 @@ export default function EditProgramPage() {
       .then(program => {
         setKadRules(program.kadRules || [])
         setExcludedKadRules(program.excludedKadRules || [])
+        setExcludedKadExceptions(program.excludedKadExceptions || [])
         setExcludedLegalForms(program.excludedLegalForms || [])
         setRegionRules(program.regionRules || [])
         setZipCodeRules(program.zipCodeRules || [])
@@ -413,7 +415,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
+      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, excludedKadExceptions, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -615,10 +617,10 @@ export default function EditProgramPage() {
               )}
             </div>
             <TagInput
-              label="Εξαιρούμενοι ΚΑΔ (exceptions)"
+              label="Εξαιρούμενοι ΚΑΔ"
               values={excludedKadRules}
               onChange={setExcludedKadRules}
-              placeholder="π.χ. 15212345"
+              placeholder="π.χ. 01, 03 ή 15212345"
               bulkImport
             />
             {excludedKadRules.length > 0 && (
@@ -626,6 +628,18 @@ export default function EditProgramPage() {
                 {kadRules.includes('*')
                   ? 'Όλοι οι ΚΑΔ είναι επιλέξιμοι εκτός από τους παραπάνω.'
                   : 'Οι παραπάνω ΚΑΔ αποκλείονται από το matching ακόμα κι αν ταιριάζουν με τους κανόνες ΚΑΔ παραπάνω.'}
+              </p>
+            )}
+            <TagInput
+              label="Επιτρεπόμενες εξαιρέσεις από τους Εξαιρούμενους ΚΑΔ"
+              values={excludedKadExceptions}
+              onChange={setExcludedKadExceptions}
+              placeholder="π.χ. 1630103, 1630104"
+              bulkImport
+            />
+            {excludedKadExceptions.length > 0 && (
+              <p className="text-xs text-emerald-700 bg-emerald-50 rounded-md px-3 py-1.5">
+                Οι παραπάνω ΚΑΔ εξαιρούνται ΑΠΟ τον αποκλεισμό — ακόμα κι αν ταιριάζουν με έναν κανόνα από τους Εξαιρούμενους ΚΑΔ (π.χ. ένα prefix όπως "01"), θα συνεχίσουν κανονικά στον έλεγχο ΚΑΔ αντί να απορριφθούν. Δεν κάνουν αυτόματα την επιχείρηση επιλέξιμη — τα υπόλοιπα κριτήρια του προγράμματος εξακολουθούν να ισχύουν.
               </p>
             )}
             <RegionMultiSelect
