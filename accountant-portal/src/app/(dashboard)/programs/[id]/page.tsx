@@ -300,7 +300,7 @@ export default function ProgramDetailPage() {
             </Card>
           )}
 
-          {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl || program.regionRules?.length > 0 || program.minRegdate || program.maxRegdate) && (
+          {(program.minInvestment != null || program.maxInvestment != null || program.minSubsidyPct != null || program.maxSubsidyPct != null || program.minInterestRate != null || program.maxInterestRate != null || program.otherRequirements || program.websiteUrl || program.regionRules?.length > 0 || program.zipCodeRules?.length > 0 || program.minRegdate || program.maxRegdate) && (
             <Card>
               <CardHeader><CardTitle>Στοιχεία Προγράμματος</CardTitle></CardHeader>
               <CardContent className="space-y-4">
@@ -315,6 +315,16 @@ export default function ProgramDetailPage() {
                           <Badge key={r} variant="secondary">{r}</Badge>
                         ))
                       )}
+                    </div>
+                  </div>
+                )}
+                {program.zipCodeRules?.length > 0 && (
+                  <div>
+                    <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Κανόνες ΤΚ</div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {program.zipCodeRules.map((r: string) => (
+                        <span key={r} className="px-2 py-1 bg-gray-100 text-gray-800 rounded text-xs font-mono">{r}</span>
+                      ))}
                     </div>
                   </div>
                 )}
@@ -447,6 +457,26 @@ export default function ProgramDetailPage() {
                   </div>
                 </div>
               )}
+              {program.excludedKadRules?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Εξαιρούμενοι ΚΑΔ</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {program.excludedKadRules.map((r: string) => (
+                      <span key={r} className="px-2 py-1 bg-red-100 text-red-800 rounded text-xs font-mono">{r}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {program.excludedKadExceptions?.length > 0 && (
+                <div>
+                  <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Επιτρεπόμενες Εξαιρέσεις από τους Εξαιρούμενους ΚΑΔ</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {program.excludedKadExceptions.map((r: string) => (
+                      <span key={r} className="px-2 py-1 bg-emerald-100 text-emerald-800 rounded text-xs font-mono">{r}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
               {program.excludedLegalForms?.length > 0 && (
                 <div>
                   <div className="text-xs font-semibold text-gray-500 uppercase mb-1.5">Εξαιρούμενες Νομικές Μορφές</div>
@@ -457,7 +487,9 @@ export default function ProgramDetailPage() {
                   </div>
                 </div>
               )}
-              {!program.kadRules?.length && !program.excludedLegalForms?.length && (
+              {!program.kadRules?.length && !program.excludedKadRules?.length && !program.excludedKadExceptions?.length
+                && !program.excludedLegalForms?.length && !program.excludeTags?.length && !program.requireTags?.length
+                && !program.regionRules?.length && !program.zipCodeRules?.length && !program.minRegdate && !program.maxRegdate && (
                 <p className="text-sm text-gray-400 italic">Χωρίς ειδικά κριτήρια — γενικό πρόγραμμα</p>
               )}
               {program.excludeTags?.length > 0 && (
