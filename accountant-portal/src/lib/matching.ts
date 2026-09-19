@@ -8,6 +8,7 @@ import { getOrCreateMatchActionToken } from './match-action-token'
 import { buildProgramInfoHtml } from './program-info-html'
 import { mapWithConcurrency } from './concurrency'
 import { notifyStaleMatchesBecameIneligible } from './ermis-correction'
+import { evaluateKadCriterion } from './kad-matching'
 
 // Each business costs a couple of sequential DB round-trips in upsertMatch,
 // so matching them one-at-a-time against a program is dominated by network
@@ -37,6 +38,7 @@ interface ProgramCriteria {
   title: string
   kadRules: string[]
   excludedKadRules: string[]
+  excludedKadExceptions: string[]
   regionRules: string[]
   zipCodeRules: string[]
   minRegdate: string | null
@@ -44,14 +46,6 @@ interface ProgramCriteria {
   excludedLegalForms: string[]
   excludeTags: string[]
   requireTags: string[]
-}
-
-// AADE's webservice sometimes returns ΚΑΔ codes that start with 0 (e.g.
-// categories 01-09: γεωργία, αλιεία, ορυχεία) without the leading zero —
-// "3112100" instead of the official "03112100". Pad those back to 8 digits
-// so prefix-based program criteria (e.g. "031") match correctly.
-function normalizeKad(code: string): string {
-  return /^\d{7}$/.test(code) ? '0' + code : code
 }
 
 // Resolves a regdate value which may be an ISO date string OR a sentinel like
@@ -109,22 +103,12 @@ export function diagnoseMatch(business: BusinessWithActivities, program: Program
 
   if (program.kadRules.length > 0) {
     const allKad = program.kadRules.includes('*')
-    const matchedKad = business.activities.find(activity => {
-      const activityCode = normalizeKad(activity.firmActCode)
-      const matchesRule = allKad || program.kadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      if (!matchesRule) return false
-      const isExcluded = program.excludedKadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      return !isExcluded
-    })
-    const excludedDetail = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')})` : ''
+    const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
+    const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
+    const excludedDetail = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')}${program.excludedKadExceptions.length > 0 ? `, εκτός από: ${program.excludedKadExceptions.join(', ')}` : ''})` : ''
     const ruleLabel = allKad ? 'Όλοι οι ΚΑΔ' : `κανόνες ΚΑΔ του προγράμματος`
-    out.push({ pass: !!matchedKad, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους ${ruleLabel}${excludedDetail}` })
+    const exceptionNote = kadResult.matchedViaException ? ' (μέσω επιτρεπόμενης εξαίρεσης αποκλεισμού)' : ''
+    out.push({ pass: kadResult.pass, criterion: 'kadRules', detail: matchedKad ? `Ταιριάζει ΚΑΔ ${matchedKad.firmActCode}${exceptionNote}` : `Κανένα από τα ΚΑΔ της επιχείρησης (${business.activities.map(a => a.firmActCode).join(', ') || '—'}) δεν ταιριάζει με τους ${ruleLabel}${excludedDetail}` })
   }
   if (program.regionRules.length > 0) {
     const businessRegion = resolveRegionFromZip(business.postalZipCode)
@@ -192,20 +176,8 @@ function matchesBusiness(
 
   // KAD matching
   if (program.kadRules.length > 0) {
-    const allKad = program.kadRules.includes('*')
-    const matchedKad = business.activities.find(activity => {
-      const activityCode = normalizeKad(activity.firmActCode)
-      const matchesRule = allKad || program.kadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      if (!matchesRule) return false
-      const isExcluded = program.excludedKadRules.some(rule => {
-        const cleanRule = normalizeKad(rule.trim())
-        return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
-      })
-      return !isExcluded
-    })
+    const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
+    const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
     if (matchedKad) {
       reasons.push(`ΚΑΔ: ${matchedKad.firmActCode} - ${matchedKad.firmActDescr || ''}`)
     } else {
