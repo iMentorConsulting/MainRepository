@@ -8,7 +8,7 @@ import { getOrCreateMatchActionToken } from './match-action-token'
 import { buildProgramInfoHtml } from './program-info-html'
 import { mapWithConcurrency } from './concurrency'
 import { notifyStaleMatchesBecameIneligible } from './ermis-correction'
-import { evaluateKadCriterion } from './kad-matching'
+import { evaluateKadCriterion, hasActiveKadCriterion } from './kad-matching'
 
 // Each business costs a couple of sequential DB round-trips in upsertMatch,
 // so matching them one-at-a-time against a program is dominated by network
@@ -101,8 +101,8 @@ export function diagnoseMatch(business: BusinessWithActivities, program: Program
     out.push({ pass: !excluded, criterion: 'excludedLegalForms', detail: excluded ? `Η νομική μορφή "${legalForm}" είναι στη λίστα εξαιρούμενων μορφών του προγράμματος` : `Η νομική μορφή "${legalForm}" δεν είναι εξαιρούμενη` })
   }
 
-  if (program.kadRules.length > 0) {
-    const allKad = program.kadRules.includes('*')
+  if (hasActiveKadCriterion(program)) {
+    const allKad = program.kadRules.length === 0 || program.kadRules.includes('*')
     const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
     const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
     const excludedDetail = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')}${program.excludedKadExceptions.length > 0 ? `, εκτός από: ${program.excludedKadExceptions.join(', ')}` : ''})` : ''
@@ -160,7 +160,7 @@ function matchesBusiness(
 
   const reasons: string[] = []
   const totalCriteria = [
-    program.kadRules.length > 0,
+    hasActiveKadCriterion(program),
     program.regionRules.length > 0,
     program.zipCodeRules.length > 0,
     !!program.minRegdate || !!program.maxRegdate,
@@ -175,7 +175,7 @@ function matchesBusiness(
   let allMatched = true
 
   // KAD matching
-  if (program.kadRules.length > 0) {
+  if (hasActiveKadCriterion(program)) {
     const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
     const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
     if (matchedKad) {
