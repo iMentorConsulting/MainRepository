@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { normalizeLegalForm } from '@/lib/legal-forms'
 import { resolveRegdate, formatRegdateDisplay } from '@/lib/matching'
-import { evaluateKadCriterion } from '@/lib/kad-matching'
+import { evaluateKadCriterion, hasActiveKadCriterion } from '@/lib/kad-matching'
 
 interface DiagnosisResult {
   pass: boolean
@@ -51,7 +51,7 @@ function diagnoseGemiMatch(
     out.push({ pass: !excluded, criterion: 'excludedLegalForms', detail: excluded ? `Η νομική μορφή "${legalForm}" είναι στη λίστα εξαιρούμενων μορφών` : `Η νομική μορφή "${legalForm}" δεν είναι εξαιρούμενη` })
   }
 
-  if (program.kadRules.length > 0) {
+  if (hasActiveKadCriterion(program)) {
     const kadResult = evaluateKadCriterion(business.activities.map(a => a.firmActCode), program)
     const matchedKad = kadResult.matchedCode ? business.activities.find(a => a.firmActCode === kadResult.matchedCode) : undefined
     const excludedNote = program.excludedKadRules.length > 0 ? ` (εξαιρούνται: ${program.excludedKadRules.join(', ')}${program.excludedKadExceptions.length > 0 ? `, εκτός από: ${program.excludedKadExceptions.join(', ')}` : ''})` : ''

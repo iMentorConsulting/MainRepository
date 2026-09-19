@@ -45,6 +45,15 @@ export interface KadCriterionProgram {
   excludedKadExceptions: string[]
 }
 
+// Whether the ΚΑΔ criterion should be evaluated at all for this program.
+// It's active if there's an eligible-ΚΑΔ list OR an exclusion list — a
+// program that only configures excludedKadRules (no kadRules) still
+// enforces that exclusion; it must not be silently skipped just because
+// the eligible-ΚΑΔ list was left empty.
+export function hasActiveKadCriterion(program: KadCriterionProgram): boolean {
+  return program.kadRules.length > 0 || program.excludedKadRules.length > 0 || program.excludedKadExceptions.length > 0
+}
+
 export interface KadCriterionResult {
   pass: boolean
   // The business's own (un-normalized) activity code that satisfied the
@@ -56,13 +65,19 @@ export interface KadCriterionResult {
 }
 
 // A business passes the ΚΑΔ criterion if AT LEAST ONE of its activity codes:
-//   1. is eligible (matches kadRules, or kadRules is "*" — all ΚΑΔ eligible), AND
+//   1. is eligible (matches kadRules; kadRules is "*"; or kadRules is EMPTY
+//      — an empty eligible-ΚΑΔ list means "no restriction from this side",
+//      same convention as every other empty rule list in this app, e.g.
+//      regionRules/zipCodeRules), AND
 //   2. is not excluded, OR is excluded but exactly matches an entry in
 //      excludedKadExceptions (which cancels only that one exclusion rule).
+// Exclusions apply independently of whether an eligible list is configured
+// — a program that only sets excludedKadRules (no kadRules) still excludes
+// those codes, it does not silently skip ΚΑΔ checking altogether.
 // A business is never rejected outright for having one excluded/secondary
 // ΚΑΔ as long as another of its activity codes clears both steps.
 export function evaluateKadCriterion(activityCodes: string[], program: KadCriterionProgram): KadCriterionResult {
-  const allKad = program.kadRules.includes('*')
+  const allKad = program.kadRules.length === 0 || program.kadRules.includes('*')
   const exceptionCodes = program.excludedKadExceptions.map(normalizeKadForComparison)
 
   for (const rawCode of activityCodes) {

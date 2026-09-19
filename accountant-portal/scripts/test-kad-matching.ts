@@ -1,7 +1,7 @@
 // Standalone unit tests for the ΚΑΔ exclusion-exception logic
 // (src/lib/kad-matching.ts). No DB/network access needed — pure functions.
 // Run with: npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/test-kad-matching.ts
-import { evaluateKadCriterion, normalizeKadForComparison } from '../src/lib/kad-matching'
+import { evaluateKadCriterion, normalizeKadForComparison, hasActiveKadCriterion } from '../src/lib/kad-matching'
 
 let failures = 0
 
@@ -104,6 +104,34 @@ assert(normalizeKadForComparison('16.30.104') === '01630104', 'normalizeKadForCo
 assert(normalizeKadForComparison(' 1630104 ') === '01630104', 'normalizeKadForComparison strips spaces and pads to 8 digits')
 assert(normalizeKadForComparison('01') === '01', 'normalizeKadForComparison leaves short prefixes (e.g. "01") untouched')
 assert(normalizeKadForComparison('01630104') === '01630104', 'normalizeKadForComparison is a no-op on an already-canonical 8-digit code')
+
+// Real bug reproduction: a program with excludedKadRules configured but NO
+// eligible-ΚΑΔ list (kadRules left empty, "Όλοι οι ΚΑΔ επιλέξιμοι" unchecked)
+// must still enforce the exclusion — it must not silently skip ΚΑΔ checking
+// just because the eligible list is empty.
+{
+  const emptyEligibleProgram = {
+    kadRules: [],
+    excludedKadRules: ['01', '03'],
+    excludedKadExceptions: ['1630103', '1630104'],
+  }
+  assert(hasActiveKadCriterion(emptyEligibleProgram) === true, 'A program with only excludedKadRules (empty kadRules) has an active ΚΑΔ criterion')
+  assert(
+    evaluateKadCriterion(['1471101'], emptyEligibleProgram).pass === false,
+    'ΚΑΔ 1471101 (poultry farming, under excluded prefix 01) is rejected even when kadRules is empty'
+  )
+  assert(
+    evaluateKadCriterion(['1630104'], emptyEligibleProgram).pass === true,
+    'ΚΑΔ 1630104 still passes via the exception even when kadRules is empty'
+  )
+  assert(
+    evaluateKadCriterion(['47111001'], emptyEligibleProgram).pass === true,
+    'A non-excluded ΚΑΔ passes when kadRules is empty (empty eligible list = no restriction from that side)'
+  )
+
+  const noKadCriteriaAtAll = { kadRules: [], excludedKadRules: [], excludedKadExceptions: [] }
+  assert(hasActiveKadCriterion(noKadCriteriaAtAll) === false, 'A program with no ΚΑΔ configuration at all has no active ΚΑΔ criterion (unchanged)')
+}
 
 if (failures > 0) {
   console.error(`\n${failures} test(s) failed.`)
