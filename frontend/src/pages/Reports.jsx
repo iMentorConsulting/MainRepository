@@ -5,6 +5,7 @@ import {
   LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine,
 } from 'recharts'
 import { format, startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
+import toast from 'react-hot-toast'
 
 const CHANNEL_COLORS_PIE = {
   booking: '#003580', airbnb: '#FF5A5F', direct: '#10B981',
@@ -68,8 +69,10 @@ export default function Reports() {
     setOwnerSending(true)
     try {
       await sendOwnerReport(selectedOwner, ownerYear, ownerMonth)
-      alert('Email εστάλη!')
-    } catch { alert('Σφάλμα αποστολής') } finally { setOwnerSending(false) }
+      toast.success('Αναφορά στάλθηκε!')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής email', { duration: 6000 })
+    } finally { setOwnerSending(false) }
   }
 
   function fmtEurO(n) {
