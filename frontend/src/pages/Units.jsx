@@ -80,16 +80,16 @@ function UnitModal({ unit, onClose, onSaved }) {
 
           {/* iCal section */}
           <div className="border-t border-gray-100 pt-4">
-            <label className="label">Booking.com iCal URL (προαιρετικό)</label>
+            <label className="label">iCal URL Πλατφόρμας (Airbnb, Booking.com, VRBO κλπ)</label>
             <input
               className="input text-xs"
               type="url"
               value={form.ical_url}
               onChange={(e) => set('ical_url', e.target.value)}
-              placeholder="https://admin.booking.com/hotel/hoteladmin/ical.html?..."
+              placeholder="https://www.airbnb.com/calendar/ical/... ή https://admin.booking.com/..."
             />
             <p className="text-xs text-gray-400 mt-1">
-              Booking.com → Κρατήσεις → Εξαγωγή κρατήσεων → Αντιγραφή iCal συνδέσμου
+              Airbnb: Αγγελία → Διαθεσιμότητα → Συγχρονισμός ημερολογίου → Εξαγωγή iCal
             </p>
           </div>
 
@@ -212,7 +212,12 @@ export default function Units() {
               )}
               {u.ical_url && (
                 <div className="mt-3 pt-3 border-t border-gray-100 flex items-center justify-between">
-                  <span className="text-xs text-blue-600 font-medium">📅 Booking.com iCal</span>
+                  <span className="text-xs text-blue-600 font-medium">📅 {
+                    u.ical_url.includes('airbnb') ? 'Airbnb iCal' :
+                    u.ical_url.includes('booking.com') ? 'Booking.com iCal' :
+                    u.ical_url.includes('vrbo') || u.ical_url.includes('homeaway') ? 'VRBO iCal' :
+                    'iCal Sync'
+                  }</span>
                   <button
                     onClick={() => handleSyncUnit(u)}
                     disabled={syncingUnit === u.id}
