@@ -42,6 +42,7 @@ export const deleteUnit = (id) => api.delete(`/units/${id}`)
 
 // Customers
 export const getCustomers = (params) => api.get('/customers/', { params })
+export const getCustomerBookings = (id) => api.get(`/customers/${id}/bookings`)
 export const createCustomer = (data) => api.post('/customers/', data)
 export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data)
 export const deleteCustomer = (id) => api.delete(`/customers/${id}`)

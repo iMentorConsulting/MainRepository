@@ -17,6 +17,7 @@ const navGroups = [
       { to: '/bookings', label: 'Κρατήσεις', Icon: BookmarkSquareIcon },
       { to: '/customers', label: 'Πελάτες', Icon: UsersIcon },
       { to: '/availability', label: 'Availability', Icon: CalendarIcon, desktopOnly: true },
+      { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon, desktopOnly: true },
     ],
   },
   {
@@ -39,7 +40,6 @@ const navGroups = [
   {
     label: 'Ρυθμίσεις',
     items: [
-      { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon, desktopOnly: true },
       { to: '/sync', label: 'Sync Πλατφορμών', Icon: ArrowsRightLeftIcon, desktopOnly: true },
       { to: '/widget-admin', label: 'Availability Widget', Icon: CodeBracketIcon, desktopOnly: true },
       { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
