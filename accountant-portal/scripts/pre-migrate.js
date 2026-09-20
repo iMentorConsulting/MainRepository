@@ -34,6 +34,35 @@ async function main() {
     console.log(`  Migrated ${dypa} DYPA_OAED → DYPA`)
   } catch (e) { console.log('  DYPA_OAED migration skip:', e.message) }
 
+  // AADE doesn't report a legal form for sole proprietors (φυσικά πρόσωπα) —
+  // legal_status_descr comes back empty even for real, active businesses.
+  // normalizeLegalForm() treats an empty value as ΙΔΙΩΤΗΣ (private
+  // individual), which wrongly misclassifies a genuine ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ
+  // that has real registered ΚΑΔ activity. Backfill those existing rows —
+  // safe/idempotent: only touches rows with empty legalStatusDescr AND at
+  // least one real activity, leaving true zero-activity/test entries alone
+  // (those legitimately stay ΙΔΙΩΤΗΣ via the normalizeLegalForm fallback).
+  try {
+    const businesses = await prisma.$executeRawUnsafe(`
+      UPDATE "Business" b
+      SET "legalStatusDescr" = 'ΑΤΟΜΙΚΗ'
+      WHERE (b."legalStatusDescr" IS NULL OR b."legalStatusDescr" = '')
+        AND EXISTS (SELECT 1 FROM "BusinessActivity" a WHERE a."businessId" = b.id)
+    `)
+    console.log(`  Backfilled ΑΤΟΜΙΚΗ legal form on ${businesses} Business rows`)
+  } catch (e) { console.log('  Business ΑΤΟΜΙΚΗ backfill skip:', e.message) }
+
+  try {
+    const gemiLookups = await prisma.$executeRawUnsafe(`
+      UPDATE "GemiLookup"
+      SET "legalStatusDescr" = 'ΑΤΟΜΙΚΗ'
+      WHERE ("legalStatusDescr" IS NULL OR "legalStatusDescr" = '')
+        AND jsonb_typeof(activities) = 'array'
+        AND jsonb_array_length(activities) > 0
+    `)
+    console.log(`  Backfilled ΑΤΟΜΙΚΗ legal form on ${gemiLookups} GemiLookup rows`)
+  } catch (e) { console.log('  GemiLookup ΑΤΟΜΙΚΗ backfill skip:', e.message) }
+
   console.log('>>> Pre-migration done.')
 }
 

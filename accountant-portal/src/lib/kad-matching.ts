@@ -36,7 +36,24 @@ export function normalizeKadForComparison(raw: string): string {
 // normalization); a plain rule is treated as a prefix.
 function ruleMatches(activityCode: string, rule: string): boolean {
   const cleanRule = normalizeKadLegacy(rule.trim())
-  return cleanRule.includes('.') ? activityCode === cleanRule : activityCode.startsWith(cleanRule)
+  if (cleanRule.includes('.')) return activityCode === cleanRule
+
+  if (activityCode.startsWith(cleanRule)) return true
+
+  // AADE drops the leading zero for sector 01-09 ΚΑΔ codes it returns
+  // (normalizeKadLegacy restores it, but only for a FULL, exactly-7-digit
+  // code — see its comment). Admins sometimes enter SHORT prefix rules
+  // copy-pasted from an official list published in that same abbreviated
+  // form — e.g. "12611" meaning the sector-01 prefix "01.26.11", not a
+  // literal sector-12 prefix. A padded business activity code only ever
+  // starts with "0" for sectors 01-09 (see normalizeKadLegacy), so trying
+  // this extra candidate is safe: it can never accidentally match a real
+  // sector-10-and-up business — only a genuinely zero-dropped rule.
+  if (!cleanRule.startsWith('0') && cleanRule.length < 8) {
+    return activityCode.startsWith('0' + cleanRule)
+  }
+
+  return false
 }
 
 export interface KadCriterionProgram {

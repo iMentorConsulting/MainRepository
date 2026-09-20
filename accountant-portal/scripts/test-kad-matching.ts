@@ -133,6 +133,40 @@ assert(normalizeKadForComparison('01630104') === '01630104', 'normalizeKadForCom
   assert(hasActiveKadCriterion(noKadCriteriaAtAll) === false, 'A program with no ΚΑΔ configuration at all has no active ΚΑΔ criterion (unchanged)')
 }
 
+// Real bug reproduction: a short excludedKadRules prefix copy-pasted from an
+// official list in AADE's zero-dropped shorthand (e.g. "12611" meaning
+// sector-01 prefix "01.26.11") must still exclude the matching business —
+// ΣΤΕΦΑΝΗ ΣΤΑΥΡΟΥΛΑ, ΚΑΔ 1261100 (ΚΑΛΛΙΕΡΓΕΙΑ ΕΠΙΤΡΑΠΕΖΙΩΝ ΕΛΙΩΝ, official
+// code 01.26.11.00), should have been rejected by an excluded-ΚΑΔ rule
+// "12611" but wasn't, because the rule was compared literally against the
+// zero-padded business code ("01261100") without restoring ITS leading zero.
+{
+  const dypaProgram = {
+    kadRules: ['*'],
+    excludedKadRules: ['11111', '12611', '1112001'],
+    excludedKadExceptions: [],
+  }
+  assert(
+    evaluateKadCriterion(['1261100'], dypaProgram).pass === false,
+    'ΚΑΔ 1261100 is rejected by the short excluded-ΚΑΔ prefix "12611" (zero-dropped sector 01)'
+  )
+  assert(
+    evaluateKadCriterion(['01261100'], dypaProgram).pass === false,
+    'The same exclusion works when the business code already has its leading zero'
+  )
+  // A legit non-01/03 short prefix rule must still behave normally and must
+  // NOT be affected by the zero-padding fallback.
+  const retailProgram = { kadRules: ['*'], excludedKadRules: ['47'], excludedKadExceptions: [] }
+  assert(
+    evaluateKadCriterion(['47111001'], retailProgram).pass === false,
+    'A genuine 2-digit sector exclusion ("47", retail trade) still works unaffected'
+  )
+  assert(
+    evaluateKadCriterion(['10110000'], retailProgram).pass === true,
+    'A business outside the "47" exclusion still passes (no false positive from the zero-padding fallback)'
+  )
+}
+
 if (failures > 0) {
   console.error(`\n${failures} test(s) failed.`)
   process.exit(1)
