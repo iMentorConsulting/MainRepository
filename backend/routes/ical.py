@@ -1,5 +1,5 @@
 import secrets
-from datetime import date
+from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
@@ -129,31 +129,31 @@ def sync_unit(unit_id: int, db: Session = Depends(get_db), tenant: str = Depends
 # ── iCal Export (public feed) ─────────────────────────────────────────────────
 
 def _build_ical(unit: Unit, bookings) -> str:
+    now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = [
         "BEGIN:VCALENDAR",
         "VERSION:2.0",
-        "PRODID:-//VillaBooking//EN",
+        "PRODID:-//iStay//Booking Calendar//EN",
         "CALSCALE:GREGORIAN",
         "METHOD:PUBLISH",
         f"X-WR-CALNAME:{unit.name}",
-        "X-WR-CALDESC:Booking calendar exported by VillaBooking",
     ]
     for b in bookings:
         dtstart = b.check_in.strftime("%Y%m%d")
         dtend = b.check_out.strftime("%Y%m%d")
-        uid = b.ical_uid or f"booking-{b.id}@villabooking"
-        summary = f"RESERVED - {unit.name}"
+        uid = b.ical_uid or f"booking-{b.id}@istay.villabooking"
         lines += [
             "BEGIN:VEVENT",
             f"UID:{uid}",
+            f"DTSTAMP:{now}",
             f"DTSTART;VALUE=DATE:{dtstart}",
             f"DTEND;VALUE=DATE:{dtend}",
-            f"SUMMARY:{summary}",
-            f"STATUS:CONFIRMED",
+            "SUMMARY:RESERVED",
+            "STATUS:CONFIRMED",
             "END:VEVENT",
         ]
     lines.append("END:VCALENDAR")
-    return "\r\n".join(lines)
+    return "\r\n".join(lines) + "\r\n"
 
 
 @router.get("/feed/{token}", response_class=PlainTextResponse, include_in_schema=False)
@@ -174,8 +174,7 @@ def ical_feed(token: str, db: Session = Depends(get_db)):
         .all()
     )
     ical_text = _build_ical(unit, bookings)
-    return PlainTextResponse(content=ical_text, media_type="text/calendar; charset=utf-8",
-                             headers={"Content-Disposition": f'attachment; filename="{unit.name}.ics"'})
+    return PlainTextResponse(content=ical_text, media_type="text/calendar; charset=utf-8")
 
 
 @router.get("/export-url/{unit_id}")
