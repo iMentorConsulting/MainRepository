@@ -104,11 +104,13 @@ function CustomerModal({ customer, onClose, onSaved }) {
                       <span className="font-medium text-gray-700">{b.unit_name}</span>
                     </div>
                     <div className="flex gap-3 text-gray-500 flex-wrap">
-                      <span>📅 {b.check_in} · {b.nights} νύχτες</span>
+                      <span>📅 {b.check_in} → {b.check_out} ({b.nights}ν)</span>
                       <span>👥 {b.guests} {b.guests === 1 ? 'άτομο' : 'άτομα'}</span>
-                      {b.total_price > 0 && <span>💰 €{b.total_price.toLocaleString('el-GR', {minimumFractionDigits:2})}</span>}
+                      <span>💰 €{b.total_price.toLocaleString('el-GR', {minimumFractionDigits:2})}</span>
                     </div>
-                    {b.notes && <p className="text-blue-600 font-medium">{b.notes}</p>}
+                    <p className={b.notes ? 'text-blue-600 font-medium' : 'text-gray-300'}>
+                      🔖 {b.notes || 'Κωδ. κράτησης: —'}
+                    </p>
                   </div>
                 ))}
               </div>
