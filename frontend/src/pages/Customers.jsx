@@ -94,17 +94,21 @@ function CustomerModal({ customer, onClose, onSaved }) {
           {bookings.length > 0 && (
             <div className="border border-gray-200 rounded-xl overflow-hidden">
               <p className="text-xs font-semibold text-gray-500 px-3 py-2 bg-gray-50 border-b">Κρατήσεις ({bookings.length})</p>
-              <div className="divide-y divide-gray-100 max-h-40 overflow-y-auto">
+              <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto">
                 {bookings.map(b => (
-                  <div key={b.id} className="px-3 py-2 flex items-start justify-between gap-2 text-xs">
+                  <div key={b.id} className="px-3 py-2.5 space-y-1 text-xs">
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${CH_COLORS[b.channel] || 'bg-gray-100 text-gray-600'}`}>
                         {CH_LABELS[b.channel] || b.channel}
                       </span>
-                      <span className="text-gray-600">{b.unit_name}</span>
-                      <span className="text-gray-400">{b.check_in} · {b.nights}ν</span>
+                      <span className="font-medium text-gray-700">{b.unit_name}</span>
                     </div>
-                    {b.notes && <span className="text-gray-400 text-[10px] shrink-0">{b.notes}</span>}
+                    <div className="flex gap-3 text-gray-500 flex-wrap">
+                      <span>📅 {b.check_in} · {b.nights} νύχτες</span>
+                      <span>👥 {b.guests} {b.guests === 1 ? 'άτομο' : 'άτομα'}</span>
+                      {b.total_price > 0 && <span>💰 €{b.total_price.toLocaleString('el-GR', {minimumFractionDigits:2})}</span>}
+                    </div>
+                    {b.notes && <p className="text-blue-600 font-medium">{b.notes}</p>}
                   </div>
                 ))}
               </div>

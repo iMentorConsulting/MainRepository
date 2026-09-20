@@ -81,6 +81,8 @@ def get_customer_bookings(customer_id: int, db: Session = Depends(get_db), tenan
             "check_in": b.check_in.isoformat(),
             "check_out": b.check_out.isoformat(),
             "nights": (b.check_out - b.check_in).days,
+            "guests": b.guests or 1,
+            "total_price": round(b.total_price or 0, 2),
             "notes": b.notes or "",
             "status": b.status,
         }
