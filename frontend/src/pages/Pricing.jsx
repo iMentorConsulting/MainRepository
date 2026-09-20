@@ -14,7 +14,7 @@ const SEASON_COLORS = [
   'bg-red-100 text-red-800 border-red-200',
 ]
 
-const UNIT_TYPES = ['Villa', 'Apartment', 'Studio', 'Room', 'Suite', 'Bungalow']
+const UNIT_TYPES = ['villa', 'apartment', 'studio', 'room', 'suite', 'bungalow']
 
 const EMPTY_RATE = {
   name: '', unit_id: null, unit_type: '', date_from: '', date_to: '',

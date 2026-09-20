@@ -39,7 +39,7 @@ def get_applicable_discounts(unit_id: int, unit_type: str, check_in: date, check
     for d in all_discounts:
         if d.unit_id and d.unit_id != unit_id:
             continue
-        if d.unit_type and d.unit_type != unit_type:
+        if d.unit_type and d.unit_type.lower() != (unit_type or '').lower():
             continue
         if d.date_from and check_in < d.date_from:
             continue
