@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { getPricingRates, createPricingRate, updatePricingRate, deletePricingRate, checkPrice, getUnits } from '../api'
-import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
+import { getPricingRates, createPricingRate, updatePricingRate, deletePricingRate, checkPrice, getUnits, getDiscounts, createDiscount, updateDiscount, deleteDiscount } from '../api'
+import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, MagnifyingGlassIcon, TagIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const SEASON_COLORS = [
@@ -230,25 +230,207 @@ function PriceChecker({ units }) {
   )
 }
 
+// ── Discount helpers ──────────────────────────────────────────────────────────
+const CONDITION_TYPES = [
+  { value: 'none', label: 'Χωρίς συνθήκη (πάντα ενεργή)' },
+  { value: 'early_booking', label: 'Έγκαιρη Κράτηση (X+ ημέρες πριν)' },
+  { value: 'long_stay', label: 'Μακρόχρονη Διαμονή (X+ νύχτες)' },
+  { value: 'last_minute', label: 'Last Minute (εντός X ημερών)' },
+  { value: 'promo', label: 'Προωθητική (χωρίς αυτόματη συνθήκη)' },
+]
+
+const CONDITION_LABELS = {
+  none: '',
+  early_booking: 'ημέρες νωρίτερα',
+  long_stay: 'νύχτες ελάχιστο',
+  last_minute: 'ημέρες πριν άφιξη',
+  promo: '',
+}
+
+const EMPTY_DISCOUNT = {
+  name: '', discount_type: 'percent', value: '', condition_type: 'none',
+  condition_value: '', unit_id: null, unit_type: '', date_from: '', date_to: '',
+  is_active: true, notes: '',
+}
+
+function DiscountModal({ discount, units, onClose, onSaved }) {
+  const [form, setForm] = useState(discount ? { ...discount, value: discount.value, condition_value: discount.condition_value ?? '' } : { ...EMPTY_DISCOUNT })
+  const [scope, setScope] = useState(discount?.unit_id ? 'unit' : discount?.unit_type ? 'type' : 'all')
+  const [saving, setSaving] = useState(false)
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const handleScopeChange = (v) => {
+    setScope(v)
+    if (v !== 'unit') setForm(f => ({ ...f, unit_id: null }))
+    if (v !== 'type') setForm(f => ({ ...f, unit_type: '' }))
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+    if (!form.name) return toast.error('Συμπληρώστε όνομα')
+    if (!form.value) return toast.error('Συμπληρώστε ποσό έκπτωσης')
+    setSaving(true)
+    try {
+      const payload = {
+        ...form,
+        value: parseFloat(form.value),
+        condition_value: form.condition_value ? parseInt(form.condition_value) : null,
+        unit_id: form.unit_id ? Number(form.unit_id) : null,
+        unit_type: form.unit_type || null,
+        date_from: form.date_from || null,
+        date_to: form.date_to || null,
+      }
+      if (discount?.id) await updateDiscount(discount.id, payload)
+      else await createDiscount(payload)
+      toast.success('Αποθηκεύτηκε')
+      onSaved()
+    } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+  }
+
+  const needsConditionValue = ['early_booking', 'long_stay', 'last_minute'].includes(form.condition_type)
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-0 md:p-4">
+      <div className="bg-white w-full md:max-w-lg rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10">
+          <h3 className="font-bold text-gray-800">{discount?.id ? 'Επεξεργασία Έκπτωσης' : 'Νέα Έκπτωση'}</h3>
+          <button onClick={onClose} aria-label="Κλείσιμο"><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+        </div>
+        <form onSubmit={handleSubmit} className="p-5 space-y-4">
+          <div>
+            <label className="label">Όνομα Έκπτωσης *</label>
+            <input className="input" placeholder="π.χ. Έγκαιρη Κράτηση 10%, Last Minute"
+              value={form.name} onChange={e => set('name', e.target.value)} required />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Τύπος Έκπτωσης *</label>
+              <div className="flex gap-2 mt-1">
+                {[['percent', '%'], ['fixed', '€']].map(([v, l]) => (
+                  <button key={v} type="button"
+                    className={`flex-1 py-2 rounded-lg border text-sm font-semibold transition-colors ${form.discount_type === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'}`}
+                    onClick={() => set('discount_type', v)}>{l} {v === 'percent' ? 'Ποσοστό' : 'Σταθερό'}</button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="label">Αξία *</label>
+              <div className="relative">
+                <input className="input pr-8" type="number" min="0" step="0.5"
+                  placeholder={form.discount_type === 'percent' ? '10' : '20'}
+                  value={form.value} onChange={e => set('value', e.target.value)} required />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium">
+                  {form.discount_type === 'percent' ? '%' : '€'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Συνθήκη Εφαρμογής</label>
+            <select className="input" value={form.condition_type} onChange={e => set('condition_type', e.target.value)}>
+              {CONDITION_TYPES.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+            </select>
+          </div>
+
+          {needsConditionValue && (
+            <div>
+              <label className="label">Τιμή Συνθήκης ({CONDITION_LABELS[form.condition_type]})</label>
+              <input className="input" type="number" min="1"
+                placeholder={form.condition_type === 'early_booking' ? '30' : form.condition_type === 'long_stay' ? '7' : '3'}
+                value={form.condition_value} onChange={e => set('condition_value', e.target.value)} />
+            </div>
+          )}
+
+          <div>
+            <label className="label">Εφαρμογή σε</label>
+            <div className="flex gap-2 mt-1">
+              {[['all', 'Όλες'], ['type', 'Τύπο'], ['unit', 'Μονάδα']].map(([v, l]) => (
+                <button key={v} type="button"
+                  className={`flex-1 py-1.5 rounded-lg border text-sm font-medium transition-colors ${scope === v ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-200 hover:border-blue-400'}`}
+                  onClick={() => handleScopeChange(v)}>{l}</button>
+              ))}
+            </div>
+          </div>
+
+          {scope === 'type' && (
+            <div>
+              <label className="label">Τύπος Μονάδας</label>
+              <select className="input" value={form.unit_type} onChange={e => set('unit_type', e.target.value)}>
+                <option value="">Επιλέξτε τύπο</option>
+                {UNIT_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+          )}
+
+          {scope === 'unit' && (
+            <div>
+              <label className="label">Μονάδα</label>
+              <select className="input" value={form.unit_id || ''} onChange={e => set('unit_id', e.target.value ? Number(e.target.value) : null)}>
+                <option value="">Επιλέξτε μονάδα</option>
+                {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="label">Ισχύει από</label>
+              <input className="input" type="date" value={form.date_from} onChange={e => set('date_from', e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Ισχύει έως</label>
+              <input className="input" type="date" value={form.date_to} onChange={e => set('date_to', e.target.value)} />
+            </div>
+          </div>
+
+          <div>
+            <label className="label">Σημειώσεις</label>
+            <textarea className="input resize-none" rows={2} value={form.notes} onChange={e => set('notes', e.target.value)} />
+          </div>
+
+          <div className="flex items-center gap-2">
+            <input type="checkbox" id="disc-active" checked={form.is_active} onChange={e => set('is_active', e.target.checked)} className="h-4 w-4" />
+            <label htmlFor="disc-active" className="text-sm text-gray-700">Ενεργή έκπτωση</label>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button type="button" onClick={onClose} className="flex-1 py-2 rounded-lg border border-gray-200 text-gray-600 hover:bg-gray-50 text-sm font-medium">Ακύρωση</button>
+            <button type="submit" disabled={saving} className="flex-1 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Αποθήκευση…' : 'Αποθήκευση'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 export default function Pricing() {
   const currentYear = new Date().getFullYear()
   const [rates, setRates] = useState([])
   const [units, setUnits] = useState([])
+  const [discounts, setDiscounts] = useState([])
   const [loading, setLoading] = useState(true)
   const [year, setYear] = useState(currentYear)
   const [filterUnit, setFilterUnit] = useState('')
   const [modal, setModal] = useState(null)
+  const [discountModal, setDiscountModal] = useState(null)
+  const [activeTab, setActiveTab] = useState('rates')
 
   const load = async () => {
     setLoading(true)
     try {
-      const [ratesRes, unitsRes] = await Promise.all([
+      const [ratesRes, unitsRes, discountsRes] = await Promise.all([
         getPricingRates({ year, ...(filterUnit ? { unit_id: filterUnit } : {}) }),
         getUnits(),
+        getDiscounts(),
       ])
       setRates(ratesRes.data)
       setUnits(unitsRes.data.filter(u => u.is_active !== false))
+      setDiscounts(discountsRes.data)
     } catch { toast.error('Αποτυχία φόρτωσης') } finally { setLoading(false) }
   }
 
@@ -258,6 +440,15 @@ export default function Pricing() {
     if (!confirm('Διαγραφή τιμολογιακής περιόδου;')) return
     try {
       await deletePricingRate(id)
+      toast.success('Διαγράφηκε')
+      load()
+    } catch { toast.error('Σφάλμα') }
+  }
+
+  const handleDeleteDiscount = async (id) => {
+    if (!confirm('Διαγραφή έκπτωσης;')) return
+    try {
+      await deleteDiscount(id)
       toast.success('Διαγράφηκε')
       load()
     } catch { toast.error('Σφάλμα') }
@@ -284,105 +475,198 @@ export default function Pricing() {
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">Τιμολόγηση</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Εποχιακές τιμές ανά μονάδα ή τύπο</p>
+          <p className="text-sm text-gray-500 mt-0.5">Εποχιακές τιμές & εκπτώσεις ανά μονάδα ή τύπο</p>
         </div>
-        <button onClick={() => setModal({})}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-sm">
-          <PlusIcon className="h-4 w-4" /> Νέα Περίοδος
+        {activeTab === 'rates' ? (
+          <button onClick={() => setModal({})}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-sm">
+            <PlusIcon className="h-4 w-4" /> Νέα Περίοδος
+          </button>
+        ) : (
+          <button onClick={() => setDiscountModal({})}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-sm">
+            <PlusIcon className="h-4 w-4" /> Νέα Έκπτωση
+          </button>
+        )}
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1 w-fit">
+        <button onClick={() => setActiveTab('rates')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'rates' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+          Τιμολογιακές Περίοδοι
+        </button>
+        <button onClick={() => setActiveTab('discounts')}
+          className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'discounts' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+          <TagIcon className="h-4 w-4" />
+          Εκπτώσεις
+          {discounts.length > 0 && (
+            <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${activeTab === 'discounts' ? 'bg-blue-100 text-blue-700' : 'bg-gray-200 text-gray-600'}`}>
+              {discounts.length}
+            </span>
+          )}
         </button>
       </div>
 
-      {/* Price Checker */}
-      <PriceChecker units={units} />
+      {activeTab === 'rates' && (
+        <>
+          {/* Price Checker */}
+          <PriceChecker units={units} />
 
-      {/* Filters */}
-      <div className="flex flex-wrap gap-3 items-center">
-        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
-          {years.map(y => (
-            <button key={y} onClick={() => setYear(y)}
-              className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${year === y ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
-              {y}
-            </button>
-          ))}
-        </div>
-        <select className="input py-1.5 text-sm w-auto" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
-          <option value="">Όλες οι μονάδες</option>
-          {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-        </select>
-        <span className="text-sm text-gray-500">{rates.length} περίοδοι</span>
-      </div>
+          {/* Filters */}
+          <div className="flex flex-wrap gap-3 items-center">
+            <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+              {years.map(y => (
+                <button key={y} onClick={() => setYear(y)}
+                  className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${year === y ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+                  {y}
+                </button>
+              ))}
+            </div>
+            <select className="input py-1.5 text-sm w-auto" value={filterUnit} onChange={e => setFilterUnit(e.target.value)}>
+              <option value="">Όλες οι μονάδες</option>
+              {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+            </select>
+            <span className="text-sm text-gray-500">{rates.length} περίοδοι</span>
+          </div>
 
-      {/* Overlap warning */}
-      {overlapping.size > 0 && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
-          ⚠ Εντοπίστηκαν <strong>{overlapping.size / 2} αλληλεπικαλυπτόμενες</strong> περίοδοι για την ίδια μονάδα/τύπο. Ελέγξτε τα επισημασμένα.
-        </div>
+          {/* Overlap warning */}
+          {overlapping.size > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+              ⚠ Εντοπίστηκαν <strong>{overlapping.size / 2} αλληλεπικαλυπτόμενες</strong> περίοδοι για την ίδια μονάδα/τύπο. Ελέγξτε τα επισημασμένα.
+            </div>
+          )}
+
+          {/* Rates list */}
+          {loading ? (
+            <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" /></div>
+          ) : rates.length === 0 ? (
+            <div className="text-center py-20 text-gray-400">
+              <p className="text-4xl mb-3">🏷️</p>
+              <p className="font-medium">Δεν υπάρχουν τιμολογιακές περίοδοι για {year}</p>
+              <p className="text-sm mt-1">Προσθέστε εποχιακές τιμές με το κουμπί "Νέα Περίοδος"</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {rates.map((r, idx) => {
+                const color = SEASON_COLORS[idx % SEASON_COLORS.length]
+                const nights = nightsDiff(r.date_from, r.date_to)
+                const overlap = overlapping.has(r.id)
+                return (
+                  <div key={r.id}
+                    className={`bg-white rounded-2xl border p-4 flex flex-col md:flex-row md:items-center gap-3 transition-all ${overlap ? 'border-amber-400 shadow-amber-100 shadow-md' : 'border-gray-200 hover:border-blue-200 hover:shadow-sm'}`}>
+
+                    <div className="flex-1 flex items-start gap-3">
+                      <div className={`mt-0.5 px-2.5 py-1 rounded-lg border text-xs font-bold flex-shrink-0 ${color}`}>
+                        {r.date_from.slice(0, 4)}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-800">{r.name}</span>
+                          {overlap && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">⚠ Επικάλυψη</span>}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-0.5 flex items-center flex-wrap gap-x-3 gap-y-0.5">
+                          <span>{dateFmt(r.date_from)} → {dateFmt(r.date_to)}</span>
+                          <span className="text-gray-300">|</span>
+                          <span>{nights} ημέρες</span>
+                          <span className="text-gray-300">|</span>
+                          <span>{r.unit_id ? r.unit_name : r.unit_type ? `Τύπος: ${r.unit_type}` : 'Όλες οι μονάδες'}</span>
+                          {r.min_stay > 1 && <><span className="text-gray-300">|</span><span>Min stay: {r.min_stay}N</span></>}
+                        </div>
+                        {r.notes && <div className="text-xs text-gray-400 mt-1 italic">{r.notes}</div>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-4 md:gap-6 justify-between md:justify-end">
+                      <div className="text-right">
+                        <div className="text-xl font-bold text-blue-700">{fmt(r.price_per_night)}</div>
+                        <div className="text-xs text-gray-400">ανά νύχτα</div>
+                      </div>
+                      <div className="flex gap-1">
+                        <button onClick={() => setModal(r)}
+                          className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors">
+                          <PencilSquareIcon className="h-4 w-4" />
+                        </button>
+                        <button onClick={() => handleDelete(r.id)}
+                          className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                          <TrashIcon className="h-4 w-4" />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
-      {/* Rates list */}
-      {loading ? (
-        <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" /></div>
-      ) : rates.length === 0 ? (
-        <div className="text-center py-20 text-gray-400">
-          <p className="text-4xl mb-3">🏷️</p>
-          <p className="font-medium">Δεν υπάρχουν τιμολογιακές περίοδοι για {year}</p>
-          <p className="text-sm mt-1">Προσθέστε εποχιακές τιμές με το κουμπί "Νέα Περίοδος"</p>
-        </div>
-      ) : (
-        <div className="grid gap-3">
-          {rates.map((r, idx) => {
-            const color = SEASON_COLORS[idx % SEASON_COLORS.length]
-            const nights = nightsDiff(r.date_from, r.date_to)
-            const overlap = overlapping.has(r.id)
-            return (
-              <div key={r.id}
-                className={`bg-white rounded-2xl border p-4 flex flex-col md:flex-row md:items-center gap-3 transition-all ${overlap ? 'border-amber-400 shadow-amber-100 shadow-md' : 'border-gray-200 hover:border-blue-200 hover:shadow-sm'}`}>
+      {activeTab === 'discounts' && (
+        <>
+          {/* Info box */}
+          <div className="bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+            <p className="font-semibold mb-1">Πώς λειτουργούν οι εκπτώσεις</p>
+            <ul className="list-disc list-inside space-y-0.5 text-blue-700 text-xs">
+              <li><strong>Έγκαιρη Κράτηση:</strong> εφαρμόζεται όταν η κράτηση γίνεται X+ ημέρες πριν την άφιξη</li>
+              <li><strong>Μακρόχρονη Διαμονή:</strong> εφαρμόζεται για X+ νύχτες</li>
+              <li><strong>Last Minute:</strong> εφαρμόζεται όταν η κράτηση γίνεται εντός X ημερών από την άφιξη</li>
+              <li><strong>Προωθητική:</strong> εφαρμόζεται χειροκίνητα (χωρίς αυτόματη συνθήκη)</li>
+            </ul>
+          </div>
 
-                {/* Color badge + name */}
-                <div className="flex-1 flex items-start gap-3">
-                  <div className={`mt-0.5 px-2.5 py-1 rounded-lg border text-xs font-bold flex-shrink-0 ${color}`}>
-                    {r.date_from.slice(0, 4)}
-                  </div>
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-800">{r.name}</span>
-                      {overlap && <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full border border-amber-200">⚠ Επικάλυψη</span>}
-                    </div>
-                    <div className="text-sm text-gray-500 mt-0.5 flex items-center flex-wrap gap-x-3 gap-y-0.5">
-                      <span>{dateFmt(r.date_from)} → {dateFmt(r.date_to)}</span>
-                      <span className="text-gray-300">|</span>
-                      <span>{nights} ημέρες</span>
-                      <span className="text-gray-300">|</span>
-                      <span>
-                        {r.unit_id ? r.unit_name : r.unit_type ? `Τύπος: ${r.unit_type}` : 'Όλες οι μονάδες'}
-                      </span>
-                      {r.min_stay > 1 && <><span className="text-gray-300">|</span><span>Min stay: {r.min_stay}N</span></>}
-                    </div>
-                    {r.notes && <div className="text-xs text-gray-400 mt-1 italic">{r.notes}</div>}
-                  </div>
-                </div>
+          {loading ? (
+            <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-600" /></div>
+          ) : discounts.length === 0 ? (
+            <div className="text-center py-20 text-gray-400">
+              <p className="text-4xl mb-3">🏷️</p>
+              <p className="font-medium">Δεν υπάρχουν εκπτώσεις ακόμα</p>
+              <p className="text-sm mt-1">Προσθέστε εκπτώσεις για έγκαιρη κράτηση, μακρόχρονη διαμονή κλπ.</p>
+            </div>
+          ) : (
+            <div className="grid gap-3">
+              {discounts.map(d => {
+                const condLabel = CONDITION_TYPES.find(c => c.value === d.condition_type)?.label || d.condition_type
+                return (
+                  <div key={d.id}
+                    className={`bg-white rounded-2xl border p-4 flex flex-col md:flex-row md:items-center gap-3 transition-all ${d.is_active ? 'border-gray-200 hover:border-blue-200 hover:shadow-sm' : 'border-gray-100 opacity-60'}`}>
 
-                {/* Price + actions */}
-                <div className="flex items-center gap-4 md:gap-6 justify-between md:justify-end">
-                  <div className="text-right">
-                    <div className="text-xl font-bold text-blue-700">{fmt(r.price_per_night)}</div>
-                    <div className="text-xs text-gray-400">ανά νύχτα</div>
+                    <div className="flex-1 flex items-start gap-3">
+                      <div className={`mt-0.5 px-3 py-1.5 rounded-lg text-sm font-bold flex-shrink-0 ${d.discount_type === 'percent' ? 'bg-green-100 text-green-800 border border-green-200' : 'bg-purple-100 text-purple-800 border border-purple-200'}`}>
+                        {d.discount_type === 'percent' ? `-${d.value}%` : `-€${d.value}`}
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-gray-800">{d.name}</span>
+                          {!d.is_active && <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Ανενεργή</span>}
+                        </div>
+                        <div className="text-sm text-gray-500 mt-0.5 flex items-center flex-wrap gap-x-3 gap-y-0.5">
+                          <span>{condLabel}{d.condition_value ? ` (${d.condition_value} ${CONDITION_LABELS[d.condition_type]})` : ''}</span>
+                          {(d.unit_id || d.unit_type) && (
+                            <><span className="text-gray-300">|</span>
+                            <span>{d.unit_id ? d.unit_name : `Τύπος: ${d.unit_type}`}</span></>
+                          )}
+                          {d.date_from && <><span className="text-gray-300">|</span><span>{dateFmt(d.date_from)} → {dateFmt(d.date_to)}</span></>}
+                        </div>
+                        {d.notes && <div className="text-xs text-gray-400 mt-1 italic">{d.notes}</div>}
+                      </div>
+                    </div>
+
+                    <div className="flex gap-1 md:ml-4 justify-end">
+                      <button onClick={() => setDiscountModal(d)}
+                        className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors">
+                        <PencilSquareIcon className="h-4 w-4" />
+                      </button>
+                      <button onClick={() => handleDeleteDiscount(d.id)}
+                        className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
+                        <TrashIcon className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex gap-1">
-                    <button onClick={() => setModal(r)}
-                      className="p-2 rounded-lg hover:bg-blue-50 text-gray-400 hover:text-blue-600 transition-colors">
-                      <PencilSquareIcon className="h-4 w-4" />
-                    </button>
-                    <button onClick={() => handleDelete(r.id)}
-                      className="p-2 rounded-lg hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors">
-                      <TrashIcon className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )
-          })}
-        </div>
+                )
+              })}
+            </div>
+          )}
+        </>
       )}
 
       {modal !== null && (
@@ -391,6 +675,15 @@ export default function Pricing() {
           units={units}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+        />
+      )}
+
+      {discountModal !== null && (
+        <DiscountModal
+          discount={discountModal?.id ? discountModal : null}
+          units={units}
+          onClose={() => setDiscountModal(null)}
+          onSaved={() => { setDiscountModal(null); load() }}
         />
       )}
     </div>

@@ -25,6 +25,7 @@ from routes.pricing import router as pricing_router
 from routes.widget import router as widget_router
 from routes.availability import router as availability_router
 from routes.loans import router as loans_router
+from routes.discounts import router as discounts_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -267,6 +268,30 @@ try:
     with engine.connect() as _bc:
         _bc.execute(_text_b("ALTER TABLE loans ADD COLUMN unit_id INTEGER REFERENCES units(id)"))
         _bc.execute(_text_b("ALTER TABLE loans ADD COLUMN unit_type VARCHAR(50)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS discounts (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                name VARCHAR(200) NOT NULL,
+                discount_type VARCHAR(20) NOT NULL DEFAULT 'percent',
+                value FLOAT NOT NULL DEFAULT 0.0,
+                condition_type VARCHAR(30) NOT NULL DEFAULT 'none',
+                condition_value INTEGER,
+                unit_id INTEGER REFERENCES units(id),
+                unit_type VARCHAR(50),
+                date_from DATE,
+                date_to DATE,
+                is_active BOOLEAN DEFAULT 1,
+                notes TEXT,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+            )
+        """))
         _bc.commit()
 except Exception:
     pass
@@ -766,6 +791,7 @@ app.include_router(pricing_router, prefix="/api")
 app.include_router(widget_router, prefix="/api/widget")
 app.include_router(availability_router, prefix="/api")
 app.include_router(loans_router, prefix="/api")
+app.include_router(discounts_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

@@ -132,6 +132,12 @@ export const updatePricingRate = (id, data) => api.put(`/pricing/rates/${id}`, d
 export const deletePricingRate = (id) => api.delete(`/pricing/rates/${id}`)
 export const checkPrice = (params) => api.get('/pricing/check', { params })
 
+// Discounts
+export const getDiscounts = () => api.get('/discounts/')
+export const createDiscount = (data) => api.post('/discounts/', data)
+export const updateDiscount = (id, data) => api.put(`/discounts/${id}`, data)
+export const deleteDiscount = (id) => api.delete(`/discounts/${id}`)
+
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')
 export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)

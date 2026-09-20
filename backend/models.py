@@ -337,6 +337,25 @@ class SeasonalRate(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class Discount(Base):
+    __tablename__ = "discounts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    discount_type = Column(String(20), nullable=False, default="percent")  # percent | fixed
+    value = Column(Float, nullable=False, default=0.0)
+    condition_type = Column(String(30), nullable=False, default="none")    # none | early_booking | long_stay | last_minute | promo
+    condition_value = Column(Integer, nullable=True)                        # days ahead / min nights / days before
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    unit_type = Column(String(50), nullable=True)
+    date_from = Column(Date, nullable=True)
+    date_to = Column(Date, nullable=True)
+    is_active = Column(Boolean, default=True)
+    notes = Column(Text)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class TenantSettings(Base):
     __tablename__ = "tenant_settings"
 
