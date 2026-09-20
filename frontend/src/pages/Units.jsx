@@ -166,7 +166,7 @@ export default function Units() {
               className="btn-secondary flex items-center gap-1 text-sm"
             >
               <ArrowPathIcon className={`h-4 w-4 ${syncing ? 'animate-spin' : ''}`} />
-              Sync Booking.com
+              Sync iCal
             </button>
           )}
           <button onClick={() => setModal('new')} className="btn-primary flex items-center gap-1">
