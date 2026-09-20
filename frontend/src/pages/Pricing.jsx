@@ -206,17 +206,32 @@ function PriceChecker({ units }) {
       {result && (
         <div className={`mt-4 p-4 rounded-xl border-2 ${result.rate ? 'border-green-200 bg-green-50' : 'border-gray-200 bg-gray-50'}`}>
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
+            <div className="flex-1">
               <div className="text-sm text-gray-600">
                 {result.rate ? (
                   <><span className="font-semibold text-green-700">{result.rate.name}</span> — {fmt(result.rate.price_per_night)}/νύχτα</>
-                ) : 'Δεν βρέθηκε ειδική τιμολογιακή περίοδος — χρησιμοποιείται βασική τιμή'}
+                ) : 'Βασική τιμή μονάδας (χωρίς ειδική περίοδο)'}
               </div>
               <div className="text-xs text-gray-500 mt-0.5">{result.nights} νύχτες</div>
+              {result.discounts && result.discounts.length > 0 && (
+                <div className="mt-2 space-y-1">
+                  {result.subtotal !== result.suggested_price && (
+                    <div className="text-xs text-gray-400">Υποσύνολο: {fmt(result.subtotal)}</div>
+                  )}
+                  {result.discounts.map(d => (
+                    <div key={d.id} className="text-xs text-green-700 font-medium flex items-center gap-1">
+                      🏷️ {d.name} — −{fmt(d.savings)}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <div className="text-right">
+              {result.total_savings > 0 && (
+                <div className="text-sm text-gray-400 line-through">{fmt(result.subtotal)}</div>
+              )}
               <div className="text-2xl font-bold text-gray-800">{fmt(result.suggested_price)}</div>
-              <div className="text-xs text-gray-500">Συνολικό κόστος</div>
+              <div className="text-xs text-gray-500">Τελικό κόστος</div>
             </div>
           </div>
           {result.rate?.min_stay > 1 && (

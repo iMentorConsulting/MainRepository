@@ -1,11 +1,11 @@
 import secrets
 from datetime import date, timedelta
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
 from auth_utils import get_tenant
 from models import Unit, Booking, BookingInquiry, Customer, GuestPortalSettings
-from routes.pricing import get_suggested_price
+from routes.pricing import get_suggested_price, _best_rate, get_applicable_discounts
 
 router = APIRouter()
 
@@ -41,6 +41,33 @@ def _booked_dates(unit_id: int, db: Session) -> list[str]:
 
 
 # ── Public widget endpoints (no auth) ─────────────────────────────────────────
+
+@router.get("/price/{token}")
+def widget_price(
+    token: str,
+    check_in: date = Query(...),
+    check_out: date = Query(...),
+    db: Session = Depends(get_db),
+):
+    unit = _get_unit_by_token(token, db)
+    if check_out <= check_in:
+        raise HTTPException(400, "check_out must be after check_in")
+    nights = (check_out - check_in).days
+    matched = _best_rate(unit.id, unit, check_in, unit.tenant, db)
+    price_per_night = matched.price_per_night if matched else unit.base_price
+    subtotal = round(price_per_night * nights, 2)
+    discounts = get_applicable_discounts(unit.id, unit.type, check_in, check_out, date.today(), unit.tenant, db, subtotal)
+    total_savings = sum(d["savings"] for d in discounts)
+    final_price = round(max(0, subtotal - total_savings), 2)
+    return {
+        "nights": nights,
+        "price_per_night": price_per_night,
+        "subtotal": subtotal,
+        "discounts": discounts,
+        "total_savings": round(total_savings, 2),
+        "final_price": final_price,
+    }
+
 
 @router.get("/info/{token}")
 def widget_info(token: str, db: Session = Depends(get_db)):
