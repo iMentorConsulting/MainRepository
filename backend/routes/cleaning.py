@@ -113,11 +113,19 @@ def daily_tasks(
             total_nights = (midstay.check_out - midstay.check_in).days
             day_of_stay = (date - midstay.check_in).days + 1
 
-            linen_due = cfg.linen_every_days > 0 and day_of_stay % cfg.linen_every_days == 0
+            days_until_checkout = total_nights - day_of_stay  # 0 = checkout tomorrow
+            is_last_day = days_until_checkout <= 0  # departure cleaning handles this
+
+            linen_due = (cfg.linen_every_days > 0
+                         and day_of_stay % cfg.linen_every_days == 0
+                         and not is_last_day)
             laundry_due = (cfg.laundry_on_day > 0
                            and day_of_stay == cfg.laundry_on_day
-                           and total_nights >= cfg.laundry_min_stay)
-            clean_due = cfg.clean_every_days > 0 and day_of_stay % cfg.clean_every_days == 0
+                           and total_nights >= cfg.laundry_min_stay
+                           and not is_last_day)
+            clean_due = (cfg.clean_every_days > 0
+                         and day_of_stay % cfg.clean_every_days == 0
+                         and not is_last_day)
 
             if linen_due:
                 task_type = "midstay_linen"
