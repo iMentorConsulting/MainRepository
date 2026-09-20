@@ -1,10 +1,11 @@
+import re
 import secrets
 from datetime import date, datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import PlainTextResponse
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Booking, Unit, Customer
+from models import Booking, Unit, Customer, AvailabilityRule
 from auth_utils import get_tenant
 import requests
 from icalendar import Calendar
@@ -12,6 +13,28 @@ from icalendar import Calendar
 router = APIRouter(prefix="/ical", tags=["ical"])
 
 SKIP_KEYWORDS = {'CLOSED', 'BLOCKED', 'NOT AVAILABLE', 'UNAVAILABLE', 'ΚΛΕΙΣΤΟ'}
+
+
+def _parse_description(desc: str) -> dict:
+    """Extract guests, phone, reservation_code from Airbnb DESCRIPTION field."""
+    info = {}
+    if not desc:
+        return info
+    # Number of Guests: 2
+    m = re.search(r'(?:Number of Guests|Guests)\s*:\s*(\d+)', desc, re.IGNORECASE)
+    if m:
+        info['guests'] = int(m.group(1))
+    # Phone Number: +30...  (Airbnb sometimes says HIDDEN)
+    m = re.search(r'Phone\s*(?:Number)?\s*:\s*([^\n\\]+)', desc, re.IGNORECASE)
+    if m:
+        phone = m.group(1).strip()
+        if phone.upper() != 'HIDDEN' and phone:
+            info['phone'] = phone
+    # Reservation code: HM12345678
+    m = re.search(r'Reservation\s*[Cc]ode\s*:\s*([A-Z0-9]+)', desc, re.IGNORECASE)
+    if m:
+        info['reservation_code'] = m.group(1).strip()
+    return info
 
 
 def _sync_unit(unit, db, tenant):
@@ -63,39 +86,59 @@ def _sync_unit(unit, db, tenant):
             Booking.ical_uid == uid,
         ).first()
 
+        desc_raw = str(component.get('DESCRIPTION', '') or '')
+        desc_info = _parse_description(desc_raw)
+
         if existing:
+            changed = False
             if existing.check_in != dtstart or existing.check_out != dtend:
                 existing.check_in = dtstart
                 existing.check_out = dtend
+                changed = True
+            if desc_info.get('guests') and existing.guests == 1:
+                existing.guests = desc_info['guests']
+                changed = True
+            if changed:
                 db.commit()
                 updated += 1
         else:
-            parts = summary.split(' ', 1) if summary and summary.lower() not in ('reservation', 'κράτηση') else []
-            first_name = parts[0] if parts else 'Booking.com'
+            # Derive guest name from summary
+            clean_summary = summary
+            for sfx in (' Guest', ' guest', ' Guests', ' guests'):
+                clean_summary = clean_summary.replace(sfx, '')
+            parts = clean_summary.split(' ', 1) if clean_summary and clean_summary.lower() not in ('reservation', 'κράτηση', '') else []
+            first_name = parts[0] if parts else 'Airbnb'
             last_name = parts[1] if len(parts) > 1 else 'Guest'
 
+            phone = desc_info.get('phone', '')
             customer = db.query(Customer).filter(
                 Customer.tenant == tenant,
                 Customer.first_name == first_name,
                 Customer.last_name == last_name,
             ).first()
             if not customer:
-                customer = Customer(tenant=tenant, first_name=first_name, last_name=last_name)
+                customer = Customer(tenant=tenant, first_name=first_name, last_name=last_name, phone=phone)
                 db.add(customer)
                 db.flush()
+            elif phone and not customer.phone:
+                customer.phone = phone
+
+            res_code = desc_info.get('reservation_code', '')
+            notes = f"Airbnb {res_code}".strip() if res_code else None
 
             db.add(Booking(
                 tenant=tenant,
                 unit_id=unit.id,
                 customer_id=customer.id,
-                channel='booking',
+                channel='Airbnb',
                 check_in=dtstart,
                 check_out=dtend,
-                guests=1,
+                guests=desc_info.get('guests', 1),
                 total_price=0.0,
                 commission=0.0,
                 status='confirmed',
                 ical_uid=uid,
+                notes=notes,
             ))
             db.commit()
             added += 1
@@ -128,7 +171,7 @@ def sync_unit(unit_id: int, db: Session = Depends(get_db), tenant: str = Depends
 
 # ── iCal Export (public feed) ─────────────────────────────────────────────────
 
-def _build_ical(unit: Unit, bookings) -> str:
+def _build_ical(unit: Unit, bookings, stop_rules=None) -> str:
     now = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     lines = [
         "BEGIN:VCALENDAR",
@@ -149,6 +192,22 @@ def _build_ical(unit: Unit, bookings) -> str:
             f"DTSTART;VALUE=DATE:{dtstart}",
             f"DTEND;VALUE=DATE:{dtend}",
             "SUMMARY:RESERVED",
+            "STATUS:CONFIRMED",
+            "END:VEVENT",
+        ]
+    for r in (stop_rules or []):
+        # Each stop_sales day becomes a single-day blocked event
+        dtstart = r.date.strftime("%Y%m%d")
+        from datetime import timedelta
+        dtend = (r.date + timedelta(days=1)).strftime("%Y%m%d")
+        uid = f"blocked-{r.id}@istay.villabooking"
+        lines += [
+            "BEGIN:VEVENT",
+            f"UID:{uid}",
+            f"DTSTAMP:{now}",
+            f"DTSTART;VALUE=DATE:{dtstart}",
+            f"DTEND;VALUE=DATE:{dtend}",
+            "SUMMARY:NOT AVAILABLE",
             "STATUS:CONFIRMED",
             "END:VEVENT",
         ]
@@ -173,7 +232,18 @@ def ical_feed(token: str, db: Session = Depends(get_db)):
         .order_by(Booking.check_in)
         .all()
     )
-    ical_text = _build_ical(unit, bookings)
+    stop_rules = (
+        db.query(AvailabilityRule)
+        .filter(
+            AvailabilityRule.unit_id == unit.id,
+            AvailabilityRule.tenant == unit.tenant,
+            AvailabilityRule.status == 'stop_sales',
+            AvailabilityRule.date >= today,
+        )
+        .order_by(AvailabilityRule.date)
+        .all()
+    )
+    ical_text = _build_ical(unit, bookings, stop_rules)
     return PlainTextResponse(content=ical_text, media_type="text/calendar; charset=utf-8")
 
 
