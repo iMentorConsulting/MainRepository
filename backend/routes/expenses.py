@@ -108,6 +108,30 @@ def update_expense(expense_id: int, data: ExpenseIn, db: Session = Depends(get_d
     return _serialize(e)
 
 
+@router.post("/bulk-assign-unit")
+def bulk_assign_unit(
+    body: dict,
+    db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
+):
+    """Set unit_id / unit_type on all (or unassigned) expenses for this tenant."""
+    unit_id = body.get("unit_id")
+    unit_type = body.get("unit_type") or None
+    only_unassigned = body.get("only_unassigned", False)
+
+    q = db.query(Expense).filter(Expense.tenant == tenant)
+    if only_unassigned:
+        q = q.filter(Expense.unit_id.is_(None), Expense.unit_type.is_(None))
+
+    count = 0
+    for e in q.all():
+        e.unit_id = unit_id
+        e.unit_type = unit_type
+        count += 1
+    db.commit()
+    return {"updated": count}
+
+
 @router.delete("/all")
 def delete_all_expenses(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     count = db.query(Expense).filter(Expense.tenant == tenant).delete()

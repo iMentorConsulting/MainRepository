@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   getExpenses, createExpense, updateExpense, deleteExpense, deleteAllExpenses,
   getExpenseCategories, getExpenseUnitTypes, getUnits,
-  downloadExpensesTemplate, importExpenses,
+  downloadExpensesTemplate, importExpenses, bulkAssignExpenseUnit,
 } from '../api'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, DocumentDuplicateIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -140,6 +140,56 @@ function monthRange(ym) {
   const last = new Date(y, m, 0).getDate()
   const to = `${y}-${String(m).padStart(2, '0')}-${last}`
   return [from, to]
+}
+
+function BulkAssignModal({ units, unitTypes, onClose, onDone }) {
+  const [unitId, setUnitId] = useState('')
+  const [unitType, setUnitType] = useState('')
+  const [onlyUnassigned, setOnlyUnassigned] = useState(false)
+  const [saving, setSaving] = useState(false)
+
+  const handleSave = async () => {
+    if (!unitId && !unitType) { toast.error('Επιλέξτε μονάδα ή τύπο'); return }
+    setSaving(true)
+    try {
+      const r = await bulkAssignExpenseUnit({
+        unit_id: unitId ? parseInt(unitId) : null,
+        unit_type: unitType || null,
+        only_unassigned: onlyUnassigned,
+      })
+      toast.success(`Ενημερώθηκαν ${r.data.updated} εγγραφές`)
+      onDone()
+    } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-xl p-6 max-w-sm w-full space-y-4">
+        <h3 className="font-bold text-gray-800">Μαζική ανάθεση μονάδας</h3>
+        <p className="text-sm text-gray-500">Εφαρμόστε μια μονάδα σε πολλά έξοδα ταυτόχρονα.</p>
+        <div className="grid grid-cols-2 gap-2">
+          <select className="input" value={unitId} onChange={e => { setUnitId(e.target.value); setUnitType('') }}>
+            <option value="">Συγκεκριμένη μονάδα</option>
+            {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+          <select className="input" value={unitType} onChange={e => { setUnitType(e.target.value); setUnitId('') }} disabled={!!unitId}>
+            <option value="">Τύπος μονάδας</option>
+            {unitTypes.map(t => <option key={t} value={t}>{t}</option>)}
+          </select>
+        </div>
+        <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-700">
+          <input type="checkbox" checked={onlyUnassigned} onChange={e => setOnlyUnassigned(e.target.checked)} className="accent-blue-600" />
+          Μόνο εγγραφές χωρίς μονάδα
+        </label>
+        <div className="flex gap-2 pt-1">
+          <button onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
+          <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+            {saving ? 'Εφαρμογή...' : 'Εφαρμογή'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
 }
 
 function ExpenseModal({ categories, units, unitTypes, editing, onClose, onSaved }) {
@@ -281,6 +331,7 @@ export default function Expenses() {
   const [modal, setModal] = useState(null) // null | {} (new) | expense obj (edit)
   const [deleting, setDeleting] = useState(null)
   const [confirmDeleteAll, setConfirmDeleteAll] = useState(false)
+  const [bulkModal, setBulkModal] = useState(false)
   const [importing, setImporting] = useState(false)
   const [showBreakdown, setShowBreakdown] = useState(true)
   const importRef = useRef()
@@ -438,6 +489,10 @@ export default function Expenses() {
             <ArrowUpTrayIcon className="h-4 w-4" /> {importing ? 'Εισαγωγή...' : 'Εισαγωγή Excel'}
           </button>
           <input ref={importRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleImport} />
+          <button onClick={() => setBulkModal(true)}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-blue-300 text-blue-600 hover:bg-blue-50 text-sm font-medium transition-colors">
+            Μαζική ανάθεση μονάδας
+          </button>
           <button onClick={() => setConfirmDeleteAll(true)}
             className="flex items-center gap-1 px-3 py-1.5 rounded-lg border border-red-300 text-red-600 hover:bg-red-50 text-sm font-medium transition-colors">
             <TrashIcon className="h-4 w-4" /> Διαγραφή όλων
@@ -612,6 +667,16 @@ export default function Expenses() {
             </table>
           </div>
         </div>
+      )}
+
+      {/* Bulk assign modal */}
+      {bulkModal && (
+        <BulkAssignModal
+          units={units}
+          unitTypes={unitTypes}
+          onClose={() => setBulkModal(false)}
+          onDone={() => { setBulkModal(false); load() }}
+        />
       )}
 
       {/* Add/Edit modal */}
