@@ -98,6 +98,9 @@ def _sync_unit(unit, db, tenant):
             if desc_info.get('guests') and existing.guests == 1:
                 existing.guests = desc_info['guests']
                 changed = True
+            if existing.channel != 'airbnb':
+                existing.channel = 'airbnb'
+                changed = True
             if changed:
                 db.commit()
                 updated += 1
@@ -130,7 +133,7 @@ def _sync_unit(unit, db, tenant):
                 tenant=tenant,
                 unit_id=unit.id,
                 customer_id=customer.id,
-                channel='Airbnb',
+                channel='airbnb',
                 check_in=dtstart,
                 check_out=dtend,
                 guests=desc_info.get('guests', 1),
