@@ -2,12 +2,27 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
-from models import Booking, Unit, Expense
+from models import Booking, Unit, Expense, Loan
 from auth_utils import get_tenant
 from typing import Optional
 from datetime import date
+from calendar import monthrange
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _loan_installment_sum(loans, from_date, to_date):
+    """Return total loan installments active during the date range."""
+    total = 0.0
+    d = from_date.replace(day=1)
+    while d <= to_date:
+        _, last = monthrange(d.year, d.month)
+        month_end = date(d.year, d.month, last)
+        for loan in loans:
+            if loan.start_date <= month_end and (loan.end_date is None or loan.end_date >= d):
+                total += loan.monthly_installment
+        d = date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
+    return round(total, 2)
 
 
 @router.get("/dashboard")
@@ -116,6 +131,47 @@ def occupancy_report(
             "bookings_count": len(bkgs),
         })
 
+    # --- Per-unit expense and loan attribution ---
+    all_expenses = db.query(Expense).filter(
+        Expense.tenant == tenant,
+        Expense.date >= from_date,
+        Expense.date <= to_date,
+    ).all()
+    exp_by_unit: dict = {}
+    exp_by_type: dict = {}
+    exp_unassigned = 0.0
+    for e in all_expenses:
+        if e.unit_id:
+            exp_by_unit[e.unit_id] = exp_by_unit.get(e.unit_id, 0.0) + e.amount
+        elif e.unit_type:
+            exp_by_type[e.unit_type] = exp_by_type.get(e.unit_type, 0.0) + e.amount
+        else:
+            exp_unassigned += e.amount
+
+    all_loans = db.query(Loan).filter(Loan.tenant == tenant).all()
+    loans_by_unit: dict = {}
+    loans_by_type: dict = {}
+    for loan in all_loans:
+        if loan.unit_id:
+            loans_by_unit.setdefault(loan.unit_id, []).append(loan)
+        elif loan.unit_type:
+            loans_by_type.setdefault(loan.unit_type, []).append(loan)
+
+    for r in results:
+        uid = r["unit_id"]
+        utype = r["unit_type"]
+        ue = round(exp_by_unit.get(uid, 0.0), 2)
+        ul = _loan_installment_sum(loans_by_unit.get(uid, []), from_date, to_date)
+        r["unit_expenses"] = ue
+        r["unit_loan_payments"] = ul
+        r["unit_profit"] = round(r["net_revenue"] - ue - ul, 2)
+        # type-level (shared costs — shown for info, not deducted per-unit)
+        r["type_expenses"] = round(exp_by_type.get(utype, 0.0), 2)
+        r["type_loan_payments"] = _loan_installment_sum(loans_by_type.get(utype, []), from_date, to_date)
+
+    total_expenses_all = round(sum(e.amount for e in all_expenses), 2)
+    total_loans_all = _loan_installment_sum(all_loans, from_date, to_date)
+
     avg_occ = round(sum(r["occupancy_rate"] for r in results) / len(results), 1) if results else 0
     return {
         "from_date": from_date.isoformat(),
@@ -126,6 +182,9 @@ def occupancy_report(
             "avg_occupancy_rate": avg_occ,
             "total_revenue": round(sum(r["total_revenue"] for r in results), 2),
             "total_net_revenue": round(sum(r["net_revenue"] for r in results), 2),
+            "total_expenses": total_expenses_all,
+            "total_loan_payments": total_loans_all,
+            "unassigned_expenses": round(exp_unassigned, 2),
         },
     }
 

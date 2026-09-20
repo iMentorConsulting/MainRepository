@@ -183,12 +183,13 @@ function ReportViewer({ owner, onClose }) {
             </div>
 
             {/* Summary tiles */}
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
                 { label: 'Συνολικά Έσοδα', value: fmt(s.total_revenue), color: 'text-gray-800' },
                 { label: 'Καθαρά Έσοδα', value: fmt(s.net_revenue), color: 'text-blue-700' },
-                { label: 'Έξοδα', value: fmt(s.total_expenses), color: 'text-red-600' },
-                { label: `Αμοιβή (${s.management_fee_percent}%)`, value: fmt(s.management_fee), color: 'text-orange-600' },
+                { label: 'Έξοδα Μονάδων', value: fmt(s.total_expenses), color: 'text-red-600' },
+                { label: 'Δανειακές Υποχρ.', value: fmt(s.total_loan_payments ?? 0), color: 'text-orange-600' },
+                { label: `Αμοιβή (${s.management_fee_percent}%)`, value: fmt(s.management_fee), color: 'text-amber-600' },
               ].map(t => (
                 <div key={t.label} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
                   <p className="text-xs text-gray-700 mb-1">{t.label}</p>
@@ -283,6 +284,37 @@ function ReportViewer({ owner, onClose }) {
                 </table>
               </div>
             </div>
+
+            {/* Loans table */}
+            {report.loans && report.loans.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-2">🏦 Δανειακές Υποχρεώσεις Μήνα</h4>
+                <div className="overflow-x-auto rounded-xl border border-gray-200">
+                  <table className="w-full text-sm">
+                    <thead><tr className="bg-[#1e3a5f] text-white text-xs">
+                      <th className="text-left px-3 py-2">Δάνειο</th>
+                      <th className="text-left px-3 py-2 hidden md:table-cell">Τράπεζα</th>
+                      <th className="text-left px-3 py-2">Μονάδα / Τύπος</th>
+                      <th className="text-right px-3 py-2">Μηνιαία Δόση</th>
+                    </tr></thead>
+                    <tbody>
+                      {report.loans.map(l => (
+                        <tr key={l.id} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="px-3 py-2 font-medium">{l.name}</td>
+                          <td className="px-3 py-2 text-gray-400 hidden md:table-cell">{l.lender || '—'}</td>
+                          <td className="px-3 py-2 text-xs text-gray-500">{l.unit_name || l.unit_type || 'Γενικό'}</td>
+                          <td className="px-3 py-2 text-right font-semibold text-orange-600">{fmt(l.monthly_installment)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                    <tfoot><tr className="bg-gray-50 border-t-2 border-gray-300 font-bold">
+                      <td colSpan={3} className="px-3 py-2 text-right">Σύνολο Δόσεων</td>
+                      <td className="px-3 py-2 text-right text-orange-700">{fmt(s.total_loan_payments ?? 0)}</td>
+                    </tr></tfoot>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

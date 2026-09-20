@@ -172,27 +172,33 @@ export default function Reports() {
                 </tr></thead>
                 <tbody className="divide-y divide-gray-50">
                   {occData.units.map((u) => {
-                    const expShare = totalExpenses / occData.units.length
-                    const loanShare = totalLoans / occData.units.length
-                    const cashflow = u.net_revenue - expShare - loanShare
+                    const unitExp = u.unit_expenses ?? 0
+                    const unitLoans = u.unit_loan_payments ?? 0
+                    const cashflow = u.unit_profit ?? (u.net_revenue - unitExp - unitLoans)
+                    const hasTypeShare = (u.type_expenses ?? 0) > 0 || (u.type_loan_payments ?? 0) > 0
                     return (
                     <tr key={u.unit_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">{u.unit_name}</td>
+                      <td className="px-4 py-3 font-medium">
+                        {u.unit_name}
+                        {hasTypeShare && (
+                          <span className="ml-1 text-xs text-gray-400" title={`+€${((u.type_expenses??0)+(u.type_loan_payments??0)).toFixed(0)} κοινόχρηστα τύπου`}>⊕</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-right">{u.occupied_days}</td>
                       <td className="px-4 py-3 text-right text-gray-400">{u.free_days}</td>
                       <td className="px-4 py-3 text-right"><span className={`font-semibold ${u.occupancy_rate >= 70 ? 'text-green-600' : u.occupancy_rate >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{u.occupancy_rate}%</span></td>
                       <td className="px-4 py-3 text-right">{formatEur(u.total_revenue)}</td>
                       <td className="px-4 py-3 text-right text-amber-600">{formatEur(u.total_revenue - u.net_revenue)}</td>
                       <td className="px-4 py-3 text-right text-emerald-600">{formatEur(u.net_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-red-500">{formatEur(expShare)}</td>
-                      <td className="px-4 py-3 text-right text-orange-500">{totalLoans > 0 ? formatEur(loanShare) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{unitExp > 0 ? formatEur(unitExp) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{unitLoans > 0 ? formatEur(unitLoans) : '—'}</td>
                       <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
                     </tr>
                   )})}
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-300 text-xs text-gray-500">
-                    <td colSpan={9} className="px-4 py-2 italic">* Τα έξοδα και δάνεια κατανέμονται ισόποσα ανά μονάδα. Για ακριβή κατανομή χρησιμοποιήστε τη στήλη Μονάδα στα Έξοδα.</td>
+                    <td colSpan={9} className="px-4 py-2 italic">Έξοδα/Δάνεια: μόνο ποσά αποδοθέντα στη συγκεκριμένη μονάδα. ⊕ = υπάρχουν κοινόχρηστα έξοδα/δάνεια τύπου μονάδας (εμφανίζονται στο Σύνολο).</td>
                     <td />
                   </tr>
                 </tfoot>

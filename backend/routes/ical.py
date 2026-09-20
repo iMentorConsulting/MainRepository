@@ -89,6 +89,8 @@ def _sync_unit(unit, db, tenant):
         desc_raw = str(component.get('DESCRIPTION', '') or '')
         desc_info = _parse_description(desc_raw)
 
+        PLACEHOLDER_NAMES = {'airbnb', 'reserved', 'booking', 'guest', 'reservation', 'κράτηση', ''}
+
         if existing:
             changed = False
             if existing.check_in != dtstart or existing.check_out != dtend:
@@ -100,6 +102,26 @@ def _sync_unit(unit, db, tenant):
                 changed = True
             if existing.channel != 'airbnb':
                 existing.channel = 'airbnb'
+                changed = True
+            # Fix placeholder customer name
+            cust = db.query(Customer).filter(Customer.id == existing.customer_id).first()
+            if cust and cust.first_name.lower() in PLACEHOLDER_NAMES:
+                clean_summary = summary
+                for sfx in (' Guest', ' guest', ' Guests', ' guests'):
+                    clean_summary = clean_summary.replace(sfx, '')
+                parts = clean_summary.split(' ', 1) if clean_summary and clean_summary.lower() not in PLACEHOLDER_NAMES else []
+                if parts:
+                    cust.first_name = parts[0]
+                    cust.last_name = parts[1] if len(parts) > 1 else cust.last_name
+                    changed = True
+                phone = desc_info.get('phone', '')
+                if phone and not cust.phone:
+                    cust.phone = phone
+                    changed = True
+            # Set reservation code in notes if not already there
+            res_code = desc_info.get('reservation_code', '')
+            if res_code and not existing.notes:
+                existing.notes = f"Airbnb {res_code}".strip()
                 changed = True
             if changed:
                 db.commit()

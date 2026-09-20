@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from database import get_db
-from models import Owner, Unit, Booking, Expense
+from models import Owner, Unit, Booking, Expense, Loan
 from auth_utils import get_tenant
 from pydantic import BaseModel
 from typing import Optional
@@ -146,7 +146,34 @@ def owner_report(
     net_revenue = total_revenue - total_commission
     total_expenses = sum(e.amount for e in expenses)
     management_fee = round(net_revenue * o.management_fee_percent / 100, 2)
-    owner_profit = round(net_revenue - total_expenses - management_fee, 2)
+
+    # Loans assigned to owner's units (by unit_id or matching unit_type)
+    unit_types = list(set(u.type for u in units if u.type))
+    unit_loans = (
+        db.query(Loan).filter(Loan.tenant == tenant, Loan.unit_id.in_(unit_ids)).all()
+        if unit_ids else []
+    )
+    type_loans = (
+        db.query(Loan).filter(
+            Loan.tenant == tenant,
+            Loan.unit_id.is_(None),
+            Loan.unit_type.in_(unit_types),
+        ).all()
+        if unit_types else []
+    )
+    all_owner_loans = unit_loans + type_loans
+
+    # Compute installments active in the report month
+    _, last_day = calendar.monthrange(year, month)
+    month_start = from_date
+    month_end = date(year, month, last_day)
+    total_loan_payments = 0.0
+    for loan in all_owner_loans:
+        if loan.start_date <= month_end and (loan.end_date is None or loan.end_date >= month_start):
+            total_loan_payments += loan.monthly_installment
+    total_loan_payments = round(total_loan_payments, 2)
+
+    owner_profit = round(net_revenue - total_expenses - total_loan_payments - management_fee, 2)
 
     unit_map = {u.id: u.name for u in units}
 
@@ -188,11 +215,23 @@ def owner_report(
             }
             for e in expenses
         ],
+        "loans": [
+            {
+                "id": l.id,
+                "name": l.name,
+                "lender": l.lender or "",
+                "monthly_installment": round(l.monthly_installment, 2),
+                "unit_name": unit_map.get(l.unit_id, "") if l.unit_id else "",
+                "unit_type": l.unit_type or "",
+            }
+            for l in all_owner_loans
+        ],
         "summary": {
             "total_revenue": round(total_revenue, 2),
             "total_commission": round(total_commission, 2),
             "net_revenue": round(net_revenue, 2),
             "total_expenses": round(total_expenses, 2),
+            "total_loan_payments": total_loan_payments,
             "management_fee_percent": o.management_fee_percent,
             "management_fee": management_fee,
             "owner_profit": owner_profit,
@@ -267,6 +306,7 @@ def _send_report_email(report: dict, tenant: str, db):
 <tr><td>Προμήθειες Πλατφορμών:</td><td style="color:#e55">-{fmt(s['total_commission'])}</td></tr>
 <tr><td>Καθαρά Έσοδα:</td><td><strong>{fmt(s['net_revenue'])}</strong></td></tr>
 <tr><td>Έξοδα Μονάδων:</td><td style="color:#e55">-{fmt(s['total_expenses'])}</td></tr>
+<tr><td>Δανειακές Υποχρεώσεις:</td><td style="color:#e55">-{fmt(s['total_loan_payments'])}</td></tr>
 <tr><td>Αμοιβή Διαχείρισης ({s['management_fee_percent']}%):</td><td style="color:#e55">-{fmt(s['management_fee'])}</td></tr>
 <tr style="background:#f0f7f0"><td><strong>ΚΑΘΑΡΟ ΚΕΡΔΟΣ ΙΔΙΟΚΤΗΤΗ:</strong></td>
 <td><strong style="color:#1a7f3c;font-size:16px">{fmt(s['owner_profit'])}</strong></td></tr>
