@@ -13,8 +13,6 @@ router = APIRouter(prefix="/cleaning", tags=["cleaning"])
 class CleaningSettingsUpdate(BaseModel):
     clean_every_days: int = 3
     linen_every_days: int = 5
-    laundry_on_day: int = 3
-    laundry_min_stay: int = 4
 
 
 def _get_settings(db, tenant):
@@ -33,8 +31,6 @@ def get_settings(db: Session = Depends(get_db), tenant: str = Depends(get_tenant
     return {
         "clean_every_days": s.clean_every_days,
         "linen_every_days": s.linen_every_days,
-        "laundry_on_day": s.laundry_on_day,
-        "laundry_min_stay": s.laundry_min_stay,
     }
 
 
@@ -43,8 +39,6 @@ def update_settings(data: CleaningSettingsUpdate, db: Session = Depends(get_db),
     s = _get_settings(db, tenant)
     s.clean_every_days = data.clean_every_days
     s.linen_every_days = data.linen_every_days
-    s.laundry_on_day = data.laundry_on_day
-    s.laundry_min_stay = data.laundry_min_stay
     db.commit()
     return {"ok": True}
 
@@ -119,10 +113,6 @@ def daily_tasks(
             linen_due = (cfg.linen_every_days > 0
                          and day_of_stay % cfg.linen_every_days == 0
                          and not is_last_day)
-            laundry_due = (cfg.laundry_on_day > 0
-                           and day_of_stay == cfg.laundry_on_day
-                           and total_nights >= cfg.laundry_min_stay
-                           and not is_last_day)
             clean_due = (cfg.clean_every_days > 0
                          and day_of_stay % cfg.clean_every_days == 0
                          and not is_last_day)
@@ -131,11 +121,6 @@ def daily_tasks(
                 task_type = "midstay_linen"
                 task_label = "ΚΑΘΑΡΙΣΜΟΣ + ΑΛΛΑΓΗ ΣΕΝΤΟΝΙΩΝ"
                 task_desc = f"Ημέρα {day_of_stay} από {total_nights}. Καθαρισμός + αλλαγή σεντόνια & πετσέτες."
-                priority = 4
-            elif laundry_due:
-                task_type = "midstay_laundry"
-                task_label = "ΠΑΡΑΛΑΒΗ ΑΠΛΥΤΩΝ"
-                task_desc = f"Ημέρα {day_of_stay} από {total_nights}. Παραλαβή άπλυτων (σεντόνια & πετσέτες)."
                 priority = 4
             elif clean_due:
                 task_type = "midstay"
@@ -180,6 +165,6 @@ def daily_tasks(
             "departures": sum(1 for t in tasks if t["task_type"] == "departure"),
             "arrivals": sum(1 for t in tasks if t["task_type"] == "arrival"),
             "linen_change": sum(1 for t in tasks if t["task_type"] in ["midstay_linen", "turnover", "departure"]),
-            "midstay": sum(1 for t in tasks if t["task_type"] in ["midstay", "midstay_linen", "midstay_laundry"]),
+            "midstay": sum(1 for t in tasks if t["task_type"] in ["midstay", "midstay_linen"]),
         },
     }

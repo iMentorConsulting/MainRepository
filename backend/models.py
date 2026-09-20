@@ -102,8 +102,6 @@ class CleaningSettings(Base):
     tenant = Column(String(50), nullable=False, unique=True, index=True)
     clean_every_days = Column(Integer, default=3)
     linen_every_days = Column(Integer, default=5)
-    laundry_on_day = Column(Integer, default=3)
-    laundry_min_stay = Column(Integer, default=4)
 
 
 class GuestToken(Base):

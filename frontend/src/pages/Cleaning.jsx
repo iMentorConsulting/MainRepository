@@ -10,7 +10,6 @@ const TASK_STYLE = {
   departure:       { bg: 'bg-orange-100 border-orange-400', text: 'text-orange-800', icon: '🚪' },
   arrival:         { bg: 'bg-green-100 border-green-400', text: 'text-green-800',  icon: '✅' },
   midstay_linen:   { bg: 'bg-blue-100 border-blue-400',  text: 'text-blue-800',   icon: '🛏️' },
-  midstay_laundry: { bg: 'bg-purple-100 border-purple-400', text: 'text-purple-800', icon: '🧺' },
   midstay:         { bg: 'bg-yellow-50 border-yellow-300', text: 'text-yellow-800', icon: '🧹' },
   occupied:        { bg: 'bg-gray-50 border-gray-300',   text: 'text-gray-500',   icon: '🛌' },
   empty:           { bg: 'bg-gray-50 border-gray-200',   text: 'text-gray-400',   icon: '—' },
@@ -65,19 +64,6 @@ function SettingsModal({ onClose }) {
               onChange={e => set('linen_every_days', +e.target.value)} />
             <p className="text-xs text-gray-400 mt-1">0 = χωρίς αυτόματη αλλαγή σεντόνιων</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="label">Παραλαβή απλύτων: ημέρα</label>
-              <input className="input" type="number" min={0} max={20} value={cfg.laundry_on_day}
-                onChange={e => set('laundry_on_day', +e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Ελάχ. διαμονή (νύχτες)</label>
-              <input className="input" type="number" min={0} max={30} value={cfg.laundry_min_stay}
-                onChange={e => set('laundry_min_stay', +e.target.value)} />
-            </div>
-          </div>
-          <p className="text-xs text-gray-400">Παραλαβή απλύτων: την X ημέρα διαμονής, μόνο για κρατήσεις ≥ Y νυχτών</p>
           <div className="flex gap-2 pt-2">
             <button onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
             <button onClick={save} disabled={saving} className="btn-primary flex-1">{saving ? 'Αποθήκευση...' : 'Αποθήκευση'}</button>
