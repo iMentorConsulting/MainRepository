@@ -129,7 +129,9 @@ def owner_report(
         .all()
     ) if unit_ids else []
 
-    expenses = (
+    unit_types = list(set(u.type for u in units if u.type))
+
+    unit_expenses = (
         db.query(Expense)
         .filter(
             Expense.tenant == tenant,
@@ -141,6 +143,22 @@ def owner_report(
         .all()
     ) if unit_ids else []
 
+    type_expenses = (
+        db.query(Expense)
+        .filter(
+            Expense.tenant == tenant,
+            Expense.date >= from_date,
+            Expense.date <= to_date,
+            Expense.unit_id.is_(None),
+            Expense.unit_type.in_(unit_types),
+        )
+        .order_by(Expense.date)
+        .all()
+    ) if unit_types else []
+
+    expenses = unit_expenses + type_expenses
+    expenses.sort(key=lambda e: e.date, reverse=True)
+
     total_revenue = sum(b.total_price for b in bookings)
     total_commission = sum(b.commission or 0 for b in bookings)
     net_revenue = total_revenue - total_commission
@@ -148,7 +166,6 @@ def owner_report(
     management_fee = round(net_revenue * o.management_fee_percent / 100, 2)
 
     # Loans assigned to owner's units (by unit_id or matching unit_type)
-    unit_types = list(set(u.type for u in units if u.type))
     unit_loans = (
         db.query(Loan).filter(Loan.tenant == tenant, Loan.unit_id.in_(unit_ids)).all()
         if unit_ids else []
@@ -211,7 +228,7 @@ def owner_report(
                 "item": e.item,
                 "vendor": e.vendor or "",
                 "amount": round(e.amount, 2),
-                "unit_name": unit_map.get(e.unit_id, "") if e.unit_id else "",
+                "unit_name": unit_map.get(e.unit_id, "") if e.unit_id else (e.unit_type or ""),
             }
             for e in expenses
         ],
