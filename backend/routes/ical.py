@@ -15,25 +15,42 @@ router = APIRouter(prefix="/ical", tags=["ical"])
 SKIP_KEYWORDS = {'CLOSED', 'BLOCKED', 'NOT AVAILABLE', 'UNAVAILABLE', 'ΚΛΕΙΣΤΟ'}
 
 
-def _parse_description(desc: str) -> dict:
-    """Extract guests, phone, reservation_code from Airbnb DESCRIPTION field."""
+def _parse_description(desc: str, summary: str = '') -> dict:
+    """Extract guests, phone, reservation_code, total_price from Airbnb DESCRIPTION/SUMMARY."""
     info = {}
-    if not desc:
-        return info
-    # Number of Guests: 2
-    m = re.search(r'(?:Number of Guests|Guests)\s*:\s*(\d+)', desc, re.IGNORECASE)
-    if m:
-        info['guests'] = int(m.group(1))
-    # Phone Number: +30...  (Airbnb sometimes says HIDDEN)
-    m = re.search(r'Phone\s*(?:Number)?\s*:\s*([^\n\\]+)', desc, re.IGNORECASE)
-    if m:
-        phone = m.group(1).strip()
-        if phone.upper() != 'HIDDEN' and phone:
-            info['phone'] = phone
-    # Reservation code: HM12345678
-    m = re.search(r'Reservation\s*[Cc]ode\s*:\s*([A-Z0-9]+)', desc, re.IGNORECASE)
-    if m:
-        info['reservation_code'] = m.group(1).strip()
+
+    if desc:
+        # "Number of Guests: 2" or "Guests: 2"
+        m = re.search(r'(?:Number of Guests|Guests)\s*:\s*(\d+)', desc, re.IGNORECASE)
+        if m:
+            info['guests'] = int(m.group(1))
+
+        # Phone Number: +30...  (Airbnb sometimes says HIDDEN)
+        m = re.search(r'Phone\s*(?:Number)?\s*:\s*([^\n\\]+)', desc, re.IGNORECASE)
+        if m:
+            phone = m.group(1).strip()
+            if phone.upper() != 'HIDDEN' and phone:
+                info['phone'] = phone
+
+        # Reservation code: HM12345678
+        m = re.search(r'Reservation\s*[Cc]ode\s*:\s*([A-Z0-9]+)', desc, re.IGNORECASE)
+        if m:
+            info['reservation_code'] = m.group(1).strip()
+
+        # Total price / Payout (Airbnb sometimes includes this)
+        m = re.search(r'(?:Total [Pp]rice|Payout|Price)\s*:\s*[€$£]?\s*([\d,]+\.?\d*)', desc, re.IGNORECASE)
+        if m:
+            try:
+                info['total_price'] = float(m.group(1).replace(',', ''))
+            except ValueError:
+                pass
+
+    # Guest count from SUMMARY: "Leterrier (2 guests)" or "(2 άτομα)"
+    if 'guests' not in info and summary:
+        m = re.search(r'\((\d+)\s*(?:guests?|άτομ)', summary, re.IGNORECASE)
+        if m:
+            info['guests'] = int(m.group(1))
+
     return info
 
 
@@ -87,7 +104,7 @@ def _sync_unit(unit, db, tenant):
         ).first()
 
         desc_raw = str(component.get('DESCRIPTION', '') or '')
-        desc_info = _parse_description(desc_raw)
+        desc_info = _parse_description(desc_raw, summary)
 
         PLACEHOLDER_NAMES = {'airbnb', 'reserved', 'booking', 'guest', 'reservation', 'κράτηση', ''}
 
@@ -97,8 +114,11 @@ def _sync_unit(unit, db, tenant):
                 existing.check_in = dtstart
                 existing.check_out = dtend
                 changed = True
-            if desc_info.get('guests') and existing.guests == 1:
+            if desc_info.get('guests') and desc_info['guests'] != existing.guests:
                 existing.guests = desc_info['guests']
+                changed = True
+            if desc_info.get('total_price') and existing.total_price == 0:
+                existing.total_price = desc_info['total_price']
                 changed = True
             if existing.channel != 'airbnb':
                 existing.channel = 'airbnb'
@@ -159,7 +179,7 @@ def _sync_unit(unit, db, tenant):
                 check_in=dtstart,
                 check_out=dtend,
                 guests=desc_info.get('guests', 1),
-                total_price=0.0,
+                total_price=desc_info.get('total_price', 0.0),
                 commission=0.0,
                 status='confirmed',
                 ical_uid=uid,
