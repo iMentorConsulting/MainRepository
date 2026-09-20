@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Loan
+from models import Loan, Unit
 from auth_utils import get_tenant
 from typing import Optional
 from datetime import date
@@ -19,6 +19,8 @@ class LoanIn(BaseModel):
     monthly_installment: float
     start_date: date
     end_date: Optional[date] = None
+    unit_id: Optional[int] = None
+    unit_type: Optional[str] = None
     notes: Optional[str] = None
 
 
@@ -32,6 +34,8 @@ def _serialize(l: Loan) -> dict:
         "monthly_installment": l.monthly_installment,
         "start_date": l.start_date.isoformat(),
         "end_date": l.end_date.isoformat() if l.end_date else None,
+        "unit_id": l.unit_id,
+        "unit_type": l.unit_type or "",
         "notes": l.notes or "",
     }
 

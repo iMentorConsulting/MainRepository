@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from 'react'
+import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   getExpenses, createExpense, updateExpense, deleteExpense, deleteAllExpenses,
   getExpenseCategories, getExpenseUnitTypes, getUnits,
@@ -6,7 +6,6 @@ import {
 } from '../api'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, DocumentDuplicateIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { useRef } from 'react'
 
 const MONTHS_EL = ['Ιαν', 'Φεβ', 'Μαρ', 'Απρ', 'Μαϊ', 'Ιουν', 'Ιουλ', 'Αυγ', 'Σεπ', 'Οκτ', 'Νοε', 'Δεκ']
 
@@ -57,6 +56,65 @@ function YearPicker({ value, onChange }) {
       </select>
       <button type="button" onClick={() => onChange(value + 1)}
         className="w-7 h-7 flex items-center justify-center rounded-lg border border-gray-300 hover:bg-gray-100 text-gray-600 font-bold text-sm">›</button>
+    </div>
+  )
+}
+
+function InlineUnitPicker({ expense, units, unitTypes, onSaved }) {
+  const [open, setOpen] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const ref = useRef()
+
+  useEffect(() => {
+    if (!open) return
+    const close = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', close)
+    return () => document.removeEventListener('mousedown', close)
+  }, [open])
+
+  const pick = async (unit_id, unit_type) => {
+    setSaving(true)
+    try {
+      await updateExpense(expense.id, {
+        date: expense.date, category: expense.category, item: expense.item,
+        vendor: expense.vendor || null, amount: expense.amount,
+        unit_id: unit_id || null, unit_type: unit_type || null, notes: expense.notes || null,
+      })
+      onSaved()
+      setOpen(false)
+    } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+  }
+
+  const label = expense.unit_id
+    ? (units.find(u => u.id === expense.unit_id)?.name || `#${expense.unit_id}`)
+    : expense.unit_type || ''
+
+  return (
+    <div className="relative" ref={ref}>
+      <button onClick={() => setOpen(o => !o)}
+        className="text-xs text-gray-400 hover:text-blue-600 hover:bg-blue-50 px-1.5 py-0.5 rounded transition-colors min-w-[60px] text-left">
+        {saving ? '…' : label || <span className="text-gray-300 italic">—</span>}
+      </button>
+      {open && (
+        <div className="absolute z-50 left-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-xl w-52 py-1 text-sm">
+          <button onClick={() => pick(null, null)}
+            className="w-full text-left px-3 py-1.5 hover:bg-gray-50 text-gray-500 italic">— Γενικό (όλες)</button>
+          <div className="border-t border-gray-100 my-1" />
+          {units.map(u => (
+            <button key={u.id} onClick={() => pick(u.id, null)}
+              className={`w-full text-left px-3 py-1.5 hover:bg-blue-50 ${expense.unit_id === u.id ? 'font-semibold text-blue-700' : 'text-gray-700'}`}>
+              {u.name}
+            </button>
+          ))}
+          {unitTypes.length > 0 && <div className="border-t border-gray-100 my-1" />}
+          {unitTypes.map(t => (
+            <button key={t} onClick={() => pick(null, t)}
+              className={`w-full text-left px-3 py-1.5 hover:bg-purple-50 ${expense.unit_type === t ? 'font-semibold text-purple-700' : 'text-gray-500'}`}>
+              [{t}]
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
@@ -520,7 +578,9 @@ export default function Expenses() {
                           </span>
                         </td>
                         <td className="px-4 py-3 text-gray-500 hidden md:table-cell">{e.vendor}</td>
-                        <td className="px-4 py-3 text-gray-400 text-xs hidden lg:table-cell">{unitLabel(e)}</td>
+                        <td className="px-4 py-3 hidden lg:table-cell">
+                          <InlineUnitPicker expense={e} units={units} unitTypes={unitTypes} onSaved={load} />
+                        </td>
                         <td className="px-4 py-3 text-right font-semibold text-gray-800">€{fmt(e.amount)}</td>
                         <td className="px-3 py-3">
                           <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">

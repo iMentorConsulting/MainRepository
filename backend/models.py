@@ -271,6 +271,8 @@ class Loan(Base):
     monthly_installment = Column(Float, nullable=False, default=0.0)
     start_date = Column(Date, nullable=False)
     end_date = Column(Date)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=True)
+    unit_type = Column(String(50), nullable=True)
     notes = Column(Text)
     created_at = Column(DateTime, default=datetime.utcnow)
 

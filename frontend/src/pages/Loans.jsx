@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
-import { getLoans, createLoan, updateLoan, deleteLoan } from '../api'
+import { getLoans, createLoan, updateLoan, deleteLoan, getUnits, getExpenseUnitTypes } from '../api'
 import toast from 'react-hot-toast'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
 const empty = {
   name: '', lender: '', original_amount: '', interest_rate: '', monthly_installment: '',
-  start_date: '', end_date: '', notes: '',
+  start_date: '', end_date: '', unit_id: '', unit_type: '', notes: '',
 }
 
 function isActive(loan) {
@@ -23,7 +23,7 @@ function formatEur(v) {
   return `€${Number(v).toLocaleString('el-GR', { minimumFractionDigits: 0 })}`
 }
 
-function LoanModal({ loan, onClose, onSaved }) {
+function LoanModal({ loan, units, unitTypes, onClose, onSaved }) {
   const [form, setForm] = useState(loan ? { ...loan } : { ...empty })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
@@ -41,6 +41,8 @@ function LoanModal({ loan, onClose, onSaved }) {
         monthly_installment: parseFloat(form.monthly_installment),
         start_date: form.start_date,
         end_date: form.end_date || null,
+        unit_id: form.unit_id ? parseInt(form.unit_id) : null,
+        unit_type: form.unit_type || null,
         notes: form.notes || null,
       }
       if (loan?.id) {
@@ -101,6 +103,21 @@ function LoanModal({ loan, onClose, onSaved }) {
             </div>
           </div>
           <div>
+            <label className="label">Αφορά (προαιρετικό)</label>
+            <div className="grid grid-cols-2 gap-2">
+              <select className="input" value={form.unit_id || ''} onChange={e => { set('unit_id', e.target.value); set('unit_type', '') }}>
+                <option value="">Συγκεκριμένη μονάδα</option>
+                {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+              <select className="input" value={form.unit_type || ''} onChange={e => { set('unit_type', e.target.value); set('unit_id', '') }}
+                disabled={!!form.unit_id}>
+                <option value="">Τύπος μονάδας</option>
+                {unitTypes.map(t => <option key={t} value={t}>{t}</option>)}
+              </select>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">Αφήστε κενό για γενικό δάνειο που αφορά όλες τις μονάδες</p>
+          </div>
+          <div>
             <label className="label">Σημειώσεις</label>
             <textarea className="input" rows={2} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} />
           </div>
@@ -116,10 +133,25 @@ function LoanModal({ loan, onClose, onSaved }) {
 
 export default function Loans() {
   const [loans, setLoans] = useState([])
+  const [units, setUnits] = useState([])
+  const [unitTypes, setUnitTypes] = useState([])
   const [modal, setModal] = useState(null)
 
   const load = () => getLoans().then((r) => setLoans(r.data.loans || []))
-  useEffect(() => { load() }, [])
+  useEffect(() => {
+    load()
+    getUnits({ active_only: false }).then(r => setUnits(r.data))
+    getExpenseUnitTypes().then(r => setUnitTypes(r.data))
+  }, [])
+
+  const unitLabel = (l) => {
+    if (l.unit_id) {
+      const u = units.find(u => u.id === l.unit_id)
+      return u ? u.name : `#${l.unit_id}`
+    }
+    if (l.unit_type) return l.unit_type
+    return '—'
+  }
 
   const handleDelete = async (l) => {
     if (!confirm(`Διαγραφή δανείου "${l.name}";`)) return
@@ -181,6 +213,7 @@ export default function Loans() {
                 <th className="text-right px-4 py-3 hidden sm:table-cell">Επιτόκιο</th>
                 <th className="text-right px-4 py-3 hidden lg:table-cell">Αρχικό Κεφ.</th>
                 <th className="text-left px-4 py-3 hidden lg:table-cell">Περίοδος</th>
+                <th className="text-left px-4 py-3 hidden xl:table-cell">Μονάδα</th>
                 <th className="text-center px-4 py-3">Κατάσταση</th>
                 <th className="px-4 py-3 w-20"></th>
               </tr>
@@ -205,6 +238,7 @@ export default function Loans() {
                     <td className="px-4 py-3 text-xs text-gray-500 hidden lg:table-cell">
                       {fmtDate(l.start_date)}{l.end_date ? ` → ${fmtDate(l.end_date)}` : ' →'}
                     </td>
+                    <td className="px-4 py-3 text-xs text-gray-400 hidden xl:table-cell">{unitLabel(l)}</td>
                     <td className="px-4 py-3 text-center">
                       <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${active ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
                         {active ? 'Ενεργό' : 'Ολοκλήρωθηκε'}
@@ -234,6 +268,8 @@ export default function Loans() {
       {modal && (
         <LoanModal
           loan={modal === 'new' ? null : modal}
+          units={units}
+          unitTypes={unitTypes}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />

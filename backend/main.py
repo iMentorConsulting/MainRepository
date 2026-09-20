@@ -265,6 +265,14 @@ except Exception:
 
 try:
     with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE loans ADD COLUMN unit_id INTEGER REFERENCES units(id)"))
+        _bc.execute(_text_b("ALTER TABLE loans ADD COLUMN unit_type VARCHAR(50)"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
         _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -707,7 +715,7 @@ _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
 _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
 _scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="owner_reports_monthly")
-_scheduler.add_job(_run_ical_sync, "interval", hours=6, id="ical_sync_6h")
+_scheduler.add_job(_run_ical_sync, "interval", minutes=15, id="ical_sync_15m")
 _scheduler.add_job(_run_auto_emails, "cron", hour=9, minute=30, id="auto_emails_daily")
 _scheduler.start()
 
