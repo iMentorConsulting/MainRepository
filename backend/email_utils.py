@@ -19,15 +19,13 @@ def _send(host, port, user, pwd, from_display, to_email, subject, html):
     msg['From']    = f"{from_display} <{user}>"
     msg['To']      = to_email
     msg.attach(MIMEText(html, 'html'))
-    try:
-        with smtplib.SMTP(host, port, timeout=10) as srv:
-            srv.starttls()
-            srv.login(user, pwd)
-            srv.sendmail(user, to_email, msg.as_string())
-        return True
-    except Exception as e:
-        print(f"[email] send failed: {e}")
-        return False
+    with smtplib.SMTP(host, port, timeout=30) as srv:
+        srv.ehlo()
+        srv.starttls()
+        srv.ehlo()
+        srv.login(user, pwd)
+        srv.sendmail(user, to_email, msg.as_string())
+    return True
 
 
 def send_portal_email(
@@ -43,7 +41,7 @@ def send_portal_email(
 ) -> bool:
     host, port, user, pwd = _smtp_cfg(settings)
     if not all([host, user, pwd]):
-        return False
+        raise ValueError("SMTP credentials not configured. Go to Guest Portal → Settings → Email.")
 
     sender_name = from_name or (settings and settings.from_name) or property_name or user
     subject = f"Your stay at {property_name} – Digital Guide"
@@ -93,6 +91,7 @@ def send_notification_email(
 
     host, port, user, pwd = _smtp_cfg(settings)
     if not all([host, user, pwd]):
+        print(f"[email] notification skipped: SMTP not configured")
         return False
 
     icons = {'message': '💬', 'service_request': '🛎️', 'photo': '📷', 'maintenance': '🔧'}
@@ -123,7 +122,11 @@ def send_notification_email(
     </div>
   </div>
 </body></html>"""
-    return _send(host, port, user, pwd, sender_name, notify_to, subject, html)
+    try:
+        return _send(host, port, user, pwd, sender_name, notify_to, subject, html)
+    except Exception as e:
+        print(f"[email] notification send failed: {e}")
+        return False
 
 
 def send_pre_arrival_email(
@@ -237,7 +240,9 @@ def send_post_departure_email(
 def send_raw_email(to_email: str, subject: str, html: str, settings=None) -> bool:
     """Generic email sender for custom HTML content (reports, notifications)."""
     host, port, user, pwd = _smtp_cfg(settings)
-    if not all([host, user, pwd, to_email]):
-        return False
+    if not all([host, user, pwd]):
+        raise ValueError("SMTP credentials not configured. Go to Guest Portal → Settings → Email.")
+    if not to_email:
+        raise ValueError("Recipient email is empty.")
     sender_name = (settings and settings.from_name) or "iMentor Consulting"
     return _send(host, port, user, pwd, sender_name, to_email, subject, html)

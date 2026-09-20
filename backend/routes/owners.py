@@ -279,13 +279,16 @@ def send_owner_report(
     o_data = report["owner"]
     if not o_data.get("email"):
         raise HTTPException(400, "Ο ιδιοκτήτης δεν έχει email")
-    ok = _send_report_email(report, tenant, db)
-    if not ok:
-        raise HTTPException(500, "Αποτυχία αποστολής email. Ελέγξτε τις ρυθμίσεις SMTP στη σελίδα Guest Portal → Email & Notifications.")
+    try:
+        _send_report_email(report, tenant, db)
+    except ValueError as e:
+        raise HTTPException(400, str(e))
+    except Exception as e:
+        raise HTTPException(500, f"SMTP error: {e}")
     return {"ok": True}
 
 
-def _send_report_email(report: dict, tenant: str, db) -> bool:
+def _send_report_email(report: dict, tenant: str, db):
     from email_utils import send_raw_email
     from models import GuestPortalSettings
 
@@ -345,4 +348,4 @@ def _send_report_email(report: dict, tenant: str, db) -> bool:
 <p style="color:#888;font-size:12px;margin-top:30px">Αναφορά δημιουργήθηκε αυτόματα από το σύστημα διαχείρισης.</p>
 </body></html>"""
 
-    return send_raw_email(o["email"], f"Μηνιαία Αναφορά — {period['label']}", html, settings=settings)
+    send_raw_email(o["email"], f"Μηνιαία Αναφορά — {period['label']}", html, settings=settings)
