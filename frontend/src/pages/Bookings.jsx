@@ -3,17 +3,17 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   getBookings, getUnits, getCustomers, createBooking, updateBooking, deleteBooking,
   createCustomer, recommendUnit, exportBookings, downloadTemplate, importBookings,
-  getPortalLink, sendPortalEmail,
+  getPortalLink, sendPortalEmail, getBookingChannels, saveBookingChannels,
 } from '../api'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
   PlusIcon, XMarkIcon, TrashIcon, PencilSquareIcon,
   SparklesIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon,
-  LinkIcon, EnvelopeIcon,
+  LinkIcon, EnvelopeIcon, Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 
-const CHANNELS = [
+const DEFAULT_CHANNELS = [
   { value: 'booking', label: 'Booking.com', color: 'bg-blue-100 text-blue-800' },
   { value: 'airbnb', label: 'Airbnb', color: 'bg-red-100 text-red-800' },
   { value: 'direct', label: 'Απευθείας', color: 'bg-green-100 text-green-800' },
@@ -21,7 +21,133 @@ const CHANNELS = [
   { value: 'social_tourism', label: 'Κοιν.Τουρισμός', color: 'bg-teal-100 text-teal-800' },
   { value: 'other', label: 'Άλλο', color: 'bg-gray-100 text-gray-700' },
 ]
-const CH = Object.fromEntries(CHANNELS.map((c) => [c.value, c]))
+
+const COLOR_OPTIONS = [
+  { value: 'bg-blue-100 text-blue-800', label: 'Μπλε' },
+  { value: 'bg-red-100 text-red-800', label: 'Κόκκινο' },
+  { value: 'bg-green-100 text-green-800', label: 'Πράσινο' },
+  { value: 'bg-purple-100 text-purple-800', label: 'Μωβ' },
+  { value: 'bg-teal-100 text-teal-800', label: 'Τιρκουάζ' },
+  { value: 'bg-orange-100 text-orange-800', label: 'Πορτοκαλί' },
+  { value: 'bg-yellow-100 text-yellow-800', label: 'Κίτρινο' },
+  { value: 'bg-pink-100 text-pink-800', label: 'Ροζ' },
+  { value: 'bg-indigo-100 text-indigo-800', label: 'Ινδιγκό' },
+  { value: 'bg-gray-100 text-gray-700', label: 'Γκρι' },
+]
+
+const MONTH_NAMES = ['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος',
+  'Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος']
+
+function slugify(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'channel_' + Date.now()
+}
+
+function ChannelManagerModal({ channels, onClose, onSaved }) {
+  const [list, setList] = useState(channels.map((c) => ({ ...c })))
+  const [newLabel, setNewLabel] = useState('')
+  const [newColor, setNewColor] = useState('bg-blue-100 text-blue-800')
+  const [saving, setSaving] = useState(false)
+
+  const updateItem = (idx, field, val) =>
+    setList((l) => l.map((c, i) => i === idx ? { ...c, [field]: val } : c))
+
+  const removeItem = (idx) => setList((l) => l.filter((_, i) => i !== idx))
+
+  const addChannel = () => {
+    if (!newLabel.trim()) return
+    const value = slugify(newLabel)
+    if (list.find((c) => c.value === value)) {
+      toast.error('Υπάρχει ήδη κανάλι με αυτό το κλειδί')
+      return
+    }
+    setList((l) => [...l, { value, label: newLabel.trim(), color: newColor }])
+    setNewLabel('')
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await saveBookingChannels(list)
+      toast.success('Τα κανάλια αποθηκεύτηκαν')
+      onSaved(list)
+    } catch {
+      toast.error('Σφάλμα αποθήκευσης')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-0 md:p-4">
+      <div className="bg-white w-full md:max-w-lg rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
+          <h3 className="font-bold text-gray-800">Διαχείριση Καναλιών</h3>
+          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          {list.map((ch, idx) => (
+            <div key={ch.value} className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ch.color}`}>
+                {ch.label}
+              </span>
+              <input
+                className="input flex-1 text-sm"
+                value={ch.label}
+                onChange={(e) => updateItem(idx, 'label', e.target.value)}
+                placeholder="Όνομα καναλιού"
+              />
+              <select
+                className="input text-xs w-32"
+                value={ch.color}
+                onChange={(e) => updateItem(idx, 'color', e.target.value)}
+              >
+                {COLOR_OPTIONS.map((co) => (
+                  <option key={co.value} value={co.value}>{co.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => removeItem(idx)}
+                className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 shrink-0"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs text-gray-500 mb-2 font-medium">Προσθήκη νέου καναλιού</p>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1 text-sm"
+                placeholder="π.χ. Expedia"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addChannel()}
+              />
+              <select
+                className="input text-xs w-32"
+                value={newColor}
+                onChange={(e) => setNewColor(e.target.value)}
+              >
+                {COLOR_OPTIONS.map((co) => (
+                  <option key={co.value} value={co.value}>{co.label}</option>
+                ))}
+              </select>
+              <button onClick={addChannel} className="btn-primary text-sm px-3 shrink-0">+</button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
+            <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+              {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const STATUSES = [
   { value: 'confirmed', label: 'Επιβεβαιωμένη', color: 'bg-green-100 text-green-700' },
@@ -38,7 +164,7 @@ const emptyBooking = {
 }
 const emptyCustomer = { first_name: '', last_name: '', email: '', phone: '', nationality: '', id_number: '' }
 
-function BookingModal({ booking, units, customers: initCustomers, onClose, onSaved }) {
+function BookingModal({ booking, units, customers: initCustomers, channels: modalChannels, onClose, onSaved }) {
   const [form, setForm] = useState(booking ? { ...booking } : { ...emptyBooking })
   const [saving, setSaving] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -281,7 +407,7 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
             <div>
               <label className="label">Κανάλι</label>
               <select className="input" value={form.channel} onChange={(e) => set('channel', e.target.value)}>
-                {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {(modalChannels || DEFAULT_CHANNELS).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </div>
             <div>
@@ -403,24 +529,50 @@ export default function Bookings() {
   const [bookings, setBookings] = useState([])
   const [units, setUnits] = useState([])
   const [customers, setCustomers] = useState([])
+  const [channels, setChannels] = useState(DEFAULT_CHANNELS)
   const [modal, setModal] = useState(null)
+  const [showChannelMgr, setShowChannelMgr] = useState(false)
   const [filters, setFilters] = useState({ channel: '', status: '', unit_id: '', is_billed: '' })
   const [sort, setSort] = useState({ sort_by: 'check_in', sort_dir: 'desc' })
   const [showFilters, setShowFilters] = useState(false)
   const [importing, setImporting] = useState(false)
 
+  // Date filter state
+  const now = new Date()
+  const [dateMode, setDateMode] = useState('')          // '' | 'month' | 'year' | 'period'
+  const [dateMonth, setDateMonth] = useState(now.getMonth() + 1)
+  const [dateYear, setDateYear] = useState(now.getFullYear())
+  const [periodFrom, setPeriodFrom] = useState('')
+  const [periodTo, setPeriodTo] = useState('')
+
+  const YEARS = Array.from({ length: now.getFullYear() - 2019 + 3 }, (_, i) => 2020 + i)
+
+  const getDateRange = useCallback(() => {
+    if (dateMode === 'month') {
+      const lastDay = new Date(dateYear, dateMonth, 0).getDate()
+      return {
+        from_date: `${dateYear}-${String(dateMonth).padStart(2, '0')}-01`,
+        to_date: `${dateYear}-${String(dateMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+      }
+    }
+    if (dateMode === 'year') return { from_date: `${dateYear}-01-01`, to_date: `${dateYear}-12-31` }
+    if (dateMode === 'period' && periodFrom && periodTo) return { from_date: periodFrom, to_date: periodTo }
+    return {}
+  }, [dateMode, dateMonth, dateYear, periodFrom, periodTo])
+
   const load = useCallback(() => {
-    const params = { ...sort, limit: 500 }
+    const params = { ...sort, limit: 500, ...getDateRange() }
     if (filters.channel) params.channel = filters.channel
     if (filters.status) params.status = filters.status
     if (filters.unit_id) params.unit_id = filters.unit_id
     if (filters.is_billed !== '') params.is_billed = filters.is_billed === 'true'
     getBookings(params).then((r) => setBookings(r.data))
-  }, [filters, sort])
+  }, [filters, sort, getDateRange])
 
   useEffect(() => {
     getUnits().then((r) => setUnits(r.data))
     getCustomers({ limit: 500 }).then((r) => setCustomers(r.data))
+    getBookingChannels().then((r) => setChannels(r.data)).catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
@@ -508,11 +660,17 @@ export default function Bookings() {
     </button>
   )
 
+  const CH = Object.fromEntries(channels.map((c) => [c.value, c]))
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-gray-800">Κρατήσεις</h2>
         <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setShowChannelMgr(true)} className="btn-secondary flex items-center gap-1" title="Διαχείριση καναλιών">
+            <Cog6ToothIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Κανάλια</span>
+          </button>
           <button onClick={() => setShowFilters(!showFilters)} className="btn-secondary flex items-center gap-1">
             <FunnelIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Φίλτρα</span>
@@ -547,35 +705,79 @@ export default function Bookings() {
 
       {/* Filters */}
       {showFilters && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
-            <label className="label">Κανάλι</label>
-            <select className="input" value={filters.channel} onChange={(e) => setFilters((f) => ({ ...f, channel: e.target.value }))}>
-              <option value="">Όλα</option>
-              {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="label">Κανάλι</label>
+              <select className="input" value={filters.channel} onChange={(e) => setFilters((f) => ({ ...f, channel: e.target.value }))}>
+                <option value="">Όλα</option>
+                {channels.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Κατάσταση</label>
+              <select className="input" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+                <option value="">Όλες</option>
+                {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Μονάδα</label>
+              <select className="input" value={filters.unit_id} onChange={(e) => setFilters((f) => ({ ...f, unit_id: e.target.value }))}>
+                <option value="">Όλες</option>
+                {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Τιμολόγηση</label>
+              <select className="input" value={filters.is_billed} onChange={(e) => setFilters((f) => ({ ...f, is_billed: e.target.value }))}>
+                <option value="">Όλες</option>
+                <option value="true">Τιμολογήθηκαν</option>
+                <option value="false">Δεν τιμολογήθηκαν</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="label">Κατάσταση</label>
-            <select className="input" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
-              <option value="">Όλες</option>
-              {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Μονάδα</label>
-            <select className="input" value={filters.unit_id} onChange={(e) => setFilters((f) => ({ ...f, unit_id: e.target.value }))}>
-              <option value="">Όλες</option>
-              {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Τιμολόγηση</label>
-            <select className="input" value={filters.is_billed} onChange={(e) => setFilters((f) => ({ ...f, is_billed: e.target.value }))}>
-              <option value="">Όλες</option>
-              <option value="true">Τιμολογήθηκαν</option>
-              <option value="false">Δεν τιμολογήθηκαν</option>
-            </select>
+
+          {/* Date period filter */}
+          <div className="border-t border-gray-100 pt-3">
+            <label className="label mb-2">Περίοδος</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[['', 'Όλες'], ['month', 'Μήνας'], ['year', 'Χρονιά'], ['period', 'Συγκεκριμένη']].map(([mode, lbl]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDateMode(mode)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${dateMode === mode ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            {dateMode === 'month' && (
+              <div className="flex gap-2">
+                <select className="input flex-1" value={dateMonth} onChange={(e) => setDateMonth(+e.target.value)}>
+                  {MONTH_NAMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                </select>
+                <select className="input w-28" value={dateYear} onChange={(e) => setDateYear(+e.target.value)}>
+                  {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            )}
+
+            {dateMode === 'year' && (
+              <select className="input w-32" value={dateYear} onChange={(e) => setDateYear(+e.target.value)}>
+                {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+
+            {dateMode === 'period' && (
+              <div className="flex gap-2 items-center">
+                <input type="date" className="input flex-1" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+                <span className="text-gray-400 text-sm">→</span>
+                <input type="date" className="input flex-1" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -655,8 +857,17 @@ export default function Bookings() {
           booking={modal === 'new' ? null : modal}
           units={units}
           customers={customers}
+          channels={channels}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+        />
+      )}
+
+      {showChannelMgr && (
+        <ChannelManagerModal
+          channels={channels}
+          onClose={() => setShowChannelMgr(false)}
+          onSaved={(updated) => { setChannels(updated); setShowChannelMgr(false) }}
         />
       )}
     </div>

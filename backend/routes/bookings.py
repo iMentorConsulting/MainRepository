@@ -250,6 +250,43 @@ def create_booking(booking: BookingCreate, db: Session = Depends(get_db), tenant
     return _load(db, obj.id, tenant)
 
 
+DEFAULT_CHANNELS = [
+    {"value": "booking", "label": "Booking.com", "color": "bg-blue-100 text-blue-800"},
+    {"value": "airbnb", "label": "Airbnb", "color": "bg-red-100 text-red-800"},
+    {"value": "direct", "label": "Απευθείας", "color": "bg-green-100 text-green-800"},
+    {"value": "oga", "label": "ΟΓΑ", "color": "bg-purple-100 text-purple-800"},
+    {"value": "social_tourism", "label": "Κοιν.Τουρισμός", "color": "bg-teal-100 text-teal-800"},
+    {"value": "other", "label": "Άλλο", "color": "bg-gray-100 text-gray-700"},
+]
+
+
+@router.get("/channels")
+def get_channels(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    import json
+    from models import TenantSettings
+    setting = db.query(TenantSettings).filter(
+        TenantSettings.tenant == tenant, TenantSettings.key == 'channels'
+    ).first()
+    if not setting or not setting.value:
+        return DEFAULT_CHANNELS
+    return json.loads(setting.value)
+
+
+@router.put("/channels")
+def save_channels(body: list, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    import json
+    from models import TenantSettings
+    setting = db.query(TenantSettings).filter(
+        TenantSettings.tenant == tenant, TenantSettings.key == 'channels'
+    ).first()
+    if not setting:
+        setting = TenantSettings(tenant=tenant, key='channels')
+        db.add(setting)
+    setting.value = json.dumps(body)
+    db.commit()
+    return body
+
+
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_booking(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     obj = _load(db, booking_id, tenant)

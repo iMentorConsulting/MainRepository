@@ -337,6 +337,15 @@ class SeasonalRate(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class TenantSettings(Base):
+    __tablename__ = "tenant_settings"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    key = Column(String(100), nullable=False)
+    value = Column(Text)
+
+
 class EmailLog(Base):
     __tablename__ = "email_logs"
 

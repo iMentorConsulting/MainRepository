@@ -51,6 +51,8 @@ export const getBookings = (params) => api.get('/bookings/', { params })
 export const createBooking = (data) => api.post('/bookings/', data)
 export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data)
 export const deleteBooking = (id) => api.delete(`/bookings/${id}`)
+export const getBookingChannels = () => api.get('/bookings/channels')
+export const saveBookingChannels = (data) => api.put('/bookings/channels', data)
 
 // Bookings Excel
 export const exportBookings = (params) => api.get('/bookings/export/excel', { params, responseType: 'blob' })

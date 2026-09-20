@@ -274,6 +274,21 @@ except Exception:
 try:
     with engine.connect() as _bc:
         _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS tenant_settings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                key VARCHAR(100) NOT NULL,
+                value TEXT,
+                UNIQUE(tenant, key)
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tenant VARCHAR(50) NOT NULL,
