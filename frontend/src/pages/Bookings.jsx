@@ -14,11 +14,10 @@ import {
 } from '@heroicons/react/24/outline'
 
 const DEFAULT_CHANNELS = [
-  { value: 'booking', label: 'Booking.com', color: 'bg-blue-100 text-blue-800' },
   { value: 'airbnb', label: 'Airbnb', color: 'bg-red-100 text-red-800' },
+  { value: 'booking', label: 'Booking.com', color: 'bg-blue-100 text-blue-800' },
+  { value: 'vrbo', label: 'VRBO', color: 'bg-indigo-100 text-indigo-800' },
   { value: 'direct', label: 'Απευθείας', color: 'bg-green-100 text-green-800' },
-  { value: 'oga', label: 'ΟΓΑ', color: 'bg-purple-100 text-purple-800' },
-  { value: 'social_tourism', label: 'Κοιν.Τουρισμός', color: 'bg-teal-100 text-teal-800' },
   { value: 'other', label: 'Άλλο', color: 'bg-gray-100 text-gray-700' },
 ]
 
@@ -401,6 +400,21 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
               </div>
             )}
           </div>
+
+          {/* Guest info panel for existing bookings */}
+          {booking?.id && (() => {
+            const cust = customers.find(c => c.id === form.customer_id) || booking.customer
+            const hasInfo = cust?.phone || cust?.email || form.notes
+            if (!hasInfo) return null
+            return (
+              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm space-y-1">
+                <p className="text-xs font-semibold text-sky-700 mb-1.5">Στοιχεία Επισκέπτη</p>
+                {cust?.phone && <p className="text-gray-700">📞 {cust.phone}</p>}
+                {cust?.email && <p className="text-gray-700">✉️ {cust.email}</p>}
+                {form.notes && <p className="text-gray-600 text-xs">🗒 {form.notes}</p>}
+              </div>
+            )
+          })()}
 
           {/* Channel + Status */}
           <div className="grid grid-cols-2 gap-3">

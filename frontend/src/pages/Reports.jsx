@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal } from '../api'
+import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal, getOwners, getOwnerReport, sendOwnerReport } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine,
@@ -38,6 +38,46 @@ export default function Reports() {
   const [totalExpenses, setTotalExpenses] = useState(0)
   const [totalLoans, setTotalLoans] = useState(0)
   const [loanByMonth, setLoanByMonth] = useState({})
+
+  // Owner report state
+  const [owners, setOwners] = useState([])
+  const [ownerReport, setOwnerReport] = useState(null)
+  const [ownerLoading, setOwnerLoading] = useState(false)
+  const [ownerSending, setOwnerSending] = useState(false)
+  const [selectedOwner, setSelectedOwner] = useState('')
+  const nowDate = new Date()
+  const [ownerMonth, setOwnerMonth] = useState(nowDate.getMonth() + 1)
+  const [ownerYear, setOwnerYear] = useState(nowDate.getFullYear())
+
+  useEffect(() => {
+    if (tab === 'owners') getOwners().then(r => setOwners(r.data)).catch(() => {})
+  }, [tab])
+
+  const loadOwnerReport = async () => {
+    if (!selectedOwner) return
+    setOwnerLoading(true)
+    try {
+      const r = await getOwnerReport(selectedOwner, ownerYear, ownerMonth)
+      setOwnerReport(r.data)
+    } catch { setOwnerReport(null) } finally { setOwnerLoading(false) }
+  }
+
+  useEffect(() => { if (tab === 'owners' && selectedOwner) loadOwnerReport() }, [selectedOwner, ownerMonth, ownerYear])
+
+  const handleSendOwnerEmail = async () => {
+    setOwnerSending(true)
+    try {
+      await sendOwnerReport(selectedOwner, ownerYear, ownerMonth)
+      alert('Email εστάλη!')
+    } catch { alert('Σφάλμα αποστολής') } finally { setOwnerSending(false) }
+  }
+
+  function fmtEurO(n) {
+    return `€${Number(n || 0).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+  }
+
+  const MONTH_NAMES_GR = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος',
+    'Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος']
 
   useEffect(() => {
     getExpenses({ from_date: from, to_date: to }).then(r => {
@@ -87,14 +127,15 @@ export default function Reports() {
     { id: 'channel', label: 'Ανά Κανάλι' },
     { id: 'financial', label: 'Οικονομικά' },
     { id: 'price', label: 'Τιμή/Νύχτα' },
+    { id: 'owners', label: 'Ιδιοκτήτες' },
   ]
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       <h2 className="text-xl font-bold text-gray-800">Αναφορές & Στατιστικά</h2>
 
-      {/* Date range */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
+      {/* Date range — hidden on owner tab which has its own controls */}
+      {tab !== 'owners' && <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
         <div>
           <label htmlFor="rep-from" className="label">Από</label>
           <input id="rep-from" className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
@@ -111,7 +152,7 @@ export default function Reports() {
             <button key={q.label} onClick={() => { setFrom(q.f); setTo(q.t) }} className="btn-secondary text-xs">{q.label}</button>
           ))}
         </div>
-      </div>
+      </div>}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
@@ -449,6 +490,161 @@ export default function Reports() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Owner Report Tab ─────────────────────────────── */}
+      {tab === 'owners' && (
+        <div className="space-y-4">
+          {/* Controls */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[180px]">
+              <label className="label">Ιδιοκτήτης</label>
+              <select className="input" value={selectedOwner} onChange={e => { setSelectedOwner(e.target.value); setOwnerReport(null) }}>
+                <option value="">-- Επιλέξτε --</option>
+                {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Μήνας</label>
+              <select className="input" value={ownerMonth} onChange={e => setOwnerMonth(+e.target.value)}>
+                {MONTH_NAMES_GR.slice(1).map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Έτος</label>
+              <input type="number" className="input w-24" value={ownerYear} onChange={e => setOwnerYear(+e.target.value)} />
+            </div>
+            <button onClick={loadOwnerReport} disabled={!selectedOwner || ownerLoading} className="btn-primary text-sm">
+              {ownerLoading ? 'Φόρτωση...' : 'Εμφάνιση'}
+            </button>
+          </div>
+
+          {ownerLoading && <div className="text-center py-10 text-gray-400">Φόρτωση αναφοράς...</div>}
+
+          {!ownerLoading && ownerReport && (() => {
+            const s = ownerReport.summary
+            const o = ownerReport.owner
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-lg">Αναφορά: {o.name}</h3>
+                    <p className="text-sm text-gray-500">{ownerReport.period.label} · Μονάδες: {ownerReport.units.map(u => u.name).join(' · ') || '—'}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Αμοιβή Διαχειριστή: {o.management_fee_percent}% (χρεώνεται στον ιδιοκτήτη)</p>
+                  </div>
+                  {o.email && (
+                    <button onClick={handleSendOwnerEmail} disabled={ownerSending} className="btn-primary text-sm flex items-center gap-1">
+                      {ownerSending ? '...' : '✉ Email'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Summary tiles */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Συνολικά Έσοδα', value: fmtEurO(s.total_revenue), color: 'text-gray-800' },
+                    { label: 'Καθαρά Έσοδα', value: fmtEurO(s.net_revenue), color: 'text-blue-700' },
+                    { label: 'Έξοδα Μονάδων', value: fmtEurO(s.total_expenses), color: 'text-red-600' },
+                    { label: 'Δανειακές Υποχρ.', value: fmtEurO(s.total_loan_payments ?? 0), color: 'text-orange-600' },
+                    { label: `Αμοιβή Διαχ. (${o.management_fee_percent}%)`, value: fmtEurO(s.management_fee), color: 'text-amber-600' },
+                  ].map(t => (
+                    <div key={t.label} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">{t.label}</p>
+                      <p className={`text-lg font-bold ${t.color}`}>{t.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Profit */}
+                <div className={`rounded-xl border-2 p-4 flex items-center justify-between ${s.owner_profit >= 0 ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                  <p className="font-bold text-gray-700 text-lg">ΚΑΘΑΡΟ ΚΕΡΔΟΣ ΙΔΙΟΚΤΗΤΗ</p>
+                  <p className={`text-3xl font-bold ${s.owner_profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmtEurO(s.owner_profit)}</p>
+                </div>
+
+                {/* Bookings */}
+                <div>
+                  <h4 className="font-semibold text-gray-700 mb-2">📋 Κρατήσεις ({ownerReport.bookings.length})</h4>
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead><tr className="bg-[#1e3a5f] text-white text-xs">
+                        <th className="text-left px-3 py-2">Μονάδα</th>
+                        <th className="text-left px-3 py-2">Πελάτης</th>
+                        <th className="text-left px-3 py-2">Check-in</th>
+                        <th className="text-center px-3 py-2">Νύχτες</th>
+                        <th className="text-left px-3 py-2">Κανάλι</th>
+                        <th className="text-right px-3 py-2">Έσοδα</th>
+                        <th className="text-right px-3 py-2 text-red-300">Προμήθεια</th>
+                        <th className="text-right px-3 py-2 text-green-300">Καθαρά</th>
+                      </tr></thead>
+                      <tbody>
+                        {ownerReport.bookings.length === 0
+                          ? <tr><td colSpan={8} className="text-center py-6 text-gray-400">Δεν υπάρχουν κρατήσεις</td></tr>
+                          : ownerReport.bookings.map(b => (
+                            <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium text-gray-700">{b.unit_name}</td>
+                              <td className="px-3 py-2">{b.customer}</td>
+                              <td className="px-3 py-2 text-gray-500">{b.check_in}</td>
+                              <td className="px-3 py-2 text-center">{b.nights}</td>
+                              <td className="px-3 py-2 text-gray-500">{b.channel}</td>
+                              <td className="px-3 py-2 text-right">{fmtEurO(b.total_price)}</td>
+                              <td className="px-3 py-2 text-right text-red-600">-{fmtEurO(b.commission)}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtEurO(b.net)}</td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                      {ownerReport.bookings.length > 0 && (
+                        <tfoot><tr className="bg-gray-50 border-t-2 border-gray-300 font-bold text-sm">
+                          <td colSpan={5} className="px-3 py-2 text-right">Σύνολο</td>
+                          <td className="px-3 py-2 text-right">{fmtEurO(s.total_revenue)}</td>
+                          <td className="px-3 py-2 text-right text-red-600">-{fmtEurO(s.total_commission)}</td>
+                          <td className="px-3 py-2 text-right text-green-700">{fmtEurO(s.net_revenue)}</td>
+                        </tr></tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+
+                {/* Expenses */}
+                <div>
+                  <h4 className="font-semibold text-gray-700 mb-2">💶 Έξοδα Μονάδων ({ownerReport.expenses.length})</h4>
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead><tr className="bg-[#1e3a5f] text-white text-xs">
+                        <th className="text-left px-3 py-2">Ημ/νία</th>
+                        <th className="text-left px-3 py-2">Κατηγορία</th>
+                        <th className="text-left px-3 py-2">Περιγραφή</th>
+                        <th className="text-left px-3 py-2">Μονάδα/Τύπος</th>
+                        <th className="text-right px-3 py-2">Ποσό</th>
+                      </tr></thead>
+                      <tbody>
+                        {ownerReport.expenses.length === 0
+                          ? <tr><td colSpan={5} className="text-center py-6 text-gray-400">Δεν υπάρχουν έξοδα</td></tr>
+                          : ownerReport.expenses.map(e => (
+                            <tr key={e.id} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-500">{new Date(e.date+'T00:00:00').toLocaleDateString('el-GR')}</td>
+                              <td className="px-3 py-2"><span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">{e.category}</span></td>
+                              <td className="px-3 py-2">{e.item}</td>
+                              <td className="px-3 py-2 text-gray-400 text-xs">{e.unit_name}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-red-600">{fmtEurO(e.amount)}</td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                      {ownerReport.expenses.length > 0 && (
+                        <tfoot><tr className="bg-gray-50 border-t-2 border-gray-300 font-bold">
+                          <td colSpan={4} className="px-3 py-2 text-right">Σύνολο Εξόδων</td>
+                          <td className="px-3 py-2 text-right text-red-700">{fmtEurO(s.total_expenses)}</td>
+                        </tr></tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>

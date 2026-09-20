@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
@@ -251,11 +251,10 @@ def create_booking(booking: BookingCreate, db: Session = Depends(get_db), tenant
 
 
 DEFAULT_CHANNELS = [
-    {"value": "booking", "label": "Booking.com", "color": "bg-blue-100 text-blue-800"},
     {"value": "airbnb", "label": "Airbnb", "color": "bg-red-100 text-red-800"},
+    {"value": "booking", "label": "Booking.com", "color": "bg-blue-100 text-blue-800"},
+    {"value": "vrbo", "label": "VRBO", "color": "bg-indigo-100 text-indigo-800"},
     {"value": "direct", "label": "Απευθείας", "color": "bg-green-100 text-green-800"},
-    {"value": "oga", "label": "ΟΓΑ", "color": "bg-purple-100 text-purple-800"},
-    {"value": "social_tourism", "label": "Κοιν.Τουρισμός", "color": "bg-teal-100 text-teal-800"},
     {"value": "other", "label": "Άλλο", "color": "bg-gray-100 text-gray-700"},
 ]
 
@@ -273,7 +272,7 @@ def get_channels(db: Session = Depends(get_db), tenant: str = Depends(get_tenant
 
 
 @router.put("/channels")
-def save_channels(body: list, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+def save_channels(body: list = Body(...), db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     import json
     from models import TenantSettings
     setting = db.query(TenantSettings).filter(

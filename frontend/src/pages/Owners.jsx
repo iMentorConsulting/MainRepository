@@ -62,7 +62,7 @@ function OwnerModal({ owner, allUnits, onClose, onSaved }) {
             </div>
           </div>
           <div>
-            <label className="label">Αμοιβή Διαχείρισης (%)</label>
+            <label className="label">Αμοιβή Διαχειριστή (%) <span className="text-gray-400 font-normal text-[11px]">— χρεώνεται στον ιδιοκτήτη</span></label>
             <input className="input" type="number" min="0" max="100" step="0.5"
               value={form.management_fee_percent} onChange={e => set('management_fee_percent', parseFloat(e.target.value))} />
           </div>
@@ -143,7 +143,7 @@ function ReportViewer({ owner, onClose }) {
         <div className="flex items-center justify-between px-5 py-4 border-b sticky top-0 bg-white z-10 print:hidden">
           <div>
             <h3 className="font-bold text-gray-800">Αναφορά: {owner.name}</h3>
-            <p className="text-xs text-gray-500">Αμοιβή διαχείρισης: {owner.management_fee_percent}%</p>
+            <p className="text-xs text-gray-500">Αμοιβή Διαχειριστή: {owner.management_fee_percent}% <span className="text-gray-400">(χρεώνεται στον ιδιοκτήτη)</span></p>
           </div>
           <div className="flex items-center gap-2">
             <select className="input text-sm w-auto" value={month} onChange={e => setMonth(+e.target.value)}>
@@ -189,7 +189,7 @@ function ReportViewer({ owner, onClose }) {
                 { label: 'Καθαρά Έσοδα', value: fmt(s.net_revenue), color: 'text-blue-700' },
                 { label: 'Έξοδα Μονάδων', value: fmt(s.total_expenses), color: 'text-red-600' },
                 { label: 'Δανειακές Υποχρ.', value: fmt(s.total_loan_payments ?? 0), color: 'text-orange-600' },
-                { label: `Αμοιβή (${s.management_fee_percent}%)`, value: fmt(s.management_fee), color: 'text-amber-600' },
+                { label: `Αμοιβή Διαχ. (${s.management_fee_percent}%)`, value: fmt(s.management_fee), color: 'text-amber-600' },
               ].map(t => (
                 <div key={t.label} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
                   <p className="text-xs text-gray-700 mb-1">{t.label}</p>
