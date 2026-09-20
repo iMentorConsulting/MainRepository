@@ -53,6 +53,7 @@ export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data)
 export const deleteBooking = (id) => api.delete(`/bookings/${id}`)
 export const getBookingChannels = () => api.get('/bookings/channels')
 export const saveBookingChannels = (data) => api.put('/bookings/channels', data)
+export const bulkMarkBilled = (ids) => api.put('/bookings/bulk-bill', { ids })
 
 // Bookings Excel
 export const exportBookings = (params) => api.get('/bookings/export/excel', { params, responseType: 'blob' })

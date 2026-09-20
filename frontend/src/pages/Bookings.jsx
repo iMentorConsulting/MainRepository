@@ -3,7 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import {
   getBookings, getUnits, getCustomers, createBooking, updateBooking, deleteBooking,
   createCustomer, recommendUnit, exportBookings, downloadTemplate, importBookings,
-  getPortalLink, sendPortalEmail, getBookingChannels, saveBookingChannels,
+  getPortalLink, sendPortalEmail, getBookingChannels, saveBookingChannels, bulkMarkBilled,
 } from '../api'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
@@ -532,6 +532,7 @@ export default function Bookings() {
   const [channels, setChannels] = useState(DEFAULT_CHANNELS)
   const [modal, setModal] = useState(null)
   const [showChannelMgr, setShowChannelMgr] = useState(false)
+  const [selected, setSelected] = useState(new Set())
   const [filters, setFilters] = useState({ channel: '', status: '', unit_id: '', is_billed: '' })
   const [sort, setSort] = useState({ sort_by: 'check_in', sort_dir: 'desc' })
   const [showFilters, setShowFilters] = useState(false)
@@ -566,8 +567,34 @@ export default function Bookings() {
     if (filters.status) params.status = filters.status
     if (filters.unit_id) params.unit_id = filters.unit_id
     if (filters.is_billed !== '') params.is_billed = filters.is_billed === 'true'
-    getBookings(params).then((r) => setBookings(r.data))
+    getBookings(params).then((r) => { setBookings(r.data); setSelected(new Set()) })
   }, [filters, sort, getDateRange])
+
+  const toggleSelect = (id) => setSelected((s) => {
+    const next = new Set(s)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
+  const toggleAll = () => {
+    if (selected.size === bookings.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(bookings.map((b) => b.id)))
+    }
+  }
+
+  const handleBulkBill = async () => {
+    if (!selected.size) return
+    if (!confirm(`Σήμανση ${selected.size} κρατήσεων ως τιμολογήθηκαν;`)) return
+    try {
+      await bulkMarkBilled([...selected])
+      toast.success(`${selected.size} κρατήσεις σημάνθηκαν ως τιμολογήθηκαν`)
+      load()
+    } catch {
+      toast.error('Σφάλμα κατά την ενημέρωση')
+    }
+  }
 
   useEffect(() => {
     getUnits().then((r) => setUnits(r.data))
@@ -703,6 +730,22 @@ export default function Bookings() {
         <SortBtn field="created_at" label="Δημιουργία" />
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
+          <span className="text-sm font-medium text-blue-700">{selected.size} επιλεγμένες</span>
+          <button
+            onClick={handleBulkBill}
+            className="ml-auto text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            Τιμολογήθηκαν ✓
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-sm text-blue-500 hover:text-blue-700">
+            Ακύρωση
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
       {showFilters && (
         <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
@@ -788,6 +831,14 @@ export default function Bookings() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase tracking-wide">
+                <th className="px-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={bookings.length > 0 && selected.size === bookings.length}
+                    onChange={toggleAll}
+                  />
+                </th>
                 <th className="text-left px-4 py-3">#</th>
                 <th className="text-left px-4 py-3">Πελάτης</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Μονάδα</th>
@@ -801,7 +852,15 @@ export default function Bookings() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {bookings.map((b) => (
-                <tr key={b.id} className={`hover:bg-gray-50 ${b.status === 'cancelled' ? 'opacity-50' : ''}`}>
+                <tr key={b.id} className={`hover:bg-gray-50 ${b.status === 'cancelled' ? 'opacity-50' : ''} ${selected.has(b.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={selected.has(b.id)}
+                      onChange={() => toggleSelect(b.id)}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{b.id}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-800">{b.customer.first_name} {b.customer.last_name}</p>

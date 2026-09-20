@@ -8,25 +8,47 @@ import {
   CreditCardIcon,
 } from '@heroicons/react/24/outline'
 
-const nav = [
-  { to: '/', label: 'Αρχική', Icon: HomeIcon, exact: true },
-  { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
-  { to: '/bookings', label: 'Κρατήσεις', Icon: BookmarkSquareIcon },
-  { to: '/units', label: 'Μονάδες', Icon: BuildingOfficeIcon },
-  { to: '/customers', label: 'Πελάτες', Icon: UsersIcon },
-  { to: '/reports', label: 'Αναφορές', Icon: ChartBarIcon },
-  { to: '/expenses', label: 'Έξοδα', Icon: BanknotesIcon },
-  { to: '/loans', label: 'Δάνεια', Icon: CreditCardIcon },
-  { to: '/maintenance', label: 'Συντήρηση', Icon: WrenchScrewdriverIcon },
-  { to: '/owners', label: 'Ιδιοκτήτες', Icon: HomeModernIcon },
-  { to: '/availability', label: 'Availability', Icon: CalendarIcon, desktopOnly: true },
-  { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon, desktopOnly: true },
-  { to: '/sync', label: 'Sync Πλατφορμών', Icon: ArrowsRightLeftIcon, desktopOnly: true },
-  { to: '/widget-admin', label: 'Availability Widget', Icon: CodeBracketIcon, desktopOnly: true },
-  { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
-  { to: '/cleaning', label: 'Καθαριότητα', Icon: ClipboardDocumentCheckIcon },
-  { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },
+const navGroups = [
+  {
+    label: 'Κρατήσεις',
+    items: [
+      { to: '/', label: 'Αρχική', Icon: HomeIcon, exact: true },
+      { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
+      { to: '/bookings', label: 'Κρατήσεις', Icon: BookmarkSquareIcon },
+      { to: '/customers', label: 'Πελάτες', Icon: UsersIcon },
+      { to: '/availability', label: 'Availability', Icon: CalendarIcon, desktopOnly: true },
+    ],
+  },
+  {
+    label: 'Μονάδες',
+    items: [
+      { to: '/units', label: 'Μονάδες', Icon: BuildingOfficeIcon },
+      { to: '/owners', label: 'Ιδιοκτήτες', Icon: HomeModernIcon },
+      { to: '/cleaning', label: 'Καθαριότητα', Icon: ClipboardDocumentCheckIcon },
+      { to: '/maintenance', label: 'Συντήρηση', Icon: WrenchScrewdriverIcon },
+    ],
+  },
+  {
+    label: 'Οικονομικά',
+    items: [
+      { to: '/reports', label: 'Αναφορές', Icon: ChartBarIcon },
+      { to: '/expenses', label: 'Έξοδα', Icon: BanknotesIcon },
+      { to: '/loans', label: 'Δάνεια', Icon: CreditCardIcon },
+    ],
+  },
+  {
+    label: 'Ρυθμίσεις',
+    items: [
+      { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon, desktopOnly: true },
+      { to: '/sync', label: 'Sync Πλατφορμών', Icon: ArrowsRightLeftIcon, desktopOnly: true },
+      { to: '/widget-admin', label: 'Availability Widget', Icon: CodeBracketIcon, desktopOnly: true },
+      { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
+      { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },
+    ],
+  },
 ]
+
+const allNavItems = navGroups.flatMap(g => g.items)
 
 function NavItem({ to, label, Icon, exact }) {
   return (
@@ -68,8 +90,19 @@ export default function Layout({ auth, onLogout }) {
             {auth?.name}
           </p>
         </div>
-        <nav className="flex-1 overflow-y-auto p-3 space-y-0.5" aria-label="Πλοήγηση εφαρμογής">
-          {nav.map((item) => <NavItem key={item.to} {...item} />)}
+        <nav className="flex-1 overflow-y-auto p-3" aria-label="Πλοήγηση εφαρμογής">
+          {navGroups.map((group) => (
+            <div key={group.label} className="mb-3">
+              <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-widest text-gray-400 select-none">
+                {group.label}
+              </p>
+              <div className="space-y-0.5">
+                {group.items.filter(i => !i.desktopOnly || true).map((item) => (
+                  <NavItem key={item.to} {...item} />
+                ))}
+              </div>
+            </div>
+          ))}
         </nav>
         <div className="p-3 border-t border-gray-200">
           <button
@@ -108,7 +141,7 @@ export default function Layout({ auth, onLogout }) {
         {/* Mobile bottom nav */}
         <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 z-10" aria-label="Κύρια πλοήγηση">
           <div className="grid grid-cols-6" role="list">
-            {nav.filter(item => !item.desktopOnly).map(({ to, label, Icon, exact }) => (
+            {allNavItems.filter(item => !item.desktopOnly).map(({ to, label, Icon, exact }) => (
               <NavLink
                 key={to}
                 to={to}

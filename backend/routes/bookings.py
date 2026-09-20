@@ -287,6 +287,18 @@ def save_channels(body: list, db: Session = Depends(get_db), tenant: str = Depen
     return body
 
 
+@router.put("/bulk-bill")
+def bulk_mark_billed(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    ids = body.get("ids", [])
+    if not ids:
+        return {"updated": 0}
+    updated = db.query(Booking).filter(
+        Booking.id.in_(ids), Booking.tenant == tenant
+    ).update({"is_billed": True}, synchronize_session=False)
+    db.commit()
+    return {"updated": updated}
+
+
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_booking(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     obj = _load(db, booking_id, tenant)
