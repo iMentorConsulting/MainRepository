@@ -157,17 +157,30 @@ def occupancy_report(
         elif loan.unit_type:
             loans_by_type.setdefault(loan.unit_type, []).append(loan)
 
+    # Count active units per type so type costs are split equally
+    units_per_type: dict = {}
+    for r in results:
+        t = r["unit_type"]
+        if t:
+            units_per_type[t] = units_per_type.get(t, 0) + 1
+
     for r in results:
         uid = r["unit_id"]
         utype = r["unit_type"]
+        n = units_per_type.get(utype, 1) or 1
+        # Direct unit costs
         ue = round(exp_by_unit.get(uid, 0.0), 2)
         ul = _loan_installment_sum(loans_by_unit.get(uid, []), from_date, to_date)
-        r["unit_expenses"] = ue
-        r["unit_loan_payments"] = ul
-        r["unit_profit"] = round(r["net_revenue"] - ue - ul, 2)
-        # type-level (shared costs — shown for info, not deducted per-unit)
-        r["type_expenses"] = round(exp_by_type.get(utype, 0.0), 2)
-        r["type_loan_payments"] = _loan_installment_sum(loans_by_type.get(utype, []), from_date, to_date)
+        # Prorated type costs (equal share per unit of that type)
+        tes = round(exp_by_type.get(utype, 0.0) / n, 2) if utype else 0.0
+        tls = round(_loan_installment_sum(loans_by_type.get(utype, []), from_date, to_date) / n, 2) if utype else 0.0
+        r["unit_expenses"] = round(ue + tes, 2)
+        r["unit_loan_payments"] = round(ul + tls, 2)
+        r["unit_profit"] = round(r["net_revenue"] - r["unit_expenses"] - r["unit_loan_payments"], 2)
+        r["direct_expenses"] = ue
+        r["shared_expense_share"] = tes
+        r["direct_loans"] = ul
+        r["shared_loan_share"] = tls
 
     total_expenses_all = round(sum(e.amount for e in all_expenses), 2)
     total_loans_all = _loan_installment_sum(all_loans, from_date, to_date)

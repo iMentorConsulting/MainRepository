@@ -165,6 +165,16 @@ def owner_report(
     total_expenses = sum(e.amount for e in expenses)
     management_fee = round(net_revenue * o.management_fee_percent / 100, 2)
 
+    # Category breakdown
+    from collections import defaultdict
+    cat_sums: dict = defaultdict(float)
+    for e in expenses:
+        cat_sums[e.category or "Άλλο"] += e.amount
+    expense_by_category = [
+        {"category": k, "amount": round(v, 2), "pct": round(v / total_expenses * 100, 1) if total_expenses else 0}
+        for k, v in sorted(cat_sums.items(), key=lambda x: -x[1])
+    ]
+
     # Loans assigned to owner's units (by unit_id or matching unit_type)
     unit_loans = (
         db.query(Loan).filter(Loan.tenant == tenant, Loan.unit_id.in_(unit_ids)).all()
@@ -243,6 +253,7 @@ def owner_report(
             }
             for l in all_owner_loans
         ],
+        "expense_by_category": expense_by_category,
         "summary": {
             "total_revenue": round(total_revenue, 2),
             "total_commission": round(total_commission, 2),
@@ -268,11 +279,13 @@ def send_owner_report(
     o_data = report["owner"]
     if not o_data.get("email"):
         raise HTTPException(400, "Ο ιδιοκτήτης δεν έχει email")
-    _send_report_email(report, tenant, db)
+    ok = _send_report_email(report, tenant, db)
+    if not ok:
+        raise HTTPException(500, "Αποτυχία αποστολής email. Ελέγξτε τις ρυθμίσεις SMTP στη σελίδα Guest Portal → Email & Notifications.")
     return {"ok": True}
 
 
-def _send_report_email(report: dict, tenant: str, db):
+def _send_report_email(report: dict, tenant: str, db) -> bool:
     from email_utils import send_raw_email
     from models import GuestPortalSettings
 
@@ -332,4 +345,4 @@ def _send_report_email(report: dict, tenant: str, db):
 <p style="color:#888;font-size:12px;margin-top:30px">Αναφορά δημιουργήθηκε αυτόματα από το σύστημα διαχείρισης.</p>
 </body></html>"""
 
-    send_raw_email(o["email"], f"Μηνιαία Αναφορά — {period['label']}", html, settings=settings)
+    return send_raw_email(o["email"], f"Μηνιαία Αναφορά — {period['label']}", html, settings=settings)

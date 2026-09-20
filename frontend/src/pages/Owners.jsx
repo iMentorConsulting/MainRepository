@@ -134,6 +134,77 @@ function ReportViewer({ owner, onClose }) {
     } catch { toast.error('Αποτυχία αποστολής') } finally { setSending(false) }
   }
 
+  const handlePrint = () => {
+    if (!report) return
+    const s = report.summary
+    const o = report.owner
+
+    const bkRows = report.bookings.length === 0
+      ? `<tr><td colspan="8" style="text-align:center;color:#888;padding:12px">Δεν υπάρχουν κρατήσεις</td></tr>`
+      : report.bookings.map(b => `<tr><td>${b.unit_name}</td><td>${b.customer}</td><td>${b.check_in}</td><td style="text-align:center">${b.nights}</td><td>${b.channel}</td><td style="text-align:right">${fmt(b.total_price)}</td><td style="text-align:right;color:#cc0000">-${fmt(b.commission)}</td><td style="text-align:right;font-weight:bold;color:#155724">${fmt(b.net)}</td></tr>`).join('')
+
+    const exRows = report.expenses.length === 0
+      ? `<tr><td colspan="5" style="text-align:center;color:#888;padding:12px">Δεν υπάρχουν έξοδα</td></tr>`
+      : report.expenses.map(e => `<tr><td>${new Date(e.date+'T00:00:00').toLocaleDateString('el-GR')}</td><td><span style="background:#f1f1f1;padding:2px 6px;border-radius:10px;font-size:10px">${e.category}</span></td><td>${e.item}</td><td style="color:#888">${e.vendor}</td><td style="text-align:right;color:#cc0000;font-weight:bold">${fmt(e.amount)}</td></tr>`).join('')
+
+    const catRows = (report.expense_by_category || []).map(c => `<tr><td>${c.category}</td><td style="text-align:right;color:#cc0000">${fmt(c.amount)}</td><td style="text-align:right;color:#888">${c.pct}%</td></tr>`).join('')
+
+    const loanRows = (report.loans || []).map(l => `<tr><td>${l.name}</td><td style="color:#888">${l.lender||'—'}</td><td style="color:#666">${l.unit_name||l.unit_type||'Γενικό'}</td><td style="text-align:right;color:#b45309;font-weight:bold">${fmt(l.monthly_installment)}</td></tr>`).join('')
+
+    const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<title>Αναφορά — ${report.period.label} — ${owner.name}</title>
+<style>
+body{font-family:Arial,sans-serif;font-size:12px;color:#222;max-width:900px;margin:20px auto}
+h1{color:#1e3a5f;font-size:18px;margin-bottom:2px}
+h2{color:#1e3a5f;font-size:13px;margin:18px 0 6px;border-bottom:1px solid #ddd;padding-bottom:3px}
+table{width:100%;border-collapse:collapse;margin-bottom:14px;font-size:11px}
+th{background:#1e3a5f;color:white;padding:5px 7px;text-align:left;font-size:10px}
+td{padding:4px 7px;border-bottom:1px solid #eee}
+.tf td{background:#f5f5f5;font-weight:bold;border-top:2px solid #ccc}
+.sg{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:12px}
+.tile{border:1px solid #ddd;border-radius:6px;padding:7px 10px}
+.tile .lbl{font-size:9px;color:#666;margin-bottom:2px}
+.tile .val{font-size:14px;font-weight:bold}
+.pb{border:2px solid;border-radius:6px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center;margin:12px 0}
+.cg{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:12px}
+.ctile{border:1px solid #fecaca;background:#fff5f5;border-radius:6px;padding:7px 10px}
+@page{size:A4;margin:1.5cm}
+@media print{body{margin:8px}}
+</style></head><body>
+<h1>ΜΗΝΙΑΙΑ ΑΝΑΦΟΡΑ ΙΔΙΟΚΤΗΤΗ</h1>
+<p style="color:#444;margin:2px 0;font-size:13px">${report.period.label} &nbsp;|&nbsp; <strong>${owner.name}</strong></p>
+<p style="color:#666;font-size:10px;margin:2px 0">Αμοιβή Διαχειριστή: ${o.management_fee_percent}% · Μονάδες: ${report.units.map(u => u.name).join(', ')}</p>
+<h2>Σύνοψη</h2>
+<div class="sg">
+<div class="tile"><div class="lbl">Συνολικά Έσοδα</div><div class="val">${fmt(s.total_revenue)}</div></div>
+<div class="tile"><div class="lbl">Καθαρά Έσοδα</div><div class="val" style="color:#1a56db">${fmt(s.net_revenue)}</div></div>
+<div class="tile"><div class="lbl">Έξοδα Μονάδων</div><div class="val" style="color:#cc0000">${fmt(s.total_expenses)}</div></div>
+<div class="tile"><div class="lbl">Δανειακές Υποχρ.</div><div class="val" style="color:#b45309">${fmt(s.total_loan_payments??0)}</div></div>
+<div class="tile"><div class="lbl">Αμοιβή Διαχ. (${o.management_fee_percent}%)</div><div class="val" style="color:#92400e">${fmt(s.management_fee)}</div></div>
+</div>
+<div class="pb" style="background:${s.owner_profit>=0?'#f0fdf4':'#fef2f2'};border-color:${s.owner_profit>=0?'#86efac':'#fca5a5'}">
+<span style="font-weight:bold;font-size:13px">ΚΑΘΑΡΟ ΚΕΡΔΟΣ ΙΔΙΟΚΤΗΤΗ</span>
+<span style="font-size:20px;font-weight:bold;color:${s.owner_profit>=0?'#166534':'#b91c1c'}">${fmt(s.owner_profit)}</span>
+</div>
+<h2>Κρατήσεις (${report.bookings.length})</h2>
+<table><thead><tr><th>Μονάδα</th><th>Πελάτης</th><th>Check-in</th><th>Νύχτες</th><th>Κανάλι</th><th style="text-align:right">Έσοδα</th><th style="text-align:right">Προμήθεια</th><th style="text-align:right">Καθαρά</th></tr></thead>
+<tbody>${bkRows}</tbody>${report.bookings.length>0?`<tfoot><tr class="tf"><td colspan="5" style="text-align:right">Σύνολο</td><td style="text-align:right">${fmt(s.total_revenue)}</td><td style="text-align:right;color:#cc0000">-${fmt(s.total_commission)}</td><td style="text-align:right;color:#155724">${fmt(s.net_revenue)}</td></tr></tfoot>`:''}</table>
+<h2>Έξοδα Μονάδων (${report.expenses.length})</h2>
+<table><thead><tr><th>Ημ/νία</th><th>Κατηγορία</th><th>Περιγραφή</th><th>Προμηθευτής</th><th style="text-align:right">Ποσό</th></tr></thead>
+<tbody>${exRows}</tbody>${report.expenses.length>0?`<tfoot><tr class="tf"><td colspan="4" style="text-align:right">Σύνολο Εξόδων</td><td style="text-align:right;color:#cc0000">${fmt(s.total_expenses)}</td></tr></tfoot>`:''}</table>
+${catRows?`<h2>Έξοδα ανά Κατηγορία</h2><div class="cg">${(report.expense_by_category||[]).map(c=>`<div class="ctile"><div style="font-size:10px;color:#555;margin-bottom:2px">${c.category}</div><div style="font-size:13px;font-weight:bold;color:#cc0000">${fmt(c.amount)}</div><div style="font-size:9px;color:#888">${c.pct}%</div></div>`).join('')}</div>`:''}
+${loanRows?`<h2>Δανειακές Υποχρεώσεις Μήνα</h2><table><thead><tr><th>Δάνειο</th><th>Τράπεζα</th><th>Μονάδα / Τύπος</th><th style="text-align:right">Μηνιαία Δόση</th></tr></thead><tbody>${loanRows}</tbody><tfoot><tr class="tf"><td colspan="3" style="text-align:right">Σύνολο Δόσεων</td><td style="text-align:right;color:#b45309">${fmt(s.total_loan_payments??0)}</td></tr></tfoot></table>`:''}
+<p style="color:#aaa;font-size:10px;margin-top:20px">Αναφορά: ${new Date().toLocaleDateString('el-GR')}</p>
+</body></html>`
+
+    const w = window.open('', '_blank')
+    if (!w) { alert('Ενεργοποιήστε τα pop-ups για να χρησιμοποιήσετε την εκτύπωση'); return }
+    w.document.write(html)
+    w.document.close()
+    w.focus()
+    setTimeout(() => w.print(), 400)
+  }
+
   const s = report?.summary
 
   return (
@@ -152,7 +223,7 @@ function ReportViewer({ owner, onClose }) {
               ))}
             </select>
             <input type="number" className="input text-sm w-24" value={year} onChange={e => setYear(+e.target.value)} />
-            <button onClick={() => window.print()} className="btn-secondary flex items-center gap-1 text-sm">
+            <button onClick={handlePrint} className="btn-secondary flex items-center gap-1 text-sm">
               <PrinterIcon className="h-4 w-4" /> PDF
             </button>
             {owner.email && (
@@ -284,6 +355,22 @@ function ReportViewer({ owner, onClose }) {
                 </table>
               </div>
             </div>
+
+            {/* Expense by category */}
+            {report.expense_by_category && report.expense_by_category.length > 0 && (
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-3">📊 Έξοδα ανά Κατηγορία</h4>
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
+                  {report.expense_by_category.map(cat => (
+                    <div key={cat.category} className="bg-red-50 border border-red-100 rounded-xl p-3">
+                      <p className="text-xs font-medium text-gray-600 mb-0.5">{cat.category}</p>
+                      <p className="text-sm font-bold text-red-700">{fmt(cat.amount)}</p>
+                      <p className="text-xs text-gray-400">{cat.pct}%</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* Loans table */}
             {report.loans && report.loans.length > 0 && (

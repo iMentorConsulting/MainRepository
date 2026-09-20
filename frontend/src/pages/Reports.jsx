@@ -207,8 +207,8 @@ export default function Reports() {
                   <th className="text-right px-4 py-3">Έσοδα</th>
                   <th className="text-right px-4 py-3">Προμήθειες</th>
                   <th className="text-right px-4 py-3">Καθαρά</th>
-                  <th className="text-right px-4 py-3 text-red-500">Έξοδα*</th>
-                  <th className="text-right px-4 py-3 text-orange-500">Δάνεια*</th>
+                  <th className="text-right px-4 py-3 text-red-500">Έξοδα</th>
+                  <th className="text-right px-4 py-3 text-orange-500">Δάνεια</th>
                   <th className="text-right px-4 py-3 text-emerald-600">Cash Flow</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-50">
@@ -216,15 +216,9 @@ export default function Reports() {
                     const unitExp = u.unit_expenses ?? 0
                     const unitLoans = u.unit_loan_payments ?? 0
                     const cashflow = u.unit_profit ?? (u.net_revenue - unitExp - unitLoans)
-                    const hasTypeShare = (u.type_expenses ?? 0) > 0 || (u.type_loan_payments ?? 0) > 0
                     return (
                     <tr key={u.unit_id} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 font-medium">
-                        {u.unit_name}
-                        {hasTypeShare && (
-                          <span className="ml-1 text-xs text-gray-400" title={`+€${((u.type_expenses??0)+(u.type_loan_payments??0)).toFixed(0)} κοινόχρηστα τύπου`}>⊕</span>
-                        )}
-                      </td>
+                      <td className="px-4 py-3 font-medium">{u.unit_name}</td>
                       <td className="px-4 py-3 text-right">{u.occupied_days}</td>
                       <td className="px-4 py-3 text-right text-gray-400">{u.free_days}</td>
                       <td className="px-4 py-3 text-right"><span className={`font-semibold ${u.occupancy_rate >= 70 ? 'text-green-600' : u.occupancy_rate >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{u.occupancy_rate}%</span></td>
@@ -239,8 +233,7 @@ export default function Reports() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-300 text-xs text-gray-500">
-                    <td colSpan={9} className="px-4 py-2 italic">Έξοδα/Δάνεια: μόνο ποσά αποδοθέντα στη συγκεκριμένη μονάδα. ⊕ = υπάρχουν κοινόχρηστα έξοδα/δάνεια τύπου μονάδας (εμφανίζονται στο Σύνολο).</td>
-                    <td />
+                    <td colSpan={10} className="px-4 py-2 italic">Έξοδα/Δάνεια: αναλογούν στη μονάδα — άμεσα + ισόμερη κατανομή κοινόχρηστων τύπου μονάδας.</td>
                   </tr>
                 </tfoot>
               </table>
@@ -642,6 +635,22 @@ export default function Reports() {
                     </table>
                   </div>
                 </div>
+
+                {/* Expense by category */}
+                {ownerReport.expense_by_category && ownerReport.expense_by_category.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-3">📊 Έξοδα ανά Κατηγορία</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                      {ownerReport.expense_by_category.map(cat => (
+                        <div key={cat.category} className="bg-red-50 border border-red-100 rounded-xl p-3">
+                          <p className="text-xs font-medium text-gray-600 mb-0.5">{cat.category}</p>
+                          <p className="text-sm font-bold text-red-700">{fmtEurO(cat.amount)}</p>
+                          <p className="text-xs text-gray-400">{cat.pct}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             )
           })()}
