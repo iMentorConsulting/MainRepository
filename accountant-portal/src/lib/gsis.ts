@@ -190,11 +190,22 @@ function parseGsisResponse(text: string, afm: string): GsisBusinessData | null {
     extractTag(text, 'date_of_reg') ||
     extractTag(text, 'firm_date_of_reg')
 
+  // AADE doesn't report a legal form for sole proprietors (φυσικά πρόσωπα
+  // doing business) — legal_status_descr just comes back empty. A business
+  // with real registered ΚΑΔ activity is a genuine ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ, not
+  // a private individual — downstream code (normalizeLegalForm) treats an
+  // empty legalStatusDescr as ΙΔΙΩΤΗΣ, which would wrongly exclude/misclassify
+  // a real, active business. Only businesses with zero activity stay
+  // legitimately ambiguous and are left null for normalizeLegalForm's
+  // ΙΔΙΩΤΗΣ fallback to handle.
+  const rawLegalStatusDescr = extractTag(text, 'legal_status_descr')
+  const legalStatusDescr = rawLegalStatusDescr || (activities.length > 0 ? 'ΑΤΟΜΙΚΗ' : rawLegalStatusDescr)
+
   return {
     afm,
     onomasia,
     commercialTitle: extractTag(text, 'commer_title') || extractTag(text, 'commercial_title') || onomasia,
-    legalStatusDescr: extractTag(text, 'legal_status_descr'),
+    legalStatusDescr,
     firmFlagDescr: extractTag(text, 'firm_flag_descr'),
     iNiFlagDescr: extractTag(text, 'i_ni_flag_descr'),
     deactivationFlag: extractTag(text, 'deactivation_flag'),
