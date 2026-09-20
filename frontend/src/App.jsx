@@ -21,6 +21,7 @@ import Sync from './pages/Sync'
 import Availability from './pages/Availability'
 import WidgetAdmin from './pages/WidgetAdmin'
 import Loans from './pages/Loans'
+import AppSettings from './pages/AppSettings'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
 const WidgetPage = lazy(() => import('./pages/WidgetPage'))
@@ -114,6 +115,7 @@ export default function App() {
               <Route path="availability" element={<Availability />} />
               <Route path="portal" element={<PortalAdmin />} />
               <Route path="widget-admin" element={<WidgetAdmin />} />
+              <Route path="settings" element={<AppSettings />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>
           )}

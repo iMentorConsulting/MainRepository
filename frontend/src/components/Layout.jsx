@@ -6,7 +6,7 @@ import {
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
   HomeModernIcon, TagIcon, ArrowsRightLeftIcon, CodeBracketIcon, CalendarIcon,
-  CreditCardIcon, Bars3Icon, XMarkIcon,
+  CreditCardIcon, Bars3Icon, XMarkIcon, Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -45,6 +45,7 @@ const navGroups = [
       { to: '/widget-admin', label: 'Availability Widget', Icon: CodeBracketIcon },
       { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
       { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },
+      { to: '/settings', label: 'Ρυθμίσεις', Icon: Cog6ToothIcon },
     ],
   },
 ]
