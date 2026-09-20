@@ -6,12 +6,13 @@ import {
 import api from '../api'
 
 // ── API ─────────────────────────────────────────────────────────────────────
-const getUnits    = ()           => api.get('/units/')
-const getRules    = (p)          => api.get('/availability/', { params: p })
-const upsertRule  = (d)          => api.post('/availability/', d)
-const deleteRule  = (id)         => api.delete(`/availability/${id}`)
-const deleteByDate= (uid, dt)    => api.delete(`/availability/by-date/${uid}/${dt}`)
-const bulkUpdate  = (d)          => api.post('/availability/bulk', d)
+const getUnits      = ()  => api.get('/units/')
+const getRules      = (p) => api.get('/availability/', { params: p })
+const getBookings   = (p) => api.get('/availability/bookings', { params: p })
+const upsertRule    = (d) => api.post('/availability/', d)
+const deleteRule    = (id)       => api.delete(`/availability/${id}`)
+const deleteByDate  = (uid, dt)  => api.delete(`/availability/by-date/${uid}/${dt}`)
+const bulkUpdate    = (d) => api.post('/availability/bulk', d)
 
 // ── Constants ────────────────────────────────────────────────────────────────
 const DOW = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
@@ -37,26 +38,34 @@ function monthDays(year, month) {
 }
 
 // ── Day cell ─────────────────────────────────────────────────────────────────
-function DayCell({ day, year, month, rule, onClick }) {
+function DayCell({ day, year, month, rule, booking, onClick }) {
   if (!day) return <div className="h-16 bg-gray-50/50 rounded" />
   const ds = dateStr(year, month, day)
   const today = new Date().toISOString().slice(0,10)
   const isPast = ds < today
   const hasRule = !!rule
   const stopped = rule?.status === 'stop_sales'
+  const isBooked = !!booking
 
   return (
     <button
       onClick={() => onClick(day, ds, rule)}
       className={`h-16 rounded-lg border text-left px-1.5 py-1 transition-all relative group
         ${isPast ? 'opacity-40' : 'hover:ring-2 hover:ring-blue-400'}
-        ${stopped ? 'bg-red-50 border-red-200' : hasRule ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}
+        ${isBooked ? 'bg-slate-700 border-slate-600' : stopped ? 'bg-red-50 border-red-200' : hasRule ? 'bg-green-50 border-green-200' : 'bg-white border-gray-200'}
       `}
     >
-      <span className={`text-xs font-semibold block ${stopped ? 'text-red-600' : 'text-gray-700'}`}>
+      <span className={`text-xs font-semibold block ${isBooked ? 'text-white' : stopped ? 'text-red-600' : 'text-gray-700'}`}>
         {day}
       </span>
-      {rule && (
+      {isBooked && (
+        <div className="mt-0.5 space-y-0.5">
+          <span className="text-[9px] font-bold text-slate-300 uppercase tracking-wide block leading-none truncate">
+            {booking.guest || booking.channel || 'Booked'}
+          </span>
+        </div>
+      )}
+      {!isBooked && rule && (
         <div className="mt-0.5 space-y-0.5">
           {stopped && (
             <span className="text-[9px] font-bold text-red-500 uppercase tracking-wide block leading-none">Stop</span>
@@ -281,7 +290,8 @@ export default function Availability() {
   const [month, setMonth] = useState(now.getMonth())
   const [units, setUnits] = useState([])
   const [unitId, setUnitId] = useState(null)
-  const [rules, setRules] = useState({}) // date -> rule
+  const [rules, setRules] = useState({})    // date -> rule
+  const [bookings, setBookings] = useState({}) // date -> booking
   const [modal, setModal] = useState(null)
   const [loading, setLoading] = useState(false)
 
@@ -298,13 +308,15 @@ export default function Availability() {
     const lastDay = new Date(year, month + 1, 0).getDate()
     const to = dateStr(year, month, lastDay)
     setLoading(true)
-    getRules({ unit_id: unitId, date_from: from, date_to: to })
-      .then(r => {
-        const map = {}
-        r.data.forEach(rule => { map[rule.date] = rule })
-        setRules(map)
-      })
-      .finally(() => setLoading(false))
+    Promise.all([
+      getRules({ unit_id: unitId, date_from: from, date_to: to }),
+      getBookings({ unit_id: unitId, date_from: from, date_to: to }),
+    ]).then(([rulesRes, bookingsRes]) => {
+      const rmap = {}
+      rulesRes.data.forEach(rule => { rmap[rule.date] = rule })
+      setRules(rmap)
+      setBookings(bookingsRes.data || {})
+    }).finally(() => setLoading(false))
   }, [unitId, year, month])
 
   useEffect(() => { loadRules() }, [loadRules])
@@ -393,6 +405,7 @@ export default function Availability() {
 
         {/* Legend */}
         <div className="max-w-5xl mx-auto px-4 pb-3 flex items-center gap-4 text-xs text-gray-500">
+          <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-slate-700 border border-slate-600 inline-block"/>&nbsp;Booked</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-green-100 border border-green-200 inline-block"/>&nbsp;Open with restrictions</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-red-100 border border-red-200 inline-block"/>&nbsp;Stop sales</span>
           <span className="flex items-center gap-1.5"><span className="w-3 h-3 rounded bg-white border border-gray-200 inline-block"/>&nbsp;No restriction (default open)</span>
@@ -422,6 +435,7 @@ export default function Availability() {
                   year={year}
                   month={month}
                   rule={day ? rules[dateStr(year, month, day)] : null}
+                  booking={day ? bookings[dateStr(year, month, day)] : null}
                   onClick={openModal}
                 />
               ))}

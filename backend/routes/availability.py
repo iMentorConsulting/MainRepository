@@ -1,9 +1,9 @@
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
 from database import get_db
 from auth_utils import get_tenant
-from models import AvailabilityRule, Unit
+from models import AvailabilityRule, Unit, Booking
 from pydantic import BaseModel
 from typing import Optional, List
 from datetime import date, datetime, timedelta
@@ -151,3 +151,45 @@ def bulk_update(data: BulkIn, db: Session = Depends(get_db), tenant: str = Depen
         cur += timedelta(days=1)
     db.commit()
     return {"updated": count}
+
+
+@router.get("/bookings")
+def list_bookings_for_calendar(
+    unit_id: int,
+    date_from: str,
+    date_to: str,
+    db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
+):
+    """Return bookings that overlap the given date range, expanded to per-day entries."""
+    d_from = date.fromisoformat(date_from)
+    d_to = date.fromisoformat(date_to)
+    bookings = (
+        db.query(Booking)
+        .options(joinedload(Booking.customer))
+        .filter(
+            Booking.tenant == tenant,
+            Booking.unit_id == unit_id,
+            Booking.status.in_(["confirmed", "pending"]),
+            Booking.check_out > d_from,
+            Booking.check_in <= d_to,
+        )
+        .all()
+    )
+    result = {}
+    for b in bookings:
+        guest = ""
+        if b.customer:
+            guest = f"{b.customer.first_name} {b.customer.last_name}".strip()
+        cur = max(b.check_in, d_from)
+        end = min(b.check_out, d_to + timedelta(days=1))
+        while cur < end:
+            result[cur.isoformat()] = {
+                "booking_id": b.id,
+                "guest": guest,
+                "channel": b.channel or "",
+                "check_in": b.check_in.isoformat(),
+                "check_out": b.check_out.isoformat(),
+            }
+            cur += timedelta(days=1)
+    return result
