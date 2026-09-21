@@ -41,31 +41,6 @@ def _get_api_key(tenant: str, db: Session) -> str:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.post("/debug-auth")
-def debug_auth(body: dict, db: Session = Depends(get_db)):
-    """Try Beds24 setup with the given invite code. POST {"code": "..."}"""
-    code = (body.get("code") or "").strip()
-    results = {"received_code_length": len(code)}
-
-    def attempt(label, method, url, **kwargs):
-        try:
-            r = getattr(requests, method)(url, timeout=15, **kwargs)
-            results[label] = {"status": r.status_code, "body": r.text[:600]}
-        except Exception as e:
-            results[label] = {"error": str(e)}
-
-    attempt("setup_no_devicename", "post",
-            "https://beds24.com/api/v2/authentication/setup",
-            json={"code": code},
-            headers={"accept": "application/json", "Content-Type": "application/json"})
-
-    attempt("setup_with_devicename", "post",
-            "https://beds24.com/api/v2/authentication/setup",
-            json={"code": code, "deviceName": "iStay"},
-            headers={"accept": "application/json", "Content-Type": "application/json"})
-
-    return results
-
 
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
