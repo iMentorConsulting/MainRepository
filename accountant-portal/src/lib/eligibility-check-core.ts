@@ -255,10 +255,16 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
     return { gemiId, businessName: gemi!.onomasia || gemi!.afm, inactive: true, programs: [], themisUrl: null, businessDetails }
   }
 
-  if (!gemi!.matchingDone) {
-    const programs = await loadActivePrograms()
-    await runMatchingForGemi(gemiId, programs)
-  }
+  // Always re-run matching fresh here — this result can trigger a real,
+  // externally-visible eligibility email (Moosend/website widget). Trusting
+  // the matchingDone flag to skip re-matching meant a business already
+  // matched under an OLDER version of the matching logic (e.g. before a bug
+  // fix) would keep sending stale "eligible" results indefinitely, even
+  // after the underlying business was corrected to ineligible everywhere
+  // else in the app. Matching is idempotent and cheap enough to always redo
+  // for a check a person explicitly triggered.
+  const programs = await loadActivePrograms()
+  await runMatchingForGemi(gemiId, programs)
 
   const matches = await prisma.gemiProgramMatch.findMany({
     where: { gemiId, status: { not: 'REJECTED' }, matchScore: { gt: 0 } },
