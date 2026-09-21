@@ -100,11 +100,24 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
     m = re.search(r"(?:reservation|confirmation|κράτηση)[^\w]*([A-Z0-9]{8,12})", body, re.IGNORECASE)
     if m:
         data["reservation_code"] = m.group(1)
-    # Dates from body (Airbnb includes check-in/out in confirmation emails)
-    date_pat = r"(\d{1,2}[\s/\-]\w+[\s/\-]\d{4}|\d{4}-\d{2}-\d{2}|\w+ \d{1,2},?\s*\d{4}|\d{1,2}/\d{1,2}/\d{4})"
-    dates = re.findall(date_pat, body)
-    if len(dates) >= 2:
-        data["_raw_dates"] = dates[:2]
+    # Guest name from body: appears before "Υπεύθυνος κράτησης" or "Responsible"
+    if not data.get("first_name"):
+        m = re.search(r"([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+)?)\s*\n\s*(?:Υπεύθυνος κράτησης|Responsible|Guest)", body)
+        if m:
+            parts = m.group(1).strip().split()
+            data["first_name"] = parts[0]
+            if len(parts) > 1:
+                data["last_name"] = " ".join(parts[1:])
+    # Dates from body — handles Greek month names (e.g. "21 Σεπτεμβρίου 2026")
+    greek_month_pat = r"(\d{1,2}\s+(?:" + "|".join(_GREEK_MONTHS.keys()) + r")\s+\d{4})"
+    greek_dates = re.findall(greek_month_pat, body, re.IGNORECASE)
+    if len(greek_dates) >= 2:
+        data["_raw_dates"] = greek_dates[:2]
+    elif not data.get("_raw_dates"):
+        date_pat = r"(\d{1,2}[\s/\-]\w+[\s/\-]\d{4}|\d{4}-\d{2}-\d{2}|\w+ \d{1,2},?\s*\d{4}|\d{1,2}/\d{1,2}/\d{4})"
+        dates = re.findall(date_pat, body)
+        if len(dates) >= 2:
+            data["_raw_dates"] = dates[:2]
     # Phone from body
     m = re.search(r"(?:Phone|Mobile|Tel|Τηλ)[^\d+]*(\+?[\d\s\-().]{7,20})", body, re.IGNORECASE)
     if m:
@@ -112,9 +125,32 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
     return data
 
 
+_GREEK_MONTHS = {
+    "ιανουαρίου": "January", "ιανουάριος": "January", "ιανουάριου": "January",
+    "φεβρουαρίου": "February", "φεβρουάριος": "February",
+    "μαρτίου": "March", "μάρτιος": "March",
+    "απριλίου": "April", "απρίλιος": "April",
+    "μαΐου": "May", "μάιος": "May", "μαιου": "May",
+    "ιουνίου": "June", "ιούνιος": "June",
+    "ιουλίου": "July", "ιούλιος": "July",
+    "αυγούστου": "August", "αύγουστος": "August",
+    "σεπτεμβρίου": "September", "σεπτέμβριος": "September",
+    "οκτωβρίου": "October", "οκτώβριος": "October",
+    "νοεμβρίου": "November", "νοέμβριος": "November",
+    "δεκεμβρίου": "December", "δεκέμβριος": "December",
+}
+
+def _normalize_date_str(s: str) -> str:
+    sl = s.lower().strip()
+    for greek, english in _GREEK_MONTHS.items():
+        if greek in sl:
+            return sl.replace(greek, english).strip()
+    return s.strip()
+
 def _try_parse_date(s: str):
     from datetime import datetime
-    for fmt in ("%Y-%m-%d", "%d %B %Y", "%B %d, %Y", "%B %d %Y", "%d/%m/%Y", "%d-%m-%Y"):
+    s = _normalize_date_str(s)
+    for fmt in ("%Y-%m-%d", "%d %B %Y", "%B %d, %Y", "%B %d %Y", "%d/%m/%Y", "%d-%m-%Y", "%d %b %Y"):
         try:
             return datetime.strptime(s.strip(), fmt).date()
         except Exception:
