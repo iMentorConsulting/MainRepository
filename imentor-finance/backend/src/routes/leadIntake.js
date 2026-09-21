@@ -39,7 +39,7 @@ function normalizeAgent(raw) {
 }
 
 // ── Field sanitisers ───────────────────────────────────────────────────────────
-const NUMERIC = ['amount_collected','amount_application','amount_implementation'];
+const NUMERIC = ['amount_collected','amount_application','amount_implementation','vat_amount','bonus'];
 const DATE_F  = ['sale_date'];
 
 function sanitize(body) {
@@ -54,10 +54,47 @@ function sanitize(body) {
   return clean;
 }
 
+// ── Field-name normalisation (handles different naming conventions from external apps) ─
+function normalizeFieldNames(raw) {
+  const d = { ...raw };
+
+  // customer_name aliases
+  if (!d.customer_name) d.customer_name = d.name || d.client_name || d.client || d.onomasia || d.pelatis || null;
+
+  // vat_number aliases
+  if (!d.vat_number) d.vat_number = d.afm || d.tax_id || d.tax_number || null;
+
+  // phone aliases
+  if (!d.phone) d.phone = d.mobile || d.tel || d.telephone || d.kinito || null;
+
+  // email aliases
+  if (!d.email) d.email = d.email_address || d.mail || null;
+
+  // vat_amount aliases
+  if (!d.vat_amount) d.vat_amount = d.fpa || d.vat || d.tax_amount || d.fpa_amount || null;
+
+  // amount_collected aliases
+  if (!d.amount_collected) d.amount_collected = d.amount || d.poso || d.collected || null;
+
+  // source_referral aliases
+  if (!d.source_referral) d.source_referral = d.referral || d.source || d.pigi || null;
+
+  // Extract postal_code embedded in address like "ΔΟΛΙΑΝΩΝ 10 ΤΚ:12242" or "ΤΚ 12242"
+  if (!d.postal_code && d.address) {
+    const tkMatch = d.address.match(/\bΤ\.?Κ\.?[: ]?(\d{5})\b/i);
+    if (tkMatch) {
+      d.postal_code = tkMatch[1];
+      d.address = d.address.replace(tkMatch[0], '').trim().replace(/\s{2,}/g, ' ');
+    }
+  }
+
+  return d;
+}
+
 // ── POST /api/lead-intake  — called by external systems ───────────────────────
 router.post('/', requireLeadApiKey, async (req, res) => {
   try {
-    const data = sanitize(req.body);
+    const data = sanitize(normalizeFieldNames(req.body));
     const { external_id } = data;
 
     // Idempotency: return existing income if already processed
@@ -109,6 +146,16 @@ router.post('/', requireLeadApiKey, async (req, res) => {
     }
 
     merged.sale_date = merged.sale_date || new Date().toISOString().slice(0, 10);
+
+    // Auto-calculate vat_amount if not provided (24% standard rate)
+    if (!merged.vat_amount && merged.amount_collected) {
+      merged.vat_amount = parseFloat((merged.amount_collected * 0.24).toFixed(2));
+    }
+
+    // Auto-calculate bonus for ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ (5% of amount_collected)
+    if (!merged.bonus && merged.targeting_category === 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ' && merged.amount_collected) {
+      merged.bonus = parseFloat((merged.amount_collected * 0.05).toFixed(2));
+    }
 
     // Auto-match ServiceAgreement
     if (!merged.service_agreement_id && merged.vat_number) {
