@@ -106,22 +106,14 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
 
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Accept a Beds24 invite code or refresh token, store the permanent refresh token."""
-    invite_code = (body.get("api_key") or "").strip()
-    if not invite_code:
+    """Verify a Beds24 token and save it."""
+    token = (body.get("api_key") or "").strip()
+    if not token:
         raise HTTPException(status_code=400, detail="api_key is required")
 
-    # Try to exchange as invite code → permanent refresh token
+    # Verify: try to get an access token with it
     try:
-        refresh_token = _exchange_invite_code(invite_code)
-    except requests.RequestException as exc:
-        # If setup fails, treat the input as an already-exchanged refresh token
-        # and verify it works directly
-        try:
-            _get_access_token(invite_code)
-            refresh_token = invite_code
-        except (requests.RequestException, ValueError):
-            raise HTTPException(status_code=400, detail=f"Beds24 auth failed: {exc}")
+        _get_access_token(token)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Beds24 auth failed: {exc}")
 
@@ -131,7 +123,7 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
     if not settings:
         settings = GuestPortalSettings(tenant=tenant)
         db.add(settings)
-    settings.beds24_api_key = refresh_token
+    settings.beds24_api_key = token
     db.commit()
 
     return {"ok": True, "message": "Connected to Beds24"}
