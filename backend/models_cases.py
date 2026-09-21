@@ -671,6 +671,10 @@ class CMLead(Base):
     finance_sent_at = Column(DateTime, nullable=True)
     finance_amount_sent = Column(Float, nullable=True)
 
+    # Deferred ΕΡΜΗΣ link send: channel to use once business_ready confirms eligibility
+    ermis_pending_link_channel = Column(String(10), nullable=True)
+    ermis_pending_actor = Column(String(100), nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 

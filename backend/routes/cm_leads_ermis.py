@@ -340,16 +340,77 @@ def _send_combined_ermis_message(
     log.info("ΕΡΜΗΣ combined message sent for lead %s (%d programs)", primary_lead.id, len(all_prog_info))
 
 
+def _send_ermis_link(db, l: CMLead, channel: str, actor_name: str) -> None:
+    """Send the ΕΡΜΗΣ chat link to the client via Viber and/or email."""
+    chat_url = l.ermis_chat_url
+    if not chat_url:
+        log.warning("_send_ermis_link: no chat_url for lead %s — skipping", l.id)
+        return
+    name = l.name or "συνεργάτη"
+    prog_display = l.program_title or l.service_type or l.program
+    prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
+    _art = _consultant_article(l.assigned_name).capitalize()
+    _consultant_gr = _consultant_display(l.assigned_name)
+    consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+                       if l.assigned_name else "")
+    viber_msg = (
+        f"Αγαπητέ/ή {name},\n\n"
+        f"📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα {prog_label}.\n"
+        "━━━━━━━━━━━━━━━\n"
+        "🤖 Μιλήστε τώρα με τον «ΕΡΜΗ», τον ψηφιακό μας σύμβουλο, που κάνει\n"
+        "✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας\n"
+        "⏱️ σε δευτερόλεπτα (~2 λεπτά)\n"
+        "━━━━━━━━━━━━━━━\n"
+        f"👉 Ξεκινήστε εδώ: {chat_url}\n\n"
+        f"{consultant_line}"
+        "i-Mentor Consulting"
+    )
+    email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
+    consultant_html = (
+        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
+        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
+    )
+    prog_lines_html = (
+        f'<p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
+        f'<b style="color:#1e3a5f;">{prog_label}</b>.</p>'
+        '<hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">'
+        '<div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">'
+        '<p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>'
+        '<p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει '
+        '<b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p></div>'
+        f'<div style="text-align:center;margin:26px 0;">'
+        f'<a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;'
+        f'padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">'
+        f'▶️ Ξεκινήστε την προαξιολόγηση</a></div>'
+    )
+    email_html = _build_ermis_email_html(name, prog_lines_html, consultant_html)
+    ch = channel or "both"
+    if ch in ("viber", "both") and l.phone:
+        ok, _ = _send_viber(l.phone, viber_msg, l.name or "", actor_name, l.service_type or "")
+        db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
+                                     recipient_name=l.name or "", recipient_contact=l.phone,
+                                     subject="ΕΡΜΗΣ link", content=viber_msg,
+                                     status="sent" if ok else "failed", sent_by=actor_name))
+    if ch in ("email", "both") and l.email:
+        ok, _ = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+        db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
+                                     recipient_name=l.name or "", recipient_contact=l.email,
+                                     subject=email_subject, content=email_subject,
+                                     status="sent" if ok else "failed", sent_by=actor_name))
+    db.commit()
+    log.info("ΕΡΜΗΣ link sent for lead %s via channel=%s", l.id, ch)
+
+
 def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
-    """Handle ermis.business_ready: store chatUrl/token on the primary lead only.
+    """Handle ermis.business_ready: check eligibility and send deferred link or cancel.
 
-    We do NOT create leads for additional eligible programs — a second lead is
-    only opened when the client actually expresses interest in that program by
-    talking to ΕΡΜΗΣ about it (LOGISTIS sends a separate event at that point).
-
-    LOGISTIS handles all client-facing messaging.
+    If matchedPrograms is provided and the lead's program is NOT in the list,
+    auto-cancel the lead. Otherwise (program is matched, or list absent), send
+    the deferred ΕΡΜΗΣ link for non-LOGISTIS leads.
     """
+    from routes.cm_leads_sync import _resolve_program
     matched = payload.matchedPrograms or []
+    is_logistis = (primary_lead.source or "").upper().startswith("LOGISTIS")
 
     # Update chatUrl/token on the primary lead if LOGISTIS sends extended format
     for p in matched:
@@ -362,9 +423,42 @@ def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
                 primary_lead.ermis_token = p["token"]
             break
 
+    # When matchedPrograms is present, verify the lead's program is among them
+    if matched and primary_lead.program:
+        lead_program_canonical = _resolve_program(primary_lead.program)
+        matched_titles = [p.get("title") for p in matched if isinstance(p, dict) and p.get("title")]
+        matched_canonicals = {_resolve_program(t) for t in matched_titles}
+        if lead_program_canonical not in matched_canonicals:
+            # Business not eligible for this lead's program — auto-cancel
+            prev_status = primary_lead.status
+            primary_lead.status = "CANCEL"
+            primary_lead.ermis_status = "ineligible"
+            primary_lead.ermis_pending_link_channel = None
+            primary_lead.ermis_pending_actor = None
+            note = (f"ΕΡΜΗΣ/LOGISTIS: Η επιχείρηση δεν πληροί τις προϋποθέσεις για «{primary_lead.program}» "
+                    f"(matchedPrograms: {', '.join(matched_titles) or 'κανένα'})")
+            if prev_status and prev_status != "CANCEL":
+                note += f" — αυτόματη ακύρωση από κατάσταση '{prev_status}'"
+            from models_cases import CMLeadComment
+            db.add(CMLeadComment(lead_id=primary_lead.id, author="ΕΡΜΗΣ", content=note))
+            db.commit()
+            log.info("ΕΡΜΗΣ business_ready: lead %s AUTO-CANCELLED — program '%s' not in matchedPrograms %s",
+                     primary_lead.id, primary_lead.program, matched_titles)
+            return
+
     db.commit()
-    log.info("ΕΡΜΗΣ business_ready: lead %s updated — messaging and additional leads handled by LOGISTIS",
-             primary_lead.id)
+
+    # Send deferred ΕΡΜΗΣ link for non-LOGISTIS leads that requested a send
+    pending_channel = primary_lead.ermis_pending_link_channel
+    actor_name = primary_lead.ermis_pending_actor or "system"
+    if not is_logistis and pending_channel and primary_lead.ermis_chat_url:
+        primary_lead.ermis_pending_link_channel = None
+        primary_lead.ermis_pending_actor = None
+        db.commit()
+        _send_ermis_link(db, primary_lead, pending_channel, actor_name)
+    else:
+        log.info("ΕΡΜΗΣ business_ready: lead %s — messaging handled by LOGISTIS or no pending send",
+                 primary_lead.id)
 
 
 def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_name: str):
@@ -419,81 +513,18 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
         l.ermis_status = "in_progress"
         l.ermis_error = None
         l.ermis_started_at = datetime.utcnow()
-        db.commit()
 
+        # Defer client notification until ermis.business_ready confirms eligibility.
+        # Store the desired channel so _on_business_ready can send (or skip) it.
         if send_link and (channel or "both") != "none":
-            name = l.name or "συνεργάτη"
-            prog_display = l.program_title or l.service_type or l.program
-            prog = prog_display or "την υπηρεσία που σας ενδιαφέρει"
-            prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
-            _art = _consultant_article(l.assigned_name).capitalize()  # Ο / Η / Ο/Η
-            _consultant_gr = _consultant_display(l.assigned_name)
-            consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
-                               if l.assigned_name else "")
+            l.ermis_pending_link_channel = channel or "both"
+        else:
+            l.ermis_pending_link_channel = None
+        l.ermis_pending_actor = actor_name
 
-            # ── Viber (emoji + Unicode dividers; Viber ignores markdown bold) ──
-            viber_msg = (
-                f"Αγαπητέ/ή {name},\n\n"
-                f"📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα {prog_label}.\n"
-                "━━━━━━━━━━━━━━━\n"
-                "🤖 Μιλήστε τώρα με τον «ΕΡΜΗ», τον ψηφιακό μας σύμβουλο, που κάνει\n"
-                "✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας\n"
-                "⏱️ σε δευτερόλεπτα (~2 λεπτά)\n"
-                "━━━━━━━━━━━━━━━\n"
-                f"👉 Ξεκινήστε εδώ: {chat_url}\n\n"
-                f"{consultant_line}"
-                "i-Mentor Consulting"
-            )
-
-            # ── Email (rich HTML: bold, dividers, icons, CTA button) ──
-            email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
-            consultant_html = (
-                f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
-                f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
-            )
-            email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
-<div style="max-width:600px;margin:0 auto;">
-  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
-  </div>
-  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
-    <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
-    <p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα
-       <b style="color:#1e3a5f;">{prog_label}</b>.</p>
-    <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
-    <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
-      <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
-      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p>
-    </div>
-    <div style="text-align:center;margin:26px 0;">
-      <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
-    </div>
-    {consultant_html}
-    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">
-      i-Mentor Consulting ·
-      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
-      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
-      2810 363007<br>
-      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
-    </p>
-  </div>
-</div></body></html>"""
-
-            ch = channel or "both"
-            if ch in ("viber", "both") and l.phone:
-                ok, err = _send_viber(l.phone, viber_msg, l.name or "", actor_name, l.service_type or "")
-                db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
-                                             recipient_name=l.name or "", recipient_contact=l.phone,
-                                             subject="ΕΡΜΗΣ link", content=viber_msg,
-                                             status="sent" if ok else "failed", sent_by=actor_name))
-            if ch in ("email", "both") and l.email:
-                ok, err = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
-                db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
-                                             recipient_name=l.name or "", recipient_contact=l.email,
-                                             subject=email_subject, content=email_subject,
-                                             status="sent" if ok else "failed", sent_by=actor_name))
-            db.commit()
+        db.commit()
+        log.info("ΕΡΜΗΣ session created for lead %s — client send deferred until business_ready (channel=%s)",
+                 lead_id, l.ermis_pending_link_channel)
     finally:
         db.close()
 

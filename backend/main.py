@@ -1485,11 +1485,13 @@ try:
 except Exception as _e:
     print(f"[migration] cm_leads onboard_token skipped: {_e}", flush=True)
 
-# finance submission tracking columns
+# finance submission tracking columns + deferred ΕΡΜΗΣ link channel
 try:
     with engine.connect() as _conn:
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS finance_sent_at TIMESTAMP"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS finance_amount_sent FLOAT"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_pending_link_channel VARCHAR(10)"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_pending_actor VARCHAR(100)"))
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_leads finance_sent skipped: {_e}", flush=True)
