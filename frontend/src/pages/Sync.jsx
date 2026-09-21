@@ -9,7 +9,8 @@ import {
   getIcalUnits, syncIcalUnit, syncIcalAll,
   getIcalExportUrl, regenerateIcalToken, updateIcalImportUrl,
   getChannelRates, createChannelRate, updateChannelRate, deleteChannelRate,
-  testBeds24Connection, getBeds24Status, getBeds24Properties, mapUnitToBeds24,
+  testBeds24Connection, getBeds24Status, getBeds24Properties,
+  createPropertyInBeds24, mapUnitToBeds24,
   pushRatesToBeds24, syncBookingsFromBeds24,
 } from '../api'
 
@@ -342,6 +343,20 @@ function Beds24MappingRow({ unit, beds24Props }) {
   const [roomId, setRoomId] = useState('')
   const [saving, setSaving] = useState(false)
   const [pushing, setPushing] = useState(false)
+  const [creating, setCreating] = useState(false)
+
+  const handleAutoCreate = async () => {
+    setCreating(true)
+    try {
+      const r = await createPropertyInBeds24(unit.id)
+      setMapped({ propId: r.data.beds24_prop_id, roomId: r.data.beds24_room_id })
+      toast.success(`Property δημιουργήθηκε στο Beds24 — ID ${r.data.beds24_prop_id}`)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα δημιουργίας property')
+    } finally {
+      setCreating(false)
+    }
+  }
 
   const handleMap = async (e) => {
     e.preventDefault()
@@ -366,7 +381,8 @@ function Beds24MappingRow({ unit, beds24Props }) {
     setPushing(true)
     try {
       const r = await pushRatesToBeds24(unit.id)
-      toast.success(`Τιμές στάλθηκαν στο Beds24 — ${r.data.pushed} εγγραφές`)
+      if (r.data.errors?.length) toast.error(r.data.errors.join(', '))
+      else toast.success(`Τιμές στάλθηκαν στο Beds24 — ${r.data.pushed} εγγραφές`)
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής τιμών')
     } finally {
@@ -398,30 +414,26 @@ function Beds24MappingRow({ unit, beds24Props }) {
           </button>
         </div>
       ) : !showForm ? (
-        <button onClick={() => setShowForm(true)}
-          className="text-xs text-teal-600 hover:text-teal-800 font-medium underline">
-          + Map to Beds24
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button onClick={handleAutoCreate} disabled={creating}
+            className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium transition-colors">
+            {creating ? 'Δημιουργία…' : '✨ Αυτόματη Δημιουργία στο Beds24'}
+          </button>
+          <button onClick={() => setShowForm(true)}
+            className="text-xs border border-teal-300 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-100 font-medium transition-colors">
+            Χειροκίνητη Εισαγωγή ID
+          </button>
+        </div>
       ) : null}
 
       {showForm && (
         <form onSubmit={handleMap} className="space-y-2">
           <div className="grid grid-cols-2 gap-2">
             <div>
-              <label className="block text-xs text-gray-500 mb-0.5 font-medium">Beds24 Property</label>
-              {beds24Props.length > 0 ? (
-                <select value={propId} onChange={e => setPropId(e.target.value)}
-                  className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400">
-                  <option value="">-- Επιλογή --</option>
-                  {beds24Props.map(p => (
-                    <option key={p.id} value={p.id}>{p.name || p.id}</option>
-                  ))}
-                </select>
-              ) : (
-                <input type="number" value={propId} onChange={e => setPropId(e.target.value)}
-                  placeholder="π.χ. 12345"
-                  className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400" />
-              )}
+              <label className="block text-xs text-gray-500 mb-0.5 font-medium">Beds24 Property ID</label>
+              <input type="number" value={propId} onChange={e => setPropId(e.target.value)}
+                placeholder="π.χ. 12345"
+                className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400" />
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-0.5 font-medium">Room ID</label>
