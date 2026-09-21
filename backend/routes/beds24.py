@@ -12,21 +12,32 @@ router = APIRouter(prefix="/beds24", tags=["beds24"])
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
+def _get_access_token(api_key: str) -> str:
+    """Exchange the stored API key (refresh token) for a short-lived access token."""
+    r = requests.get(
+        "https://beds24.com/api/v2/authentication/token",
+        headers={"token": api_key},
+        timeout=15,
+    )
+    r.raise_for_status()
+    data = r.json()
+    token = data.get("token") or data.get("access_token") or data.get("authToken")
+    if not token:
+        raise ValueError(f"No token in response: {data}")
+    return token
+
+
 def _verify_api_key(api_key: str) -> None:
-    """Verify an API key works by calling a lightweight Beds24 endpoint."""
+    """Verify an API key works by exchanging it for an access token."""
     try:
-        r = requests.get(
-            "https://beds24.com/api/v2/properties",
-            headers={"token": api_key},
-            timeout=15,
-        )
-        r.raise_for_status()
-    except requests.RequestException as exc:
+        _get_access_token(api_key)
+    except (requests.RequestException, ValueError) as exc:
         raise HTTPException(status_code=400, detail=f"Beds24 auth failed: {exc}")
 
 
 def _headers(api_key: str) -> dict:
-    return {"token": api_key}
+    token = _get_access_token(api_key)
+    return {"token": token}
 
 
 def _get_api_key(tenant: str, db: Session) -> str:
