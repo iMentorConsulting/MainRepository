@@ -3,6 +3,7 @@ import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
 import { normalizeLegalForm } from './legal-forms'
 import { isProgramOpen, resolveRegdate } from './matching'
+import { FARMER_SPECIAL_REGIME_CODE } from './business-filters'
 import { evaluateKadCriterion, hasActiveKadCriterion } from './kad-matching'
 
 interface GemiBusinessView {
@@ -54,8 +55,10 @@ function matchesBusiness(
   // A fake/test entry with zero registered KAD activity is never a real
   // business, regardless of which criteria (tags, region, etc.) happen to
   // line up — never let it auto-qualify for a business subsidy program.
-  // See matching.ts's identical guard for why legal form alone isn't used.
-  if (business.activities.length === 0) {
+  // See matching.ts's identical guard for why legal form alone isn't used,
+  // and why ΚΑΔ 1000000 (special-regime farmer placeholder) doesn't count.
+  const hasRealActivity = business.activities.some(a => !a.firmActCode.replace(/\D/g, '').startsWith(FARMER_SPECIAL_REGIME_CODE))
+  if (!hasRealActivity) {
     return { score: 0, reasons: [] }
   }
 
