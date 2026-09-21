@@ -107,6 +107,7 @@ class GuestCommunication(Base):
     direction = Column(String(10), default='in')          # in / out
     subject = Column(Text, nullable=True)
     body_preview = Column(Text, nullable=True)
+    body = Column(Text, nullable=True)
     relay_email = Column(String(300), nullable=True)
     sent_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)

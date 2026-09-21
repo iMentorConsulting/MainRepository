@@ -28,7 +28,7 @@ from routes.loans import router as loans_router
 from routes.discounts import router as discounts_router
 from routes.channel_rates import router as channel_rates_router
 from routes.beds24 import router as beds24_router
-from routes.email_scan import router as email_scan_router
+from routes.email_scan import router as email_scan_router, _comms_router as communications_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -393,12 +393,20 @@ try:
                 direction VARCHAR(10) DEFAULT 'in',
                 subject TEXT,
                 body_preview TEXT,
+                body TEXT,
                 relay_email VARCHAR(300),
                 sent_at DATETIME,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (booking_id) REFERENCES bookings(id)
             )
         """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_communications ADD COLUMN body TEXT"))
         _bc.commit()
 except Exception:
     pass
@@ -887,6 +895,7 @@ app.include_router(discounts_router, prefix="/api")
 app.include_router(channel_rates_router, prefix="/api")
 app.include_router(beds24_router, prefix="/api")
 app.include_router(email_scan_router, prefix="/api")
+app.include_router(communications_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

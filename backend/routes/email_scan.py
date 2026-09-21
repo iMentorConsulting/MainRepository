@@ -357,10 +357,14 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                             direction="in",
                             subject=subject[:500],
                             body_preview=_clean_preview(body),
+                            body=body,
                             relay_email=extracted.get("reply_email") or booking.reply_email,
                             sent_at=dt.utcnow(),
                         )
                         db.add(comm)
+                        changed = True
+                    elif existing_comm and not existing_comm.body:
+                        existing_comm.body = body
                         changed = True
 
                     if changed:
@@ -400,3 +404,45 @@ def imap_status(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
         "imap_host": settings.imap_host if settings else None,
         "imap_user": settings.imap_user if settings else None,
     }
+
+
+from fastapi import APIRouter as _AR
+_comms_router = _AR(prefix="/communications", tags=["communications"])
+
+@_comms_router.get("")
+def get_all_communications(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    from sqlalchemy.orm import joinedload
+    comms = (
+        db.query(GuestCommunication)
+        .options(
+            joinedload(GuestCommunication.booking).joinedload(Booking.customer),
+            joinedload(GuestCommunication.booking).joinedload(Booking.unit),
+        )
+        .filter(GuestCommunication.tenant == tenant)
+        .order_by(GuestCommunication.sent_at.desc())
+        .all()
+    )
+    result = []
+    for c in comms:
+        b = c.booking
+        cust = b.customer if b else None
+        unit = b.unit if b else None
+        guest_name = ""
+        if cust:
+            parts = [p for p in [cust.first_name, cust.last_name] if p and p.strip()]
+            guest_name = " ".join(parts)
+        result.append({
+            "id": c.id,
+            "booking_id": c.booking_id,
+            "channel": c.channel,
+            "direction": c.direction,
+            "subject": c.subject,
+            "body_preview": c.body_preview,
+            "body": c.body,
+            "relay_email": c.relay_email,
+            "sent_at": c.sent_at.isoformat() if c.sent_at else None,
+            "guest_name": guest_name,
+            "unit_name": unit.name if unit else None,
+            "check_in": str(b.check_in) if b and b.check_in else None,
+        })
+    return result

@@ -6,7 +6,7 @@ import {
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
   HomeModernIcon, TagIcon, ArrowsRightLeftIcon, CodeBracketIcon, CalendarIcon,
-  CreditCardIcon, Bars3Icon, XMarkIcon, Cog6ToothIcon,
+  CreditCardIcon, Bars3Icon, XMarkIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -16,6 +16,7 @@ const navGroups = [
       { to: '/', label: 'Αρχική', Icon: HomeIcon, exact: true },
       { to: '/calendar', label: 'Ημερολόγιο', Icon: CalendarDaysIcon },
       { to: '/bookings', label: 'Κρατήσεις', Icon: BookmarkSquareIcon },
+      { to: '/communications', label: 'Επικοινωνία', Icon: ChatBubbleLeftRightIcon },
       { to: '/customers', label: 'Πελάτες', Icon: UsersIcon },
       { to: '/availability', label: 'Availability', Icon: CalendarIcon },
       { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon },
