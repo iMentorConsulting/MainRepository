@@ -427,9 +427,28 @@ def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
             break
 
     if matched_programs is None:
-        # LOGISTIS sent business data but no eligibility info yet — just save and wait
-        db.commit()
-        log.info("ΕΡΜΗΣ business_ready: lead %s — no matchedPrograms yet, waiting", primary_lead.id)
+        if payload.business:
+            # LOGISTIS sent ΑΑΔΕ data without matchedPrograms → eligibility not confirmed.
+            # If they had found the program eligible they would have included it.
+            # Auto-cancel so the lead doesn't get stuck and no email is sent.
+            prev_status = primary_lead.status
+            primary_lead.status = "CANCEL"
+            primary_lead.ermis_status = "ineligible"
+            primary_lead.ermis_pending_link_channel = None
+            primary_lead.ermis_pending_actor = None
+            note = (f"ΕΡΜΗΣ/LOGISTIS: Τα δεδομένα ΑΑΔΕ ελήφθησαν αλλά δεν επιβεβαιώθηκε "
+                    f"επιλεξιμότητα για «{primary_lead.program or 'το πρόγραμμα'}» — αυτόματη ακύρωση")
+            if prev_status and prev_status != "CANCEL":
+                note += f" από κατάσταση '{prev_status}'"
+            from models_cases import CMLeadComment
+            db.add(CMLeadComment(lead_id=primary_lead.id, author="ΕΡΜΗΣ", content=note))
+            db.commit()
+            log.info("ΕΡΜΗΣ business_ready: lead %s AUTO-CANCELLED — business data arrived, no matchedPrograms",
+                     primary_lead.id)
+        else:
+            # No business data and no matchedPrograms — just a status ping, wait
+            db.commit()
+            log.info("ΕΡΜΗΣ business_ready: lead %s — no business data yet, waiting", primary_lead.id)
         return
 
     # matchedPrograms was explicitly sent (empty or non-empty) → eligibility is known
