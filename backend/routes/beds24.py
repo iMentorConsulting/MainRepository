@@ -19,7 +19,8 @@ def _exchange_invite_code(invite_code: str) -> str:
         json={"code": invite_code, "deviceName": "iStay"},
         timeout=15,
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise ValueError(f"setup {r.status_code}: {r.text}")
     data = r.json()
     token = data.get("token") or data.get("refreshToken")
     if not token:
@@ -34,7 +35,8 @@ def _get_access_token(refresh_token: str) -> str:
         headers={"token": refresh_token},
         timeout=15,
     )
-    r.raise_for_status()
+    if not r.ok:
+        raise ValueError(f"token {r.status_code}: {r.text}")
     data = r.json()
     token = data.get("token") or data.get("accessToken")
     if not token:
@@ -60,6 +62,47 @@ def _get_api_key(tenant: str, db: Session) -> str:
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
+
+@router.get("/debug-auth")
+def debug_auth(code: str, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Try every Beds24 auth approach with the given code and show raw responses."""
+    results = {}
+
+    # Attempt 1: POST /authentication/setup with code
+    try:
+        r = requests.post(
+            "https://beds24.com/api/v2/authentication/setup",
+            json={"code": code, "deviceName": "iStay"},
+            timeout=15,
+        )
+        results["setup_post"] = {"status": r.status_code, "body": r.text[:500]}
+    except Exception as e:
+        results["setup_post"] = {"error": str(e)}
+
+    # Attempt 2: GET /authentication/token with code as token header
+    try:
+        r = requests.get(
+            "https://beds24.com/api/v2/authentication/token",
+            headers={"token": code},
+            timeout=15,
+        )
+        results["token_get"] = {"status": r.status_code, "body": r.text[:500]}
+    except Exception as e:
+        results["token_get"] = {"error": str(e)}
+
+    # Attempt 3: GET /properties with code directly as token header
+    try:
+        r = requests.get(
+            "https://beds24.com/api/v2/properties",
+            headers={"token": code},
+            timeout=15,
+        )
+        results["properties_direct"] = {"status": r.status_code, "body": r.text[:500]}
+    except Exception as e:
+        results["properties_direct"] = {"error": str(e)}
+
+    return results
+
 
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
