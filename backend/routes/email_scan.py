@@ -185,6 +185,7 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
     updated = 0
     skipped = 0
     errors = []
+    log = []
 
     try:
         M.select("INBOX")
@@ -215,6 +216,7 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
 
                     if not extracted:
                         skipped += 1
+                        log.append({"status": "skipped", "reason": "no data extracted", "subject": subject[:80], "channel": channel})
                         continue
 
                     # Try to match booking
@@ -226,35 +228,53 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     booking = _match_booking(db, tenant, check_in, check_out)
                     if not booking:
                         skipped += 1
+                        log.append({"status": "skipped", "reason": "no matching booking", "subject": subject[:80], "channel": channel, "extracted": {k: v for k, v in extracted.items() if not k.startswith("_")}})
                         continue
 
                     changed = False
+                    changes = []
                     customer = booking.customer
 
-                    if extracted.get("first_name") and not customer.first_name or customer.first_name in ("Beds24", "Unknown", "Guest", ""):
+                    if extracted.get("first_name") and (not customer.first_name or customer.first_name in ("Beds24", "Unknown", "Guest", "")):
+                        changes.append(f"first_name: '{customer.first_name}' → '{extracted['first_name']}'")
                         customer.first_name = extracted["first_name"]
                         changed = True
-                    if extracted.get("last_name") and not customer.last_name or customer.last_name in ("Guest", "Unknown", ""):
+                    if extracted.get("last_name") and (not customer.last_name or customer.last_name in ("Guest", "Unknown", "")):
+                        changes.append(f"last_name: '{customer.last_name}' → '{extracted['last_name']}'")
                         customer.last_name = extracted["last_name"]
                         changed = True
                     if extracted.get("email") and not customer.email:
+                        changes.append(f"email: → '{extracted['email']}'")
                         customer.email = extracted["email"]
                         changed = True
                     if extracted.get("phone") and not customer.phone:
+                        changes.append(f"phone: → '{extracted['phone']}'")
                         customer.phone = extracted["phone"]
                         changed = True
                     if extracted.get("reply_email") and not booking.reply_email:
+                        changes.append(f"reply_email: → '{extracted['reply_email']}'")
                         booking.reply_email = extracted["reply_email"]
                         changed = True
 
                     if changed:
                         db.commit()
                         updated += 1
+                        log.append({
+                            "status": "updated",
+                            "booking_id": booking.id,
+                            "check_in": str(booking.check_in),
+                            "check_out": str(booking.check_out),
+                            "channel": channel,
+                            "subject": subject[:80],
+                            "changes": changes,
+                        })
                     else:
                         skipped += 1
+                        log.append({"status": "skipped", "reason": "already has data", "booking_id": booking.id, "check_in": str(booking.check_in), "subject": subject[:80]})
 
                 except Exception as exc:
                     errors.append(str(exc)[:100])
+                    log.append({"status": "error", "error": str(exc)[:100]})
 
     finally:
         try:
@@ -262,7 +282,7 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
         except Exception:
             pass
 
-    return {"ok": True, "updated": updated, "skipped": skipped, "errors": errors}
+    return {"ok": True, "updated": updated, "skipped": skipped, "errors": errors, "log": log}
 
 
 @router.get("/status")

@@ -233,9 +233,31 @@ function EmailScanSection() {
       )}
 
       {lastResult && (
-        <div className="text-xs text-gray-600 bg-gray-50 rounded-xl px-4 py-3">
-          Ενημερώθηκαν: <strong>{lastResult.updated}</strong> κρατήσεις · Παρακάμφθηκαν: {lastResult.skipped}
-          {lastResult.errors?.length > 0 && <span className="text-red-500 ml-2">· {lastResult.errors.length} σφάλματα</span>}
+        <div className="text-xs text-gray-600 bg-gray-50 rounded-xl px-4 py-3 space-y-2">
+          <div>
+            Ενημερώθηκαν: <strong>{lastResult.updated}</strong> κρατήσεις · Παρακάμφθηκαν: {lastResult.skipped}
+            {lastResult.errors?.length > 0 && <span className="text-red-500 ml-2">· {lastResult.errors.length} σφάλματα</span>}
+          </div>
+          {lastResult.log?.length > 0 && (
+            <div className="space-y-1 border-t border-gray-200 pt-2 max-h-60 overflow-y-auto">
+              {lastResult.log.map((entry, i) => (
+                <div key={i} className={`rounded px-2 py-1 ${entry.status === 'updated' ? 'bg-green-50 text-green-800' : entry.status === 'error' ? 'bg-red-50 text-red-700' : 'text-gray-400'}`}>
+                  {entry.status === 'updated' ? (
+                    <>
+                      <span className="font-medium">✅ Booking #{entry.booking_id}</span> ({entry.check_in} → {entry.check_out}) [{entry.channel}]
+                      <ul className="ml-3 mt-0.5 list-disc">
+                        {entry.changes?.map((c, j) => <li key={j}>{c}</li>)}
+                      </ul>
+                    </>
+                  ) : entry.status === 'error' ? (
+                    <span>❌ {entry.error}</span>
+                  ) : (
+                    <span>— {entry.subject} · {entry.reason}{entry.booking_id ? ` (booking #${entry.booking_id})` : ''}</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
