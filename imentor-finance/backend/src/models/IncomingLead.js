@@ -37,6 +37,7 @@ const IncomingLead = sequelize.define('IncomingLead', {
   income_id:             { type: DataTypes.INTEGER },          // set on convert
   converted_at:          { type: DataTypes.DATE },
   notes:                 { type: DataTypes.TEXT },
+  raw_payload:           { type: DataTypes.JSON },             // full webhook body for debugging
 }, {
   tableName: 'incoming_leads',
   timestamps: true
