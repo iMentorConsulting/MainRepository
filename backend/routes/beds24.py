@@ -16,8 +16,8 @@ def _exchange_invite_code(invite_code: str) -> str:
     """Exchange a one-time Beds24 invite code (from Marketplace → API) for a refresh token."""
     r = requests.post(
         "https://beds24.com/api/v2/authentication/setup",
-        json={"code": invite_code, "deviceName": "iStay"},
-        headers={"accept": "application/json"},
+        json={"code": invite_code},
+        headers={"accept": "application/json", "Content-Type": "application/json"},
         timeout=15,
     )
     if not r.ok:
@@ -65,10 +65,11 @@ def _get_api_key(tenant: str, db: Session) -> str:
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
-@router.get("/debug-auth")
-def debug_auth(code: str, db: Session = Depends(get_db)):
-    """Try every Beds24 auth approach with the given code and show raw responses."""
-    results = {}
+@router.post("/debug-auth")
+def debug_auth(body: dict, db: Session = Depends(get_db)):
+    """Try Beds24 setup with the given invite code. POST {"code": "..."}"""
+    code = (body.get("code") or "").strip()
+    results = {"received_code_length": len(code)}
 
     def attempt(label, method, url, **kwargs):
         try:
@@ -77,28 +78,15 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
         except Exception as e:
             results[label] = {"error": str(e)}
 
-    # ── Beds24 API v1 (completely different format) ───────────────────────────
-    # v1 uses propKey or apiKey as query params or in POST body
-    attempt("v1_getproperty_queryparam", "get",
-            "https://beds24.com/api/json/getProperty",
-            params={"propKey": code})
+    attempt("setup_no_devicename", "post",
+            "https://beds24.com/api/v2/authentication/setup",
+            json={"code": code},
+            headers={"accept": "application/json", "Content-Type": "application/json"})
 
-    attempt("v1_getproperty_apikey", "get",
-            "https://beds24.com/api/json/getProperty",
-            params={"apiKey": code})
-
-    attempt("v1_post_getprops", "post",
-            "https://beds24.com/api/json/getProperties",
-            json={"authentication": {"apiKey": code}})
-
-    attempt("v1_post_getprops2", "post",
-            "https://beds24.com/api/json/getProperties",
-            json={"authentication": {"propKey": code}})
-
-    # ── Beds24 API v2 summary (already confirmed failing, for reference) ──────
-    attempt("v2_token_header", "get",
-            "https://beds24.com/api/v2/authentication/token",
-            headers={"accept": "application/json", "token": code})
+    attempt("setup_with_devicename", "post",
+            "https://beds24.com/api/v2/authentication/setup",
+            json={"code": code, "deviceName": "iStay"},
+            headers={"accept": "application/json", "Content-Type": "application/json"})
 
     return results
 
