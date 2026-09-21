@@ -43,8 +43,8 @@ def _get_api_key(tenant: str, db: Session) -> str:
 
 
 @router.get("/test-v1")
-def test_v1_api(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Test Beds24 v1 API with Account Access key."""
+def test_v1_api():
+    """Test Beds24 v1 API with Account Access key (no auth required)."""
     try:
         r = requests.post(
             "https://api.beds24.com/json/getProperties",
