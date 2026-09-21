@@ -551,11 +551,16 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
             const missingContact = !cust?.phone && !cust?.email
             return (
               <>
-                {hasInfo && (
+                {(hasInfo || booking.reply_email) && (
                   <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm space-y-1">
                     <p className="text-xs font-semibold text-sky-700 mb-1.5">Στοιχεία Επισκέπτη</p>
                     {cust?.phone && <p className="text-gray-700">📞 {cust.phone}</p>}
                     {cust?.email && <p className="text-gray-700">✉️ {cust.email}</p>}
+                    {booking.reply_email && (
+                      <p className="text-gray-500 text-xs break-all">
+                        🔁 <span className="font-medium text-red-700">Airbnb relay:</span> {booking.reply_email}
+                      </p>
+                    )}
                     {form.notes && <p className="text-gray-600 text-xs">🗒 {form.notes}</p>}
                   </div>
                 )}

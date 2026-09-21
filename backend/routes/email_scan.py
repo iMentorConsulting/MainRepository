@@ -58,6 +58,23 @@ def _get_body(msg) -> str:
     return body
 
 
+def _clean_preview(body: str) -> str:
+    """Extract meaningful preview text — skip tracking URLs and empty lines."""
+    lines = []
+    for line in body.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith('%') or line.startswith('http') or line.startswith('//'):
+            continue
+        if re.match(r'^https?://', line) or re.match(r'^\s*https?://', line):
+            continue
+        if len(line) < 3:
+            continue
+        lines.append(line)
+    return " | ".join(lines[:5])[:400] if lines else body[:200].strip()
+
+
 def _extract_booking_com(body: str, subject: str) -> dict:
     data = {}
     # Guest name
@@ -327,6 +344,11 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                         GuestCommunication.booking_id == booking.id,
                         GuestCommunication.subject == subject[:500],
                     ).first()
+                    if existing_comm and existing_comm.body_preview and existing_comm.body_preview.startswith('%'):
+                        # Old record with tracking URL preview — refresh it
+                        existing_comm.body_preview = _clean_preview(body)
+                        existing_comm.relay_email = extracted.get("reply_email") or booking.reply_email
+                        changed = True
                     if not existing_comm:
                         comm = GuestCommunication(
                             tenant=tenant,
@@ -334,7 +356,7 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                             channel=channel,
                             direction="in",
                             subject=subject[:500],
-                            body_preview=body[:300].strip(),
+                            body_preview=_clean_preview(body),
                             relay_email=extracted.get("reply_email") or booking.reply_email,
                             sent_at=dt.utcnow(),
                         )
