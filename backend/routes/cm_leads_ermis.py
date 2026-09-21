@@ -404,13 +404,16 @@ def _send_ermis_link(db, l: CMLead, channel: str, actor_name: str) -> None:
 def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
     """Handle ermis.business_ready: check eligibility and send deferred link or cancel.
 
-    If matchedPrograms is provided and the lead's program is NOT in the list,
-    auto-cancel the lead. Otherwise (program is matched, or list absent), send
-    the deferred ΕΡΜΗΣ link for non-LOGISTIS leads.
+    matchedPrograms semantics:
+      None  → LOGISTIS hasn't returned eligibility yet; do nothing (wait for next event)
+      []    → LOGISTIS returned: NO programs matched → auto-cancel
+      [...]  → LOGISTIS returned eligible programs; if lead's program absent → cancel,
+               else send deferred link (non-LOGISTIS leads only)
     """
     from routes.cm_leads_sync import _resolve_program
-    matched = payload.matchedPrograms or []
     is_logistis = (primary_lead.source or "").upper().startswith("LOGISTIS")
+    matched_programs = payload.matchedPrograms  # None means "not sent"
+    matched = matched_programs or []            # list (possibly empty)
 
     # Update chatUrl/token on the primary lead if LOGISTIS sends extended format
     for p in matched:
@@ -423,32 +426,44 @@ def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
                 primary_lead.ermis_token = p["token"]
             break
 
-    # When matchedPrograms is present, verify the lead's program is among them
-    if matched and primary_lead.program:
+    if matched_programs is None:
+        # LOGISTIS sent business data but no eligibility info yet — just save and wait
+        db.commit()
+        log.info("ΕΡΜΗΣ business_ready: lead %s — no matchedPrograms yet, waiting", primary_lead.id)
+        return
+
+    # matchedPrograms was explicitly sent (empty or non-empty) → eligibility is known
+    matched_titles = [p.get("title") for p in matched if isinstance(p, dict) and p.get("title")]
+
+    if primary_lead.program:
         lead_program_canonical = _resolve_program(primary_lead.program)
-        matched_titles = [p.get("title") for p in matched if isinstance(p, dict) and p.get("title")]
         matched_canonicals = {_resolve_program(t) for t in matched_titles}
-        if lead_program_canonical not in matched_canonicals:
-            # Business not eligible for this lead's program — auto-cancel
-            prev_status = primary_lead.status
-            primary_lead.status = "CANCEL"
-            primary_lead.ermis_status = "ineligible"
-            primary_lead.ermis_pending_link_channel = None
-            primary_lead.ermis_pending_actor = None
-            note = (f"ΕΡΜΗΣ/LOGISTIS: Η επιχείρηση δεν πληροί τις προϋποθέσεις για «{primary_lead.program}» "
-                    f"(matchedPrograms: {', '.join(matched_titles) or 'κανένα'})")
-            if prev_status and prev_status != "CANCEL":
-                note += f" — αυτόματη ακύρωση από κατάσταση '{prev_status}'"
-            from models_cases import CMLeadComment
-            db.add(CMLeadComment(lead_id=primary_lead.id, author="ΕΡΜΗΣ", content=note))
-            db.commit()
-            log.info("ΕΡΜΗΣ business_ready: lead %s AUTO-CANCELLED — program '%s' not in matchedPrograms %s",
-                     primary_lead.id, primary_lead.program, matched_titles)
-            return
+        program_matched = lead_program_canonical in matched_canonicals
+    else:
+        program_matched = bool(matched)  # no program on lead: OK if anything matched
+
+    if not program_matched:
+        # Business not eligible for this lead's program — auto-cancel, no email
+        prev_status = primary_lead.status
+        primary_lead.status = "CANCEL"
+        primary_lead.ermis_status = "ineligible"
+        primary_lead.ermis_pending_link_channel = None
+        primary_lead.ermis_pending_actor = None
+        note = (f"ΕΡΜΗΣ/LOGISTIS: Η επιχείρηση δεν πληροί τις προϋποθέσεις για "
+                f"«{primary_lead.program or 'το πρόγραμμα'}» "
+                f"(matchedPrograms: {', '.join(matched_titles) or 'κανένα'})")
+        if prev_status and prev_status != "CANCEL":
+            note += f" — αυτόματη ακύρωση από κατάσταση '{prev_status}'"
+        from models_cases import CMLeadComment
+        db.add(CMLeadComment(lead_id=primary_lead.id, author="ΕΡΜΗΣ", content=note))
+        db.commit()
+        log.info("ΕΡΜΗΣ business_ready: lead %s AUTO-CANCELLED — program '%s' not in matchedPrograms %s",
+                 primary_lead.id, primary_lead.program, matched_titles)
+        return
 
     db.commit()
 
-    # Send deferred ΕΡΜΗΣ link for non-LOGISTIS leads that requested a send
+    # Program IS matched — send deferred ΕΡΜΗΣ link for non-LOGISTIS leads
     pending_channel = primary_lead.ermis_pending_link_channel
     actor_name = primary_lead.ermis_pending_actor or "system"
     if not is_logistis and pending_channel and primary_lead.ermis_chat_url:
@@ -456,8 +471,9 @@ def _on_business_ready(db, primary_lead: CMLead, payload, afm: str) -> None:
         primary_lead.ermis_pending_actor = None
         db.commit()
         _send_ermis_link(db, primary_lead, pending_channel, actor_name)
+        log.info("ΕΡΜΗΣ business_ready: lead %s — program matched, deferred link sent", primary_lead.id)
     else:
-        log.info("ΕΡΜΗΣ business_ready: lead %s — messaging handled by LOGISTIS or no pending send",
+        log.info("ΕΡΜΗΣ business_ready: lead %s — program matched, LOGISTIS handles messaging or no pending send",
                  primary_lead.id)
 
 
