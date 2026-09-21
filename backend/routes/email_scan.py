@@ -109,12 +109,15 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
         data["reservation_code"] = m.group(1)
     # Guest name from body: appears before "Υπεύθυνος κράτησης" or "Responsible"
     # Use \s+ to handle both newlines and spaces (HTML-stripped bodies may use spaces)
-    if not data.get("first_name"):
-        m = re.search(r"([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+)?)\s+(?:Υπεύθυνος κράτησης|Responsible for booking|Guest)", body)
+    if not data.get("first_name") and not data.get("last_name"):
+        m = re.search(r"([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+)?)\s+(?:Υπεύθυνος κράτησης|Responsible for booking|Responsible)", body)
         if m:
             parts = m.group(1).strip().split()
-            data["first_name"] = parts[0]
-            if len(parts) > 1:
+            if len(parts) == 1:
+                # Single word is almost always a surname (e.g. French/Greek guests)
+                data["last_name"] = parts[0]
+            else:
+                data["first_name"] = parts[0]
                 data["last_name"] = " ".join(parts[1:])
     # Dates from body — handles Greek month names (e.g. "21 Σεπτεμβρίου 2026")
     greek_month_pat = r"(\d{1,2}\s+(?:" + "|".join(_GREEK_MONTHS.keys()) + r")\s+\d{4})"
@@ -299,6 +302,11 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     if extracted.get("last_name") and (not customer.last_name or customer.last_name in _PLACEHOLDER_NAMES):
                         changes.append(f"last_name: '{customer.last_name}' → '{extracted['last_name']}'")
                         customer.last_name = extracted["last_name"]
+                        changed = True
+                    # Clear placeholder last_name ("Guest") when we have a new last_name but first_name update already covers the full name
+                    if not extracted.get("last_name") and customer.last_name in _PLACEHOLDER_NAMES and extracted.get("first_name"):
+                        changes.append(f"last_name: '{customer.last_name}' → ''")
+                        customer.last_name = ""
                         changed = True
                     if extracted.get("email") and not customer.email:
                         changes.append(f"email: → '{extracted['email']}'")
