@@ -68,6 +68,10 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
     """Try every Beds24 auth approach with the given code and show raw responses."""
     results = {}
 
+    BASE     = "https://beds24.com/api/v2"
+    BASE_WWW = "https://www.beds24.com/api/v2"
+    ACCEPT   = {"accept": "application/json"}
+
     def attempt(label, method, url, **kwargs):
         try:
             r = getattr(requests, method)(url, timeout=15, **kwargs)
@@ -75,35 +79,13 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
         except Exception as e:
             results[label] = {"error": str(e)}
 
-    # PRIMARY: GET /authentication/token with refreshToken header (correct per Beds24 v2 docs)
-    attempt("1_refreshToken_header", "get",
-            "https://beds24.com/api/v2/authentication/token",
-            headers={"refreshToken": code})
-
-    # If that works, also test using the resulting access token for properties
-    try:
-        r = requests.get(
-            "https://beds24.com/api/v2/authentication/token",
-            headers={"refreshToken": code},
-            timeout=15,
-        )
-        if r.ok:
-            access_token = r.json().get("token", "")
-            if access_token:
-                r2 = requests.get(
-                    "https://beds24.com/api/v2/properties",
-                    headers={"token": access_token},
-                    timeout=15,
-                )
-                results["2_properties_with_access_token"] = {
-                    "status": r2.status_code, "body": r2.text[:600]
-                }
-    except Exception as e:
-        results["2_properties_with_access_token"] = {"error": str(e)}
-
-    # Fallback tests
-    attempt("3_token_header",        "get", "https://beds24.com/api/v2/authentication/token", headers={"token": code})
-    attempt("4_properties_direct",   "get", "https://beds24.com/api/v2/properties",           headers={"token": code})
+    # refreshToken header variants
+    attempt("1_refreshToken_beds24",     "get", f"{BASE}/authentication/token",     headers={**ACCEPT, "refreshToken": code})
+    attempt("2_refreshToken_www",        "get", f"{BASE_WWW}/authentication/token", headers={**ACCEPT, "refreshToken": code})
+    attempt("3_token_beds24",            "get", f"{BASE}/authentication/token",     headers={**ACCEPT, "token": code})
+    attempt("4_token_www",               "get", f"{BASE_WWW}/authentication/token", headers={**ACCEPT, "token": code})
+    attempt("5_properties_refreshToken", "get", f"{BASE}/properties",               headers={**ACCEPT, "refreshToken": code})
+    attempt("6_properties_token",        "get", f"{BASE}/properties",               headers={**ACCEPT, "token": code})
 
     return results
 
