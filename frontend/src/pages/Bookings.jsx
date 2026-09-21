@@ -145,7 +145,7 @@ function CommunicationsLog({ bookingId }) {
 
   return (
     <div className="border border-gray-200 rounded-xl overflow-hidden">
-      <button onClick={toggle}
+      <button type="button" onClick={toggle}
         className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors">
         <span>📨 Επικοινωνία {comms !== null && `(${comms.length})`}</span>
         <span className="text-gray-400">{open ? '▲' : '▼'}</span>
