@@ -1025,9 +1025,13 @@ def ermis_webhook(
     if lead is None:
         if not afm:
             raise HTTPException(status_code=404, detail="Δεν βρέθηκε lead και λείπει ΑΦΜ για δημιουργία")
+        # ermis.progress is a status ping — never auto-create a lead for it
+        if payload.event == "ermis.progress":
+            log.info("ΕΡΜΗΣ progress event: no lead found for AFM %s — skipping auto-create", afm)
+            return {"ok": True, "lead_id": None, "ermis_status": "not_found", "created": False}
         # Auto-create a HOT lead from the ΓΕΜΗ prospect. No Viber/Email/link is sent
         # (the ΕΡΜΗΣ conversation is already done) — only a consultant call is needed.
-        # ΓΕΜΗ leads are auto-assigned to ELEFTHERIA.
+        # ΓΕΜΗ leads are auto-assigned to Ελευθερία.
         from models_cases import CMUser as _CMUser
         _agent = db.query(_CMUser).filter(_CMUser.full_name.ilike("%Ελευθερία%")).first()
         lead = CMLead(

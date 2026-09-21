@@ -191,6 +191,11 @@ def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, 
         matches = [l for l in cands if _is_logistis_lead(l) and (l.program or "") == program_category]
         if matches:
             return max(matches, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
+    # 3) No program info at all — fall back to the best-ranked LOGISTIS lead for this AFM
+    #    (prevents duplicate auto-creates when a webhook arrives without a program field)
+    logistis_cands = [l for l in cands if _is_logistis_lead(l)]
+    if logistis_cands:
+        return max(logistis_cands, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
     return None
 
 
