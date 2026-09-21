@@ -68,10 +68,6 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
     """Try every Beds24 auth approach with the given code and show raw responses."""
     results = {}
 
-    BASE     = "https://beds24.com/api/v2"
-    BASE_WWW = "https://www.beds24.com/api/v2"
-    ACCEPT   = {"accept": "application/json"}
-
     def attempt(label, method, url, **kwargs):
         try:
             r = getattr(requests, method)(url, timeout=15, **kwargs)
@@ -79,13 +75,28 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
         except Exception as e:
             results[label] = {"error": str(e)}
 
-    # refreshToken header variants
-    attempt("1_refreshToken_beds24",     "get", f"{BASE}/authentication/token",     headers={**ACCEPT, "refreshToken": code})
-    attempt("2_refreshToken_www",        "get", f"{BASE_WWW}/authentication/token", headers={**ACCEPT, "refreshToken": code})
-    attempt("3_token_beds24",            "get", f"{BASE}/authentication/token",     headers={**ACCEPT, "token": code})
-    attempt("4_token_www",               "get", f"{BASE_WWW}/authentication/token", headers={**ACCEPT, "token": code})
-    attempt("5_properties_refreshToken", "get", f"{BASE}/properties",               headers={**ACCEPT, "refreshToken": code})
-    attempt("6_properties_token",        "get", f"{BASE}/properties",               headers={**ACCEPT, "token": code})
+    # ── Beds24 API v1 (completely different format) ───────────────────────────
+    # v1 uses propKey or apiKey as query params or in POST body
+    attempt("v1_getproperty_queryparam", "get",
+            "https://beds24.com/api/json/getProperty",
+            params={"propKey": code})
+
+    attempt("v1_getproperty_apikey", "get",
+            "https://beds24.com/api/json/getProperty",
+            params={"apiKey": code})
+
+    attempt("v1_post_getprops", "post",
+            "https://beds24.com/api/json/getProperties",
+            json={"authentication": {"apiKey": code}})
+
+    attempt("v1_post_getprops2", "post",
+            "https://beds24.com/api/json/getProperties",
+            json={"authentication": {"propKey": code}})
+
+    # ── Beds24 API v2 summary (already confirmed failing, for reference) ──────
+    attempt("v2_token_header", "get",
+            "https://beds24.com/api/v2/authentication/token",
+            headers={"accept": "application/json", "token": code})
 
     return results
 
