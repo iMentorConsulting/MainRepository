@@ -42,6 +42,20 @@ def _get_api_key(tenant: str, db: Session) -> str:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
+@router.get("/test-v1")
+def test_v1_api(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Test Beds24 v1 API with Account Access key."""
+    try:
+        r = requests.post(
+            "https://api.beds24.com/json/getProperties",
+            json={"authentication": {"apiKey": "rwh6IluBRvUDVc17yQIgJSd6oZYshxKu"}},
+            timeout=15,
+        )
+        return {"status_code": r.status_code, "response": r.json()}
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     """Verify and save a Beds24 long life token (generated in Marketplace → API)."""
