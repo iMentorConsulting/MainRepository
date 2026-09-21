@@ -294,6 +294,16 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             .filter(CMLead.sheet_config_id == cfg.id).all() if r[0]
         }
 
+    # AFM-level dedup: skip creation when the same (afm, program) already exists
+    # for this sheet config, regardless of row number shifts.
+    _resolved_program = _resolve_program(cfg.program) or cfg.program
+    existing_afm_programs: set = {
+        (r[0], r[1])
+        for r in db.query(CMLead.afm, CMLead.program)
+        .filter(CMLead.sheet_config_id == cfg.id, CMLead.afm.isnot(None)).all()
+        if r[0] and str(r[0]).strip()
+    }
+
     # Fields overwritten on refresh (comments, ΕΡΜΗΣ data and case link are preserved).
     REFRESH_FIELDS = ["name", "phone", "phone2", "email", "afm", "service_type",
                       "source", "notes", "total_amount", "next_call_date",
@@ -346,8 +356,18 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             if updated % BATCH == 0:
                 db.commit()
         else:
+            # AFM-level dedup: skip if same (afm, program) already imported
+            _afm = (kwargs.get("afm") or "").strip()
+            if _afm and (_afm, _resolved_program) in existing_afm_programs:
+                log.info(
+                    "[leads-sync] Skipping duplicate: AFM %s already exists for program %s (row %d)",
+                    _afm, _resolved_program, row_num,
+                )
+                existing_refs.add(ref)  # prevent re-check next run
+                max_row = max(max_row, row_num)
+                continue
             _new = CMLead(
-                program=_resolve_program(cfg.program) or cfg.program,
+                program=_resolved_program,
                 status=status,
                 sheet_config_id=cfg.id,
                 sheet_row_num=row_num,
@@ -358,6 +378,8 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             created_leads.append(_new)
             imported += 1
             existing_refs.add(ref)
+            if _afm:
+                existing_afm_programs.add((_afm, _resolved_program))
             if imported % BATCH == 0:
                 cfg.last_row_num = max(max_row, row_num)
                 cfg.last_sync_at = datetime.utcnow()
