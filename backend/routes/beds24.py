@@ -165,73 +165,43 @@ def list_properties(db: Session = Depends(get_db), tenant: str = Depends(get_ten
     return data.get("data", data) if isinstance(data, dict) else data
 
 
-@router.post("/units/{unit_id}/create-property")
-def create_property_in_beds24(
-    unit_id: int,
-    db: Session = Depends(get_db),
-    tenant: str = Depends(get_tenant),
-):
-    """Auto-create a Beds24 property + room for this unit and save the IDs."""
-    unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
-    if not unit:
-        raise HTTPException(status_code=404, detail="Unit not found")
-
+@router.get("/rooms")
+def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """List all Beds24 properties and their rooms (for mapping UI)."""
     v1_key = _get_v1_key(tenant, db)
-
-    # Create property in Beds24
-    prop_payload = {
-        **_v1_auth(v1_key),
-        "properties": [{
-            "name": unit.name,
-            "country": "GR",
-        }],
-    }
     try:
-        r = requests.post(f"{V1_BASE}/setProperties", json=prop_payload, timeout=15)
+        # Get properties
+        r = requests.post(f"{V1_BASE}/getProperties", json=_v1_auth(v1_key), timeout=15)
         r.raise_for_status()
-        data = r.json()
+        props_data = r.json()
+        props = props_data.get("getProperties", []) if isinstance(props_data, dict) else []
+
+        # Get rooms for each property
+        result = []
+        for prop in props:
+            prop_id = prop.get("propId") or prop.get("id")
+            if not prop_id:
+                continue
+            rr = requests.post(
+                f"{V1_BASE}/getRooms",
+                json={**_v1_auth(v1_key), "propId": prop_id},
+                timeout=15,
+            )
+            rooms = []
+            if rr.ok:
+                rd = rr.json()
+                rooms = rd.get("getRooms", []) if isinstance(rd, dict) else []
+            result.append({
+                "propId": prop_id,
+                "propName": prop.get("name", f"Property {prop_id}"),
+                "rooms": [
+                    {"roomId": rm.get("roomId") or rm.get("id"), "roomName": rm.get("name", "")}
+                    for rm in (rooms if isinstance(rooms, list) else [])
+                ],
+            })
+        return result
     except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail=f"Beds24 setProperties error: {exc}")
-
-    props = data.get("setProperties") if isinstance(data, dict) else None
-    if not props or not isinstance(props, list):
-        raise HTTPException(status_code=502, detail=f"Unexpected Beds24 response: {data}")
-
-    prop_id = props[0].get("propId") or props[0].get("id")
-    if not prop_id:
-        raise HTTPException(status_code=502, detail=f"No propId in Beds24 response: {data}")
-
-    # Create room inside that property
-    room_payload = {
-        **_v1_auth(v1_key),
-        "rooms": [{
-            "propId": prop_id,
-            "name": unit.name,
-            "qty": 1,
-        }],
-    }
-    try:
-        rr = requests.post(f"{V1_BASE}/setRooms", json=room_payload, timeout=15)
-        rr.raise_for_status()
-        rdata = rr.json()
-    except requests.RequestException as exc:
-        raise HTTPException(status_code=502, detail=f"Beds24 setRooms error: {exc}")
-
-    rooms = rdata.get("setRooms") if isinstance(rdata, dict) else None
-    room_id = None
-    if rooms and isinstance(rooms, list):
-        room_id = rooms[0].get("roomId") or rooms[0].get("id")
-
-    unit.beds24_prop_id = int(prop_id)
-    if room_id:
-        unit.beds24_room_id = int(room_id)
-    db.commit()
-
-    return {
-        "ok": True,
-        "beds24_prop_id": unit.beds24_prop_id,
-        "beds24_room_id": unit.beds24_room_id,
-    }
+        raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
 
 
 @router.put("/units/{unit_id}/mapping")

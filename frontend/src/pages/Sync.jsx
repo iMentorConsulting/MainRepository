@@ -10,7 +10,7 @@ import {
   getIcalExportUrl, regenerateIcalToken, updateIcalImportUrl,
   getChannelRates, createChannelRate, updateChannelRate, deleteChannelRate,
   testBeds24Connection, getBeds24Status, getBeds24Properties,
-  createPropertyInBeds24, mapUnitToBeds24,
+  getBeds24Rooms, mapUnitToBeds24,
   pushRatesToBeds24, syncBookingsFromBeds24,
 } from '../api'
 
@@ -334,42 +334,51 @@ function ChannelRatesSection({ unit }) {
 
 // ── Beds24 Components ─────────────────────────────────────────────────────────
 
-function Beds24MappingRow({ unit, beds24Props }) {
+function Beds24MappingRow({ unit }) {
   const [mapped, setMapped] = useState(
     unit.beds24_prop_id ? { propId: unit.beds24_prop_id, roomId: unit.beds24_room_id } : null
   )
-  const [showForm, setShowForm] = useState(false)
-  const [propId, setPropId] = useState('')
-  const [roomId, setRoomId] = useState('')
+  const [showPicker, setShowPicker] = useState(false)
+  const [beds24Data, setBeds24Data] = useState([])
+  const [loadingRooms, setLoadingRooms] = useState(false)
+  const [selectedPropId, setSelectedPropId] = useState('')
+  const [selectedRoomId, setSelectedRoomId] = useState('')
   const [saving, setSaving] = useState(false)
   const [pushing, setPushing] = useState(false)
-  const [creating, setCreating] = useState(false)
 
-  const handleAutoCreate = async () => {
-    setCreating(true)
+  const selectedProp = beds24Data.find(p => String(p.propId) === String(selectedPropId))
+
+  const handleLoadRooms = async () => {
+    setLoadingRooms(true)
     try {
-      const r = await createPropertyInBeds24(unit.id)
-      setMapped({ propId: r.data.beds24_prop_id, roomId: r.data.beds24_room_id })
-      toast.success(`Property δημιουργήθηκε στο Beds24 — ID ${r.data.beds24_prop_id}`)
+      const r = await getBeds24Rooms()
+      setBeds24Data(r.data)
+      if (r.data.length === 0) {
+        toast.error('Δεν βρέθηκαν properties στο Beds24. Δημιουργήστε ένα πρώτα στο beds24.com.')
+      } else {
+        setShowPicker(true)
+      }
     } catch (err) {
-      toast.error(err.response?.data?.detail || 'Σφάλμα δημιουργίας property')
+      toast.error(err.response?.data?.detail || 'Σφάλμα φόρτωσης από Beds24')
     } finally {
-      setCreating(false)
+      setLoadingRooms(false)
     }
   }
 
-  const handleMap = async (e) => {
-    e.preventDefault()
-    if (!propId || !roomId) { toast.error('Συμπληρώστε Property ID και Room ID'); return }
+  const handleSave = async () => {
+    if (!selectedPropId || !selectedRoomId) {
+      toast.error('Επιλέξτε Property και Room')
+      return
+    }
     setSaving(true)
     try {
       await mapUnitToBeds24(unit.id, {
-        beds24_prop_id: parseInt(propId),
-        beds24_room_id: parseInt(roomId),
+        beds24_prop_id: parseInt(selectedPropId),
+        beds24_room_id: parseInt(selectedRoomId),
       })
-      setMapped({ propId: parseInt(propId), roomId: parseInt(roomId) })
-      setShowForm(false)
-      toast.success('Η αντιστοίχιση αποθηκεύτηκε')
+      setMapped({ propId: parseInt(selectedPropId), roomId: parseInt(selectedRoomId) })
+      setShowPicker(false)
+      toast.success('Αντιστοίχιση αποθηκεύτηκε')
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα αποθήκευσης')
     } finally {
@@ -403,56 +412,65 @@ function Beds24MappingRow({ unit, beds24Props }) {
         )}
       </div>
 
-      {mapped && !showForm ? (
+      {mapped && !showPicker ? (
         <div className="flex items-center gap-3">
           <span className="text-xs text-teal-700">
-            Property ID: <strong>{mapped.propId}</strong> · Room: <strong>{mapped.roomId}</strong>
+            Property: <strong>{mapped.propId}</strong> · Room: <strong>{mapped.roomId}</strong>
           </span>
-          <button onClick={() => { setPropId(String(mapped.propId)); setRoomId(String(mapped.roomId)); setShowForm(true) }}
+          <button onClick={() => { setShowPicker(false); handleLoadRooms() }}
             className="text-xs text-teal-600 hover:text-teal-800 underline">
             Αλλαγή
           </button>
         </div>
-      ) : !showForm ? (
-        <div className="flex flex-wrap gap-2">
-          <button onClick={handleAutoCreate} disabled={creating}
+      ) : !showPicker ? (
+        <div className="space-y-1.5">
+          <button onClick={handleLoadRooms} disabled={loadingRooms}
             className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium transition-colors">
-            {creating ? 'Δημιουργία…' : '✨ Αυτόματη Δημιουργία στο Beds24'}
+            {loadingRooms ? 'Φόρτωση…' : '🔗 Σύνδεση με Beds24 Property'}
           </button>
-          <button onClick={() => setShowForm(true)}
-            className="text-xs border border-teal-300 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-100 font-medium transition-colors">
-            Χειροκίνητη Εισαγωγή ID
-          </button>
+          <p className="text-xs text-gray-400">
+            Πρέπει πρώτα να δημιουργήσετε το property στο{' '}
+            <a href="https://beds24.com" target="_blank" rel="noreferrer" className="underline">beds24.com</a>
+            {' '}(Settings → Properties → Add).
+          </p>
         </div>
       ) : null}
 
-      {showForm && (
-        <form onSubmit={handleMap} className="space-y-2">
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <label className="block text-xs text-gray-500 mb-0.5 font-medium">Beds24 Property ID</label>
-              <input type="number" value={propId} onChange={e => setPropId(e.target.value)}
-                placeholder="π.χ. 12345"
-                className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-0.5 font-medium">Room ID</label>
-              <input type="number" value={roomId} onChange={e => setRoomId(e.target.value)}
-                placeholder="π.χ. 67890"
-                className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400" />
-            </div>
+      {showPicker && (
+        <div className="space-y-2">
+          <div>
+            <label className="block text-xs font-medium text-gray-600 mb-1">Beds24 Property</label>
+            <select value={selectedPropId} onChange={e => { setSelectedPropId(e.target.value); setSelectedRoomId('') }}
+              className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400">
+              <option value="">-- Επιλογή Property --</option>
+              {beds24Data.map(p => (
+                <option key={p.propId} value={p.propId}>{p.propName} (ID: {p.propId})</option>
+              ))}
+            </select>
           </div>
+          {selectedProp && (
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">Room</label>
+              <select value={selectedRoomId} onChange={e => setSelectedRoomId(e.target.value)}
+                className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400">
+                <option value="">-- Επιλογή Room --</option>
+                {selectedProp.rooms.map(rm => (
+                  <option key={rm.roomId} value={rm.roomId}>{rm.roomName || `Room ${rm.roomId}`} (ID: {rm.roomId})</option>
+                ))}
+              </select>
+            </div>
+          )}
           <div className="flex gap-2">
-            <button type="submit" disabled={saving}
+            <button onClick={handleSave} disabled={saving}
               className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium">
               {saving ? 'Αποθήκευση…' : 'Αποθήκευση'}
             </button>
-            <button type="button" onClick={() => setShowForm(false)}
+            <button onClick={() => setShowPicker(false)}
               className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
               Ακύρωση
             </button>
           </div>
-        </form>
+        </div>
       )}
     </div>
   )
@@ -615,7 +633,7 @@ function Beds24Section({ units }) {
               {units.map(u => (
                 <div key={u.id} className="border border-gray-100 rounded-lg px-3 py-2">
                   <p className="text-xs font-medium text-gray-700 mb-1">{u.name}</p>
-                  <Beds24MappingRow unit={u} beds24Props={propsLoaded ? beds24Props : []} />
+                  <Beds24MappingRow unit={u} />
                 </div>
               ))}
             </div>
