@@ -16,7 +16,7 @@ def _exchange_invite_code(invite_code: str) -> str:
     """Exchange a one-time Beds24 invite code for a permanent refresh token."""
     r = requests.post(
         "https://beds24.com/api/v2/authentication/setup",
-        json={"code": invite_code},
+        json={"code": invite_code, "deviceName": "iStay"},
         timeout=15,
     )
     r.raise_for_status()
