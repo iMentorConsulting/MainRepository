@@ -259,10 +259,17 @@ export async function POST(request: NextRequest) {
         })
       )
 
-      // Edge case: the primary program closed (or was otherwise excluded)
-      // between session creation and this matching run — still represent it
-      // so CM always sees exactly one isPrimary entry.
-      if (!matchedPrograms.some(p => p.isPrimary)) {
+      // Edge case: the primary program was deactivated/archived between
+      // session creation and this matching run, so it's not even in
+      // runMatchingForBusiness's `results` (which only loads active
+      // programs) — represent it so CM always sees exactly one isPrimary
+      // entry. This must NOT fire just because the primary program was
+      // evaluated and found genuinely ineligible (i.e. it IS in `results`,
+      // just with eligible:false) — that used to unconditionally force it
+      // back in as isEligible:true, silently overriding the real matching
+      // result for every non-eligible primary-program lead.
+      const primaryWasEvaluated = results.some(r => r.program.id === dbProgram!.id)
+      if (!primaryWasEvaluated) {
         matchedPrograms.unshift({
           title: dbProgram!.title,
           program: CM_CATEGORY_LABEL[dbProgram!.category] || dbProgram!.category,
