@@ -188,6 +188,7 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       customer_name: merged.customer_name,
       vat_number:   merged.vat_number,
       sales_agent:  agent || null,
+      raw_payload:  req.body,           // store verbatim for debugging
     });
 
     // Fire side-effects
@@ -218,6 +219,17 @@ router.get('/', authMiddleware, async (req, res) => {
       limit: parseInt(limit, 10),
     });
     res.json(leads);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
+// ── GET /api/lead-intake/:id/raw  — raw payload for debugging ─────────────────
+router.get('/:id/raw', authMiddleware, async (req, res) => {
+  try {
+    const lead = await IncomingLead.findByPk(req.params.id);
+    if (!lead) return res.status(404).json({ error: 'Not found' });
+    res.json({ id: lead.id, source: lead.source, createdAt: lead.createdAt, raw_payload: lead.raw_payload });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
