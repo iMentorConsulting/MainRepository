@@ -128,18 +128,22 @@ function AirbnbReplyBox({ bookingId, onSent }) {
 function CommunicationsLog({ bookingId }) {
   const [comms, setComms] = useState(null)
   const [open, setOpen] = useState(false)
+  const [error, setError] = useState(null)
 
   const load = async () => {
     try {
       const r = await axios.get(`/api/bookings/${bookingId}/communications`)
       setComms(r.data)
-    } catch { setComms([]) }
+      setError(null)
+    } catch (err) {
+      setComms([])
+      setError(err.response?.data?.detail || err.message || 'Σφάλμα φόρτωσης')
+    }
   }
 
-  const toggle = () => {
-    if (!open && comms === null) load()
-    setOpen(o => !o)
-  }
+  useEffect(() => { if (bookingId) load() }, [bookingId])
+
+  const toggle = () => setOpen(o => !o)
 
   const channelIcon = (ch) => ch === 'airbnb' ? '🏠' : ch === 'booking' ? '🔵' : '📧'
 
@@ -153,7 +157,8 @@ function CommunicationsLog({ bookingId }) {
       {open && (
         <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
           {comms === null && <p className="text-xs text-gray-400 p-3">Φόρτωση…</p>}
-          {comms?.length === 0 && <p className="text-xs text-gray-400 p-3">Δεν υπάρχουν μηνύματα ακόμα.</p>}
+          {error && <p className="text-xs text-red-500 p-3">⚠️ {error}</p>}
+          {!error && comms?.length === 0 && <p className="text-xs text-gray-400 p-3">Δεν υπάρχουν μηνύματα ακόμα.</p>}
           {comms?.map(c => (
             <div key={c.id} className={`px-4 py-2.5 text-xs ${c.direction === 'out' ? 'bg-blue-50' : 'bg-white'}`}>
               <div className="flex items-center justify-between gap-2 mb-0.5">
