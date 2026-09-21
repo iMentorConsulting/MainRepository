@@ -73,6 +73,57 @@ function GuestRegistrationLink({ bookingId }) {
   )
 }
 
+function AirbnbReplyBox({ bookingId }) {
+  const [open, setOpen] = useState(false)
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const handleSend = async () => {
+    if (!message.trim()) return
+    setSending(true)
+    try {
+      await axios.post(`/api/bookings/${bookingId}/reply-airbnb`, { message })
+      toast.success('Μήνυμα στάλθηκε μέσω Airbnb!')
+      setMessage('')
+      setOpen(false)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Αποτυχία αποστολής')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-red-800">💬 Απάντηση μέσω Airbnb</p>
+          <p className="text-xs text-red-600 mt-0.5">Το μήνυμα θα εμφανιστεί στη συνομιλία Airbnb.</p>
+        </div>
+        <button onClick={() => setOpen(o => !o)}
+          className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-medium transition-colors whitespace-nowrap">
+          {open ? 'Άκυρο' : 'Γράψε μήνυμα'}
+        </button>
+      </div>
+      {open && (
+        <div className="space-y-2">
+          <textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            rows={3}
+            placeholder="Γράψε το μήνυμά σου εδώ..."
+            className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+          />
+          <button onClick={handleSend} disabled={sending || !message.trim()}
+            className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+            {sending ? 'Αποστολή…' : 'Αποστολή'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ChannelManagerModal({ channels, onClose, onSaved }) {
   const [list, setList] = useState(channels.map((c) => ({ ...c })))
   const [newLabel, setNewLabel] = useState('')
@@ -450,6 +501,9 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
                 )}
                 {missingContact && (
                   <GuestRegistrationLink bookingId={booking.id} />
+                )}
+                {booking.reply_email && (
+                  <AirbnbReplyBox bookingId={booking.id} />
                 )}
               </>
             )

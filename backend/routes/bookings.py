@@ -298,6 +298,51 @@ def bulk_mark_billed(body: dict, db: Session = Depends(get_db), tenant: str = De
     return {"updated": updated}
 
 
+@router.post("/{booking_id}/reply-airbnb")
+def reply_via_airbnb(booking_id: int, body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Send a message to the guest via their Airbnb relay email."""
+    from models import GuestPortalSettings
+    import smtplib
+    import ssl
+    from email.message import EmailMessage
+
+    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
+    if not booking.reply_email:
+        raise HTTPException(status_code=400, detail="Δεν υπάρχει relay email για αυτή την κράτηση")
+
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Το μήνυμα είναι κενό")
+
+    settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
+    if not settings or not settings.smtp_host or not settings.smtp_user or not settings.smtp_pass:
+        raise HTTPException(status_code=400, detail="Οι ρυθμίσεις SMTP δεν έχουν διαμορφωθεί στις Ρυθμίσεις")
+
+    guest_name = ""
+    if booking.customer:
+        guest_name = f"{booking.customer.first_name or ''} {booking.customer.last_name or ''}".strip()
+
+    msg = EmailMessage()
+    msg["From"] = settings.smtp_user
+    msg["To"] = booking.reply_email
+    msg["Subject"] = f"Re: Your stay at {booking.unit.name if booking.unit else 'our property'}"
+    msg.set_content(message)
+
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port or 587) as s:
+            s.ehlo()
+            s.starttls(context=ctx)
+            s.login(settings.smtp_user, settings.smtp_pass)
+            s.send_message(msg)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Αποτυχία αποστολής: {exc}")
+
+    return {"ok": True, "sent_to": booking.reply_email, "guest": guest_name}
+
+
 @router.get("/{booking_id}/portal-link")
 def get_portal_link(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     """Return the guest registration link for this booking."""
