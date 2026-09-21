@@ -362,6 +362,13 @@ except Exception:
 
 try:
     with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN beds24_v1_api_key TEXT"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
         _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,

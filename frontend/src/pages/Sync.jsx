@@ -9,7 +9,7 @@ import {
   getIcalUnits, syncIcalUnit, syncIcalAll,
   getIcalExportUrl, regenerateIcalToken, updateIcalImportUrl,
   getChannelRates, createChannelRate, updateChannelRate, deleteChannelRate,
-  testBeds24Connection, getBeds24Properties, mapUnitToBeds24,
+  testBeds24Connection, getBeds24Status, getBeds24Properties, mapUnitToBeds24,
   pushRatesToBeds24, syncBookingsFromBeds24,
 } from '../api'
 
@@ -448,29 +448,38 @@ function Beds24MappingRow({ unit, beds24Props }) {
 
 function Beds24Section({ units }) {
   const [open, setOpen] = useState(false)
-  const [apiKey, setApiKey] = useState('')
-  const [showKey, setShowKey] = useState(false)
+  const [v2Key, setV2Key] = useState('')
+  const [v1Key, setV1Key] = useState('')
+  const [showV2, setShowV2] = useState(false)
+  const [showV1, setShowV1] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [connected, setConnected] = useState(false)
+  const [status, setStatus] = useState({ v2_connected: false, v1_connected: false })
   const [syncing, setSyncing] = useState(false)
   const [beds24Props, setBeds24Props] = useState([])
   const [propsLoaded, setPropsLoaded] = useState(false)
 
+  useEffect(() => {
+    getBeds24Status().then(r => setStatus(r.data)).catch(() => {})
+  }, [])
+
   const handleConnect = async () => {
-    if (!apiKey.trim()) { toast.error('Εισάγετε API Key'); return }
+    if (!v2Key.trim() && !v1Key.trim()) {
+      toast.error('Εισάγετε τουλάχιστον ένα API Key')
+      return
+    }
     setConnecting(true)
     try {
-      await testBeds24Connection(apiKey.trim())
-      setConnected(true)
+      await testBeds24Connection(v2Key.trim(), v1Key.trim())
+      const r = await getBeds24Status()
+      setStatus(r.data)
       toast.success('Σύνδεση με Beds24 επιτυχής!')
-      // Load properties
       try {
-        const r = await getBeds24Properties()
-        const list = Array.isArray(r.data) ? r.data : (r.data?.data || [])
+        const pr = await getBeds24Properties()
+        const list = Array.isArray(pr.data) ? pr.data : (pr.data?.getProperties || pr.data?.data || [])
         setBeds24Props(list)
         setPropsLoaded(true)
       } catch {
-        // properties fetch is best-effort
+        // best-effort
       }
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Αποτυχία σύνδεσης με Beds24')
@@ -484,12 +493,15 @@ function Beds24Section({ units }) {
     try {
       const r = await syncBookingsFromBeds24()
       toast.success(`Beds24 Sync — ${r.data.created} νέες κρατήσεις, ${r.data.skipped} υπήρχαν ήδη`)
+      if (r.data.errors?.length) toast.error(r.data.errors.join(', '))
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα συγχρονισμού')
     } finally {
       setSyncing(false)
     }
   }
+
+  const anyConnected = status.v2_connected || status.v1_connected
 
   return (
     <div className="bg-white rounded-xl border border-teal-200 overflow-hidden">
@@ -498,7 +510,7 @@ function Beds24Section({ units }) {
         <div className="flex items-center gap-2">
           {open ? <ChevronDownIcon className="h-4 w-4 text-teal-600" /> : <ChevronRightIcon className="h-4 w-4 text-teal-600" />}
           <span className="font-semibold text-gray-800">🔗 Beds24 Channel Manager</span>
-          {connected && (
+          {anyConnected && (
             <span className="ml-2 text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
               ✅ Σύνδεση ενεργή
             </span>
@@ -511,53 +523,83 @@ function Beds24Section({ units }) {
 
       {open && (
         <div className="px-5 pb-5 space-y-4 border-t border-teal-100">
-          <div className="pt-4">
-            <p className="text-xs text-gray-500 mb-3">
-              Συνδέστε το Beds24 για αυτόματο συγχρονισμό διαθεσιμότητας και τιμών με Airbnb, Booking.com, VRBO.
+          <div className="pt-4 space-y-3">
+            <p className="text-xs text-gray-500">
+              Συνδέστε το Beds24 για αυτόματο συγχρονισμό τιμών και κρατήσεων με Airbnb, Booking.com, VRBO.
             </p>
 
-            {/* API Key input */}
-            <div className="flex items-end gap-2">
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-600 mb-1">Beds24 API Key</label>
-                <div className="relative">
-                  <input
-                    type={showKey ? 'text' : 'password'}
-                    value={apiKey}
-                    onChange={e => setApiKey(e.target.value)}
-                    placeholder="Εισάγετε το API Key του Beds24"
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs pr-16 focus:outline-none focus:border-teal-400"
-                  />
-                  <button type="button" onClick={() => setShowKey(s => !s)}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
-                    {showKey ? 'Απόκρυψη' : 'Εμφάνιση'}
-                  </button>
-                </div>
+            {/* v2 long-life token (read) */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Long Life Token <span className="text-gray-400 font-normal">(Marketplace → API → Generate long life token)</span>
+                {status.v2_connected && <span className="ml-2 text-green-600">✅ Ενεργό</span>}
+              </label>
+              <div className="relative">
+                <input
+                  type={showV2 ? 'text' : 'password'}
+                  value={v2Key}
+                  onChange={e => setV2Key(e.target.value)}
+                  placeholder={status.v2_connected ? '••••••••• (ήδη αποθηκευμένο)' : 'Εισάγετε Long Life Token'}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs pr-20 focus:outline-none focus:border-teal-400"
+                />
+                <button type="button" onClick={() => setShowV2(s => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+                  {showV2 ? 'Απόκρυψη' : 'Εμφάνιση'}
+                </button>
               </div>
-              <button onClick={handleConnect} disabled={connecting}
-                className="text-xs bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium whitespace-nowrap transition-colors">
-                {connecting ? 'Σύνδεση…' : 'Connect'}
-              </button>
             </div>
 
-            {connected && (
-              <div className="mt-3 flex items-center gap-3">
-                <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
-                  ✅ Σύνδεση ενεργή
-                </span>
-                <button onClick={handleSyncBookings} disabled={syncing}
-                  className="flex items-center gap-1.5 text-xs font-medium bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors">
-                  <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
-                  {syncing ? 'Συγχρονισμός…' : 'Sync All Bookings from Beds24'}
+            {/* v1 Account Access key (read+write) */}
+            <div>
+              <label className="block text-xs font-medium text-gray-600 mb-1">
+                Account Access Key <span className="text-gray-400 font-normal">(Settings → Account Access → API Key, Allow Writes = Yes)</span>
+                {status.v1_connected && <span className="ml-2 text-green-600">✅ Ενεργό</span>}
+              </label>
+              <div className="relative">
+                <input
+                  type={showV1 ? 'text' : 'password'}
+                  value={v1Key}
+                  onChange={e => setV1Key(e.target.value)}
+                  placeholder={status.v1_connected ? '••••••••• (ήδη αποθηκευμένο)' : 'Εισάγετε Account Access Key'}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs pr-20 focus:outline-none focus:border-teal-400"
+                />
+                <button type="button" onClick={() => setShowV1(s => !s)}
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+                  {showV1 ? 'Απόκρυψη' : 'Εμφάνιση'}
                 </button>
+              </div>
+            </div>
+
+            <button onClick={handleConnect} disabled={connecting}
+              className="text-xs bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium transition-colors">
+              {connecting ? 'Σύνδεση…' : 'Αποθήκευση & Σύνδεση'}
+            </button>
+
+            {anyConnected && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                <div className="flex gap-2 text-xs">
+                  <span className={`px-2 py-1 rounded-full border font-medium ${status.v2_connected ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
+                    Read {status.v2_connected ? '✅' : '—'}
+                  </span>
+                  <span className={`px-2 py-1 rounded-full border font-medium ${status.v1_connected ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                    Write {status.v1_connected ? '✅' : '⚠️ χρειάζεται Account Access Key'}
+                  </span>
+                </div>
+                {status.v1_connected && (
+                  <button onClick={handleSyncBookings} disabled={syncing}
+                    className="flex items-center gap-1.5 text-xs font-medium bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                    <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                    {syncing ? 'Συγχρονισμός…' : 'Sync Bookings from Beds24'}
+                  </button>
+                )}
               </div>
             )}
           </div>
 
-          {/* Per-unit mapping — show below connection area */}
-          {units.length > 0 && (
+          {/* Per-unit mapping */}
+          {anyConnected && units.length > 0 && (
             <div className="space-y-2">
-              <p className="text-xs font-semibold text-gray-600">Αντιστοίχιση Μονάδων</p>
+              <p className="text-xs font-semibold text-gray-600">Αντιστοίχιση Μονάδων με Beds24</p>
               {units.map(u => (
                 <div key={u.id} className="border border-gray-100 rounded-lg px-3 py-2">
                   <p className="text-xs font-medium text-gray-700 mb-1">{u.name}</p>

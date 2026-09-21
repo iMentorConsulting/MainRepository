@@ -9,29 +9,58 @@ from auth_utils import get_tenant
 
 router = APIRouter(prefix="/beds24", tags=["beds24"])
 
+V1_BASE = "https://api.beds24.com/json"
+V2_BASE = "https://beds24.com/api/v2"
+
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _verify_long_life_token(token: str) -> None:
-    """Verify a Beds24 long life token works by calling /properties."""
+def _v2_headers(token: str) -> dict:
+    return {"accept": "application/json", "token": token}
+
+
+def _v1_auth(api_key: str) -> dict:
+    return {"authentication": {"apiKey": api_key}}
+
+
+def _verify_v2_token(token: str) -> None:
     r = requests.get(
-        "https://beds24.com/api/v2/properties",
-        headers={"accept": "application/json", "token": token},
+        f"{V2_BASE}/properties",
+        headers=_v2_headers(token),
         timeout=15,
     )
     if not r.ok:
         raise ValueError(f"{r.status_code}: {r.text}")
 
 
-def _headers(token: str) -> dict:
-    return {"accept": "application/json", "token": token}
+def _verify_v1_key(api_key: str) -> None:
+    r = requests.post(
+        f"{V1_BASE}/getProperties",
+        json=_v1_auth(api_key),
+        timeout=15,
+    )
+    if not r.ok:
+        raise ValueError(f"{r.status_code}: {r.text}")
+    data = r.json()
+    if isinstance(data, dict) and data.get("error"):
+        raise ValueError(data["error"])
 
 
-def _get_api_key(tenant: str, db: Session) -> str:
+def _get_settings(tenant: str, db: Session) -> GuestPortalSettings:
     settings = db.query(GuestPortalSettings).filter(
         GuestPortalSettings.tenant == tenant
     ).first()
-    if not settings or not settings.beds24_api_key:
+    if not settings:
+        raise HTTPException(
+            status_code=400,
+            detail="Beds24 not configured. Use POST /beds24/connect first.",
+        )
+    return settings
+
+
+def _get_v2_key(tenant: str, db: Session) -> str:
+    settings = _get_settings(tenant, db)
+    if not settings.beds24_api_key:
         raise HTTPException(
             status_code=400,
             detail="Beds24 API key not configured. Use POST /beds24/connect first.",
@@ -39,34 +68,39 @@ def _get_api_key(tenant: str, db: Session) -> str:
     return settings.beds24_api_key
 
 
-# ── Endpoints ─────────────────────────────────────────────────────────────────
-
-
-@router.get("/test-v1")
-def test_v1_api():
-    """Test Beds24 v1 API with Account Access key (no auth required)."""
-    try:
-        r = requests.post(
-            "https://api.beds24.com/json/getProperties",
-            json={"authentication": {"apiKey": "rwh6IluBRvUDVc17yQIgJSd6oZYshxKu"}},
-            timeout=15,
+def _get_v1_key(tenant: str, db: Session) -> str:
+    settings = _get_settings(tenant, db)
+    if not settings.beds24_v1_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="Beds24 Account Access key not configured. Use POST /beds24/connect with v1_api_key.",
         )
-        return {"status_code": r.status_code, "response": r.json()}
-    except Exception as exc:
-        return {"error": str(exc)}
+    return settings.beds24_v1_api_key
+
+
+# ── Endpoints ─────────────────────────────────────────────────────────────────
 
 
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Verify and save a Beds24 long life token (generated in Marketplace → API)."""
-    token = (body.get("api_key") or "").strip()
-    if not token:
-        raise HTTPException(status_code=400, detail="api_key is required")
+    """Save Beds24 credentials: v2 long-life token (read) and/or v1 account access key (write)."""
+    v2_token = (body.get("api_key") or "").strip()
+    v1_key = (body.get("v1_api_key") or "").strip()
 
-    try:
-        _verify_long_life_token(token)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=f"Beds24 auth failed: {exc}")
+    if not v2_token and not v1_key:
+        raise HTTPException(status_code=400, detail="api_key or v1_api_key is required")
+
+    if v2_token:
+        try:
+            _verify_v2_token(v2_token)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Beds24 v2 auth failed: {exc}")
+
+    if v1_key:
+        try:
+            _verify_v1_key(v1_key)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=f"Beds24 v1 auth failed: {exc}")
 
     settings = db.query(GuestPortalSettings).filter(
         GuestPortalSettings.tenant == tenant
@@ -74,20 +108,53 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
     if not settings:
         settings = GuestPortalSettings(tenant=tenant)
         db.add(settings)
-    settings.beds24_api_key = token
+
+    if v2_token:
+        settings.beds24_api_key = v2_token
+    if v1_key:
+        settings.beds24_v1_api_key = v1_key
     db.commit()
 
     return {"ok": True, "message": "Connected to Beds24"}
 
 
+@router.get("/status")
+def connection_status(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Return which Beds24 credentials are configured."""
+    settings = db.query(GuestPortalSettings).filter(
+        GuestPortalSettings.tenant == tenant
+    ).first()
+    return {
+        "v2_connected": bool(settings and settings.beds24_api_key),
+        "v1_connected": bool(settings and settings.beds24_v1_api_key),
+    }
+
+
 @router.get("/properties")
 def list_properties(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """List all Beds24 properties for this account."""
-    api_key = _get_api_key(tenant, db)
+    """List all Beds24 properties for this account (uses v1 if available, else v2)."""
+    settings = db.query(GuestPortalSettings).filter(
+        GuestPortalSettings.tenant == tenant
+    ).first()
+
+    if settings and settings.beds24_v1_api_key:
+        try:
+            r = requests.post(
+                f"{V1_BASE}/getProperties",
+                json=_v1_auth(settings.beds24_v1_api_key),
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+            return data.get("getProperties", data) if isinstance(data, dict) else data
+        except requests.RequestException as exc:
+            raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
+
+    api_key = _get_v2_key(tenant, db)
     try:
         r = requests.get(
-            "https://beds24.com/api/v2/properties",
-            headers=_headers(api_key),
+            f"{V2_BASE}/properties",
+            headers=_v2_headers(api_key),
             timeout=15,
         )
         r.raise_for_status()
@@ -95,10 +162,7 @@ def list_properties(db: Session = Depends(get_db), tenant: str = Depends(get_ten
         raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
 
     data = r.json()
-    # Beds24 v2 wraps results in {"data": [...]} or returns a list directly
-    if isinstance(data, dict):
-        return data.get("data", data)
-    return data
+    return data.get("data", data) if isinstance(data, dict) else data
 
 
 @router.put("/units/{unit_id}/mapping")
@@ -136,7 +200,7 @@ def push_rates(
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    """Push iStay seasonal rates to Beds24 for this unit."""
+    """Push iStay seasonal rates and availability to Beds24 for this unit (v1 API)."""
     unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
     if not unit:
         raise HTTPException(status_code=404, detail="Unit not found")
@@ -145,16 +209,16 @@ def push_rates(
     if not unit.beds24_room_id:
         raise HTTPException(status_code=400, detail="Unit has no Beds24 room ID mapped")
 
-    api_key = _get_api_key(tenant, db)
-    auth_headers = _headers(api_key)
+    v1_key = _get_v1_key(tenant, db)
 
     rates = db.query(SeasonalRate).filter(
         SeasonalRate.tenant == tenant,
         SeasonalRate.unit_id == unit_id,
     ).all()
 
-    # Collect booked date ranges to mark availability=0
     today = date.today()
+
+    # Collect booked days
     booked_bookings = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.unit_id == unit_id,
@@ -168,90 +232,67 @@ def push_rates(
             booked_days.add(cur)
             cur += timedelta(days=1)
 
-    pushed = 0
-    errors = []
-
+    # Build calendar entries for v1 setRooms
+    calendar = []
     for rate in rates:
-        items = [
-            {"type": "price", "amount": rate.price_per_night},
-            {"type": "minStay", "amount": rate.min_stay or 1},
-        ]
-
-        # Determine per-day availability within this rate window
-        # Build contiguous open/closed spans for efficiency; for simplicity push the whole range
         cur = max(rate.date_from, today)
         end = rate.date_to
         if cur > end:
             continue
 
-        # Push price + minStay for the whole rate period
-        payload = {
-            "propId": unit.beds24_prop_id,
-            "roomId": unit.beds24_room_id,
-            "startDate": cur.isoformat(),
-            "endDate": end.isoformat(),
-            "items": items,
-        }
-        try:
-            r = requests.post(
-                "https://beds24.com/api/v2/inventory",
-                json=payload,
-                headers=auth_headers,
-                timeout=15,
-            )
-            r.raise_for_status()
-            pushed += 1
-        except requests.RequestException as exc:
-            errors.append(f"Rate {rate.id}: {exc}")
-            continue
-
-        # Push availability=0 for booked days within this period, =1 for open days
-        # Collect days in this rate window
-        period_days = []
-        d = cur
+        # Group consecutive days by availability
+        span_start = cur
+        span_avail = 0 if cur in booked_days else 1
+        d = cur + timedelta(days=1)
         while d <= end:
-            period_days.append(d)
+            day_avail = 0 if d in booked_days else 1
+            if day_avail != span_avail:
+                calendar.append({
+                    "firstDay": span_start.isoformat(),
+                    "lastDay": (d - timedelta(days=1)).isoformat(),
+                    "price1": float(rate.price_per_night),
+                    "minStay": int(rate.min_stay or 1),
+                    "availability": span_avail,
+                })
+                span_start = d
+                span_avail = day_avail
             d += timedelta(days=1)
 
-        # Group consecutive same-availability days into spans
-        def push_avail_span(span_start, span_end, avail):
-            avail_payload = {
-                "propId": unit.beds24_prop_id,
-                "roomId": unit.beds24_room_id,
-                "startDate": span_start.isoformat(),
-                "endDate": span_end.isoformat(),
-                "items": [{"type": "availability", "amount": avail}],
-            }
-            try:
-                ar = requests.post(
-                    "https://beds24.com/api/v2/inventory",
-                    json=avail_payload,
-                    headers=auth_headers,
-                    timeout=15,
-                )
-                ar.raise_for_status()
-            except requests.RequestException as exc2:
-                errors.append(f"Avail span {span_start}-{span_end}: {exc2}")
+        calendar.append({
+            "firstDay": span_start.isoformat(),
+            "lastDay": end.isoformat(),
+            "price1": float(rate.price_per_night),
+            "minStay": int(rate.min_stay or 1),
+            "availability": span_avail,
+        })
 
-        if period_days:
-            span_start = period_days[0]
-            span_avail = 0 if period_days[0] in booked_days else 1
-            for day in period_days[1:]:
-                day_avail = 0 if day in booked_days else 1
-                if day_avail != span_avail:
-                    push_avail_span(span_start, day - timedelta(days=1), span_avail)
-                    span_start = day
-                    span_avail = day_avail
-            push_avail_span(span_start, period_days[-1], span_avail)
+    if not calendar:
+        return {"ok": True, "pushed": 0, "message": "No future rates to push"}
 
-    return {"ok": True, "pushed": pushed, "errors": errors}
+    payload = {
+        **_v1_auth(v1_key),
+        "rooms": [{
+            "propId": unit.beds24_prop_id,
+            "roomId": unit.beds24_room_id,
+            "calendar": calendar,
+        }],
+    }
+
+    try:
+        r = requests.post(f"{V1_BASE}/setRooms", json=payload, timeout=30)
+        r.raise_for_status()
+        data = r.json()
+    except requests.RequestException as exc:
+        raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
+
+    errors = data.get("errors", []) if isinstance(data, dict) else []
+    return {"ok": not errors, "pushed": len(calendar), "errors": errors, "response": data}
 
 
 @router.post("/sync-bookings")
 def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Pull bookings from Beds24 and create them in iStay."""
-    api_key = _get_api_key(tenant, db)
-    auth_headers = _headers(api_key)
+    """Pull bookings from Beds24 and create them in iStay (v1 API)."""
+    v1_key = _get_v1_key(tenant, db)
 
     units = db.query(Unit).filter(
         Unit.tenant == tenant,
@@ -266,10 +307,10 @@ def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenan
 
     for unit in units:
         try:
-            r = requests.get(
-                "https://beds24.com/api/v2/bookings",
-                headers=auth_headers,
-                params={
+            r = requests.post(
+                f"{V1_BASE}/getBookings",
+                json={
+                    **_v1_auth(v1_key),
                     "propId": unit.beds24_prop_id,
                     "arrivalFrom": today.isoformat(),
                 },
@@ -281,14 +322,15 @@ def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenan
             continue
 
         data = r.json()
-        bookings_list = data if isinstance(data, list) else data.get("data", [])
+        bookings_list = data.get("getBookings", data) if isinstance(data, dict) else data
+        if not isinstance(bookings_list, list):
+            bookings_list = []
 
         for b24 in bookings_list:
-            b24_id = str(b24.get("id") or b24.get("bookId") or "")
+            b24_id = str(b24.get("bookid") or b24.get("id") or "")
             if not b24_id:
                 continue
 
-            # Check if already imported (we store Beds24 booking ID in notes)
             note_marker = f"Beds24:{b24_id}"
             existing = db.query(Booking).filter(
                 Booking.tenant == tenant,
@@ -299,14 +341,15 @@ def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenan
                 skipped_count += 1
                 continue
 
-            # Parse dates
             try:
-                arrival_str = b24.get("arrival") or b24.get("checkIn") or ""
-                departure_str = b24.get("departure") or b24.get("checkOut") or ""
+                arrival_str = b24.get("firstnight") or b24.get("arrival") or ""
+                departure_str = b24.get("lastnight") or b24.get("departure") or ""
                 if not arrival_str or not departure_str:
                     continue
                 check_in = date.fromisoformat(arrival_str[:10])
-                check_out = date.fromisoformat(departure_str[:10])
+                # v1 lastnight is the last night — checkout is day after
+                check_out_raw = date.fromisoformat(departure_str[:10])
+                check_out = check_out_raw + timedelta(days=1) if b24.get("lastnight") else check_out_raw
             except (ValueError, TypeError):
                 errors.append(f"Unit {unit.id} booking {b24_id}: bad dates")
                 continue
@@ -314,16 +357,14 @@ def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenan
             if check_in >= check_out:
                 continue
 
-            # Guest info
-            first_name = b24.get("firstName") or b24.get("guestFirstName") or "Beds24"
-            last_name = b24.get("lastName") or b24.get("guestLastName") or "Guest"
-            email = b24.get("email") or b24.get("guestEmail") or ""
-            phone = b24.get("phone") or b24.get("guestPhone") or ""
-            guests = int(b24.get("numAdult") or b24.get("guests") or 1)
-            total_price = float(b24.get("price") or b24.get("totalPrice") or 0.0)
-            channel_raw = (b24.get("referer") or b24.get("source") or "beds24").lower()
+            first_name = b24.get("firstname") or "Beds24"
+            last_name = b24.get("lastname") or "Guest"
+            email = b24.get("email") or ""
+            phone = b24.get("phone") or b24.get("mobile") or ""
+            guests = int(b24.get("numadult") or b24.get("guests") or 1)
+            total_price = float(b24.get("price") or b24.get("totalprice") or 0.0)
+            channel_raw = (b24.get("referer") or b24.get("channel") or "beds24").lower()
 
-            # Map to known channels
             if "airbnb" in channel_raw:
                 channel = "airbnb"
             elif "booking" in channel_raw:
@@ -333,7 +374,6 @@ def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenan
             else:
                 channel = "direct"
 
-            # Find or create customer
             customer = db.query(Customer).filter(
                 Customer.tenant == tenant,
                 Customer.first_name == first_name,

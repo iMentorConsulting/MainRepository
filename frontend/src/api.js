@@ -181,7 +181,8 @@ export const saveAutoEmailSettings = (data) => api.put('/portal/auto-email-setti
 export const getAutoEmailLogs = () => api.get('/portal/auto-email-logs')
 
 // Beds24 channel manager
-export const testBeds24Connection = (apiKey) => api.post('/beds24/connect', { api_key: apiKey })
+export const testBeds24Connection = (apiKey, v1ApiKey) => api.post('/beds24/connect', { api_key: apiKey, v1_api_key: v1ApiKey })
+export const getBeds24Status = () => api.get('/beds24/status')
 export const getBeds24Properties = () => api.get('/beds24/properties')
 export const mapUnitToBeds24 = (unitId, data) => api.put(`/beds24/units/${unitId}/mapping`, data)
 export const pushRatesToBeds24 = (unitId) => api.post(`/beds24/push-rates/${unitId}`)

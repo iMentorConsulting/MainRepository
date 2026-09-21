@@ -225,6 +225,7 @@ class GuestPortalSettings(Base):
     post_departure_subject = Column(String(300))
     post_departure_message = Column(Text)
     beds24_api_key = Column(Text, nullable=True)
+    beds24_v1_api_key = Column(Text, nullable=True)
 
 
 class BookingInquiry(Base):
