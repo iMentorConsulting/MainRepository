@@ -29,10 +29,10 @@ def _exchange_invite_code(invite_code: str) -> str:
 
 
 def _get_access_token(refresh_token: str) -> str:
-    """Exchange the stored permanent refresh token for a short-lived access token."""
+    """Exchange the stored refresh token for a short-lived access token."""
     r = requests.get(
         "https://beds24.com/api/v2/authentication/token",
-        headers={"token": refresh_token},
+        headers={"refreshToken": refresh_token},  # correct header per Beds24 v2 docs
         timeout=15,
     )
     if not r.ok:
@@ -75,27 +75,35 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
         except Exception as e:
             results[label] = {"error": str(e)}
 
-    # Setup endpoint with different body field names
-    attempt("setup_field_code",       "post", "https://beds24.com/api/v2/authentication/setup", json={"code": code})
-    attempt("setup_field_apiKey",     "post", "https://beds24.com/api/v2/authentication/setup", json={"apiKey": code})
-    attempt("setup_field_token",      "post", "https://beds24.com/api/v2/authentication/setup", json={"token": code})
-    attempt("setup_field_inviteCode", "post", "https://beds24.com/api/v2/authentication/setup", json={"inviteCode": code})
-    attempt("setup_field_key",        "post", "https://beds24.com/api/v2/authentication/setup", json={"key": code})
-
-    # Setup endpoint with code as plain text body
-    attempt("setup_plaintext", "post",
-            "https://beds24.com/api/v2/authentication/setup",
-            data=code,
-            headers={"Content-Type": "text/plain"})
-
-    # Token endpoint as POST with body instead of GET with header
-    attempt("token_post_body",  "post", "https://beds24.com/api/v2/authentication/token", json={"token": code})
-    attempt("token_post_apiKey","post", "https://beds24.com/api/v2/authentication/token", json={"apiKey": code})
-
-    # GET token with code as query param
-    attempt("token_queryparam", "get",
+    # PRIMARY: GET /authentication/token with refreshToken header (correct per Beds24 v2 docs)
+    attempt("1_refreshToken_header", "get",
             "https://beds24.com/api/v2/authentication/token",
-            params={"token": code})
+            headers={"refreshToken": code})
+
+    # If that works, also test using the resulting access token for properties
+    try:
+        r = requests.get(
+            "https://beds24.com/api/v2/authentication/token",
+            headers={"refreshToken": code},
+            timeout=15,
+        )
+        if r.ok:
+            access_token = r.json().get("token", "")
+            if access_token:
+                r2 = requests.get(
+                    "https://beds24.com/api/v2/properties",
+                    headers={"token": access_token},
+                    timeout=15,
+                )
+                results["2_properties_with_access_token"] = {
+                    "status": r2.status_code, "body": r2.text[:600]
+                }
+    except Exception as e:
+        results["2_properties_with_access_token"] = {"error": str(e)}
+
+    # Fallback tests
+    attempt("3_token_header",        "get", "https://beds24.com/api/v2/authentication/token", headers={"token": code})
+    attempt("4_properties_direct",   "get", "https://beds24.com/api/v2/properties",           headers={"token": code})
 
     return results
 
