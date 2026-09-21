@@ -95,6 +95,58 @@ def _suggested_lang(customer) -> str:
     return _NAT_LANG.get(nat, 'en')
 
 
+# ── Guest Self-Registration ───────────────────────────────────────────────────
+
+@router.get("/{token}/register-info")
+def register_info(token: str, db: Session = Depends(get_db)):
+    """Return booking info needed to show the registration form (no auth required)."""
+    gt = db.query(GuestToken).filter(GuestToken.token == token, GuestToken.is_active == True).first()
+    if not gt:
+        raise HTTPException(status_code=404, detail="Invalid link")
+    booking = db.query(Booking).options(
+        joinedload(Booking.unit), joinedload(Booking.customer)
+    ).filter(Booking.id == gt.booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+    return {
+        "unit_name": booking.unit.name if booking.unit else "",
+        "check_in": booking.check_in.isoformat(),
+        "check_out": booking.check_out.isoformat(),
+        "first_name": booking.customer.first_name if booking.customer else "",
+        "last_name": booking.customer.last_name if booking.customer else "",
+        "email": booking.customer.email if booking.customer else "",
+        "phone": booking.customer.phone if booking.customer else "",
+    }
+
+
+@router.post("/{token}/register")
+def register_guest(token: str, body: dict, db: Session = Depends(get_db)):
+    """Guest submits their contact details via the registration link."""
+    gt = db.query(GuestToken).filter(GuestToken.token == token, GuestToken.is_active == True).first()
+    if not gt:
+        raise HTTPException(status_code=404, detail="Invalid link")
+    booking = db.query(Booking).options(joinedload(Booking.customer)).filter(Booking.id == gt.booking_id).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Booking not found")
+
+    customer = booking.customer
+    first_name = (body.get("first_name") or "").strip()
+    last_name = (body.get("last_name") or "").strip()
+    email = (body.get("email") or "").strip()
+    phone = (body.get("phone") or "").strip()
+
+    if first_name:
+        customer.first_name = first_name
+    if last_name:
+        customer.last_name = last_name
+    if email:
+        customer.email = email
+    if phone:
+        customer.phone = phone
+    db.commit()
+    return {"ok": True}
+
+
 # ── Info & Verification ────────────────────────────────────────────────────────
 
 @router.get("/{token}/info")

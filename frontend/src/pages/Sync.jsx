@@ -826,8 +826,6 @@ export default function Sync() {
         </button>
       </div>
 
-      {/* Beds24 Channel Manager */}
-      <Beds24Section units={units} />
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 space-y-1">
         <p className="font-semibold">Πώς λειτουργεί το iCal Sync</p>

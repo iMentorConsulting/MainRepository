@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import {
   getBookings, getUnits, getCustomers, createBooking, updateBooking, deleteBooking,
   createCustomer, recommendUnit, exportBookings, downloadTemplate, importBookings,
@@ -39,6 +40,37 @@ const MONTH_NAMES = ['Ιανουάριος','Φεβρουάριος','Μάρτι
 
 function slugify(str) {
   return str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'channel_' + Date.now()
+}
+
+function GuestRegistrationLink({ bookingId }) {
+  const [copying, setCopying] = useState(false)
+
+  const handleCopy = async () => {
+    setCopying(true)
+    try {
+      const r = await axios.get(`/api/bookings/${bookingId}/portal-link`)
+      const url = `${window.location.origin}/register/${r.data.token}`
+      await navigator.clipboard.writeText(url)
+      toast.success('Σύνδεσμος αντιγράφηκε! Στείλτε τον στον επισκέπτη.')
+    } catch {
+      toast.error('Σφάλμα αντιγραφής')
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold text-amber-800">Δεν υπάρχουν στοιχεία επικοινωνίας</p>
+        <p className="text-xs text-amber-700 mt-0.5">Στείλτε αυτόν τον σύνδεσμο στον επισκέπτη για να συμπληρώσει email & τηλέφωνο.</p>
+      </div>
+      <button onClick={handleCopy} disabled={copying}
+        className="flex-shrink-0 text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50 font-medium transition-colors whitespace-nowrap">
+        {copying ? '…' : '📋 Αντιγραφή'}
+      </button>
+    </div>
+  )
 }
 
 function ChannelManagerModal({ channels, onClose, onSaved }) {
@@ -405,14 +437,21 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
           {booking?.id && (() => {
             const cust = customers.find(c => c.id === form.customer_id) || booking.customer
             const hasInfo = cust?.phone || cust?.email || form.notes
-            if (!hasInfo) return null
+            const missingContact = !cust?.phone && !cust?.email
             return (
-              <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm space-y-1">
-                <p className="text-xs font-semibold text-sky-700 mb-1.5">Στοιχεία Επισκέπτη</p>
-                {cust?.phone && <p className="text-gray-700">📞 {cust.phone}</p>}
-                {cust?.email && <p className="text-gray-700">✉️ {cust.email}</p>}
-                {form.notes && <p className="text-gray-600 text-xs">🗒 {form.notes}</p>}
-              </div>
+              <>
+                {hasInfo && (
+                  <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm space-y-1">
+                    <p className="text-xs font-semibold text-sky-700 mb-1.5">Στοιχεία Επισκέπτη</p>
+                    {cust?.phone && <p className="text-gray-700">📞 {cust.phone}</p>}
+                    {cust?.email && <p className="text-gray-700">✉️ {cust.email}</p>}
+                    {form.notes && <p className="text-gray-600 text-xs">🗒 {form.notes}</p>}
+                  </div>
+                )}
+                {missingContact && (
+                  <GuestRegistrationLink bookingId={booking.id} />
+                )}
+              </>
             )
           })()}
 

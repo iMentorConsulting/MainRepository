@@ -298,6 +298,22 @@ def bulk_mark_billed(body: dict, db: Session = Depends(get_db), tenant: str = De
     return {"updated": updated}
 
 
+@router.get("/{booking_id}/portal-link")
+def get_portal_link(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Return the guest registration link for this booking."""
+    from models import GuestToken
+    import secrets
+    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
+    gt = db.query(GuestToken).filter(GuestToken.booking_id == booking_id, GuestToken.is_active == True).first()
+    if not gt:
+        gt = GuestToken(booking_id=booking_id, tenant=tenant, token=secrets.token_urlsafe(32))
+        db.add(gt)
+        db.commit()
+    return {"token": gt.token}
+
+
 @router.get("/{booking_id}", response_model=BookingResponse)
 def get_booking(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     obj = _load(db, booking_id, tenant)
