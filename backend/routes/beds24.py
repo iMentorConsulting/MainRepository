@@ -12,22 +12,21 @@ router = APIRouter(prefix="/beds24", tags=["beds24"])
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
-def _get_token(api_key: str) -> str:
-    """Exchange an API key for a short-lived session token."""
+def _verify_api_key(api_key: str) -> None:
+    """Verify an API key works by calling a lightweight Beds24 endpoint."""
     try:
-        r = requests.post(
-            "https://beds24.com/api/v2/authentication/setup",
-            json={"code": api_key},
+        r = requests.get(
+            "https://beds24.com/api/v2/properties",
+            headers={"token": api_key},
             timeout=15,
         )
         r.raise_for_status()
-        return r.json()["token"]
     except requests.RequestException as exc:
         raise HTTPException(status_code=400, detail=f"Beds24 auth failed: {exc}")
 
 
 def _headers(api_key: str) -> dict:
-    return {"token": _get_token(api_key)}
+    return {"token": api_key}
 
 
 def _get_api_key(tenant: str, db: Session) -> str:
@@ -52,7 +51,7 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
         raise HTTPException(status_code=400, detail="api_key is required")
 
     # This raises HTTPException 400 on failure
-    _get_token(api_key)
+    _verify_api_key(api_key)
 
     settings = db.query(GuestPortalSettings).filter(
         GuestPortalSettings.tenant == tenant
