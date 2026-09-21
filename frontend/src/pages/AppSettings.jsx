@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import api, { getLicense } from '../api'
 import toast from 'react-hot-toast'
-import { Cog6ToothIcon } from '@heroicons/react/24/outline'
+import { Cog6ToothIcon, EnvelopeIcon, ArrowPathIcon } from '@heroicons/react/24/outline'
 
 function Label({ children }) {
   return <label className="block text-sm font-medium text-gray-700 mb-1.5">{children}</label>
@@ -131,6 +131,9 @@ export default function AppSettings() {
         </div>
       </form>
 
+      {/* Email Scan — guest data from OTA emails */}
+      <EmailScanSection />
+
       {/* License */}
       {license && (
         <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-3">
@@ -158,6 +161,111 @@ export default function AppSettings() {
           <p className="text-xs text-gray-400">Αυτός ο αριθμός αδείας είναι μοναδικός για την εγκατάστασή σας. Διατηρήστε τον για τους σκοπούς τεκμηρίωσης και ΕΣΠΑ.</p>
         </div>
       )}
+    </div>
+  )
+}
+
+function EmailScanSection() {
+  const [status, setStatus] = useState(null)
+  const [form, setForm] = useState({ imap_host: '', imap_port: 993, imap_user: '', imap_pass: '' })
+  const [showPass, setShowPass] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [scanning, setScanning] = useState(false)
+  const [lastResult, setLastResult] = useState(null)
+
+  useEffect(() => {
+    api.get('/email-scan/status').then(r => {
+      setStatus(r.data)
+      if (r.data.imap_host) setForm(f => ({ ...f, imap_host: r.data.imap_host, imap_user: r.data.imap_user || '' }))
+    }).catch(() => {})
+  }, [])
+
+  const handleConnect = async (e) => {
+    e.preventDefault()
+    setConnecting(true)
+    try {
+      await api.post('/email-scan/connect', form)
+      setStatus({ connected: true, imap_host: form.imap_host, imap_user: form.imap_user })
+      toast.success('Email συνδέθηκε επιτυχώς!')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Αποτυχία σύνδεσης')
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  const handleScan = async () => {
+    setScanning(true)
+    setLastResult(null)
+    try {
+      const r = await api.post('/email-scan/scan')
+      setLastResult(r.data)
+      toast.success(`Σάρωση ολοκληρώθηκε — ${r.data.updated} κρατήσεις ενημερώθηκαν`)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα σάρωσης')
+    } finally {
+      setScanning(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-2xl border border-gray-100 p-6 shadow-sm space-y-4">
+      <div className="flex items-center gap-2">
+        <EnvelopeIcon className="w-5 h-5 text-[#1e3a5f]" />
+        <div>
+          <h3 className="font-semibold text-gray-800 text-sm uppercase tracking-wider text-[#1e3a5f]">Αυτόματη Εισαγωγή Στοιχείων Επισκεπτών</h3>
+          <p className="text-xs text-gray-400 mt-0.5">Σαρώνει τα email από Airbnb, Booking.com, VRBO και εξάγει αυτόματα ονόματα, email και τηλέφωνα επισκεπτών.</p>
+        </div>
+      </div>
+
+      {status?.connected && (
+        <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3">
+          <div>
+            <p className="text-sm font-medium text-green-800">✅ Συνδεδεμένο</p>
+            <p className="text-xs text-green-600">{status.imap_user} · {status.imap_host}</p>
+          </div>
+          <button onClick={handleScan} disabled={scanning}
+            className="flex items-center gap-1.5 text-sm font-medium bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 disabled:opacity-50 transition-colors">
+            <ArrowPathIcon className={`w-4 h-4 ${scanning ? 'animate-spin' : ''}`} />
+            {scanning ? 'Σάρωση…' : 'Σάρωση Τώρα'}
+          </button>
+        </div>
+      )}
+
+      {lastResult && (
+        <div className="text-xs text-gray-600 bg-gray-50 rounded-xl px-4 py-3">
+          Ενημερώθηκαν: <strong>{lastResult.updated}</strong> κρατήσεις · Παρακάμφθηκαν: {lastResult.skipped}
+          {lastResult.errors?.length > 0 && <span className="text-red-500 ml-2">· {lastResult.errors.length} σφάλματα</span>}
+        </div>
+      )}
+
+      <form onSubmit={handleConnect} className="space-y-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Input label="IMAP Host" value={form.imap_host} onChange={e => setForm(f => ({ ...f, imap_host: e.target.value }))} placeholder="imap.gmail.com" />
+          <Input label="IMAP Port" type="number" value={form.imap_port} onChange={e => setForm(f => ({ ...f, imap_port: +e.target.value }))} placeholder="993" />
+          <Input label="Email" type="email" value={form.imap_user} onChange={e => setForm(f => ({ ...f, imap_user: e.target.value }))} placeholder="villa@gmail.com" />
+          <div>
+            <Label>App Password</Label>
+            <div className="relative">
+              <input type={showPass ? 'text' : 'password'} value={form.imap_pass}
+                onChange={e => setForm(f => ({ ...f, imap_pass: e.target.value }))}
+                placeholder="Gmail App Password (16 chars)"
+                className="w-full rounded-xl border border-gray-200 px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#1e3a5f] pr-16" />
+              <button type="button" onClick={() => setShowPass(v => !v)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+                {showPass ? 'Hide' : 'Show'}
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
+          <strong>Gmail:</strong> imap.gmail.com · port 993 · το ίδιο App Password που χρησιμοποιείτε για SMTP. Βεβαιωθείτε ότι το IMAP είναι ενεργοποιημένο στο Gmail (Settings → See all settings → Forwarding and POP/IMAP).
+        </div>
+        <button type="submit" disabled={connecting}
+          className="bg-[#1e3a5f] text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#16305a] disabled:opacity-50 transition-colors">
+          {connecting ? 'Σύνδεση…' : status?.connected ? 'Ενημέρωση Στοιχείων' : 'Σύνδεση Email'}
+        </button>
+      </form>
     </div>
   )
 }

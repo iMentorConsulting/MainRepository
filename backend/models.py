@@ -90,6 +90,7 @@ class Booking(Base):
     is_billed = Column(Boolean, default=False)
     notes = Column(Text)
     ical_uid = Column(String(200), nullable=True, index=True)
+    reply_email = Column(String(300), nullable=True)
     tenant = Column(String(50), nullable=False, default='evaivoni', index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -226,6 +227,11 @@ class GuestPortalSettings(Base):
     post_departure_message = Column(Text)
     beds24_api_key = Column(Text, nullable=True)
     beds24_v1_api_key = Column(Text, nullable=True)
+    # IMAP email scanning for guest data extraction
+    imap_host = Column(String(200))
+    imap_port = Column(Integer, default=993)
+    imap_user = Column(String(200))
+    imap_pass = Column(String(200))
 
 
 class BookingInquiry(Base):
