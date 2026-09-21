@@ -58,6 +58,51 @@ def _get_body(msg) -> str:
     return body
 
 
+_FOOTER_TRIGGERS = (
+    "κατεβάστε την εφαρμογή",
+    "airbnb ireland",
+    "ενημερώστε τις προτιμήσεις email",
+    "download the app",
+    "© airbnb",
+    "unsubscribe",
+    "καταργήστε την εγγραφή",
+)
+
+
+def _clean_body(body: str) -> str:
+    """Remove tracking pixels, bare URLs, inline [URL] links, and footer boilerplate."""
+    if not body:
+        return ""
+    lines = body.splitlines()
+    cleaned = []
+    for line in lines:
+        stripped = line.strip()
+        # Tracking pixels / empty tracking lines
+        if stripped.startswith('%'):
+            continue
+        # Bare URL-only lines
+        if re.match(r'^https?://', stripped):
+            continue
+        # Footer boilerplate — stop processing here
+        if any(t in stripped.lower() for t in _FOOTER_TRIGGERS):
+            break
+        # Remove inline [URL] patterns
+        line = re.sub(r'\[https?://[^\]]+\]', '', line)
+        # Remove long embedded URLs left in text
+        line = re.sub(r'https?://\S{20,}', '', line)
+        cleaned.append(line)
+    # Collapse runs of blank lines to a single blank
+    result = []
+    prev_blank = False
+    for line in cleaned:
+        is_blank = not line.strip()
+        if is_blank and prev_blank:
+            continue
+        result.append(line)
+        prev_blank = is_blank
+    return "\n".join(result).strip()
+
+
 def _clean_preview(body: str) -> str:
     """Extract meaningful preview text — skip tracking URLs and empty lines."""
     lines = []
@@ -357,14 +402,14 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                             direction="in",
                             subject=subject[:500],
                             body_preview=_clean_preview(body),
-                            body=body,
+                            body=_clean_body(body),
                             relay_email=extracted.get("reply_email") or booking.reply_email,
                             sent_at=dt.utcnow(),
                         )
                         db.add(comm)
                         changed = True
                     elif existing_comm and not existing_comm.body:
-                        existing_comm.body = body
+                        existing_comm.body = _clean_body(body)
                         changed = True
 
                     if changed:
@@ -431,6 +476,7 @@ def get_all_communications(db: Session = Depends(get_db), tenant: str = Depends(
         if cust:
             parts = [p for p in [cust.first_name, cust.last_name] if p and p.strip()]
             guest_name = " ".join(parts)
+        raw_body = c.body or ""
         result.append({
             "id": c.id,
             "booking_id": c.booking_id,
@@ -438,7 +484,7 @@ def get_all_communications(db: Session = Depends(get_db), tenant: str = Depends(
             "direction": c.direction,
             "subject": c.subject,
             "body_preview": c.body_preview,
-            "body": c.body,
+            "body": _clean_body(raw_body) if raw_body else None,
             "relay_email": c.relay_email,
             "sent_at": c.sent_at.isoformat() if c.sent_at else None,
             "guest_name": guest_name,
