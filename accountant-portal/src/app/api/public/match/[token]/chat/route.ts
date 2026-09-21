@@ -22,7 +22,13 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   }
 
   const [business, program, match] = await Promise.all([
-    prisma.business.findUnique({ where: { id: matchToken.businessId }, select: { onomasia: true, afm: true, regdate: true, legalStatusDescr: true } }),
+    prisma.business.findUnique({
+      where: { id: matchToken.businessId },
+      select: {
+        onomasia: true, afm: true, regdate: true, legalStatusDescr: true,
+        activities: { select: { firmActCode: true, firmActDescr: true } },
+      },
+    }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
       select: {
@@ -81,6 +87,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       ].filter(Boolean).join('\n') || null,
       consultant: matchToken.consultant ?? null,
       legalStatusDescr: business.legalStatusDescr ?? null,
+      businessActivities: business.activities,
       businessRegdate: business.regdate ?? null,
     })
   } catch (err: any) {

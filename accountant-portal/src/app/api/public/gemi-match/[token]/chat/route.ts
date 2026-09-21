@@ -203,7 +203,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const [gemi, program, match] = await Promise.all([
     prisma.gemiLookup.findUnique({
       where: { id: matchToken.gemiId },
-      select: { onomasia: true, afm: true, regdate: true, legalStatusDescr: true, claimedBusinessId: true },
+      select: { onomasia: true, afm: true, regdate: true, legalStatusDescr: true, claimedBusinessId: true, activities: true },
     }),
     prisma.program.findUnique({
       where: { id: matchToken.programId },
@@ -231,6 +231,11 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     : null
   const businessDisplayName = claimedBusiness?.onomasia || gemi.onomasia || gemi.afm
   const businessLegalStatus = (claimedBusiness?.legalStatusDescr || (gemi as any).legalStatusDescr) ?? null
+  const gemiActivitiesForErmis = (Array.isArray(gemi.activities) ? gemi.activities : []) as any[]
+  const businessActivities = gemiActivitiesForErmis.map(a => ({
+    firmActCode: a.firmActCode,
+    firmActDescr: a.firmActDescr ?? null,
+  }))
 
   const extraCriteriaLabels = program.extraCriteriaIds.length
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { id: true, label: true } })
@@ -276,6 +281,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       consultant: null,
       legalStatusDescr: businessLegalStatus,
       businessRegdate: gemi.regdate ?? null,
+      businessActivities,
     })
   } catch (err: any) {
     console.error('[GemiErmisChat] failed:', err?.message)

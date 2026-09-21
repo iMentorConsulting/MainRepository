@@ -70,7 +70,7 @@ function buildSystemPrompt(program: {
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
   contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null,
-  businessRegdate?: string | null) {
+  businessRegdate?: string | null, businessActivities?: { firmActCode: string; firmActDescr: string | null }[]) {
   const isLoan = program.category === 'MICROCREDITS'
   const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
   const now = new Date()
@@ -99,6 +99,20 @@ function buildSystemPrompt(program: {
   const legalFormLine = legalStatusDescr
     ? `ΝΟΜΙΚΗ ΜΟΡΦΗ ΕΠΙΧΕΙΡΗΣΗΣ: **${legalStatusDescr}**\nΑν κάποιο έγγραφο ή οδηγία έχει διαφορετική έκδοση για "ατομική επιχείρηση" έναντι "νομικού προσώπου" (ΟΕ/ΕΕ/ΙΚΕ/ΑΕ/ΕΠΕ κ.λπ.), χρησιμοποίησε ΑΠΟΚΛΕΙΣΤΙΚΑ την έκδοση που αντιστοιχεί στη νομική μορφή αυτής της επιχείρησης — ΜΗΝ παρουσιάζεις και τις δύο εκδόσεις.`
     : ''
+
+  // Raw ΚΑΔ facts — passed regardless of what the automatic matcher decided,
+  // so Ερμής can always answer "what's my ΚΑΔ" and reason about whether this
+  // is even a real, registered commercial activity. ΚΑΔ 1000000 (ΑΓΡΟΤΗΣ
+  // ΕΙΔΙΚΟΥ ΚΑΘΕΣΤΩΤΟΣ) is a flat-rate-VAT tax classification for
+  // micro-scale farmers, not a real commercial ΚΑΔ — same convention used
+  // by the automatic matcher (see business-filters.ts / matching.ts).
+  const realActivities = (businessActivities || []).filter(a => !a.firmActCode.replace(/\D/g, '').startsWith('1000000'))
+  const kadLine = businessActivities && businessActivities.length > 0
+    ? `ΚΑΔ ΕΠΙΧΕΙΡΗΣΗΣ: ${businessActivities.map(a => `${a.firmActCode}${a.firmActDescr ? ` (${a.firmActDescr})` : ''}`).join(', ')}`
+      + (realActivities.length === 0
+        ? `\nΚΡΙΣΙΜΟ: Ο μοναδικός καταχωρημένος "ΚΑΔ" είναι 1000000 (ΑΓΡΟΤΗΣ ΕΙΔΙΚΟΥ ΚΑΘΕΣΤΩΤΟΣ) — αυτό ΔΕΝ είναι πραγματικός εμπορικός ΚΑΔ, είναι φορολογική κατάταξη για πολύ μικρούς αγρότες. Η επιχείρηση ΔΕΝ έχει πραγματική καταχωρημένη εμπορική δραστηριότητα και ΔΕΝ είναι επιλέξιμη για κανένα επιχειρηματικό πρόγραμμα/δάνειο. Ενημέρωσε τον πελάτη αμέσως χωρίς να κάνεις τις υπόλοιπες ερωτήσεις.`
+        : '')
+    : `ΚΑΔ ΕΠΙΧΕΙΡΗΣΗΣ: Δεν υπάρχει καταχωρημένος ΚΑΔ.\nΚΡΙΣΙΜΟ: Χωρίς καταχωρημένη εμπορική δραστηριότητα (ΚΑΔ) η επιχείρηση ΔΕΝ είναι επιλέξιμη για κανένα επιχειρηματικό πρόγραμμα/δάνειο. Ενημέρωσε τον πελάτη αμέσως χωρίς να κάνεις τις υπόλοιπες ερωτήσεις.`
 
   // Build the regdate instruction line, resolving any relative sentinel (e.g. "TODAY-1Y")
   // to a human-readable requirement plus a concrete cutoff date in parentheses.
@@ -145,6 +159,8 @@ function buildSystemPrompt(program: {
 ΓΙΑ ΤΗΝ I-MENTOR:
 ${IMENTOR_BASICS}
 ${legalFormLine ? `\n${legalFormLine}\n` : ''}
+${kadLine}
+
 ΣΤΟΙΧΕΙΑ ΠΡΟΓΡΑΜΜΑΤΟΣ "${program.title}":
 ${program.description || '(χωρίς περιγραφή)'}
 ${program.minInvestment || program.maxInvestment ? `${amountLabel}: ${program.minInvestment ?? '?'}–${program.maxInvestment ?? '?'}€` : ''}
@@ -389,6 +405,12 @@ export async function runErmisTurn(params: {
   legalStatusDescr?: string | null
   // Business start date (ISO string) — used to compute near-eligibility for ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
   businessRegdate?: string | null
+  // The business's registered ΚΑΔ (code + description) — always passed,
+  // regardless of whether the automatic matcher found this program eligible.
+  // autoConfirmedReasons only carries a ΚΑΔ line when the automatic match
+  // actually PASSED, so a business that failed (or was never auto-matched)
+  // would otherwise leave Ερμής with zero ΚΑΔ information at all.
+  businessActivities?: { firmActCode: string; firmActDescr: string | null }[]
 }): Promise<{ reply: string; caseId: string | null; tokensUsed: number; tokensUsedInput: number; tokensUsedOutput: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
@@ -404,7 +426,7 @@ export async function runErmisTurn(params: {
   }
 
   const anthropic = new Anthropic({ apiKey })
-  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr, params.businessRegdate)
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr, params.businessRegdate, params.businessActivities)
 
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]
