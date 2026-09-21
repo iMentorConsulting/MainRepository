@@ -98,6 +98,21 @@ class Booking(Base):
     customer = relationship("Customer", back_populates="bookings")
 
 
+class GuestCommunication(Base):
+    __tablename__ = 'guest_communications'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    booking_id = Column(Integer, ForeignKey('bookings.id'), nullable=False)
+    channel = Column(String(30), default='airbnb')       # airbnb / booking / direct
+    direction = Column(String(10), default='in')          # in / out
+    subject = Column(Text, nullable=True)
+    body_preview = Column(Text, nullable=True)
+    relay_email = Column(String(300), nullable=True)
+    sent_at = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    booking = relationship('Booking', foreign_keys=[booking_id])
+
+
 class CleaningSettings(Base):
     __tablename__ = 'cleaning_settings'
 

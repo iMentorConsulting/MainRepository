@@ -385,6 +385,27 @@ for _col in [
 try:
     with engine.connect() as _bc:
         _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS guest_communications (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                booking_id INTEGER NOT NULL,
+                channel VARCHAR(30) DEFAULT 'airbnb',
+                direction VARCHAR(10) DEFAULT 'in',
+                subject TEXT,
+                body_preview TEXT,
+                relay_email VARCHAR(300),
+                sent_at DATETIME,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (booking_id) REFERENCES bookings(id)
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
             CREATE TABLE IF NOT EXISTS expenses (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 tenant VARCHAR(50) NOT NULL,

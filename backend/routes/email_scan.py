@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import GuestPortalSettings, Booking, Customer, Unit
+from models import GuestPortalSettings, Booking, Customer, Unit, GuestCommunication
 from auth_utils import get_tenant
 
 router = APIRouter(prefix="/email-scan", tags=["email-scan"])
@@ -85,11 +85,18 @@ def _extract_booking_com(body: str, subject: str) -> dict:
     return data
 
 
+def _extract_email_address(header_val: str) -> str:
+    """Extract bare email from 'Name <email>' or plain 'email' header value."""
+    m = re.search(r"<([^>]+)>", header_val)
+    return m.group(1).strip() if m else header_val.strip()
+
+
 def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
     data = {}
+    # Extract relay email address from Reply-To header
     if reply_to and "reply.airbnb.com" in reply_to:
-        data["reply_email"] = reply_to
-    # Guest name from subject e.g. "New message from John S." or "John booked your place"
+        data["reply_email"] = _extract_email_address(reply_to)
+    # Guest name from subject e.g. "New message from John S."
     m = re.search(r"(?:from|by)\s+([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Z]\.?)?)", subject, re.IGNORECASE)
     if m:
         parts = m.group(1).strip().split()
@@ -101,8 +108,9 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
     if m:
         data["reservation_code"] = m.group(1)
     # Guest name from body: appears before "Υπεύθυνος κράτησης" or "Responsible"
+    # Use \s+ to handle both newlines and spaces (HTML-stripped bodies may use spaces)
     if not data.get("first_name"):
-        m = re.search(r"([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+)?)\s*\n\s*(?:Υπεύθυνος κράτησης|Responsible|Guest)", body)
+        m = re.search(r"([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+)?)\s+(?:Υπεύθυνος κράτησης|Responsible for booking|Guest)", body)
         if m:
             parts = m.group(1).strip().split()
             data["first_name"] = parts[0]
@@ -118,10 +126,7 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
         dates = re.findall(date_pat, body)
         if len(dates) >= 2:
             data["_raw_dates"] = dates[:2]
-    # Phone from body
-    m = re.search(r"(?:Phone|Mobile|Tel|Τηλ)[^\d+]*(\+?[\d\s\-().]{7,20})", body, re.IGNORECASE)
-    if m:
-        data["phone"] = re.sub(r"[\s\-()]", "", m.group(1))
+    # NOTE: Airbnb does NOT include guest phone in confirmation emails — no phone extraction
     return data
 
 
@@ -285,12 +290,13 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     changed = False
                     changes = []
                     customer = booking.customer
+                    _PLACEHOLDER_NAMES = ("Beds24", "Unknown", "Guest", "", "Reserved Guest", "Reserved", "Airbnb Guest")
 
-                    if extracted.get("first_name") and (not customer.first_name or customer.first_name in ("Beds24", "Unknown", "Guest", "")):
+                    if extracted.get("first_name") and (not customer.first_name or customer.first_name in _PLACEHOLDER_NAMES):
                         changes.append(f"first_name: '{customer.first_name}' → '{extracted['first_name']}'")
                         customer.first_name = extracted["first_name"]
                         changed = True
-                    if extracted.get("last_name") and (not customer.last_name or customer.last_name in ("Guest", "Unknown", "")):
+                    if extracted.get("last_name") and (not customer.last_name or customer.last_name in _PLACEHOLDER_NAMES):
                         changes.append(f"last_name: '{customer.last_name}' → '{extracted['last_name']}'")
                         customer.last_name = extracted["last_name"]
                         changed = True
@@ -305,6 +311,26 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     if extracted.get("reply_email") and not booking.reply_email:
                         changes.append(f"reply_email: → '{extracted['reply_email']}'")
                         booking.reply_email = extracted["reply_email"]
+                        changed = True
+
+                    # Always save communication record (deduplicate by subject+booking)
+                    from datetime import datetime as dt
+                    existing_comm = db.query(GuestCommunication).filter(
+                        GuestCommunication.booking_id == booking.id,
+                        GuestCommunication.subject == subject[:500],
+                    ).first()
+                    if not existing_comm:
+                        comm = GuestCommunication(
+                            tenant=tenant,
+                            booking_id=booking.id,
+                            channel=channel,
+                            direction="in",
+                            subject=subject[:500],
+                            body_preview=body[:300].strip(),
+                            relay_email=extracted.get("reply_email") or booking.reply_email,
+                            sent_at=dt.utcnow(),
+                        )
+                        db.add(comm)
                         changed = True
 
                     if changed:

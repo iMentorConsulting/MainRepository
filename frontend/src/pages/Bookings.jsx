@@ -73,7 +73,7 @@ function GuestRegistrationLink({ bookingId }) {
   )
 }
 
-function AirbnbReplyBox({ bookingId }) {
+function AirbnbReplyBox({ bookingId, onSent }) {
   const [open, setOpen] = useState(false)
   const [message, setMessage] = useState('')
   const [sending, setSending] = useState(false)
@@ -86,6 +86,7 @@ function AirbnbReplyBox({ bookingId }) {
       toast.success('Μήνυμα στάλθηκε μέσω Airbnb!')
       setMessage('')
       setOpen(false)
+      onSent?.()
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Αποτυχία αποστολής')
     } finally {
@@ -118,6 +119,53 @@ function AirbnbReplyBox({ bookingId }) {
             className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
             {sending ? 'Αποστολή…' : 'Αποστολή'}
           </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CommunicationsLog({ bookingId }) {
+  const [comms, setComms] = useState(null)
+  const [open, setOpen] = useState(false)
+
+  const load = async () => {
+    try {
+      const r = await axios.get(`/api/bookings/${bookingId}/communications`)
+      setComms(r.data)
+    } catch { setComms([]) }
+  }
+
+  const toggle = () => {
+    if (!open && comms === null) load()
+    setOpen(o => !o)
+  }
+
+  const channelIcon = (ch) => ch === 'airbnb' ? '🏠' : ch === 'booking' ? '🔵' : '📧'
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button onClick={toggle}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors">
+        <span>📨 Επικοινωνία {comms !== null && `(${comms.length})`}</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+          {comms === null && <p className="text-xs text-gray-400 p-3">Φόρτωση…</p>}
+          {comms?.length === 0 && <p className="text-xs text-gray-400 p-3">Δεν υπάρχουν μηνύματα ακόμα.</p>}
+          {comms?.map(c => (
+            <div key={c.id} className={`px-4 py-2.5 text-xs ${c.direction === 'out' ? 'bg-blue-50' : 'bg-white'}`}>
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="font-medium text-gray-700">
+                  {channelIcon(c.channel)} {c.direction === 'out' ? '→ Εσείς' : '← Επισκέπτης'}
+                </span>
+                <span className="text-gray-400 shrink-0">{c.sent_at ? new Date(c.sent_at).toLocaleDateString('el-GR') : ''}</span>
+              </div>
+              <p className="text-gray-500 truncate">{c.subject}</p>
+              {c.body_preview && <p className="text-gray-400 mt-0.5 line-clamp-2">{c.body_preview}</p>}
+            </div>
+          ))}
         </div>
       )}
     </div>
@@ -505,6 +553,7 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
                 {booking.reply_email && (
                   <AirbnbReplyBox bookingId={booking.id} />
                 )}
+                <CommunicationsLog bookingId={booking.id} />
               </>
             )
           })()}

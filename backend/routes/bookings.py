@@ -340,7 +340,45 @@ def reply_via_airbnb(booking_id: int, body: dict, db: Session = Depends(get_db),
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Αποτυχία αποστολής: {exc}")
 
+    from models import GuestCommunication
+    from datetime import datetime as dt
+    comm = GuestCommunication(
+        tenant=tenant,
+        booking_id=booking_id,
+        channel="airbnb",
+        direction="out",
+        subject=f"Re: {booking.unit.name if booking.unit else 'stay'}",
+        body_preview=message[:300],
+        relay_email=booking.reply_email,
+        sent_at=dt.utcnow(),
+    )
+    db.add(comm)
+    db.commit()
     return {"ok": True, "sent_to": booking.reply_email, "guest": guest_name}
+
+
+@router.get("/{booking_id}/communications")
+def get_communications(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    from models import GuestCommunication
+    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
+    comms = db.query(GuestCommunication).filter(
+        GuestCommunication.booking_id == booking_id,
+        GuestCommunication.tenant == tenant,
+    ).order_by(GuestCommunication.sent_at.asc()).all()
+    return [
+        {
+            "id": c.id,
+            "channel": c.channel,
+            "direction": c.direction,
+            "subject": c.subject,
+            "body_preview": c.body_preview,
+            "relay_email": c.relay_email,
+            "sent_at": c.sent_at.isoformat() if c.sent_at else None,
+        }
+        for c in comms
+    ]
 
 
 @router.get("/{booking_id}/portal-link")
