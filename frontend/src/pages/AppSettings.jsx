@@ -241,7 +241,7 @@ function EmailScanSection() {
 
       <form onSubmit={handleConnect} className="space-y-3">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <Input label="IMAP Host" value={form.imap_host} onChange={e => setForm(f => ({ ...f, imap_host: e.target.value }))} placeholder="imap.gmail.com" />
+          <Input label="IMAP Host" value={form.imap_host} onChange={e => setForm(f => ({ ...f, imap_host: e.target.value }))} placeholder="mail.yourdomain.gr ή imap.gmail.com" />
           <Input label="IMAP Port" type="number" value={form.imap_port} onChange={e => setForm(f => ({ ...f, imap_port: +e.target.value }))} placeholder="993" />
           <Input label="Email" type="email" value={form.imap_user} onChange={e => setForm(f => ({ ...f, imap_user: e.target.value }))} placeholder="villa@gmail.com" />
           <div>
@@ -258,8 +258,10 @@ function EmailScanSection() {
             </div>
           </div>
         </div>
-        <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700">
-          <strong>Gmail:</strong> imap.gmail.com · port 993 · το ίδιο App Password που χρησιμοποιείτε για SMTP. Βεβαιωθείτε ότι το IMAP είναι ενεργοποιημένο στο Gmail (Settings → See all settings → Forwarding and POP/IMAP).
+        <div className="bg-blue-50 rounded-xl p-3 text-xs text-blue-700 space-y-1">
+          <p><strong>Gmail / Google Workspace:</strong> imap.gmail.com · port 993 · App Password (όχι κανονικός κωδικός)</p>
+          <p><strong>Custom domain (π.χ. info@yourdomain.gr):</strong> mail.yourdomain.gr · port 993 · κανονικός κωδικός email</p>
+          <p className="text-blue-500">Αν δεν ξέρετε τον IMAP server, ρωτήστε τον πάροχο hosting σας (π.χ. Papaki, cPanel).</p>
         </div>
         <button type="submit" disabled={connecting}
           className="bg-[#1e3a5f] text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#16305a] disabled:opacity-50 transition-colors">
