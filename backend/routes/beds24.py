@@ -64,7 +64,7 @@ def _get_api_key(tenant: str, db: Session) -> str:
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/debug-auth")
-def debug_auth(code: str, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+def debug_auth(code: str, db: Session = Depends(get_db)):
     """Try every Beds24 auth approach with the given code and show raw responses."""
     results = {}
 
