@@ -89,7 +89,7 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
     data = {}
     if reply_to and "reply.airbnb.com" in reply_to:
         data["reply_email"] = reply_to
-    # Guest name from subject e.g. "New message from John S."
+    # Guest name from subject e.g. "New message from John S." or "John booked your place"
     m = re.search(r"(?:from|by)\s+([A-Za-zÀ-ÿ][a-zA-ZÀ-ÿ\-']+(?:\s+[A-Z]\.?)?)", subject, re.IGNORECASE)
     if m:
         parts = m.group(1).strip().split()
@@ -97,9 +97,18 @@ def _extract_airbnb(body: str, subject: str, reply_to: str) -> dict:
         if len(parts) > 1:
             data["last_name"] = parts[1].rstrip(".")
     # Reservation code
-    m = re.search(r"(?:reservation|confirmation)[^\w]*([A-Z0-9]{8,12})", body, re.IGNORECASE)
+    m = re.search(r"(?:reservation|confirmation|κράτηση)[^\w]*([A-Z0-9]{8,12})", body, re.IGNORECASE)
     if m:
         data["reservation_code"] = m.group(1)
+    # Dates from body (Airbnb includes check-in/out in confirmation emails)
+    date_pat = r"(\d{1,2}[\s/\-]\w+[\s/\-]\d{4}|\d{4}-\d{2}-\d{2}|\w+ \d{1,2},?\s*\d{4}|\d{1,2}/\d{1,2}/\d{4})"
+    dates = re.findall(date_pat, body)
+    if len(dates) >= 2:
+        data["_raw_dates"] = dates[:2]
+    # Phone from body
+    m = re.search(r"(?:Phone|Mobile|Tel|Τηλ)[^\d+]*(\+?[\d\s\-().]{7,20})", body, re.IGNORECASE)
+    if m:
+        data["phone"] = re.sub(r"[\s\-()]", "", m.group(1))
     return data
 
 
@@ -224,6 +233,12 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     if extracted.get("_raw_dates"):
                         check_in = _try_parse_date(extracted["_raw_dates"][0])
                         check_out = _try_parse_date(extracted["_raw_dates"][1])
+
+                    # Skip if we can't identify which booking this belongs to
+                    if not check_in and not check_out and not extracted.get("reservation_code"):
+                        skipped += 1
+                        log.append({"status": "skipped", "reason": "no dates or reservation code in email", "subject": subject[:80], "channel": channel, "extracted": {k: v for k, v in extracted.items() if not k.startswith("_")}})
+                        continue
 
                     booking = _match_booking(db, tenant, check_in, check_out)
                     if not booking:
