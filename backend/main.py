@@ -26,6 +26,7 @@ from routes.widget import router as widget_router
 from routes.availability import router as availability_router
 from routes.loans import router as loans_router
 from routes.discounts import router as discounts_router
+from routes.channel_rates import router as channel_rates_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -305,6 +306,32 @@ try:
                 key VARCHAR(100) NOT NULL,
                 value TEXT,
                 UNIQUE(tenant, key)
+            )
+        """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("""
+            CREATE TABLE IF NOT EXISTS channel_rates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tenant VARCHAR(50) NOT NULL,
+                unit_id INTEGER NOT NULL REFERENCES units(id),
+                channel VARCHAR(20) NOT NULL,
+                base_price_weekday FLOAT,
+                base_price_weekend FLOAT,
+                cleaning_fee FLOAT DEFAULT 0.0,
+                extra_guest_fee FLOAT DEFAULT 0.0,
+                extra_guest_after INTEGER DEFAULT 2,
+                min_stay INTEGER DEFAULT 1,
+                max_stay INTEGER,
+                weekly_discount_pct FLOAT DEFAULT 0.0,
+                monthly_discount_pct FLOAT DEFAULT 0.0,
+                notes TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """))
         _bc.commit()
@@ -792,6 +819,7 @@ app.include_router(widget_router, prefix="/api/widget")
 app.include_router(availability_router, prefix="/api")
 app.include_router(loans_router, prefix="/api")
 app.include_router(discounts_router, prefix="/api")
+app.include_router(channel_rates_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

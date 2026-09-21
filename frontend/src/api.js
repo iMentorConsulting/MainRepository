@@ -138,6 +138,12 @@ export const createDiscount = (data) => api.post('/discounts/', data)
 export const updateDiscount = (id, data) => api.put(`/discounts/${id}`, data)
 export const deleteDiscount = (id) => api.delete(`/discounts/${id}`)
 
+// Channel rates
+export const getChannelRates = (unitId) => api.get('/channel-rates/', { params: { unit_id: unitId } })
+export const createChannelRate = (data) => api.post('/channel-rates/', data)
+export const updateChannelRate = (id, data) => api.put(`/channel-rates/${id}`, data)
+export const deleteChannelRate = (id) => api.delete(`/channel-rates/${id}`)
+
 // iCal sync
 export const syncIcalAll = () => api.post('/ical/sync')
 export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)

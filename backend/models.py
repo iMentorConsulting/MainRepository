@@ -356,6 +356,26 @@ class Discount(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
 
 
+class ChannelRate(Base):
+    __tablename__ = "channel_rates"
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    channel = Column(String(20), nullable=False)  # airbnb | booking | vrbo | direct
+    base_price_weekday = Column(Float, nullable=True)
+    base_price_weekend = Column(Float, nullable=True)
+    cleaning_fee = Column(Float, default=0.0)
+    extra_guest_fee = Column(Float, default=0.0)
+    extra_guest_after = Column(Integer, default=2)   # charge extra after N guests
+    min_stay = Column(Integer, default=1)
+    max_stay = Column(Integer, nullable=True)
+    weekly_discount_pct = Column(Float, default=0.0)
+    monthly_discount_pct = Column(Float, default=0.0)
+    notes = Column(Text, nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class TenantSettings(Base):
     __tablename__ = "tenant_settings"
 
