@@ -3,7 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth,
+  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads,
   sendLeadToFinance,
 } from '../api'
 import {
@@ -1153,10 +1153,19 @@ export default function Leads() {
         </div>
         <div className="flex items-center gap-2">
           {isAdmin && (
-            <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
-              className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
-              💬 Backfill ΕΡΜΗΣ
-            </button>
+            <>
+              <button onClick={async () => {
+                if (!window.confirm('Διαγραφή διπλοεγγραφών; Θα κρατηθεί μία εγγραφή ανά ΑΦΜ + πρόγραμμα + κατάσταση + ημερομηνία.')) return
+                const r = await dedupLeads()
+                toast.success(`Διαγράφηκαν ${r.deleted} διπλοεγγραφές σε ${r.groups} ομάδες`)
+              }} className="flex items-center gap-1.5 text-sm bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 px-3 py-1.5 rounded-lg font-medium">
+                🧹 Dedup Leads
+              </button>
+              <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
+                className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
+                💬 Backfill ΕΡΜΗΣ
+              </button>
+            </>
           )}
           <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
         </div>

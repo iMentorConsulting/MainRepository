@@ -1099,6 +1099,81 @@ def normalize_consultants(
     return {"ok": True, "updated": updated}
 
 
+@router.post("/dedup")
+def dedup_leads(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete exact duplicate leads: same AFM + program + status created on the same date.
+    Keeps the lowest ID in each group. Cascades to comments and notification logs.
+    Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    from sqlalchemy import func as _fn, cast, Date as _Date
+    # Group by (afm, program, status, created_date) — find groups with >1 lead
+    groups = (
+        db.query(
+            CMLead.afm,
+            CMLead.program,
+            CMLead.status,
+            cast(CMLead.created_at, _Date).label("cdate"),
+            _fn.min(CMLead.id).label("keep_id"),
+            _fn.count(CMLead.id).label("cnt"),
+        )
+        .filter(CMLead.afm.isnot(None), CMLead.afm != "")
+        .group_by(CMLead.afm, CMLead.program, CMLead.status, cast(CMLead.created_at, _Date))
+        .having(_fn.count(CMLead.id) > 1)
+        .all()
+    )
+
+    deleted_total = 0
+    groups_affected = 0
+    details = []
+
+    for g in groups:
+        # Fetch all IDs in this duplicate group
+        dup_leads = (
+            db.query(CMLead.id)
+            .filter(
+                CMLead.afm == g.afm,
+                CMLead.program == g.program,
+                CMLead.status == g.status,
+                cast(CMLead.created_at, _Date) == g.cdate,
+            )
+            .order_by(CMLead.id.asc())
+            .all()
+        )
+        all_ids = [r[0] for r in dup_leads]
+        to_delete = [i for i in all_ids if i != g.keep_id]
+        if not to_delete:
+            continue
+
+        # Cascade: delete child records, null-out FK references
+        db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(to_delete)).delete(synchronize_session=False)
+        db.query(CMLeadNotificationLog).filter(CMLeadNotificationLog.lead_id.in_(to_delete)).delete(synchronize_session=False)
+        # Portal assignments: just unlink rather than delete (they have their own value)
+        from models_cases import CMPortalAssignment as _CPA
+        db.query(_CPA).filter(_CPA.cm_lead_id.in_(to_delete)).update(
+            {"cm_lead_id": None}, synchronize_session=False
+        )
+        db.query(CMLead).filter(CMLead.id.in_(to_delete)).delete(synchronize_session=False)
+
+        deleted_total += len(to_delete)
+        groups_affected += 1
+        details.append({
+            "afm": g.afm,
+            "program": g.program,
+            "status": g.status,
+            "date": str(g.cdate),
+            "kept_id": g.keep_id,
+            "deleted_ids": to_delete,
+        })
+
+    db.commit()
+    return {"ok": True, "groups": groups_affected, "deleted": deleted_total, "details": details}
+
+
 @router.post("/backfill-programs")
 def backfill_programs(
     current_user: CMUser = Depends(get_current_user),
