@@ -13,26 +13,28 @@ router = APIRouter(prefix="/beds24", tags=["beds24"])
 # ── Internal helpers ──────────────────────────────────────────────────────────
 
 def _exchange_invite_code(invite_code: str) -> str:
-    """Exchange a one-time Beds24 invite code for a permanent refresh token."""
+    """Exchange a one-time Beds24 invite code (from Marketplace → API) for a refresh token."""
     r = requests.post(
         "https://beds24.com/api/v2/authentication/setup",
         json={"code": invite_code, "deviceName": "iStay"},
+        headers={"accept": "application/json"},
         timeout=15,
     )
     if not r.ok:
         raise ValueError(f"setup {r.status_code}: {r.text}")
     data = r.json()
-    token = data.get("token") or data.get("refreshToken")
-    if not token:
-        raise ValueError(f"No token in setup response: {data}")
-    return token
+    # /setup returns both a short-lived token and a permanent refreshToken — store the latter
+    refresh_token = data.get("refreshToken") or data.get("token")
+    if not refresh_token:
+        raise ValueError(f"No refreshToken in setup response: {data}")
+    return refresh_token
 
 
 def _get_access_token(refresh_token: str) -> str:
     """Exchange the stored refresh token for a short-lived access token."""
     r = requests.get(
         "https://beds24.com/api/v2/authentication/token",
-        headers={"refreshToken": refresh_token},  # correct header per Beds24 v2 docs
+        headers={"accept": "application/json", "refreshToken": refresh_token},
         timeout=15,
     )
     if not r.ok:
@@ -103,14 +105,13 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
 
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Verify a Beds24 token and save it."""
-    token = (body.get("api_key") or "").strip()
-    if not token:
+    """Exchange a Beds24 invite code (Marketplace → API) for a refresh token and save it."""
+    invite_code = (body.get("api_key") or "").strip()
+    if not invite_code:
         raise HTTPException(status_code=400, detail="api_key is required")
 
-    # Verify: try to get an access token with it
     try:
-        _get_access_token(token)
+        refresh_token = _exchange_invite_code(invite_code)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=f"Beds24 auth failed: {exc}")
 
@@ -120,7 +121,7 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
     if not settings:
         settings = GuestPortalSettings(tenant=tenant)
         db.add(settings)
-    settings.beds24_api_key = token
+    settings.beds24_api_key = refresh_token
     db.commit()
 
     return {"ok": True, "message": "Connected to Beds24"}
