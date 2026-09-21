@@ -6,6 +6,7 @@ import {
   createCustomer, recommendUnit, exportBookings, downloadTemplate, importBookings,
   getPortalLink, sendPortalEmail, getBookingChannels, saveBookingChannels, bulkMarkBilled,
 } from '../api'
+import api from '../api'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
@@ -48,7 +49,7 @@ function GuestRegistrationLink({ bookingId }) {
   const handleCopy = async () => {
     setCopying(true)
     try {
-      const r = await axios.get(`/api/bookings/${bookingId}/portal-link`)
+      const r = await api.get(`/bookings/${bookingId}/portal-link`)
       const url = `${window.location.origin}/register/${r.data.token}`
       await navigator.clipboard.writeText(url)
       toast.success('Σύνδεσμος αντιγράφηκε! Στείλτε τον στον επισκέπτη.')
@@ -82,7 +83,7 @@ function AirbnbReplyBox({ bookingId, onSent }) {
     if (!message.trim()) return
     setSending(true)
     try {
-      await axios.post(`/api/bookings/${bookingId}/reply-airbnb`, { message })
+      await api.post(`/bookings/${bookingId}/reply-airbnb`, { message })
       toast.success('Μήνυμα στάλθηκε μέσω Airbnb!')
       setMessage('')
       setOpen(false)
@@ -132,7 +133,7 @@ function CommunicationsLog({ bookingId }) {
 
   const load = async () => {
     try {
-      const r = await axios.get(`/api/bookings/${bookingId}/communications`)
+      const r = await api.get(`/bookings/${bookingId}/communications`)
       setComms(r.data)
       setError(null)
     } catch (err) {
