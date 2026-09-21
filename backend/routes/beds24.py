@@ -165,6 +165,57 @@ def list_properties(db: Session = Depends(get_db), tenant: str = Depends(get_ten
     return data.get("data", data) if isinstance(data, dict) else data
 
 
+@router.get("/test-create")
+def test_create_property():
+    """Test multiple approaches for creating a Beds24 property."""
+    v1_key = "rwh6IluBRvUDVc17yQIgJSd6oZYshxKu"
+    v2_token = "IJzp4FOsFJGSw0NdytzEFkDn7yv8RRT9Y/n9nerAISFh84MxAJJPH/kE3Gc80jnm5WYBL8Z40JsH1qpOxp2ehYnxj33qETkaXvwReKLoLKyFdqHTNDTR+pIZf4p7VwIJ1dQYExHHXGk7MVs0sQlk2OdLC2heHH20nWyHgpPE7zU="
+    results = {}
+
+    # Try v2 POST /properties
+    try:
+        r = requests.post(
+            f"{V2_BASE}/properties",
+            headers={**_v2_headers(v2_token), "content-type": "application/json"},
+            json={"name": "Test Villa", "countryCode": "GR"},
+            timeout=10,
+        )
+        results["v2_post_properties"] = {"status": r.status_code, "body": r.text[:300]}
+    except Exception as e:
+        results["v2_post_properties"] = {"error": str(e)}
+
+    # Try v1 setProperty (singular)
+    try:
+        r = requests.post(
+            f"{V1_BASE}/setProperty",
+            json={**_v1_auth(v1_key), "name": "Test Villa", "country": "GR"},
+            timeout=10,
+        )
+        results["v1_setProperty"] = {"status": r.status_code, "body": r.text[:300]}
+    except Exception as e:
+        results["v1_setProperty"] = {"error": str(e)}
+
+    # Try v1 setRooms with propId=0 (create new)
+    try:
+        r = requests.post(
+            f"{V1_BASE}/setRooms",
+            json={**_v1_auth(v1_key), "rooms": [{"propId": 0, "name": "Test Room", "qty": 1}]},
+            timeout=10,
+        )
+        results["v1_setRooms_propId0"] = {"status": r.status_code, "body": r.text[:300]}
+    except Exception as e:
+        results["v1_setRooms_propId0"] = {"error": str(e)}
+
+    # List available v1 endpoints — try info
+    try:
+        r = requests.post(f"{V1_BASE}/getInfo", json=_v1_auth(v1_key), timeout=10)
+        results["v1_getInfo"] = {"status": r.status_code, "body": r.text[:300]}
+    except Exception as e:
+        results["v1_getInfo"] = {"error": str(e)}
+
+    return results
+
+
 @router.get("/rooms")
 def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     """List all Beds24 properties and their rooms (for mapping UI)."""
