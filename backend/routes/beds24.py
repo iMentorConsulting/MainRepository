@@ -68,38 +68,42 @@ def debug_auth(code: str, db: Session = Depends(get_db)):
     """Try every Beds24 auth approach with the given code and show raw responses."""
     results = {}
 
-    # Attempt 1: POST /authentication/setup with code
-    try:
-        r = requests.post(
-            "https://beds24.com/api/v2/authentication/setup",
-            json={"code": code, "deviceName": "iStay"},
-            timeout=15,
-        )
-        results["setup_post"] = {"status": r.status_code, "body": r.text[:500]}
-    except Exception as e:
-        results["setup_post"] = {"error": str(e)}
+    def attempt(label, method, url, **kwargs):
+        try:
+            r = getattr(requests, method)(url, timeout=15, **kwargs)
+            results[label] = {"status": r.status_code, "body": r.text[:500]}
+        except Exception as e:
+            results[label] = {"error": str(e)}
 
-    # Attempt 2: GET /authentication/token with code as token header
-    try:
-        r = requests.get(
+    # 1. GET /authentication/token with token header (permanent key → access token)
+    attempt("1_token_header", "get",
             "https://beds24.com/api/v2/authentication/token",
-            headers={"token": code},
-            timeout=15,
-        )
-        results["token_get"] = {"status": r.status_code, "body": r.text[:500]}
-    except Exception as e:
-        results["token_get"] = {"error": str(e)}
+            headers={"token": code})
 
-    # Attempt 3: GET /properties with code directly as token header
-    try:
-        r = requests.get(
+    # 2. GET /properties with token header directly
+    attempt("2_properties_token_header", "get",
             "https://beds24.com/api/v2/properties",
-            headers={"token": code},
-            timeout=15,
-        )
-        results["properties_direct"] = {"status": r.status_code, "body": r.text[:500]}
-    except Exception as e:
-        results["properties_direct"] = {"error": str(e)}
+            headers={"token": code})
+
+    # 3. GET /properties with Authorization: Bearer
+    attempt("3_properties_bearer", "get",
+            "https://beds24.com/api/v2/properties",
+            headers={"Authorization": f"Bearer {code}"})
+
+    # 4. GET /properties with key as query param
+    attempt("4_properties_queryparam", "get",
+            "https://beds24.com/api/v2/properties",
+            params={"token": code})
+
+    # 5. POST /authentication/setup with only code (no deviceName)
+    attempt("5_setup_no_devicename", "post",
+            "https://beds24.com/api/v2/authentication/setup",
+            json={"code": code})
+
+    # 6. POST /authentication/setup with code + deviceName
+    attempt("6_setup_with_devicename", "post",
+            "https://beds24.com/api/v2/authentication/setup",
+            json={"code": code, "deviceName": "iStay"})
 
     return results
 
