@@ -9,6 +9,8 @@ import {
   getIcalUnits, syncIcalUnit, syncIcalAll,
   getIcalExportUrl, regenerateIcalToken, updateIcalImportUrl,
   getChannelRates, createChannelRate, updateChannelRate, deleteChannelRate,
+  testBeds24Connection, getBeds24Properties, mapUnitToBeds24,
+  pushRatesToBeds24, syncBookingsFromBeds24,
 } from '../api'
 
 const BASE_URL = window.location.origin
@@ -329,6 +331,247 @@ function ChannelRatesSection({ unit }) {
   )
 }
 
+// ── Beds24 Components ─────────────────────────────────────────────────────────
+
+function Beds24MappingRow({ unit, beds24Props }) {
+  const [mapped, setMapped] = useState(
+    unit.beds24_prop_id ? { propId: unit.beds24_prop_id, roomId: unit.beds24_room_id } : null
+  )
+  const [showForm, setShowForm] = useState(false)
+  const [propId, setPropId] = useState('')
+  const [roomId, setRoomId] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [pushing, setPushing] = useState(false)
+
+  const handleMap = async (e) => {
+    e.preventDefault()
+    if (!propId || !roomId) { toast.error('Συμπληρώστε Property ID και Room ID'); return }
+    setSaving(true)
+    try {
+      await mapUnitToBeds24(unit.id, {
+        beds24_prop_id: parseInt(propId),
+        beds24_room_id: parseInt(roomId),
+      })
+      setMapped({ propId: parseInt(propId), roomId: parseInt(roomId) })
+      setShowForm(false)
+      toast.success('Η αντιστοίχιση αποθηκεύτηκε')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποθήκευσης')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handlePushRates = async () => {
+    setPushing(true)
+    try {
+      const r = await pushRatesToBeds24(unit.id)
+      toast.success(`Τιμές στάλθηκαν στο Beds24 — ${r.data.pushed} εγγραφές`)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής τιμών')
+    } finally {
+      setPushing(false)
+    }
+  }
+
+  return (
+    <div className="bg-teal-50 border border-teal-100 rounded-lg p-3 space-y-2 mt-2">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-teal-800">Beds24 Mapping</span>
+        {mapped && (
+          <button onClick={handlePushRates} disabled={pushing}
+            className="flex items-center gap-1 text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors font-medium">
+            <CloudArrowUpIcon className={`h-3.5 w-3.5 ${pushing ? 'animate-spin' : ''}`} />
+            {pushing ? 'Αποστολή…' : 'Push Rates'}
+          </button>
+        )}
+      </div>
+
+      {mapped && !showForm ? (
+        <div className="flex items-center gap-3">
+          <span className="text-xs text-teal-700">
+            Property ID: <strong>{mapped.propId}</strong> · Room: <strong>{mapped.roomId}</strong>
+          </span>
+          <button onClick={() => { setPropId(String(mapped.propId)); setRoomId(String(mapped.roomId)); setShowForm(true) }}
+            className="text-xs text-teal-600 hover:text-teal-800 underline">
+            Αλλαγή
+          </button>
+        </div>
+      ) : !showForm ? (
+        <button onClick={() => setShowForm(true)}
+          className="text-xs text-teal-600 hover:text-teal-800 font-medium underline">
+          + Map to Beds24
+        </button>
+      ) : null}
+
+      {showForm && (
+        <form onSubmit={handleMap} className="space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-0.5 font-medium">Beds24 Property</label>
+              {beds24Props.length > 0 ? (
+                <select value={propId} onChange={e => setPropId(e.target.value)}
+                  className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400">
+                  <option value="">-- Επιλογή --</option>
+                  {beds24Props.map(p => (
+                    <option key={p.id} value={p.id}>{p.name || p.id}</option>
+                  ))}
+                </select>
+              ) : (
+                <input type="number" value={propId} onChange={e => setPropId(e.target.value)}
+                  placeholder="π.χ. 12345"
+                  className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400" />
+              )}
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-0.5 font-medium">Room ID</label>
+              <input type="number" value={roomId} onChange={e => setRoomId(e.target.value)}
+                placeholder="π.χ. 67890"
+                className="w-full border border-teal-200 rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:border-teal-400" />
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button type="submit" disabled={saving}
+              className="text-xs bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium">
+              {saving ? 'Αποθήκευση…' : 'Αποθήκευση'}
+            </button>
+            <button type="button" onClick={() => setShowForm(false)}
+              className="text-xs border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50">
+              Ακύρωση
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
+  )
+}
+
+function Beds24Section({ units }) {
+  const [open, setOpen] = useState(false)
+  const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [connecting, setConnecting] = useState(false)
+  const [connected, setConnected] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+  const [beds24Props, setBeds24Props] = useState([])
+  const [propsLoaded, setPropsLoaded] = useState(false)
+
+  const handleConnect = async () => {
+    if (!apiKey.trim()) { toast.error('Εισάγετε API Key'); return }
+    setConnecting(true)
+    try {
+      await testBeds24Connection(apiKey.trim())
+      setConnected(true)
+      toast.success('Σύνδεση με Beds24 επιτυχής!')
+      // Load properties
+      try {
+        const r = await getBeds24Properties()
+        const list = Array.isArray(r.data) ? r.data : (r.data?.data || [])
+        setBeds24Props(list)
+        setPropsLoaded(true)
+      } catch {
+        // properties fetch is best-effort
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Αποτυχία σύνδεσης με Beds24')
+    } finally {
+      setConnecting(false)
+    }
+  }
+
+  const handleSyncBookings = async () => {
+    setSyncing(true)
+    try {
+      const r = await syncBookingsFromBeds24()
+      toast.success(`Beds24 Sync — ${r.data.created} νέες κρατήσεις, ${r.data.skipped} υπήρχαν ήδη`)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα συγχρονισμού')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <div className="bg-white rounded-xl border border-teal-200 overflow-hidden">
+      <button type="button" onClick={() => setOpen(o => !o)}
+        className="w-full flex items-center justify-between px-5 py-4 text-left hover:bg-teal-50 transition-colors">
+        <div className="flex items-center gap-2">
+          {open ? <ChevronDownIcon className="h-4 w-4 text-teal-600" /> : <ChevronRightIcon className="h-4 w-4 text-teal-600" />}
+          <span className="font-semibold text-gray-800">🔗 Beds24 Channel Manager</span>
+          {connected && (
+            <span className="ml-2 text-xs font-medium bg-green-100 text-green-700 px-2 py-0.5 rounded-full border border-green-200">
+              ✅ Σύνδεση ενεργή
+            </span>
+          )}
+        </div>
+        <span className="text-xs text-teal-600 font-medium">
+          {open ? 'Σύμπτυξη' : 'Ανάπτυξη'}
+        </span>
+      </button>
+
+      {open && (
+        <div className="px-5 pb-5 space-y-4 border-t border-teal-100">
+          <div className="pt-4">
+            <p className="text-xs text-gray-500 mb-3">
+              Συνδέστε το Beds24 για αυτόματο συγχρονισμό διαθεσιμότητας και τιμών με Airbnb, Booking.com, VRBO.
+            </p>
+
+            {/* API Key input */}
+            <div className="flex items-end gap-2">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Beds24 API Key</label>
+                <div className="relative">
+                  <input
+                    type={showKey ? 'text' : 'password'}
+                    value={apiKey}
+                    onChange={e => setApiKey(e.target.value)}
+                    placeholder="Εισάγετε το API Key του Beds24"
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs pr-16 focus:outline-none focus:border-teal-400"
+                  />
+                  <button type="button" onClick={() => setShowKey(s => !s)}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
+                    {showKey ? 'Απόκρυψη' : 'Εμφάνιση'}
+                  </button>
+                </div>
+              </div>
+              <button onClick={handleConnect} disabled={connecting}
+                className="text-xs bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 disabled:opacity-50 font-medium whitespace-nowrap transition-colors">
+                {connecting ? 'Σύνδεση…' : 'Connect'}
+              </button>
+            </div>
+
+            {connected && (
+              <div className="mt-3 flex items-center gap-3">
+                <span className="text-xs font-medium text-green-700 bg-green-50 border border-green-200 px-3 py-1.5 rounded-lg">
+                  ✅ Σύνδεση ενεργή
+                </span>
+                <button onClick={handleSyncBookings} disabled={syncing}
+                  className="flex items-center gap-1.5 text-xs font-medium bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors">
+                  <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                  {syncing ? 'Συγχρονισμός…' : 'Sync All Bookings from Beds24'}
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Per-unit mapping — show below connection area */}
+          {units.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-gray-600">Αντιστοίχιση Μονάδων</p>
+              {units.map(u => (
+                <div key={u.id} className="border border-gray-100 rounded-lg px-3 py-2">
+                  <p className="text-xs font-medium text-gray-700 mb-1">{u.name}</p>
+                  <Beds24MappingRow unit={u} beds24Props={propsLoaded ? beds24Props : []} />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function UnitRow({ unit, onSynced }) {
   const [exportToken, setExportToken] = useState(unit.ical_export_token || '')
   const [importUrl, setImportUrl] = useState(unit.ical_url || '')
@@ -510,6 +753,9 @@ export default function Sync() {
           {syncingAll ? 'Syncing all…' : 'Sync All Units'}
         </button>
       </div>
+
+      {/* Beds24 Channel Manager */}
+      <Beds24Section units={units} />
 
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm text-blue-800 space-y-1">
         <p className="font-semibold">Πώς λειτουργεί το iCal Sync</p>

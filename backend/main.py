@@ -27,6 +27,7 @@ from routes.availability import router as availability_router
 from routes.loans import router as loans_router
 from routes.discounts import router as discounts_router
 from routes.channel_rates import router as channel_rates_router
+from routes.beds24 import router as beds24_router
 
 # Case management routes
 from routes.cm_auth import router as cm_auth_router
@@ -334,6 +335,27 @@ try:
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN beds24_prop_id INTEGER"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE units ADD COLUMN beds24_room_id INTEGER"))
+        _bc.commit()
+except Exception:
+    pass
+
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN beds24_api_key TEXT"))
         _bc.commit()
 except Exception:
     pass
@@ -820,6 +842,7 @@ app.include_router(availability_router, prefix="/api")
 app.include_router(loans_router, prefix="/api")
 app.include_router(discounts_router, prefix="/api")
 app.include_router(channel_rates_router, prefix="/api")
+app.include_router(beds24_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

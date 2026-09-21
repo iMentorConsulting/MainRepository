@@ -48,6 +48,8 @@ class Unit(Base):
     ical_export_token = Column(String(64), nullable=True, index=True)
     widget_token = Column(String(64), nullable=True, index=True)
     owner_id = Column(Integer, ForeignKey("owners.id"), nullable=True)
+    beds24_prop_id = Column(Integer, nullable=True)
+    beds24_room_id = Column(Integer, nullable=True)
     tenant = Column(String(50), nullable=False, default='evaivoni', index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -222,6 +224,7 @@ class GuestPortalSettings(Base):
     pre_arrival_message = Column(Text)
     post_departure_subject = Column(String(300))
     post_departure_message = Column(Text)
+    beds24_api_key = Column(Text, nullable=True)
 
 
 class BookingInquiry(Base):
