@@ -308,7 +308,19 @@ async function upsertMatch(programId: string, businessId: string, score: number,
 // the accountant already got an email about it. Matches the accountant has
 // already acted on (REVIEWED/INTERESTED/SUBMITTED/REJECTED) are left alone,
 // since those reflect a human decision, not just the auto-matcher's score.
-async function resetStaleMatches(programId: string, qualifyingBusinessIds: string[]) {
+//
+// skipNotifyBusinessIds: businesses that dropped out of `qualifyingBusinessIds`
+// for a reason that ISN'T "no longer meets the eligibility criteria" — e.g.
+// businessAlreadyReceivedProgram() excludes anyone who already got this
+// exact I-MENTOR service, which has nothing to do with re-examining
+// eligibility. Their match still gets silently REJECTED here (they
+// shouldn't show as a live match), but they must NOT receive the
+// "we re-examined your eligibility and you don't qualify" client
+// notification — that wording is actively wrong/confusing for someone who
+// already completed this program with I-MENTOR. runMatchingForBusiness()
+// already gets this right (plain delete, no notify); this brings
+// runMatchingForProgram()/resetStaleMatches() in line with it.
+async function resetStaleMatches(programId: string, qualifyingBusinessIds: string[], skipNotifyBusinessIds: Set<string> = new Set()) {
   const stale = await prisma.programMatch.findMany({
     where: {
       programId,
@@ -327,8 +339,9 @@ async function resetStaleMatches(programId: string, qualifyingBusinessIds: strin
     data: { status: MatchStatus.REJECTED, matchScore: 0 },
   })
 
-  if (stale.length > 0) {
-    notifyStaleMatchesBecameIneligible(programId, stale.map(m => m.businessId))
+  const staleToNotify = stale.filter(m => !skipNotifyBusinessIds.has(m.businessId))
+  if (staleToNotify.length > 0) {
+    notifyStaleMatchesBecameIneligible(programId, staleToNotify.map(m => m.businessId))
       .catch(err => console.error('[Matching] Ermis correction notify failed:', err?.message))
   }
 }
@@ -347,8 +360,11 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
     include: { activities: true },
   })
 
+  const alreadyReceivedBusinessIds = new Set(
+    businesses.filter(b => businessAlreadyReceivedProgram(b.iMentorServices, program.title)).map(b => b.id)
+  )
   const candidates = businesses.filter(
-    b => !isInactiveBusiness(b) && !businessAlreadyReceivedProgram(b.iMentorServices, program.title)
+    b => !isInactiveBusiness(b) && !alreadyReceivedBusinessIds.has(b.id)
   )
 
   const results = await mapWithConcurrency(candidates, BUSINESS_MATCH_CONCURRENCY, async business => {
@@ -370,7 +386,7 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
     }
   }
 
-  await resetStaleMatches(programId, qualifyingBusinessIds)
+  await resetStaleMatches(programId, qualifyingBusinessIds, alreadyReceivedBusinessIds)
 
   return matchCount
 }
