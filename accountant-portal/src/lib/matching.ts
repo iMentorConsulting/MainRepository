@@ -2,7 +2,7 @@ import { prisma } from './prisma'
 import { MatchStatus } from '@prisma/client'
 import { resolveRegionFromZip } from './greek-regions'
 import { sendEmail } from './email'
-import { isInactiveBusiness } from './business-filters'
+import { isInactiveBusiness, FARMER_SPECIAL_REGIME_CODE } from './business-filters'
 import { normalizeLegalForm } from './legal-forms'
 import { getOrCreateMatchActionToken } from './match-action-token'
 import { buildProgramInfoHtml } from './program-info-html'
@@ -154,7 +154,13 @@ function matchesBusiness(
   // proprietors — ατομικές επιχειρήσεις — have a null/empty legalStatusDescr
   // in GEMI despite having real registered activity, so gating on that too
   // wrongly blocked real businesses.)
-  if (business.activities.length === 0) {
+  // ΚΑΔ 1000000 (ΑΓΡΟΤΗΣ ΕΙΔΙΚΟΥ ΚΑΘΕΣΤΩΤΟΣ) is a flat-rate-VAT tax
+  // classification for micro-scale farmers, not a real commercial ΚΑΔ —
+  // business-filters.ts already treats it as "not a real business"
+  // (isIndividualLike) for the same reason; a business whose only activity
+  // is this placeholder must not count as having real activity either.
+  const hasRealActivity = business.activities.some(a => !a.firmActCode.replace(/\D/g, '').startsWith(FARMER_SPECIAL_REGIME_CODE))
+  if (!hasRealActivity) {
     return { score: 0, reasons: [] }
   }
 
