@@ -524,9 +524,15 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
                   required
                 >
                   <option value="">-- Επιλέξτε πελάτη --</option>
-                  {customers.slice(0, 50).map((c) => (
-                    <option key={c.id} value={c.id}>{c.last_name} {c.first_name} {c.phone ? `(${c.phone})` : ''}</option>
-                  ))}
+                  {(() => {
+                    const top50 = customers.slice(0, 50)
+                    const current = booking?.customer_id && !top50.find(c => c.id === booking.customer_id)
+                      ? customers.find(c => c.id === booking.customer_id)
+                      : null
+                    return (current ? [current, ...top50] : top50).map((c) => (
+                      <option key={c.id} value={c.id}>{c.last_name} {c.first_name} {c.phone ? `(${c.phone})` : ''}</option>
+                    ))
+                  })()}
                 </select>
               </div>
             )}
