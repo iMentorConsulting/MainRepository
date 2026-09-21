@@ -45,14 +45,21 @@ ERMIS_SESSION_URL = os.getenv(
 SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://consult.i-mentor.gr")
 
 # Grammatical gender of consultants → correct Greek article (Ο/Η)
-_FEMININE_CONSULTANTS = {"ELEFTHERIA", "STELLA", "VALLIA", "SOFIA", "ΕΛΕΥΘΕΡΙΑ", "ΣΤΕΛΛΑ", "ΒΑΛΙΑ", "ΒΑΛΛΙΑ", "ΣΟΦΙΑ"}
+_FEMININE_CONSULTANTS = {"ELEFTHERIA", "STELLA", "VALLIA", "SOFIA",
+                         "ΕΛΕΥΘΕΡΙΑ", "ΣΤΕΛΛΑ", "ΒΑΛΙΑ", "ΒΑΛΛΙΑ", "ΣΟΦΙΑ",
+                         "ΣΤΡΙΛΙΓΚΑ ΕΛΕΥΘΕΡΙΑ"}
 _MASCULINE_CONSULTANTS = {"HARIS", "CHRISTOS", "ΧΑΡΗΣ", "ΧΡΗΣΤΟΣ"}
+
+
+def _strip_gr_accents(s: str) -> str:
+    import unicodedata
+    return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 
 def _consultant_article(name: Optional[str]) -> str:
     if not name:
         return "ο/η"
-    n = name.strip().upper()
+    n = _strip_gr_accents(name.strip()).upper()
     if n in _FEMININE_CONSULTANTS:
         return "η"
     if n in _MASCULINE_CONSULTANTS:

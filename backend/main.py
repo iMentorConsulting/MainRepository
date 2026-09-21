@@ -1496,6 +1496,23 @@ try:
 except Exception as _e:
     print(f"[migration] cm_leads finance_sent skipped: {_e}", flush=True)
 
+# Consultant name normalisation: replace ELEFTHERIA code name and fix accent typo
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text(
+            "UPDATE cm_leads SET assigned_name = 'Στριλιγκά Ελευθερία' WHERE assigned_name = 'ELEFTHERIA'"
+        ))
+        _conn.execute(_text(
+            "UPDATE cm_leads SET assigned_name = 'Στριλιγκά Ελευθερία' WHERE assigned_name = 'Στριλιγκά Ελευθεριά'"
+        ))
+        _conn.execute(_text(
+            "UPDATE cm_users SET full_name = 'Στριλιγκά Ελευθερία' WHERE full_name = 'Στριλιγκά Ελευθεριά'"
+        ))
+        _conn.commit()
+    print("[migration] Consultant name normalisation done", flush=True)
+except Exception as _e:
+    print(f"[migration] Consultant name normalisation skipped: {_e}", flush=True)
+
 
 @app.on_event("shutdown")
 def _shutdown_scheduler():
