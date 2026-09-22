@@ -188,5 +188,6 @@ export const getBeds24Rooms = () => api.get('/beds24/rooms')
 export const mapUnitToBeds24 = (unitId, data) => api.put(`/beds24/units/${unitId}/mapping`, data)
 export const pushRatesToBeds24 = (unitId) => api.post(`/beds24/push-rates/${unitId}`)
 export const syncBookingsFromBeds24 = () => api.post('/beds24/sync-bookings')
+export const getBeds24Debug = () => api.get('/beds24/debug')
 
 export default api

@@ -11,7 +11,7 @@ import {
   getChannelRates, createChannelRate, updateChannelRate, deleteChannelRate,
   testBeds24Connection, getBeds24Status, getBeds24Properties,
   getBeds24Rooms, mapUnitToBeds24,
-  pushRatesToBeds24, syncBookingsFromBeds24,
+  pushRatesToBeds24, syncBookingsFromBeds24, getBeds24Debug,
 } from '../api'
 
 const BASE_URL = window.location.origin
@@ -487,6 +487,8 @@ function Beds24Section({ units }) {
   const [syncing, setSyncing] = useState(false)
   const [beds24Props, setBeds24Props] = useState([])
   const [propsLoaded, setPropsLoaded] = useState(false)
+  const [debugInfo, setDebugInfo] = useState(null)
+  const [debugging, setDebugging] = useState(false)
 
   useEffect(() => {
     getBeds24Status().then(r => setStatus(r.data)).catch(() => {})
@@ -531,6 +533,18 @@ function Beds24Section({ units }) {
       toast.error(err.response?.data?.detail || 'Σφάλμα συγχρονισμού')
     } finally {
       setSyncing(false)
+    }
+  }
+
+  const handleDebug = async () => {
+    setDebugging(true)
+    try {
+      const r = await getBeds24Debug()
+      setDebugInfo(r.data)
+    } catch (err) {
+      setDebugInfo({ error: err.response?.data?.detail || err.message })
+    } finally {
+      setDebugging(false)
     }
   }
 
@@ -636,6 +650,28 @@ function Beds24Section({ units }) {
               </div>
             )}
           </div>
+
+          {/* Debug panel */}
+          {anyConnected && (
+            <div className="pt-1">
+              <button onClick={handleDebug} disabled={debugging}
+                className="text-xs text-gray-500 underline hover:text-gray-700 disabled:opacity-50">
+                {debugging ? 'Έλεγχος…' : '🔍 Debug: έλεγχος token & scopes'}
+              </button>
+              {debugInfo && (
+                <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-mono space-y-1 max-h-64 overflow-y-auto">
+                  {Object.entries(debugInfo).map(([k, v]) => (
+                    <div key={k} className="flex gap-2">
+                      <span className="text-gray-500 shrink-0">{k}:</span>
+                      <span className={`break-all ${k.includes('status') && v !== 200 ? 'text-red-600 font-bold' : 'text-gray-800'}`}>
+                        {typeof v === 'object' ? JSON.stringify(v) : String(v)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Per-unit mapping */}
           {anyConnected && units.length > 0 && (
