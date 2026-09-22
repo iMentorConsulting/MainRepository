@@ -623,7 +623,7 @@ function Beds24Section({ units }) {
                     Write {status.invite_flow ? '✅ (invite flow)' : status.v1_connected ? '✅ (V1 key)' : '⚠️ χρειάζεται Invite Code με write scopes'}
                   </span>
                 </div>
-                {status.v1_connected && (
+                {(status.invite_flow || status.v1_connected) && (
                   <button onClick={handleSyncBookings} disabled={syncing}
                     className="flex items-center gap-1.5 text-xs font-medium bg-teal-600 text-white px-3 py-1.5 rounded-lg hover:bg-teal-700 disabled:opacity-50 transition-colors">
                     <ArrowPathIcon className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />

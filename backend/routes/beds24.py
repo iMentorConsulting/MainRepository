@@ -384,8 +384,15 @@ def push_rates(
 
 @router.post("/sync-bookings")
 def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Pull bookings from Beds24 and create them in iStay (v1 API)."""
-    v1_key = _get_v1_key(tenant, db)
+    """Pull bookings from Beds24 and create them in iStay (V2 preferred, V1 fallback)."""
+    settings = _get_settings(tenant, db)
+
+    # Prefer V2 invite flow; fall back to V1 key
+    use_v2 = bool(settings.beds24_refresh_token or settings.beds24_api_key)
+    v1_key = settings.beds24_v1_api_key if not use_v2 else None
+
+    if not use_v2 and not v1_key:
+        raise HTTPException(status_code=400, detail="Beds24 not connected.")
 
     units = db.query(Unit).filter(
         Unit.tenant == tenant,
@@ -398,24 +405,41 @@ def sync_bookings(db: Session = Depends(get_db), tenant: str = Depends(get_tenan
     errors = []
     today = date.today()
 
+    # Get V2 access token once for all units (avoid repeated refresh calls)
+    v2_token = None
+    if use_v2:
+        try:
+            v2_token = _get_v2_token(tenant, db)
+        except HTTPException as exc:
+            raise HTTPException(status_code=502, detail=f"Beds24 token error: {exc.detail}")
+
     for unit in units:
         try:
-            r = requests.post(
-                f"{V1_BASE}/getBookings",
-                json={
-                    **_v1_auth(v1_key),
-                    "propId": unit.beds24_prop_id,
-                    "arrivalFrom": today.isoformat(),
-                },
-                timeout=20,
-            )
+            if v2_token:
+                # V2: GET /bookings?propId=...&arrivalFrom=...
+                r = requests.get(
+                    f"{V2_BASE}/bookings",
+                    headers=_v2_headers(v2_token),
+                    params={"propId": unit.beds24_prop_id, "arrivalFrom": today.isoformat()},
+                    timeout=20,
+                )
+            else:
+                r = requests.post(
+                    f"{V1_BASE}/getBookings",
+                    json={**_v1_auth(v1_key), "propId": unit.beds24_prop_id, "arrivalFrom": today.isoformat()},
+                    timeout=20,
+                )
             r.raise_for_status()
         except requests.RequestException as exc:
             errors.append(f"Unit {unit.id}: {exc}")
             continue
 
         data = r.json()
-        bookings_list = data.get("getBookings", data) if isinstance(data, dict) else data
+        # V2 returns {"data": [...]}; V1 returns {"getBookings": [...]}
+        if v2_token:
+            bookings_list = data.get("data", data) if isinstance(data, dict) else data
+        else:
+            bookings_list = data.get("getBookings", data) if isinstance(data, dict) else data
         if not isinstance(bookings_list, list):
             bookings_list = []
 
