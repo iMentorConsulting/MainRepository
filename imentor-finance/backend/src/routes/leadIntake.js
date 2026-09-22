@@ -63,16 +63,19 @@ function normalizeFieldNames(raw) {
   }
 
   // customer_name aliases
-  if (!d.customer_name) d.customer_name = d.name || d.client_name || d.client || d.onomasia || d.pelatis || null;
+  if (!d.customer_name) d.customer_name = d.client_name || d.name || d.client || d.onomasia || d.pelatis || null;
 
   // vat_number aliases
-  if (!d.vat_number) d.vat_number = d.afm || d.tax_id || d.tax_number || null;
+  if (!d.vat_number) d.vat_number = d.client_vat || d.afm || d.tax_id || d.tax_number || null;
 
   // phone aliases
-  if (!d.phone) d.phone = d.mobile || d.tel || d.thl || d.telephone || d.kinito || null;
+  if (!d.phone) d.phone = d.client_phone || d.mobile || d.tel || d.thl || d.telephone || d.kinito || null;
 
   // email aliases
-  if (!d.email) d.email = d.email_address || d.mail || null;
+  if (!d.email) d.email = d.client_email || d.email_address || d.mail || null;
+
+  // sales_agent aliases
+  if (!d.sales_agent) d.sales_agent = d.sent_by || null;
 
   // vat_amount aliases
   if (!d.vat_amount) d.vat_amount = d.fpa || d.vat || d.tax_amount || d.fpa_amount || null;
@@ -98,10 +101,7 @@ function normalizeFieldNames(raw) {
 // ── POST /api/lead-intake  — called by external systems ───────────────────────
 router.post('/', requireLeadApiKey, async (req, res) => {
   try {
-    console.log('[lead-intake] RAW KEYS:', Object.keys(req.body || {}).join(', '));
-    console.log('[lead-intake] RAW BODY:', JSON.stringify(req.body));
     const data = sanitize(normalizeFieldNames(req.body));
-    console.log('[lead-intake] AFTER NORMALIZE — vat_number:', data.vat_number, '| phone:', data.phone, '| email:', data.email);
     const { external_id } = data;
 
     // Idempotency: return existing income if already processed
