@@ -98,7 +98,10 @@ function normalizeFieldNames(raw) {
 // ── POST /api/lead-intake  — called by external systems ───────────────────────
 router.post('/', requireLeadApiKey, async (req, res) => {
   try {
+    console.log('[lead-intake] RAW KEYS:', Object.keys(req.body || {}).join(', '));
+    console.log('[lead-intake] RAW BODY:', JSON.stringify(req.body));
     const data = sanitize(normalizeFieldNames(req.body));
+    console.log('[lead-intake] AFTER NORMALIZE — vat_number:', data.vat_number, '| phone:', data.phone, '| email:', data.email);
     const { external_id } = data;
 
     // Idempotency: return existing income if already processed
