@@ -77,6 +77,10 @@ function normalizeFieldNames(raw) {
   // sales_agent aliases
   if (!d.sales_agent) d.sales_agent = d.sent_by || null;
 
+  // amount_application / amount_implementation aliases (Εξωδικαστικός sends deal_application_fee / deal_success_fee)
+  if (!d.amount_application) d.amount_application = d.deal_application_fee || null;
+  if (!d.amount_implementation) d.amount_implementation = d.deal_success_fee || null;
+
   // vat_amount aliases
   if (!d.vat_amount) d.vat_amount = d.fpa || d.vat || d.tax_amount || d.fpa_amount || null;
 
@@ -101,8 +105,6 @@ function normalizeFieldNames(raw) {
 // ── POST /api/lead-intake  — called by external systems ───────────────────────
 router.post('/', requireLeadApiKey, async (req, res) => {
   try {
-    console.log('[lead-intake] RAW KEYS:', Object.keys(req.body || {}).join(', '));
-    console.log('[lead-intake] RAW BODY:', JSON.stringify(req.body));
     const data = sanitize(normalizeFieldNames(req.body));
     const { external_id } = data;
 
