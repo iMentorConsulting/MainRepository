@@ -16,6 +16,7 @@ import ServiceAgreementsPage from './pages/ServiceAgreements/ServiceAgreementsPa
 import CustomersPage from './pages/Customers/CustomersPage';
 import RecurringExpensesPage from './pages/Expenses/RecurringExpensesPage';
 import LeadIntakePage from './pages/LeadIntake/LeadIntakePage';
+import PaymentNotifier from './components/PaymentNotifier';
 
 function ProtectedRoute({ children }) {
   const { isAuthenticated } = useAuth();
@@ -50,6 +51,7 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <AppRoutes />
+        <PaymentNotifier />
         <Toaster position="top-right" toastOptions={{ duration: 4000 }} />
       </BrowserRouter>
     </AuthProvider>
