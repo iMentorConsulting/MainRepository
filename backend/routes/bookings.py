@@ -387,9 +387,11 @@ def reply_via_airbnb(booking_id: int, body: dict, db: Session = Depends(get_db),
         channel="airbnb",
         direction="out",
         subject=f"Re: {booking.unit.name if booking.unit else 'stay'}",
+        body=message,
         body_preview=message[:300],
         relay_email=booking.reply_email,
         sent_at=dt.utcnow(),
+        is_read=True,
     )
     db.add(comm)
     db.commit()
