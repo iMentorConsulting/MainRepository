@@ -219,35 +219,69 @@ def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant))
         try:
             token = _get_v2_token(tenant, db)
 
-            # Fetch all rooms directly — avoids needing read:properties scope
-            rr = requests.get(
-                f"{V2_BASE}/inventory/rooms",
-                headers=_v2_headers(token),
-                timeout=15,
-            )
-            rr.raise_for_status()
-            rd = rr.json()
-            rooms_raw = rd.get("data", rd) if isinstance(rd, dict) else rd
-            if not isinstance(rooms_raw, list):
-                rooms_raw = []
+            # Try to get all properties first
+            prop_ids: list = []
+            prop_names: dict = {}
+            try:
+                rp = requests.get(f"{V2_BASE}/properties", headers=_v2_headers(token), timeout=15)
+                if rp.ok:
+                    pd = rp.json()
+                    props_list = pd.get("data", pd) if isinstance(pd, dict) else pd
+                    if isinstance(props_list, list):
+                        for p in props_list:
+                            pid = p.get("propId") or p.get("id")
+                            if pid:
+                                prop_ids.append(pid)
+                                prop_names[pid] = p.get("name", f"Property {pid}")
+            except Exception:
+                pass
 
-            # Group rooms by propId
-            props_map: dict = {}
-            for rm in rooms_raw:
-                prop_id = rm.get("propId") or rm.get("propid")
-                if not prop_id:
-                    continue
-                if prop_id not in props_map:
-                    props_map[prop_id] = {
-                        "propId": prop_id,
-                        "propName": rm.get("propName") or rm.get("propname") or f"Property {prop_id}",
-                        "rooms": [],
-                    }
-                props_map[prop_id]["rooms"].append({
-                    "roomId": rm.get("roomId") or rm.get("roomid") or rm.get("id"),
-                    "roomName": rm.get("name") or rm.get("title") or f"Room {rm.get('roomId', '')}",
+            # Fall back to propIds already stored on local units
+            if not prop_ids:
+                known = db.query(Unit).filter(
+                    Unit.tenant == tenant,
+                    Unit.beds24_prop_id.isnot(None),
+                ).all()
+                for u in known:
+                    if u.beds24_prop_id and u.beds24_prop_id not in prop_ids:
+                        prop_ids.append(u.beds24_prop_id)
+                        prop_names[u.beds24_prop_id] = f"Property {u.beds24_prop_id}"
+
+            if not prop_ids:
+                raise HTTPException(status_code=400, detail=(
+                    "Δεν βρέθηκαν properties. Βεβαιωθείτε ότι το Invite Code περιλαμβάνει "
+                    "read:properties ή write:properties scope."
+                ))
+
+            # Fetch rooms per propId
+            result = []
+            for pid in prop_ids:
+                rr = requests.get(
+                    f"{V2_BASE}/inventory/rooms",
+                    headers=_v2_headers(token),
+                    params={"propId": pid},
+                    timeout=15,
+                )
+                rooms_raw = []
+                if rr.ok:
+                    rd = rr.json()
+                    rooms_raw = rd.get("data", rd) if isinstance(rd, dict) else rd
+                    if not isinstance(rooms_raw, list):
+                        rooms_raw = []
+                result.append({
+                    "propId": pid,
+                    "propName": prop_names.get(pid, f"Property {pid}"),
+                    "rooms": [
+                        {
+                            "roomId": rm.get("roomId") or rm.get("id"),
+                            "roomName": rm.get("name") or rm.get("title") or f"Room {rm.get('roomId', '')}",
+                        }
+                        for rm in rooms_raw
+                    ],
                 })
-            return list(props_map.values())
+            return result
+        except HTTPException:
+            raise
         except requests.RequestException as exc:
             raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
 
