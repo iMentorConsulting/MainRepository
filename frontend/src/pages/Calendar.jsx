@@ -21,8 +21,8 @@ const CHANNEL_LABELS = {
 }
 const BOOKING_CHANNELS = ['airbnb', 'booking', 'direct', 'oga', 'social_tourism', 'other']
 const STATUS_OPACITY = { confirmed: '', pending: 'opacity-60', cancelled: 'opacity-30 line-through' }
-const DAY_W = 48   // wider squares to fit more content
-const ROW_H = 64   // taller rows for name + rate + guests
+const DAY_W = 48
+const ROW_H = 64
 
 export default function Calendar() {
   const navigate = useNavigate()
@@ -33,6 +33,7 @@ export default function Calendar() {
   const scrollRef = useRef(null)
 
   const [drag, setDrag] = useState(null)   // { unitId, startDay, endDay }
+  const dragRef = useRef(null)             // mirror for touch handlers (avoid stale closure)
   const [popup, setPopup] = useState(null)
   const [modal, setModal] = useState(null)
 
@@ -54,31 +55,25 @@ export default function Calendar() {
     getPricingRates({ year }).then(r => setRates(r.data)).catch(() => {})
   }, [year])
 
-  // Cancel drag on window mouseup (fires after cell onMouseUp so popup is shown first)
+  // Cancel drag on window mouseup / touchcancel
   useEffect(() => {
-    const up = () => setDrag(null)
+    const up = () => { setDrag(null); dragRef.current = null }
     window.addEventListener('mouseup', up)
-    return () => window.removeEventListener('mouseup', up)
+    window.addEventListener('touchcancel', up)
+    return () => { window.removeEventListener('mouseup', up); window.removeEventListener('touchcancel', up) }
   }, [])
+
+  const updateDrag = (val) => {
+    const next = typeof val === 'function' ? val(dragRef.current) : val
+    dragRef.current = next
+    setDrag(next)
+  }
 
   const bookingsByUnit = {}
   units.forEach(u => { bookingsByUnit[u.id] = [] })
   bookings.forEach(b => { if (bookingsByUnit[b.unit_id] !== undefined) bookingsByUnit[b.unit_id].push(b) })
 
-  const today = format(new Date(), 'yyyy-MM-dd')
-  const selMin = drag ? Math.min(drag.startDay, drag.endDay) : null
-  const selMax = drag ? Math.max(drag.startDay, drag.endDay) : null
-
-  // Find pricing rate for a unit+date (unit-specific wins over global)
-  const findRate = useCallback((unitId, dateStr) => {
-    const match = rates.filter(r =>
-      dateStr >= r.date_from && dateStr <= r.date_to &&
-      (r.unit_id === unitId || !r.unit_id)
-    ).sort((a, b) => (b.unit_id ? 1 : 0) - (a.unit_id ? 1 : 0))
-    return match[0] || null
-  }, [rates])
-
-  // Build a set of dates covered by any booking per unit (for empty-cell rate display)
+  // Set of dates covered by bookings per unit (for empty-cell rate display)
   const bookedDates = {}
   units.forEach(u => { bookedDates[u.id] = new Set() })
   bookings.forEach(b => {
@@ -93,32 +88,78 @@ export default function Calendar() {
     }
   })
 
-  const handleDayMouseDown = (e, unitId, dayNum) => {
+  const today = format(new Date(), 'yyyy-MM-dd')
+  const selMin = drag ? Math.min(drag.startDay, drag.endDay) : null
+  const selMax = drag ? Math.max(drag.startDay, drag.endDay) : null
+
+  const findRate = useCallback((unitId, dateStr) => {
+    const match = rates.filter(r =>
+      dateStr >= r.date_from && dateStr <= r.date_to &&
+      (r.unit_id === unitId || !r.unit_id)
+    ).sort((a, b) => (b.unit_id ? 1 : 0) - (a.unit_id ? 1 : 0))
+    return match[0] || null
+  }, [rates])
+
+  // ── Mouse handlers (desktop) ──
+  const handleMouseDown = (e, unitId, dayNum) => {
     e.preventDefault()
     setPopup(null)
-    setDrag({ unitId, startDay: dayNum, endDay: dayNum })
+    updateDrag({ unitId, startDay: dayNum, endDay: dayNum })
   }
-
-  const handleDayMouseEnter = (unitId, dayNum) => {
-    if (drag && drag.unitId === unitId) {
-      setDrag(d => d ? { ...d, endDay: dayNum } : d)
+  const handleMouseEnter = (unitId, dayNum) => {
+    if (dragRef.current?.unitId === unitId) {
+      updateDrag(d => d ? { ...d, endDay: dayNum } : d)
     }
   }
-
-  const handleDayMouseUp = (e, unitId, dayNum, unitName) => {
-    if (!drag || drag.unitId !== unitId) return
-    const min = Math.min(drag.startDay, dayNum)
-    const max = Math.max(drag.startDay, dayNum)
+  const handleMouseUp = (e, unitId, dayNum, unitName) => {
+    const d = dragRef.current
+    if (!d || d.unitId !== unitId) return
+    const min = Math.min(d.startDay, dayNum)
+    const max = Math.max(d.startDay, dayNum)
     const checkIn = format(new Date(year, mon, min), 'yyyy-MM-dd')
     const checkOut = format(new Date(year, mon, max + 1), 'yyyy-MM-dd')
-    setDrag(null)
+    updateDrag(null)
     if (checkIn >= checkOut) return
     const rect = e.currentTarget.getBoundingClientRect()
     setPopup({ unitId, checkIn, checkOut, unitName, top: rect.bottom + 6, left: rect.left })
   }
 
+  // ── Touch handlers (mobile) ──
+  const handleTouchStart = (e, unitId, dayNum) => {
+    e.preventDefault() // prevent scroll while selecting
+    setPopup(null)
+    updateDrag({ unitId, startDay: dayNum, endDay: dayNum })
+  }
+  const handleTouchMove = (e) => {
+    e.preventDefault()
+    const t = e.touches[0]
+    const el = document.elementFromPoint(t.clientX, t.clientY)
+    const uid = Number(el?.dataset?.uid)
+    const day = Number(el?.dataset?.day)
+    if (uid && day && dragRef.current?.unitId === uid) {
+      updateDrag(d => d ? { ...d, endDay: day } : d)
+    }
+  }
+  const handleTouchEnd = (e, unitId, unitName) => {
+    e.preventDefault()
+    const d = dragRef.current
+    if (!d || d.unitId !== unitId) return
+    const t = e.changedTouches[0]
+    // Find which cell the touch ended on
+    const el = document.elementFromPoint(t.clientX, t.clientY)
+    const endDay = Number(el?.dataset?.day) || d.endDay
+    const min = Math.min(d.startDay, endDay)
+    const max = Math.max(d.startDay, endDay)
+    const checkIn = format(new Date(year, mon, min), 'yyyy-MM-dd')
+    const checkOut = format(new Date(year, mon, max + 1), 'yyyy-MM-dd')
+    updateDrag(null)
+    if (checkIn >= checkOut) return
+    const safeLeft = Math.min(Math.max(t.clientX - 110, 8), window.innerWidth - 240)
+    setPopup({ unitId, checkIn, checkOut, unitName, top: t.clientY + 12, left: safeLeft })
+  }
+
   return (
-    <div className="p-4 md:p-6 space-y-4" onMouseLeave={() => setDrag(null)}>
+    <div className="p-4 md:p-6 space-y-4" onMouseLeave={() => { setDrag(null); dragRef.current = null }}>
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-800">Ημερολόγιο</h2>
         <div className="flex items-center gap-2">
@@ -142,7 +183,7 @@ export default function Calendar() {
         ))}
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-gray-500" /> Μπλοκ</span>
         <span className="flex items-center gap-1 text-gray-400">✓ = Τιμολογήθηκε</span>
-        <span className="text-gray-400 ml-2">· Σύρτε για νέα κράτηση / μπλοκ</span>
+        <span className="text-gray-400 ml-2 hidden sm:inline">· Σύρτε / πατήστε για νέα κράτηση / μπλοκ</span>
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white select-none" ref={scrollRef}>
@@ -167,7 +208,7 @@ export default function Calendar() {
 
           {/* Unit rows */}
           {units.map(u => (
-            <div key={u.id} className="flex border-b border-gray-100 hover:bg-gray-50/30">
+            <div key={u.id} className="flex border-b border-gray-100">
               <div className="w-40 flex-shrink-0 px-3 border-r border-gray-200 flex items-center" style={{ height: `${ROW_H}px` }}>
                 <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
               </div>
@@ -183,20 +224,27 @@ export default function Calendar() {
                   return (
                     <div
                       key={ds}
+                      data-uid={String(u.id)}
+                      data-day={String(dayNum)}
                       style={{ width: `${DAY_W}px`, height: `${ROW_H}px` }}
                       className={`flex-shrink-0 border-r border-gray-100 cursor-crosshair relative transition-colors ${
                         isSelected ? 'bg-blue-200' :
                         isToday ? 'bg-blue-50' :
                         isWeekend ? 'bg-gray-50' : ''
                       }`}
-                      onMouseDown={e => handleDayMouseDown(e, u.id, dayNum)}
-                      onMouseEnter={() => handleDayMouseEnter(u.id, dayNum)}
-                      onMouseUp={e => handleDayMouseUp(e, u.id, dayNum, u.name)}
+                      onMouseDown={e => handleMouseDown(e, u.id, dayNum)}
+                      onMouseEnter={() => handleMouseEnter(u.id, dayNum)}
+                      onMouseUp={e => handleMouseUp(e, u.id, dayNum, u.name)}
+                      onTouchStart={e => handleTouchStart(e, u.id, dayNum)}
+                      onTouchMove={handleTouchMove}
+                      onTouchEnd={e => handleTouchEnd(e, u.id, u.name)}
                     >
-                      {/* Pricing rate on vacant cells only */}
+                      {/* Pricing rate on vacant cells — visible gray */}
                       {rate && (
-                        <span className="absolute bottom-1 left-0 right-0 text-center text-gray-300 pointer-events-none"
-                          style={{ fontSize: '10px', lineHeight: 1 }}>
+                        <span
+                          className="absolute bottom-1 left-0 right-0 text-center text-gray-400 pointer-events-none font-medium"
+                          style={{ fontSize: '11px', lineHeight: 1 }}
+                        >
                           €{Math.round(rate.price_per_night)}
                         </span>
                       )}
@@ -214,7 +262,7 @@ export default function Calendar() {
                   const dispStart = bIn < monthStart ? monthStart : bIn
                   const dispEnd = bOut > monthEnd ? monthEnd : bOut
                   const startDay = dispStart.getDate() - 1
-                  // Fix: if dispEnd equals monthEnd (first of next month), use daysInMonth as end index
+                  // Fix: bookings ending exactly on monthEnd (first of next month) must use daysInMonth
                   const endDay = dispEnd >= monthEnd ? daysInMonth : dispEnd.getDate() - 1
                   const span = endDay - startDay
                   if (span <= 0) return null
@@ -226,9 +274,8 @@ export default function Calendar() {
                   const dailyRate = !isBlocked && nights > 0 && b.total_price > 0
                     ? Math.round(b.total_price / nights)
                     : null
-                  // For blocked days, show the configured pricing rate
                   const blockedRate = isBlocked ? findRate(u.id, b.check_in) : null
-                  const showSecondLine = width > 46 // enough room for rate/guests
+                  const wide = width >= 44
 
                   return (
                     <div
@@ -239,23 +286,20 @@ export default function Calendar() {
                       }
                       onClick={() => !isBlocked && navigate(`/bookings?edit=${b.id}`)}
                       className={`absolute rounded text-white flex flex-col justify-center px-1.5 overflow-hidden transition-all pointer-events-auto
-                        ${isBlocked ? 'cursor-default opacity-80 bg-gray-500' : `cursor-pointer hover:brightness-110 ${CHANNEL_BG[b.channel] || 'bg-gray-400'}`}
+                        ${isBlocked ? 'cursor-default bg-gray-500' : `cursor-pointer hover:brightness-110 ${CHANNEL_BG[b.channel] || 'bg-gray-400'}`}
                         ${STATUS_OPACITY[b.status]}`}
                       style={{ top: '4px', left: `${left}px`, width: `${width}px`, height: `${ROW_H - 8}px`, zIndex: 1 }}
                     >
-                      {/* Name / lock line */}
+                      {/* Name */}
                       <span className="truncate font-semibold leading-tight" style={{ fontSize: '11px' }}>
                         {isBlocked ? '🔒 Μπλοκ' : `${b.customer.last_name}${b.is_billed ? ' ✓' : ''}`}
                       </span>
-
-                      {/* Rate + guests line — always show when there's room */}
-                      {showSecondLine && (
-                        <span className="truncate leading-tight text-white/75 flex items-center gap-1.5" style={{ fontSize: '10px' }}>
+                      {/* Rate + guests — always show when block is wide enough */}
+                      {wide && (
+                        <span className="leading-tight text-white/80" style={{ fontSize: '10px' }}>
                           {isBlocked
-                            ? (blockedRate ? `€${Math.round(blockedRate.price_per_night)}` : null)
-                            : dailyRate
-                              ? <>€{dailyRate}/ν {b.guests > 0 && <span className="opacity-80">·{b.guests}👤</span>}</>
-                              : (b.guests > 0 ? `${b.guests}👤` : null)
+                            ? (blockedRate ? `€${Math.round(blockedRate.price_per_night)}` : '—')
+                            : `${dailyRate ? `€${dailyRate}/ν` : ''}${b.guests > 0 ? ` ·${b.guests}👤` : ''}`
                           }
                         </span>
                       )}
@@ -298,12 +342,20 @@ function SelectionPopup({ popup, onBook, onBlock, onClose }) {
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
-    const t = setTimeout(() => document.addEventListener('mousedown', handler), 100)
-    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
+    // Delay so the touch/mouseup that triggered the popup doesn't immediately close it
+    const t = setTimeout(() => {
+      document.addEventListener('mousedown', handler)
+      document.addEventListener('touchstart', handler)
+    }, 150)
+    return () => {
+      clearTimeout(t)
+      document.removeEventListener('mousedown', handler)
+      document.removeEventListener('touchstart', handler)
+    }
   }, [onClose])
 
-  const safeTop = Math.min(popup.top, window.innerHeight - 170)
-  const safeLeft = Math.min(popup.left, window.innerWidth - 250)
+  const safeTop = Math.min(popup.top, window.innerHeight - 180)
+  const safeLeft = Math.min(Math.max(popup.left, 8), window.innerWidth - 240)
 
   return (
     <div
