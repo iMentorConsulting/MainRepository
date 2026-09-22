@@ -228,7 +228,10 @@ export default function Calendar() {
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6
                   const isSelected = drag?.unitId === u.id && dayNum >= selMin && dayNum <= selMax
                   const isBooked = bookedDates[u.id]?.has(ds)
-                  const rate = !isBooked ? findRate(u.id, ds) : null
+                  const seasonalRate = !isBooked ? findRate(u.id, ds) : null
+                  const displayPrice = seasonalRate
+                    ? Math.round(seasonalRate.price_per_night)
+                    : (!isBooked && u.base_price > 0 ? Math.round(u.base_price) : null)
                   return (
                     <div
                       key={ds}
@@ -247,13 +250,13 @@ export default function Calendar() {
                       onTouchMove={handleTouchMove}
                       onTouchEnd={e => handleTouchEnd(e, u.id, u.name)}
                     >
-                      {/* Rate on vacant cells: configured price, or dash if no rule set */}
-                      {!isBooked && (
+                      {/* Rate on vacant cells: seasonal rule > unit base_price > nothing */}
+                      {!isBooked && displayPrice && (
                         <span
-                          className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${rate ? 'text-gray-500' : 'text-gray-300'}`}
+                          className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${seasonalRate ? 'text-gray-500' : 'text-gray-300'}`}
                           style={{ fontSize: '11px', lineHeight: 1 }}
                         >
-                          {rate ? `€${Math.round(rate.price_per_night)}` : '–'}
+                          €{displayPrice}
                         </span>
                       )}
                     </div>
@@ -282,7 +285,9 @@ export default function Calendar() {
                   const dailyRate = !isBlocked && nights > 0 && b.total_price > 0
                     ? Math.round(b.total_price / nights)
                     : null
-                  const blockedRate = isBlocked ? findRate(u.id, b.check_in) : null
+                  const blockedSeasonalRate = isBlocked ? findRate(u.id, b.check_in) : null
+                  const blockedRate = blockedSeasonalRate?.price_per_night
+                    ?? (isBlocked && u.base_price > 0 ? u.base_price : null)
                   const wide = width >= 44
 
                   return (
@@ -306,7 +311,7 @@ export default function Calendar() {
                       {wide && (
                         <span className="leading-tight text-white/80" style={{ fontSize: '10px' }}>
                           {isBlocked
-                            ? (blockedRate ? `€${Math.round(blockedRate.price_per_night)}` : '—')
+                            ? (blockedRate ? `€${Math.round(blockedRate)}` : '—')
                             : [dailyRate ? `€${dailyRate}/ν` : null, b.guests > 0 ? `${b.guests}👤` : null].filter(Boolean).join(' · ')
                           }
                         </span>
