@@ -223,12 +223,23 @@ function parseGsisResponse(text: string, afm: string): GsisBusinessData | null {
   }
 }
 
+// Fire-and-forget — logs every AADE lookup regardless of which route/flow
+// triggered it, so "how many times have we looked up this ΑΦΜ" and AADE
+// quota usage can be answered later without needing to check every caller.
+function logAadeLookup(afm: string, success: boolean, errorCode?: string) {
+  prisma.aadeLookupLog.create({ data: { afm, success, errorCode: errorCode || null } })
+    .catch(err => console.error('[GSIS] lookup log write failed:', err?.message))
+}
+
 export async function lookupAfm(afm: string): Promise<GsisBusinessData | null> {
   try {
     const text = await fetchFromGsis(afm)
-    return parseGsisResponse(text, afm)
+    const result = parseGsisResponse(text, afm)
+    logAadeLookup(afm, result !== null)
+    return result
   } catch (e: any) {
     const msg: string = e?.message || String(e)
+    logAadeLookup(afm, false, msg.slice(0, 200))
     // Quota errors must bubble up so the batch stops without marking the record as failed
     if (GSIS_QUOTA_ERRORS.has(msg) || msg === 'RG_WS_PUBLIC_MONTHLY_LIMIT_EXCEEDED') throw e
     // For all other errors (GSIS error codes, SOAP faults, timeouts, network errors),

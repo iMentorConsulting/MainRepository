@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Megaphone, Webhook } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Megaphone, Webhook, Search } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -29,6 +29,7 @@ const navItems = [
   { href: '/audit-log', label: 'Καταγραφή Ενεργειών', icon: History, adminOnly: true },
   { href: '/businesses-log', label: 'Εισαγωγές Επιχειρήσεων', icon: Building2, adminOnly: true },
   { href: '/webhook-logs', label: 'Webhook Logs', icon: Webhook, adminOnly: true },
+  { href: '/aade-lookups', label: 'Αναζητήσεις ΑΑΔΕ', icon: Search, adminOnly: true },
   { href: '/wordpress', label: 'WordPress Templates', icon: Globe, adminOnly: true },
   { href: '/settings', label: 'Ρυθμίσεις', icon: Settings, adminOnly: true },
 ]
