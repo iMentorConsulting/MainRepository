@@ -119,7 +119,6 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       setValue('service_agreement_id', String(created.id));
       setValue('service_type', created.service_type);
       if (created.amount_application) setValue('amount_application', created.amount_application);
-      if (created.amount_implementation) setValue('amount_implementation', created.amount_implementation);
       setShowNewAgreementForm(false);
       setNewSA({ service_type: '', amount_application: '', amount_implementation: '' });
       toast.success('Νέα συμφωνία δημιουργήθηκε!');
@@ -298,7 +297,6 @@ export default function IncomeForm({ record, onSave, onCancel }) {
                     if (sa) {
                       if (sa.service_type) setValue('service_type', sa.service_type);
                       if (sa.amount_application) setValue('amount_application', sa.amount_application);
-                      if (sa.amount_implementation) setValue('amount_implementation', sa.amount_implementation);
                       if (sa.investment_height) setValue('investment_height', sa.investment_height);
                     }
                   }
