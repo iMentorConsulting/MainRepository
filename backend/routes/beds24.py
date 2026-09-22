@@ -82,19 +82,16 @@ def _get_settings(tenant: str, db: Session) -> GuestPortalSettings:
 
 
 def _get_v2_token(tenant: str, db: Session) -> str:
-    """Return a valid V2 access token — from invite-code/refresh flow or legacy long-life token."""
+    """Return a valid V2 access token from the invite-code/refresh flow."""
     settings = _get_settings(tenant, db)
     if settings.beds24_refresh_token:
         try:
             return _get_access_token(settings.beds24_refresh_token)
         except ValueError as exc:
             raise HTTPException(status_code=502, detail=f"Beds24 token refresh failed: {exc}")
-    if settings.beds24_api_key:
-        # Legacy long-life token — still works for read
-        return settings.beds24_api_key
     raise HTTPException(
         status_code=400,
-        detail="Beds24 not configured. Use POST /beds24/connect with an invite_code.",
+        detail="Beds24 V2 token not available. Generate a new Invite Code in Beds24 (Settings → Marketplace → API) and reconnect.",
     )
 
 
@@ -166,9 +163,11 @@ def debug_token(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
     settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
     result: dict = {
         "has_refresh_token": bool(settings and settings.beds24_refresh_token),
-        "has_api_key": bool(settings and settings.beds24_api_key),
+        "has_legacy_api_key": bool(settings and settings.beds24_api_key),
+        "has_v1_key": bool(settings and settings.beds24_v1_api_key),
+        "action_needed": "Generate a new Invite Code in Beds24 and reconnect" if not (settings and settings.beds24_refresh_token) else None,
     }
-    if not settings or (not settings.beds24_refresh_token and not settings.beds24_api_key):
+    if not settings or not settings.beds24_refresh_token:
         return result
 
     # Step 1: get access token
@@ -211,7 +210,7 @@ def connection_status(db: Session = Depends(get_db), tenant: str = Depends(get_t
         GuestPortalSettings.tenant == tenant
     ).first()
     return {
-        "v2_connected": bool(settings and (settings.beds24_refresh_token or settings.beds24_api_key)),
+        "v2_connected": bool(settings and settings.beds24_refresh_token),
         "v1_connected": bool(settings and settings.beds24_v1_api_key),
         "invite_flow": bool(settings and settings.beds24_refresh_token),
     }

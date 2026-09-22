@@ -580,11 +580,12 @@ function Beds24Section({ units }) {
               <label className="block text-xs font-medium text-gray-600 mb-1">
                 Invite Code{' '}
                 <span className="text-gray-400 font-normal">(Settings → Marketplace → API → Generate invite code — επιλέξτε write scopes)</span>
-                {status.v2_connected && (
-                  <span className="ml-2 text-green-600">
-                    ✅ Ενεργό{status.invite_flow ? ' (invite flow)' : ' (legacy token)'}
-                  </span>
-                )}
+                {status.v2_connected
+                  ? <span className="ml-2 text-green-600">✅ Ενεργό (refresh token)</span>
+                  : status.v1_connected
+                    ? <span className="ml-2 text-amber-600">⚠️ Χρειάζεται νέο Invite Code για V2</span>
+                    : null
+                }
               </label>
               <div className="relative">
                 <input
