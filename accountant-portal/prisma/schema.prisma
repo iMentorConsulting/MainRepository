@@ -1387,3 +1387,16 @@ model WebhookLog {
 
   @@index([source, createdAt])
 }
+
+// Records every outbound AADE (ΑΑΔΕ webservice) lookup, regardless of which
+// route/flow triggered it — lets an admin answer "how many times have we
+// looked up this ΑΦΜ" and helps diagnose AADE's monthly quota usage.
+model AadeLookupLog {
+  id        String   @id @default(cuid())
+  afm       String
+  success   Boolean
+  errorCode String?
+  createdAt DateTime @default(now())
+
+  @@index([afm, createdAt])
+}
