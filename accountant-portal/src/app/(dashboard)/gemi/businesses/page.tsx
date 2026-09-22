@@ -24,6 +24,10 @@ interface TagOption {
 
 const PAGE_SIZE = 50
 
+// Toggle to bring back the "Εμπλουτισμός ΑΑΔΕ" / "Εμπλουτισμός (Force)"
+// buttons if needed in the future — hidden per request, logic untouched.
+const SHOW_ENRICH_BUTTONS = false
+
 interface GemiBusiness {
   id: string
   afm: string
@@ -671,12 +675,19 @@ function GemiBusinessesPageInner() {
           <p className="text-gray-500 mt-1 text-sm">{total} επιχειρήσεις στη δεξαμενή ΓΕΜΗ</p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <Button variant="outline" size="sm" onClick={() => handleEnrich(false)} loading={enriching} className="border-blue-300 text-blue-700 hover:bg-blue-50">
-            <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός ΑΑΔΕ
-          </Button>
-          <Button variant="outline" size="sm" onClick={() => handleEnrich(true)} loading={enriching} className="border-orange-300 text-orange-700 hover:bg-orange-50" title="Επαναπροσπάθεια και για εγγραφές που απέτυχαν πρόσφατα (π.χ. μετά από αλλαγή κωδικών ΑΑΔΕ)">
-            <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός (Force)
-          </Button>
+          {/* Εμπλουτισμός ΑΑΔΕ / Εμπλουτισμός (Force) buttons hidden per request —
+              handleEnrich() logic kept intact below; just flip SHOW_ENRICH_BUTTONS
+              to bring them back if needed. */}
+          {SHOW_ENRICH_BUTTONS && (
+            <>
+              <Button variant="outline" size="sm" onClick={() => handleEnrich(false)} loading={enriching} className="border-blue-300 text-blue-700 hover:bg-blue-50">
+                <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός ΑΑΔΕ
+              </Button>
+              <Button variant="outline" size="sm" onClick={() => handleEnrich(true)} loading={enriching} className="border-orange-300 text-orange-700 hover:bg-orange-50" title="Επαναπροσπάθεια και για εγγραφές που απέτυχαν πρόσφατα (π.χ. μετά από αλλαγή κωδικών ΑΑΔΕ)">
+                <RefreshCw size={14} className="mr-1.5" />Εμπλουτισμός (Force)
+              </Button>
+            </>
+          )}
           <Button variant="outline" size="sm" onClick={handleBackfillCategories} loading={backfilling} className="border-amber-300 text-amber-700 hover:bg-amber-50">
             <RefreshCw size={14} className="mr-1.5" />Συμπλήρωση Κλάδου
           </Button>
