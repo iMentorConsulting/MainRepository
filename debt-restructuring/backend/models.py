@@ -152,6 +152,8 @@ class FinancePayment(Base):
     source_referral = Column(String, default="")
     work_status = Column(String, default="")
     service_type = Column(String, default="ΕΞΩΔΙΚΑΣΤΙΚΟΣ")
+    deal_application_fee = Column(Float, default=0.0)
+    deal_success_fee = Column(Float, default=0.0)
     address = Column(String, default="")
     city = Column(String, default="")
     sent_by = Column(String, default="")

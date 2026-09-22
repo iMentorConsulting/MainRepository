@@ -157,6 +157,8 @@ export default function FinanceIntakePanel({ caseData }) {
         source_referral: form.source_referral,
         work_status: form.work_status,
         service_type: form.service_type,
+        deal_application_fee: appFee,
+        deal_success_fee: successFee,
         address: form.address,
         city: form.city,
       })
@@ -244,10 +246,14 @@ export default function FinanceIntakePanel({ caseData }) {
               {/* Client info preview */}
               <div className="bg-gray-50 border border-gray-200 rounded px-3 py-2 text-xs text-gray-600 space-y-0.5">
                 <div><span className="font-medium">Πελάτης:</span> {caseData?.client_name || '—'}</div>
-                <div className="flex gap-4">
+                <div className="flex flex-wrap gap-4">
                   <span><span className="font-medium">ΑΦΜ:</span> {caseData?.client_vat || '—'}</span>
                   <span><span className="font-medium">Τηλ:</span> {caseData?.client_phone || '—'}</span>
                   <span><span className="font-medium">Email:</span> {caseData?.client_email || '—'}</span>
+                </div>
+                <div className="flex gap-4 pt-0.5 border-t border-gray-200 mt-1">
+                  <span><span className="font-medium text-green-700">Ποσό Αίτησης:</span> {fmt(appFee)}</span>
+                  <span><span className="font-medium text-blue-700">Ποσό Υλοποίησης:</span> {fmt(successFee)}</span>
                 </div>
               </div>
 

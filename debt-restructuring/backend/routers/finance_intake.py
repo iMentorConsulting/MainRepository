@@ -34,6 +34,8 @@ class FinanceIntakeRequest(BaseModel):
     source_referral: str
     work_status: str
     service_type: Optional[str] = "ΕΞΩΔΙΚΑΣΤΙΚΟΣ"
+    deal_application_fee: Optional[float] = 0.0   # agreed Ποσό Αίτησης from commercial offer
+    deal_success_fee: Optional[float] = 0.0        # agreed Ποσό Υλοποίησης from commercial offer
     address: Optional[str] = ""
     city: Optional[str] = ""
 
@@ -74,6 +76,8 @@ def record_payment(
         "source_referral": req.source_referral,
         "work_status": req.work_status,
         "service_type": req.service_type or "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
+        "deal_application_fee": req.deal_application_fee or 0.0,
+        "deal_success_fee": req.deal_success_fee or 0.0,
         "sent_by": EMPLOYEE_GREEK.get(employee, employee),
         "address": req.address or "",
         "city": req.city or "",
@@ -113,6 +117,8 @@ def record_payment(
         source_referral=req.source_referral,
         work_status=req.work_status,
         service_type=req.service_type or "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
+        deal_application_fee=req.deal_application_fee or 0.0,
+        deal_success_fee=req.deal_success_fee or 0.0,
         address=req.address or "",
         city=req.city or "",
         sent_by=EMPLOYEE_GREEK.get(employee, employee),
