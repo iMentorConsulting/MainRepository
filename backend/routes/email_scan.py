@@ -394,11 +394,12 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     # fallback to subject+booking for old records without message_id
                     existing_comm = None
                     if raw_message_id:
+                        # Primary dedup: each email has a unique Message-ID
                         existing_comm = db.query(GuestCommunication).filter(
                             GuestCommunication.message_id == raw_message_id,
                         ).first()
-                    if not existing_comm:
-                        # Legacy fallback: also skip if exact subject+preview already stored
+                    else:
+                        # No Message-ID on this email — fall back to subject dedup
                         existing_comm = db.query(GuestCommunication).filter(
                             GuestCommunication.booking_id == booking.id,
                             GuestCommunication.subject == subject[:500],
