@@ -1194,7 +1194,7 @@ def _run_lead_reminder_digest():
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=12, minute=0, id="refresh_12")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=22, minute=0, id="refresh_22")
-_scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_digest_09")
+_scheduler.add_job(_run_agent_sla_digest, "cron", day="*/3", hour=9, minute=0, id="sla_digest_09")
 _scheduler.add_job(_run_leads_sheet_sync, "cron", hour=7, minute=0, id="leads_sync_07")
 _scheduler.add_job(_run_lead_reminder_digest, "cron", hour=8, minute=30, id="lead_reminders")
 _backup_hour = int(os.getenv("BACKUP_SCHEDULE_HOUR", "2"))
