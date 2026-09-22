@@ -1170,6 +1170,62 @@ def dedup_leads(
             "deleted_ids": to_delete,
         })
 
+    # Second pass: leads WITHOUT an AFM — group by (phone, program, status, date)
+    no_afm_groups = (
+        db.query(
+            CMLead.phone,
+            CMLead.program,
+            CMLead.status,
+            cast(CMLead.created_at, _Date).label("cdate"),
+            _fn.min(CMLead.id).label("keep_id"),
+            _fn.count(CMLead.id).label("cnt"),
+        )
+        .filter(
+            (CMLead.afm.is_(None)) | (CMLead.afm == ""),
+            CMLead.phone.isnot(None), CMLead.phone != "",
+        )
+        .group_by(CMLead.phone, CMLead.program, CMLead.status, cast(CMLead.created_at, _Date))
+        .having(_fn.count(CMLead.id) > 1)
+        .all()
+    )
+
+    for g in no_afm_groups:
+        dup_leads = (
+            db.query(CMLead.id)
+            .filter(
+                (CMLead.afm.is_(None)) | (CMLead.afm == ""),
+                CMLead.phone == g.phone,
+                CMLead.program == g.program,
+                CMLead.status == g.status,
+                cast(CMLead.created_at, _Date) == g.cdate,
+            )
+            .order_by(CMLead.id.asc())
+            .all()
+        )
+        all_ids = [r[0] for r in dup_leads]
+        to_delete = [i for i in all_ids if i != g.keep_id]
+        if not to_delete:
+            continue
+
+        db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(to_delete)).delete(synchronize_session=False)
+        db.query(CMLeadNotificationLog).filter(CMLeadNotificationLog.lead_id.in_(to_delete)).delete(synchronize_session=False)
+        from models_cases import CMPortalAssignment as _CPA2
+        db.query(_CPA2).filter(_CPA2.cm_lead_id.in_(to_delete)).update(
+            {"cm_lead_id": None}, synchronize_session=False
+        )
+        db.query(CMLead).filter(CMLead.id.in_(to_delete)).delete(synchronize_session=False)
+
+        deleted_total += len(to_delete)
+        groups_affected += 1
+        details.append({
+            "phone": g.phone,
+            "program": g.program,
+            "status": g.status,
+            "date": str(g.cdate),
+            "kept_id": g.keep_id,
+            "deleted_ids": to_delete,
+        })
+
     db.commit()
     return {"ok": True, "groups": groups_affected, "deleted": deleted_total, "details": details}
 
