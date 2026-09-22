@@ -53,6 +53,7 @@ export const createBooking = (data) => api.post('/bookings/', data)
 export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data)
 export const deleteBooking = (id) => api.delete(`/bookings/${id}`)
 export const getBookingChannels = () => api.get('/bookings/channels')
+export const blockDates = (data) => api.post('/bookings/block', data)
 export const saveBookingChannels = (data) => api.put('/bookings/channels', data)
 export const bulkMarkBilled = (ids) => api.put('/bookings/bulk-bill', { ids })
 

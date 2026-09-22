@@ -250,6 +250,45 @@ def create_booking(booking: BookingCreate, db: Session = Depends(get_db), tenant
     return _load(db, obj.id, tenant)
 
 
+@router.post("/block", status_code=201)
+def block_dates(payload: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Block a date range for a unit. Finds or creates a BLOCKED pseudo-customer."""
+    unit_id = payload.get("unit_id")
+    check_in_str = payload.get("check_in")
+    check_out_str = payload.get("check_out")
+    notes = payload.get("notes") or "Μπλοκαρισμένο"
+    if not unit_id or not check_in_str or not check_out_str:
+        raise HTTPException(400, "unit_id, check_in, check_out απαιτούνται")
+    from datetime import date as _date
+    check_in = _date.fromisoformat(check_in_str)
+    check_out = _date.fromisoformat(check_out_str)
+    if check_out <= check_in:
+        raise HTTPException(400, "Η αναχώρηση πρέπει να είναι μετά την άφιξη")
+    overlap = _check_overlap(db, unit_id, check_in, check_out, tenant)
+    if overlap:
+        raise HTTPException(409, f"Σύγκρουση με κράτηση #{overlap.id} ({overlap.check_in} – {overlap.check_out})")
+    blocked_cust = db.query(Customer).filter(
+        Customer.tenant == tenant,
+        Customer.first_name == "BLOCKED",
+        Customer.last_name == "—",
+    ).first()
+    if not blocked_cust:
+        blocked_cust = Customer(tenant=tenant, first_name="BLOCKED", last_name="—")
+        db.add(blocked_cust)
+        db.flush()
+    obj = Booking(
+        tenant=tenant, unit_id=unit_id, customer_id=blocked_cust.id,
+        check_in=check_in, check_out=check_out,
+        channel="blocked", status="confirmed",
+        guests=0, total_price=0.0, commission=0.0, commission_percent=0.0,
+        notes=f"🔒 {notes}", is_billed=False,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return {"id": obj.id, "check_in": str(check_in), "check_out": str(check_out)}
+
+
 DEFAULT_CHANNELS = [
     {"value": "airbnb", "label": "Airbnb", "color": "bg-red-100 text-red-800"},
     {"value": "booking", "label": "Booking.com", "color": "bg-blue-100 text-blue-800"},
