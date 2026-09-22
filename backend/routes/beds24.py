@@ -125,25 +125,7 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
 
     refresh_token = None
     if invite_code:
-        # If it looks like a refresh/access token (long base64) rather than a short invite code,
-        # treat it as a legacy long-life token for backward compat
-        if len(invite_code) > 60 and " " not in invite_code and "-" not in invite_code:
-            # Likely a long-life token — skip exchange, store as legacy
-            settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
-            if not settings:
-                settings = GuestPortalSettings(tenant=tenant)
-                db.add(settings)
-            settings.beds24_api_key = invite_code
-            if v1_key:
-                try:
-                    _verify_v1_key(v1_key)
-                except ValueError as exc:
-                    raise HTTPException(status_code=400, detail=f"Beds24 V1 auth failed: {exc}")
-                settings.beds24_v1_api_key = v1_key
-            db.commit()
-            return {"ok": True, "message": "Connected to Beds24 (legacy token)"}
-
-        # Exchange invite code → refresh token
+        # Always exchange via GET /authentication/setup — the field is always an invite code
         try:
             auth_data = _exchange_invite_code(invite_code)
             refresh_token = auth_data.get("refreshToken")
@@ -163,6 +145,7 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
 
     if refresh_token:
         settings.beds24_refresh_token = refresh_token
+        settings.beds24_api_key = None  # clear any stale legacy token
     if v1_key:
         settings.beds24_v1_api_key = v1_key
     db.commit()
