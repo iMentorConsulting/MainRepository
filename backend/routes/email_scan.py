@@ -67,32 +67,87 @@ _FOOTER_TRIGGERS = (
     "© airbnb",
     "unsubscribe",
     "καταργήστε την εγγραφή",
+    "μπορείτε επίσης να απαντήσετε",
+    "you can also reply",
 )
+
+# Lines to skip entirely (case-insensitive substring or regex)
+_SKIP_LINE_RE = re.compile(
+    r'υπεύθυνος\s+κράτησης'               # "Υπεύθυνος κράτησης"
+    r'|για\s+την\s+ασφάλεια\s+και'        # safety disclaimer
+    r'|συγκρότημα\s+ενοικιαζόμενων'       # property type label
+    r'|ολόκληρο\s+σπίτι'                   # property type label
+    r'|οικοδεσπότη\s+τον'                  # "hosted by"
+    r'|κράτηση\s+για\s+την\s+καταχώρηση'  # subject line repeated in body
+    r'|ερώτημα\s+για\s+το\s+χώρο'         # inquiry subject repeated
+    r'|^άφιξη\s*$|^αναχώρηση\s*$'         # standalone headers
+    r'|^επισκέπτες\s*$'                    # "ΕΠΙΣΚΈΠΤΕΣ" header
+    r'|^\d+\s+ενήλικ'                      # "2 ενήλικες"
+    r'|^\d{1,2}:\d{2}\s*(π\.μ\.|μ\.μ\.)'  # time "4:00 μ.μ."
+    , re.I | re.UNICODE
+)
+
+# Lines after this trigger are skipped until next blank (foreign-language originals)
+_TRANSLATION_LABEL_RE = re.compile(r'μεταφράστηκε\s+αυτόματα', re.I | re.UNICODE)
+
+# "Reply" standalone line (Airbnb reply button label)
+_REPLY_LABEL_RE = re.compile(r'^απάντηση\s*$', re.I | re.UNICODE)
+
+
+def _is_all_caps_header(stripped: str) -> bool:
+    """True for lines that are all-uppercase headings (guest name, property name, day names)."""
+    if not stripped or len(stripped) > 65:
+        return False
+    letters = [c for c in stripped if c.isalpha()]
+    return bool(letters) and all(c.isupper() for c in letters)
 
 
 def _clean_body(body: str) -> str:
-    """Remove tracking pixels, bare URLs, inline [URL] links, and footer boilerplate."""
+    """Strip Airbnb boilerplate, leaving only the actual message content."""
     if not body:
         return ""
     lines = body.splitlines()
     cleaned = []
+    skip_until_blank = False   # used to skip foreign-language original after translation label
+
     for line in lines:
         stripped = line.strip()
-        # Tracking pixels / empty tracking lines
+
+        # Skip-until-blank mode: foreign-language original text after translation label
+        if skip_until_blank:
+            if not stripped:
+                skip_until_blank = False
+            continue
+
+        # Hard stop: reply/footer section starts
+        if _REPLY_LABEL_RE.match(stripped):
+            break
+        if any(t in stripped.lower() for t in _FOOTER_TRIGGERS):
+            break
+
+        # Tracking pixel lines
         if stripped.startswith('%'):
             continue
         # Bare URL-only lines
         if re.match(r'^https?://', stripped):
             continue
-        # Footer boilerplate — stop processing here
-        if any(t in stripped.lower() for t in _FOOTER_TRIGGERS):
-            break
-        # Remove inline [URL] patterns
+        # All-caps header lines (guest name, property name, day names, etc.)
+        if _is_all_caps_header(stripped):
+            continue
+        # Specific boilerplate line patterns
+        if _SKIP_LINE_RE.search(stripped):
+            continue
+        # Translation label → skip this line AND the foreign text that follows
+        if _TRANSLATION_LABEL_RE.search(stripped):
+            skip_until_blank = True
+            continue
+
+        # Clean inline [URL] patterns and long embedded URLs
         line = re.sub(r'\[https?://[^\]]+\]', '', line)
-        # Remove long embedded URLs left in text
         line = re.sub(r'https?://\S{20,}', '', line)
         cleaned.append(line)
-    # Collapse runs of blank lines to a single blank
+
+    # Collapse runs of blank lines to a single blank, strip leading/trailing
     result = []
     prev_blank = False
     for line in cleaned:
@@ -475,6 +530,7 @@ _comms_router = _AR(prefix="/communications", tags=["communications"])
 @_comms_router.get("")
 def get_all_communications(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     from sqlalchemy.orm import joinedload
+    from collections import defaultdict
     comms = (
         db.query(GuestCommunication)
         .options(
@@ -485,28 +541,68 @@ def get_all_communications(db: Session = Depends(get_db), tenant: str = Depends(
         .order_by(GuestCommunication.sent_at.desc())
         .all()
     )
-    result = []
+
+    # Group by booking_id
+    groups = defaultdict(list)
+    meta = {}
     for c in comms:
+        bid = c.booking_id
         b = c.booking
-        cust = b.customer if b else None
-        unit = b.unit if b else None
-        guest_name = ""
-        if cust:
-            parts = [p for p in [cust.first_name, cust.last_name] if p and p.strip()]
-            guest_name = " ".join(parts)
-        raw_body = c.body or ""
-        result.append({
+        if bid not in meta and b:
+            cust = b.customer
+            unit = b.unit
+            parts = [p for p in [cust.first_name if cust else None, cust.last_name if cust else None] if p and p.strip()]
+            meta[bid] = {
+                "booking_id": bid,
+                "guest_name": " ".join(parts) or "Επισκέπτης",
+                "unit_name": unit.name if unit else None,
+                "check_in": str(b.check_in) if b.check_in else None,
+                "relay_email": b.reply_email or c.relay_email,
+                "channel": c.channel,
+            }
+        cleaned = _clean_body(c.body or "")
+        groups[bid].append({
             "id": c.id,
-            "booking_id": c.booking_id,
-            "channel": c.channel,
             "direction": c.direction,
             "subject": c.subject,
-            "body_preview": c.body_preview,
-            "body": _clean_body(raw_body) if raw_body else None,
-            "relay_email": c.relay_email,
+            "body": cleaned,
             "sent_at": c.sent_at.isoformat() if c.sent_at else None,
-            "guest_name": guest_name,
-            "unit_name": unit.name if unit else None,
-            "check_in": str(b.check_in) if b and b.check_in else None,
+            "is_read": bool(c.is_read),
+            "relay_email": c.relay_email,
         })
+
+    result = []
+    for bid, messages in groups.items():
+        # messages already sorted newest-first
+        latest = messages[0]
+        unread = sum(1 for m in messages if not m["is_read"] and m["direction"] == "in")
+        entry = {**meta.get(bid, {"booking_id": bid, "guest_name": "Επισκέπτης"})}
+        entry["messages"] = messages
+        entry["latest_at"] = latest["sent_at"]
+        entry["latest_preview"] = (latest["body"] or "")[:120].replace("\n", " ")
+        entry["unread_count"] = unread
+        result.append(entry)
+
+    # Sort bookings by latest message time, newest first
+    result.sort(key=lambda x: x["latest_at"] or "", reverse=True)
     return result
+
+
+@_comms_router.patch("/{comm_id}/read")
+def mark_read(comm_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    c = db.query(GuestCommunication).filter(GuestCommunication.id == comm_id, GuestCommunication.tenant == tenant).first()
+    if not c:
+        raise HTTPException(404, "Not found")
+    c.is_read = True
+    db.commit()
+    return {"ok": True}
+
+
+@_comms_router.patch("/booking/{booking_id}/read-all")
+def mark_all_read(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    db.query(GuestCommunication).filter(
+        GuestCommunication.booking_id == booking_id,
+        GuestCommunication.tenant == tenant,
+    ).update({"is_read": True})
+    db.commit()
+    return {"ok": True}
