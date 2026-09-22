@@ -164,6 +164,16 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       merged.bonus = parseFloat((merged.amount_collected * 0.05).toFixed(2));
     }
 
+    // For Εξωδικαστικός: map payment_type → amount_application / amount_implementation
+    if (data.source === 'exodikastikos' || merged.service_type === 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ') {
+      const pt = normalizeGreek(data.payment_type || '');
+      if (pt.includes('ΑΙΤΗΣΗ') && !merged.amount_application && merged.amount_collected) {
+        merged.amount_application = merged.amount_collected;
+      } else if (pt.includes('ΥΛΟΠΟΙΗΣΗ') && !merged.amount_implementation && merged.amount_collected) {
+        merged.amount_implementation = merged.amount_collected;
+      }
+    }
+
     // Auto-match ServiceAgreement
     if (!merged.service_agreement_id && merged.vat_number) {
       const sa = await ServiceAgreement.findOne({
