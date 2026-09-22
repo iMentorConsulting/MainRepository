@@ -110,6 +110,7 @@ class GuestCommunication(Base):
     body = Column(Text, nullable=True)
     relay_email = Column(String(300), nullable=True)
     sent_at = Column(DateTime, nullable=True)
+    message_id = Column(String(500), nullable=True)       # email Message-ID header for dedup
     created_at = Column(DateTime, default=datetime.utcnow)
     booking = relationship('Booking', foreign_keys=[booking_id])
 

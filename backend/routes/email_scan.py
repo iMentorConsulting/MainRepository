@@ -2,8 +2,9 @@ import imaplib
 import email
 import re
 import ssl
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime as dt
 from email.header import decode_header
+from email.utils import parsedate_to_datetime as _parsedate
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -316,6 +317,12 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                     subject = _decode_str(msg.get("Subject", ""))
                     reply_to = msg.get("Reply-To", "") or msg.get("From", "")
                     body = _get_body(msg)
+                    raw_message_id = (msg.get("Message-ID") or "").strip()
+                    raw_date = msg.get("Date", "")
+                    try:
+                        email_sent_at = _parsedate(raw_date).replace(tzinfo=None)
+                    except Exception:
+                        email_sent_at = dt.utcnow()
 
                     extracted = {}
                     channel = "direct"
@@ -383,12 +390,21 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                         booking.reply_email = extracted["reply_email"]
                         changed = True
 
-                    # Always save communication record (deduplicate by subject+booking)
-                    from datetime import datetime as dt
-                    existing_comm = db.query(GuestCommunication).filter(
-                        GuestCommunication.booking_id == booking.id,
-                        GuestCommunication.subject == subject[:500],
-                    ).first()
+                    # Save communication record — deduplicate by message_id (unique per email),
+                    # fallback to subject+booking for old records without message_id
+                    existing_comm = None
+                    if raw_message_id:
+                        existing_comm = db.query(GuestCommunication).filter(
+                            GuestCommunication.message_id == raw_message_id,
+                        ).first()
+                    if not existing_comm:
+                        # Legacy fallback: also skip if exact subject+preview already stored
+                        existing_comm = db.query(GuestCommunication).filter(
+                            GuestCommunication.booking_id == booking.id,
+                            GuestCommunication.subject == subject[:500],
+                            GuestCommunication.message_id == None,
+                        ).first()
+
                     if existing_comm and existing_comm.body_preview and existing_comm.body_preview.startswith('%'):
                         # Old record with tracking URL preview — refresh it
                         existing_comm.body_preview = _clean_preview(body)
@@ -404,7 +420,8 @@ def scan_emails(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)
                             body_preview=_clean_preview(body),
                             body=_clean_body(body),
                             relay_email=extracted.get("reply_email") or booking.reply_email,
-                            sent_at=dt.utcnow(),
+                            sent_at=email_sent_at,
+                            message_id=raw_message_id or None,
                         )
                         db.add(comm)
                         changed = True
