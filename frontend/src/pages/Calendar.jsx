@@ -1,25 +1,26 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { getUnits, getBookings, getPricingRates, getAvailabilityCalendar, createCustomer, createBooking, blockDates } from '../api'
+import { getUnits, getBookings, getPricingRates, getAvailabilityCalendar, getBookingChannels, createCustomer, createBooking, blockDates } from '../api'
 import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, addDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline'
 
-const CHANNEL_BG = {
-  booking: 'bg-blue-600',
-  airbnb: 'bg-red-500',
-  direct: 'bg-emerald-500',
-  oga: 'bg-purple-500',
-  social_tourism: 'bg-teal-500',
-  blocked: 'bg-gray-500',
-  other: 'bg-gray-400',
+// Map badge-color family (from API) → solid block background for calendar
+const COLOR_TO_BLOCK = {
+  red: 'bg-red-500', rose: 'bg-rose-500', pink: 'bg-pink-500',
+  blue: 'bg-blue-600', indigo: 'bg-indigo-500', violet: 'bg-violet-500',
+  green: 'bg-green-600', emerald: 'bg-emerald-500', teal: 'bg-teal-500',
+  purple: 'bg-purple-500', fuchsia: 'bg-fuchsia-500',
+  yellow: 'bg-yellow-500', amber: 'bg-amber-500', orange: 'bg-orange-500',
+  cyan: 'bg-cyan-500', sky: 'bg-sky-500',
+  gray: 'bg-gray-400', slate: 'bg-slate-500',
 }
-const CHANNEL_LABELS = {
-  booking: 'Booking', airbnb: 'Airbnb', direct: 'Απευθείας',
-  oga: 'ΟΓΑ', social_tourism: 'Κοιν.Τουρ.', other: 'Άλλο',
+const channelBlockBg = (colorClass = '') => {
+  const family = (colorClass.match(/bg-(\w+)-/) || [])[1] || 'gray'
+  return COLOR_TO_BLOCK[family] || 'bg-gray-400'
 }
-const BOOKING_CHANNELS = ['airbnb', 'booking', 'direct', 'oga', 'social_tourism', 'other']
+
 const STATUS_OPACITY = { confirmed: '', pending: 'opacity-60', cancelled: 'opacity-30 line-through' }
 const DAY_W = 48
 const ROW_H = 64
@@ -29,7 +30,8 @@ export default function Calendar() {
   const [units, setUnits] = useState([])
   const [bookings, setBookings] = useState([])
   const [rates, setRates] = useState([])
-  const [availRules, setAvailRules] = useState([])  // AvailabilityRule records
+  const [availRules, setAvailRules] = useState([])
+  const [channels, setChannels] = useState([])      // from /bookings/channels
   const [month, setMonth] = useState(new Date())
   const scrollRef = useRef(null)
 
@@ -51,6 +53,7 @@ export default function Calendar() {
   }, [fromDate, toDate])
 
   useEffect(() => { getUnits({ active_only: true }).then(r => setUnits(r.data)) }, [])
+  useEffect(() => { getBookingChannels().then(r => setChannels(r.data)).catch(() => {}) }, [])
   useEffect(() => { loadBookings() }, [loadBookings])
   useEffect(() => {
     getPricingRates({ year }).then(r => setRates(r.data)).catch(() => {})
@@ -98,6 +101,15 @@ export default function Calendar() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const selMin = drag ? Math.min(drag.startDay, drag.endDay) : null
   const selMax = drag ? Math.max(drag.startDay, drag.endDay) : null
+
+  // Build channel lookup maps from fetched channels
+  const channelBgMap = {}
+  const channelLabelMap = {}
+  channels.forEach(ch => {
+    channelBgMap[ch.value] = channelBlockBg(ch.color)
+    channelLabelMap[ch.value] = ch.label
+  })
+  channelBgMap['blocked'] = 'bg-gray-500'
 
   // Build stop-sale lookup: stopSales[unitId][dateStr] = true
   const stopSales = {}
@@ -192,9 +204,9 @@ export default function Calendar() {
       </div>
 
       <div className="flex flex-wrap gap-3 text-xs">
-        {Object.entries(CHANNEL_LABELS).map(([k, v]) => (
-          <span key={k} className="flex items-center gap-1">
-            <span className={`w-3 h-3 rounded-sm inline-block ${CHANNEL_BG[k]}`} /> {v}
+        {channels.map(ch => (
+          <span key={ch.value} className="flex items-center gap-1">
+            <span className={`w-3 h-3 rounded-sm inline-block ${channelBlockBg(ch.color)}`} /> {ch.label}
           </span>
         ))}
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-gray-500" /> Μπλοκ</span>
@@ -324,7 +336,7 @@ export default function Calendar() {
                       }
                       onClick={() => !isBlocked && navigate(`/bookings?edit=${b.id}`)}
                       className={`absolute rounded text-white flex flex-col justify-center px-1.5 overflow-hidden transition-all pointer-events-auto
-                        ${isBlocked ? 'cursor-default bg-gray-500' : `cursor-pointer hover:brightness-110 ${CHANNEL_BG[b.channel] || 'bg-gray-400'}`}
+                        ${isBlocked ? 'cursor-default bg-gray-500' : `cursor-pointer hover:brightness-110 ${channelBgMap[b.channel] || 'bg-gray-400'}`}
                         ${STATUS_OPACITY[b.status]}`}
                       style={{ top: '4px', left: `${left}px`, width: `${width}px`, height: `${ROW_H - 8}px`, zIndex: 1 }}
                     >
@@ -367,6 +379,7 @@ export default function Calendar() {
         <QuickModal
           modal={modal}
           units={units}
+          channels={channels}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); loadBookings() }}
         />
@@ -418,10 +431,11 @@ function SelectionPopup({ popup, onBook, onBlock, onClose }) {
   )
 }
 
-function QuickModal({ modal, units, onClose, onSaved }) {
+function QuickModal({ modal, units, channels, onClose, onSaved }) {
   const isBlock = modal.mode === 'block'
+  const defaultChannel = channels[0]?.value || 'direct'
   const [form, setForm] = useState({
-    first_name: '', last_name: '', channel: 'direct',
+    first_name: '', last_name: '', channel: defaultChannel,
     total_price: '', guests: '2', notes: '',
     unit_id: modal.unitId, check_in: modal.checkIn, check_out: modal.checkOut,
   })
@@ -521,7 +535,7 @@ function QuickModal({ modal, units, onClose, onSaved }) {
                   <label className="text-xs font-medium text-gray-600 block mb-1">Κανάλι</label>
                   <select className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
                     value={form.channel} onChange={e => set('channel', e.target.value)}>
-                    {BOOKING_CHANNELS.map(c => <option key={c} value={c}>{CHANNEL_LABELS[c] || c}</option>)}
+                    {channels.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
                   </select>
                 </div>
                 <div>
