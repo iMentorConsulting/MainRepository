@@ -69,11 +69,12 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .then(r => {
         const agreements = r.data.data || [];
         setCustomerAgreements(agreements);
-        // Auto-propose new SA when ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ and no existing agreements
-        if (agreements.length === 0 && getValues('service_type') === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ') {
+        // Auto-propose new SA when ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ or ΕΞΩΔΙΚΑΣΤΙΚΟΣ and no existing agreements
+        const svcNow = getValues('service_type');
+        if (agreements.length === 0 && (svcNow === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' || svcNow === 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')) {
           setShowNewAgreementForm(true);
           setNewSA({
-            service_type: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ',
+            service_type: svcNow,
             amount_application: getValues('amount_application') || '',
             amount_implementation: getValues('amount_implementation') || '',
           });
@@ -83,12 +84,13 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .finally(() => setLoadingAgreements(false));
   }, [customerName]);
 
-  // Also auto-propose when service_type switches to ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ with no agreements
+  // Also auto-propose when service_type switches to ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ or ΕΞΩΔΙΚΑΣΤΙΚΟΣ with no agreements
   useEffect(() => {
-    if (serviceType === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' && customerAgreements.length === 0 && customerName && customerName.length >= 2 && !loadingAgreements) {
+    const autoPropose = serviceType === 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ' || serviceType === 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ';
+    if (autoPropose && customerAgreements.length === 0 && customerName && customerName.length >= 2 && !loadingAgreements) {
       setShowNewAgreementForm(true);
       setNewSA(prev => ({
-        service_type: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ',
+        service_type: serviceType,
         amount_application: getValues('amount_application') || prev.amount_application || '',
         amount_implementation: getValues('amount_implementation') || prev.amount_implementation || '',
       }));
