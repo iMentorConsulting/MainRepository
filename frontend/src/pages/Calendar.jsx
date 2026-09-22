@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { getUnits, getBookings, createCustomer, createBooking, blockDates } from '../api'
+import { getUnits, getBookings, getPricingRates, createCustomer, createBooking, blockDates } from '../api'
 import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, addDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -22,18 +22,19 @@ const CHANNEL_LABELS = {
 const BOOKING_CHANNELS = ['airbnb', 'booking', 'direct', 'oga', 'social_tourism', 'other']
 const STATUS_OPACITY = { confirmed: '', pending: 'opacity-60', cancelled: 'opacity-30 line-through' }
 const DAY_W = 36
+const ROW_H = 52  // px — tall enough for name + rate
 
 export default function Calendar() {
   const navigate = useNavigate()
   const [units, setUnits] = useState([])
   const [bookings, setBookings] = useState([])
+  const [rates, setRates] = useState([])
   const [month, setMonth] = useState(new Date())
   const scrollRef = useRef(null)
 
-  // Drag-select state
   const [drag, setDrag] = useState(null)   // { unitId, startDay, endDay }
-  const [popup, setPopup] = useState(null) // { unitId, checkIn, checkOut, unitName, top, left }
-  const [modal, setModal] = useState(null) // { mode: 'booking'|'block', unitId, checkIn, checkOut, unitName }
+  const [popup, setPopup] = useState(null)
+  const [modal, setModal] = useState(null)
 
   const year = month.getFullYear()
   const mon = month.getMonth()
@@ -49,10 +50,13 @@ export default function Calendar() {
 
   useEffect(() => { getUnits({ active_only: true }).then(r => setUnits(r.data)) }, [])
   useEffect(() => { loadBookings() }, [loadBookings])
-
-  // Cancel drag on mouseup anywhere
   useEffect(() => {
-    const up = () => setDrag(d => { if (d) setDrag(null); return d })
+    getPricingRates({ year }).then(r => setRates(r.data)).catch(() => {})
+  }, [year])
+
+  // Cancel drag on window mouseup (fires after cell onMouseUp so popup is shown first)
+  useEffect(() => {
+    const up = () => setDrag(null)
     window.addEventListener('mouseup', up)
     return () => window.removeEventListener('mouseup', up)
   }, [])
@@ -62,21 +66,27 @@ export default function Calendar() {
   bookings.forEach(b => { if (bookingsByUnit[b.unit_id] !== undefined) bookingsByUnit[b.unit_id].push(b) })
 
   const today = format(new Date(), 'yyyy-MM-dd')
-
-  const dayStr = (dayNum) => format(new Date(year, mon, dayNum), 'yyyy-MM-dd')
-
   const selMin = drag ? Math.min(drag.startDay, drag.endDay) : null
   const selMax = drag ? Math.max(drag.startDay, drag.endDay) : null
 
-  const handleDayMouseDown = (e, unitId, dayNum, unitName) => {
+  // Find pricing rate for a unit+date (unit-specific wins over global)
+  const findRate = useCallback((unitId, dateStr) => {
+    const match = rates.filter(r =>
+      dateStr >= r.date_from && dateStr <= r.date_to &&
+      (r.unit_id === unitId || !r.unit_id)
+    ).sort((a, b) => (b.unit_id ? 1 : 0) - (a.unit_id ? 1 : 0))
+    return match[0] || null
+  }, [rates])
+
+  const handleDayMouseDown = (e, unitId, dayNum) => {
     e.preventDefault()
     setPopup(null)
-    setDrag({ unitId, startDay: dayNum, endDay: dayNum, unitName })
+    setDrag({ unitId, startDay: dayNum, endDay: dayNum })
   }
 
   const handleDayMouseEnter = (unitId, dayNum) => {
     if (drag && drag.unitId === unitId) {
-      setDrag(d => ({ ...d, endDay: dayNum }))
+      setDrag(d => d ? { ...d, endDay: dayNum } : d)
     }
   }
 
@@ -84,19 +94,18 @@ export default function Calendar() {
     if (!drag || drag.unitId !== unitId) return
     const min = Math.min(drag.startDay, dayNum)
     const max = Math.max(drag.startDay, dayNum)
-    const checkIn = dayStr(min)
-    // check_out = day after last selected (departure day)
-    const checkOut = dayStr(max + 1 <= daysInMonth ? max + 1 : max)
-    if (checkIn >= checkOut) return
+    // Use date math so month-end is handled correctly (e.g. Dec31+1 → Jan1)
+    const checkIn = format(new Date(year, mon, min), 'yyyy-MM-dd')
+    const checkOut = format(new Date(year, mon, max + 1), 'yyyy-MM-dd')
     setDrag(null)
-    // Position popup near mouse
+    if (checkIn >= checkOut) return
+    // Use viewport-relative coords for fixed popup
     const rect = e.currentTarget.getBoundingClientRect()
-    setPopup({ unitId, checkIn, checkOut, unitName, top: rect.bottom + window.scrollY + 4, left: rect.left + window.scrollX })
+    setPopup({ unitId, checkIn, checkOut, unitName, top: rect.bottom + 6, left: rect.left })
   }
 
   return (
     <div className="p-4 md:p-6 space-y-4" onMouseLeave={() => setDrag(null)}>
-      {/* Header */}
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold text-gray-800">Ημερολόγιο</h2>
         <div className="flex items-center gap-2">
@@ -112,20 +121,17 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Legend */}
       <div className="flex flex-wrap gap-3 text-xs">
         {Object.entries(CHANNEL_LABELS).map(([k, v]) => (
           <span key={k} className="flex items-center gap-1">
-            <span className={`w-3 h-3 rounded-sm inline-block ${CHANNEL_BG[k]}`} />
-            {v}
+            <span className={`w-3 h-3 rounded-sm inline-block ${CHANNEL_BG[k]}`} /> {v}
           </span>
         ))}
-        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-gray-400" />Μπλοκ</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-gray-400" /> Μπλοκ</span>
         <span className="flex items-center gap-1 text-gray-400">✓ = Τιμολογήθηκε</span>
-        <span className="text-gray-400 ml-2">· Σύρτε για επιλογή ημερών</span>
+        <span className="text-gray-400 ml-2">· Σύρτε για νέα κράτηση / μπλοκ</span>
       </div>
 
-      {/* Grid */}
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white select-none" ref={scrollRef}>
         <div style={{ minWidth: `${160 + daysInMonth * DAY_W}px` }}>
           {/* Day headers */}
@@ -136,10 +142,10 @@ export default function Calendar() {
               const isToday = ds === today
               const isWeekend = d.getDay() === 0 || d.getDay() === 6
               return (
-                <div key={ds} className={`w-9 flex-shrink-0 text-center py-2 text-xs border-r border-gray-100 ${
+                <div key={ds} className={`w-9 flex-shrink-0 text-center py-1.5 text-xs border-r border-gray-100 ${
                   isToday ? 'bg-blue-50 font-bold text-blue-700' : isWeekend ? 'text-gray-500 bg-gray-50' : 'text-gray-400'
                 }`}>
-                  <div className="font-medium">{format(d, 'd')}</div>
+                  <div className="font-medium leading-tight">{format(d, 'd')}</div>
                   <div style={{ fontSize: '9px' }}>{format(d, 'EEE', { locale: el })}</div>
                 </div>
               )
@@ -149,28 +155,38 @@ export default function Calendar() {
           {/* Unit rows */}
           {units.map(u => (
             <div key={u.id} className="flex border-b border-gray-100 hover:bg-gray-50/30">
-              <div className="w-40 flex-shrink-0 px-3 py-2 border-r border-gray-200 flex items-center">
+              <div className="w-40 flex-shrink-0 px-3 border-r border-gray-200 flex items-center" style={{ height: `${ROW_H}px` }}>
                 <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
               </div>
-              <div className="flex relative">
+              <div className="flex relative" style={{ height: `${ROW_H}px` }}>
                 {days.map(d => {
                   const ds = format(d, 'yyyy-MM-dd')
                   const dayNum = d.getDate()
                   const isToday = ds === today
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6
                   const isSelected = drag?.unitId === u.id && dayNum >= selMin && dayNum <= selMax
+                  const rate = findRate(u.id, ds)
                   return (
                     <div
                       key={ds}
-                      className={`w-9 flex-shrink-0 h-12 border-r border-gray-100 cursor-crosshair transition-colors ${
+                      className={`w-9 flex-shrink-0 border-r border-gray-100 cursor-crosshair relative transition-colors ${
                         isSelected ? 'bg-blue-200' :
                         isToday ? 'bg-blue-50' :
                         isWeekend ? 'bg-gray-50' : ''
                       }`}
-                      onMouseDown={e => handleDayMouseDown(e, u.id, dayNum, u.name)}
+                      style={{ height: `${ROW_H}px` }}
+                      onMouseDown={e => handleDayMouseDown(e, u.id, dayNum)}
                       onMouseEnter={() => handleDayMouseEnter(u.id, dayNum)}
                       onMouseUp={e => handleDayMouseUp(e, u.id, dayNum, u.name)}
-                    />
+                    >
+                      {/* Pricing rate on empty-looking cells */}
+                      {rate && (
+                        <span className="absolute bottom-1 left-0 right-0 text-center text-gray-300 pointer-events-none"
+                          style={{ fontSize: '9px', lineHeight: 1 }}>
+                          €{rate.price_per_night % 1 === 0 ? rate.price_per_night : rate.price_per_night.toFixed(0)}
+                        </span>
+                      )}
+                    </div>
                   )
                 })}
 
@@ -180,32 +196,44 @@ export default function Calendar() {
                   const bIn = new Date(b.check_in + 'T00:00:00')
                   const bOut = new Date(b.check_out + 'T00:00:00')
                   const monthStart = new Date(year, mon, 1)
-                  const monthEnd = new Date(year, mon, daysInMonth + 1)
+                  const monthEnd = new Date(year, mon + 1, 1)
                   const dispStart = bIn < monthStart ? monthStart : bIn
                   const dispEnd = bOut > monthEnd ? monthEnd : bOut
                   const startDay = dispStart.getDate() - 1
                   const endDay = dispEnd.getDate() - 1
                   const span = endDay - startDay
                   if (span <= 0) return null
+
                   const left = startDay * DAY_W
                   const width = span * DAY_W - 2
                   const nights = Math.round((bOut - bIn) / 86400000)
                   const isBlocked = b.channel === 'blocked' || b.customer?.first_name === 'BLOCKED'
+                  const dailyRate = !isBlocked && nights > 0 && b.total_price > 0
+                    ? Math.round(b.total_price / nights)
+                    : null
+
                   return (
                     <div
                       key={b.id}
-                      title={isBlocked ? `🔒 Μπλοκ ${b.check_in} – ${b.check_out}\n${b.notes || ''}` :
-                        `${b.customer.first_name} ${b.customer.last_name}\n${b.check_in} – ${b.check_out} (${nights} νύχτες)\nΆτομα: ${b.guests}\nΣύνολο: €${b.total_price}`}
+                      title={isBlocked
+                        ? `🔒 Μπλοκ ${b.check_in} – ${b.check_out}\n${b.notes || ''}`
+                        : `${b.customer.first_name} ${b.customer.last_name}\n${b.check_in} – ${b.check_out} (${nights} νύχτες)\nΑ: ${b.guests}  Σύνολο: €${b.total_price}  Ημ/νύχτα: €${dailyRate || '—'}`
+                      }
                       onClick={() => !isBlocked && navigate(`/bookings?edit=${b.id}`)}
-                      className={`absolute top-1.5 rounded text-white text-xs flex items-center px-1 overflow-hidden transition-all pointer-events-auto
+                      className={`absolute rounded text-white text-xs flex flex-col justify-center px-1 overflow-hidden transition-all pointer-events-auto
                         ${isBlocked ? 'cursor-default opacity-70 bg-gray-400' : `cursor-pointer hover:brightness-110 ${CHANNEL_BG[b.channel] || 'bg-gray-400'}`}
                         ${STATUS_OPACITY[b.status]}`}
-                      style={{ left: `${left}px`, width: `${width}px`, height: '36px', zIndex: 1 }}
+                      style={{ top: '4px', left: `${left}px`, width: `${width}px`, height: `${ROW_H - 8}px`, zIndex: 1 }}
                     >
-                      <span className="truncate text-xs font-medium leading-tight flex-1">
-                        {isBlocked ? '🔒' : b.customer.last_name}
+                      <span className="truncate font-medium leading-tight" style={{ fontSize: '11px' }}>
+                        {isBlocked ? '🔒 Μπλοκ' : b.customer.last_name}
+                        {!isBlocked && b.is_billed && ' ✓'}
                       </span>
-                      {!isBlocked && b.is_billed && <span className="ml-0.5 flex-shrink-0 font-bold">✓</span>}
+                      {dailyRate && width > 60 && (
+                        <span className="text-white/70 leading-tight" style={{ fontSize: '9px' }}>
+                          €{dailyRate}/νύχτα
+                        </span>
+                      )}
                     </div>
                   )
                 })}
@@ -219,7 +247,6 @@ export default function Calendar() {
         </div>
       </div>
 
-      {/* Selection popup */}
       {popup && (
         <SelectionPopup
           popup={popup}
@@ -229,7 +256,6 @@ export default function Calendar() {
         />
       )}
 
-      {/* Quick modal */}
       {modal && (
         <QuickModal
           modal={modal}
@@ -247,19 +273,23 @@ function SelectionPopup({ popup, onBook, onBlock, onClose }) {
 
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose() }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
+    // Small delay so the mouseup that triggered the popup doesn't immediately close it
+    const t = setTimeout(() => document.addEventListener('mousedown', handler), 100)
+    return () => { clearTimeout(t); document.removeEventListener('mousedown', handler) }
   }, [onClose])
+
+  const safeTop = Math.min(popup.top, window.innerHeight - 170)
+  const safeLeft = Math.min(popup.left, window.innerWidth - 250)
 
   return (
     <div
       ref={ref}
       className="fixed z-50 bg-white border border-gray-200 shadow-xl rounded-xl p-3 space-y-2 w-56"
-      style={{ top: Math.min(popup.top, window.innerHeight - 160), left: Math.min(popup.left, window.innerWidth - 240) }}
+      style={{ top: safeTop, left: safeLeft }}
     >
       <div className="flex items-center justify-between">
-        <p className="text-xs font-semibold text-gray-700">{popup.unitName}</p>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-4 h-4" /></button>
+        <p className="text-xs font-semibold text-gray-700 truncate">{popup.unitName}</p>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-600 shrink-0"><XMarkIcon className="w-4 h-4" /></button>
       </div>
       <p className="text-xs text-gray-500">{popup.checkIn} → {popup.checkOut}</p>
       <button onClick={onBook}
@@ -282,15 +312,18 @@ function QuickModal({ modal, units, onClose, onSaved }) {
     unit_id: modal.unitId, check_in: modal.checkIn, check_out: modal.checkOut,
   })
   const [saving, setSaving] = useState(false)
-
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+
+  const nightCount = (() => {
+    try { return Math.round((new Date(form.check_out) - new Date(form.check_in)) / 86400000) } catch { return 0 }
+  })()
 
   const handleSubmit = async (e) => {
     e.preventDefault()
     setSaving(true)
     try {
       if (isBlock) {
-        await blockDates({ unit_id: form.unit_id, check_in: form.check_in, check_out: form.check_out, notes: form.notes || 'Μπλοκαρισμένο' })
+        await blockDates({ unit_id: Number(form.unit_id), check_in: form.check_in, check_out: form.check_out, notes: form.notes || 'Μπλοκαρισμένο' })
         toast.success('Οι ημέρες μπλοκαρίστηκαν!')
       } else {
         if (!form.first_name.trim()) { toast.error('Εισάγετε όνομα επισκέπτη'); setSaving(false); return }
@@ -316,10 +349,6 @@ function QuickModal({ modal, units, onClose, onSaved }) {
     }
   }
 
-  const nightCount = (() => {
-    try { return Math.round((new Date(form.check_out) - new Date(form.check_in)) / 86400000) } catch { return 0 }
-  })()
-
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
@@ -330,23 +359,22 @@ function QuickModal({ modal, units, onClose, onSaved }) {
           <button onClick={onClose} className="text-gray-400 hover:text-gray-600"><XMarkIcon className="w-5 h-5" /></button>
         </div>
         <form onSubmit={handleSubmit} className="px-6 py-4 space-y-4">
-          {/* Unit & dates */}
-          <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm space-y-1">
-            <div className="flex gap-4">
+          <div className="bg-gray-50 rounded-xl px-4 py-3 text-sm space-y-2">
+            <div className="flex gap-3 flex-wrap">
               <div>
-                <p className="text-xs text-gray-400">Μονάδα</p>
+                <p className="text-xs text-gray-400 mb-0.5">Μονάδα</p>
                 <select className="text-xs font-medium text-gray-700 bg-transparent border-none outline-none"
                   value={form.unit_id} onChange={e => set('unit_id', e.target.value)}>
                   {units.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                 </select>
               </div>
               <div>
-                <p className="text-xs text-gray-400">Check-in</p>
+                <p className="text-xs text-gray-400 mb-0.5">Check-in</p>
                 <input type="date" value={form.check_in} onChange={e => set('check_in', e.target.value)}
                   className="text-xs font-medium text-gray-700 bg-transparent border-none outline-none" />
               </div>
               <div>
-                <p className="text-xs text-gray-400">Check-out</p>
+                <p className="text-xs text-gray-400 mb-0.5">Check-out</p>
                 <input type="date" value={form.check_out} onChange={e => set('check_out', e.target.value)}
                   className="text-xs font-medium text-gray-700 bg-transparent border-none outline-none" />
               </div>
