@@ -368,6 +368,13 @@ try:
 except Exception:
     pass
 
+try:
+    with engine.connect() as _bc:
+        _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN beds24_refresh_token TEXT"))
+        _bc.commit()
+except Exception:
+    pass
+
 for _col in [
     "ALTER TABLE guest_portal_settings ADD COLUMN imap_host VARCHAR(200)",
     "ALTER TABLE guest_portal_settings ADD COLUMN imap_port INTEGER DEFAULT 993",

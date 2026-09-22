@@ -478,12 +478,12 @@ function Beds24MappingRow({ unit }) {
 
 function Beds24Section({ units }) {
   const [open, setOpen] = useState(false)
-  const [v2Key, setV2Key] = useState('')
+  const [inviteCode, setInviteCode] = useState('')
   const [v1Key, setV1Key] = useState('')
-  const [showV2, setShowV2] = useState(false)
+  const [showInvite, setShowInvite] = useState(false)
   const [showV1, setShowV1] = useState(false)
   const [connecting, setConnecting] = useState(false)
-  const [status, setStatus] = useState({ v2_connected: false, v1_connected: false })
+  const [status, setStatus] = useState({ v2_connected: false, v1_connected: false, invite_flow: false })
   const [syncing, setSyncing] = useState(false)
   const [beds24Props, setBeds24Props] = useState([])
   const [propsLoaded, setPropsLoaded] = useState(false)
@@ -493,13 +493,13 @@ function Beds24Section({ units }) {
   }, [])
 
   const handleConnect = async () => {
-    if (!v2Key.trim() && !v1Key.trim()) {
-      toast.error('Εισάγετε τουλάχιστον ένα API Key')
+    if (!inviteCode.trim() && !v1Key.trim()) {
+      toast.error('Εισάγετε Invite Code ή Account Access Key')
       return
     }
     setConnecting(true)
     try {
-      await testBeds24Connection(v2Key.trim(), v1Key.trim())
+      await testBeds24Connection(inviteCode.trim(), v1Key.trim())
       const r = await getBeds24Status()
       setStatus(r.data)
       toast.success('Σύνδεση με Beds24 επιτυχής!')
@@ -558,25 +558,33 @@ function Beds24Section({ units }) {
               Συνδέστε το Beds24 για αυτόματο συγχρονισμό τιμών και κρατήσεων με Airbnb, Booking.com, VRBO.
             </p>
 
-            {/* v2 long-life token (read) */}
+            {/* v2 invite code → refresh token flow */}
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">
-                Long Life Token <span className="text-gray-400 font-normal">(Marketplace → API → Generate long life token)</span>
-                {status.v2_connected && <span className="ml-2 text-green-600">✅ Ενεργό</span>}
+                Invite Code{' '}
+                <span className="text-gray-400 font-normal">(Settings → Marketplace → API → Generate invite code — επιλέξτε write scopes)</span>
+                {status.v2_connected && (
+                  <span className="ml-2 text-green-600">
+                    ✅ Ενεργό{status.invite_flow ? ' (invite flow)' : ' (legacy token)'}
+                  </span>
+                )}
               </label>
               <div className="relative">
                 <input
-                  type={showV2 ? 'text' : 'password'}
-                  value={v2Key}
-                  onChange={e => setV2Key(e.target.value)}
-                  placeholder={status.v2_connected ? '••••••••• (ήδη αποθηκευμένο)' : 'Εισάγετε Long Life Token'}
+                  type={showInvite ? 'text' : 'password'}
+                  value={inviteCode}
+                  onChange={e => setInviteCode(e.target.value)}
+                  placeholder={status.v2_connected ? '••••••••• (ήδη αποθηκευμένο)' : 'Εισάγετε Invite Code'}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-xs pr-20 focus:outline-none focus:border-teal-400"
                 />
-                <button type="button" onClick={() => setShowV2(s => !s)}
+                <button type="button" onClick={() => setShowInvite(s => !s)}
                   className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 hover:text-gray-600">
-                  {showV2 ? 'Απόκρυψη' : 'Εμφάνιση'}
+                  {showInvite ? 'Απόκρυψη' : 'Εμφάνιση'}
                 </button>
               </div>
+              <p className="text-xs text-amber-600 mt-1">
+                ⚠️ Invite codes expire after 24 hours — generate one just before connecting. After saving, the refresh token is stored permanently.
+              </p>
             </div>
 
             {/* v1 Account Access key (read+write) */}
@@ -611,8 +619,8 @@ function Beds24Section({ units }) {
                   <span className={`px-2 py-1 rounded-full border font-medium ${status.v2_connected ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-400 border-gray-200'}`}>
                     Read {status.v2_connected ? '✅' : '—'}
                   </span>
-                  <span className={`px-2 py-1 rounded-full border font-medium ${status.v1_connected ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
-                    Write {status.v1_connected ? '✅' : '⚠️ χρειάζεται Account Access Key'}
+                  <span className={`px-2 py-1 rounded-full border font-medium ${status.invite_flow || status.v1_connected ? 'bg-green-50 text-green-700 border-green-200' : 'bg-orange-50 text-orange-600 border-orange-200'}`}>
+                    Write {status.invite_flow ? '✅ (invite flow)' : status.v1_connected ? '✅ (V1 key)' : '⚠️ χρειάζεται Invite Code με write scopes'}
                   </span>
                 </div>
                 {status.v1_connected && (

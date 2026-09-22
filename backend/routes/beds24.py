@@ -23,14 +23,37 @@ def _v1_auth(api_key: str) -> dict:
     return {"authentication": {"apiKey": api_key}}
 
 
-def _verify_v2_token(token: str) -> None:
+def _exchange_invite_code(invite_code: str) -> dict:
+    """Exchange a Beds24 invite code for a refresh token.
+    Must be a GET with the code in a header named 'code'."""
     r = requests.get(
-        f"{V2_BASE}/properties",
-        headers=_v2_headers(token),
+        f"{V2_BASE}/authentication/setup",
+        headers={"accept": "application/json", "code": invite_code.strip()},
         timeout=15,
     )
     if not r.ok:
-        raise ValueError(f"{r.status_code}: {r.text}")
+        raise ValueError(f"{r.status_code}: {r.text[:200]}")
+    data = r.json()
+    refresh_token = data.get("refreshToken") if isinstance(data, dict) else None
+    if not refresh_token:
+        raise ValueError(f"No refreshToken in response: {data}")
+    return data  # contains token, expiresIn, refreshToken
+
+
+def _get_access_token(refresh_token: str) -> str:
+    """Get a fresh V2 access token using the stored refresh token."""
+    r = requests.get(
+        f"{V2_BASE}/authentication/token",
+        headers={"accept": "application/json", "token": refresh_token},
+        timeout=15,
+    )
+    if not r.ok:
+        raise ValueError(f"{r.status_code}: {r.text[:200]}")
+    data = r.json()
+    token = data.get("token") if isinstance(data, dict) else None
+    if not token:
+        raise ValueError(f"No token in response: {data}")
+    return token
 
 
 def _verify_v1_key(api_key: str) -> None:
@@ -58,14 +81,21 @@ def _get_settings(tenant: str, db: Session) -> GuestPortalSettings:
     return settings
 
 
-def _get_v2_key(tenant: str, db: Session) -> str:
+def _get_v2_token(tenant: str, db: Session) -> str:
+    """Return a valid V2 access token — from invite-code/refresh flow or legacy long-life token."""
     settings = _get_settings(tenant, db)
-    if not settings.beds24_api_key:
-        raise HTTPException(
-            status_code=400,
-            detail="Beds24 API key not configured. Use POST /beds24/connect first.",
-        )
-    return settings.beds24_api_key
+    if settings.beds24_refresh_token:
+        try:
+            return _get_access_token(settings.beds24_refresh_token)
+        except ValueError as exc:
+            raise HTTPException(status_code=502, detail=f"Beds24 token refresh failed: {exc}")
+    if settings.beds24_api_key:
+        # Legacy long-life token — still works for read
+        return settings.beds24_api_key
+    raise HTTPException(
+        status_code=400,
+        detail="Beds24 not configured. Use POST /beds24/connect with an invite_code.",
+    )
 
 
 def _get_v1_key(tenant: str, db: Session) -> str:
@@ -83,39 +113,61 @@ def _get_v1_key(tenant: str, db: Session) -> str:
 
 @router.post("/connect")
 def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """Save Beds24 credentials: v2 long-life token (read) and/or v1 account access key (write)."""
-    v2_token = (body.get("api_key") or "").strip()
+    """Save Beds24 credentials.
+    - invite_code: exchange for refresh token via GET /authentication/setup (preferred, gives write access)
+    - v1_api_key: V1 account access key (legacy fallback for write operations)
+    """
+    invite_code = (body.get("invite_code") or body.get("api_key") or "").strip()
     v1_key = (body.get("v1_api_key") or "").strip()
 
-    if not v2_token and not v1_key:
-        raise HTTPException(status_code=400, detail="api_key or v1_api_key is required")
+    if not invite_code and not v1_key:
+        raise HTTPException(status_code=400, detail="invite_code or v1_api_key is required")
 
-    if v2_token:
+    refresh_token = None
+    if invite_code:
+        # If it looks like a refresh/access token (long base64) rather than a short invite code,
+        # treat it as a legacy long-life token for backward compat
+        if len(invite_code) > 60 and " " not in invite_code and "-" not in invite_code:
+            # Likely a long-life token — skip exchange, store as legacy
+            settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
+            if not settings:
+                settings = GuestPortalSettings(tenant=tenant)
+                db.add(settings)
+            settings.beds24_api_key = invite_code
+            if v1_key:
+                try:
+                    _verify_v1_key(v1_key)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=f"Beds24 V1 auth failed: {exc}")
+                settings.beds24_v1_api_key = v1_key
+            db.commit()
+            return {"ok": True, "message": "Connected to Beds24 (legacy token)"}
+
+        # Exchange invite code → refresh token
         try:
-            _verify_v2_token(v2_token)
+            auth_data = _exchange_invite_code(invite_code)
+            refresh_token = auth_data.get("refreshToken")
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"Beds24 v2 auth failed: {exc}")
+            raise HTTPException(status_code=400, detail=f"Beds24 invite code exchange failed: {exc}")
 
     if v1_key:
         try:
             _verify_v1_key(v1_key)
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"Beds24 v1 auth failed: {exc}")
+            raise HTTPException(status_code=400, detail=f"Beds24 V1 auth failed: {exc}")
 
-    settings = db.query(GuestPortalSettings).filter(
-        GuestPortalSettings.tenant == tenant
-    ).first()
+    settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
     if not settings:
         settings = GuestPortalSettings(tenant=tenant)
         db.add(settings)
 
-    if v2_token:
-        settings.beds24_api_key = v2_token
+    if refresh_token:
+        settings.beds24_refresh_token = refresh_token
     if v1_key:
         settings.beds24_v1_api_key = v1_key
     db.commit()
 
-    return {"ok": True, "message": "Connected to Beds24"}
+    return {"ok": True, "message": "Connected to Beds24", "has_refresh_token": bool(refresh_token)}
 
 
 @router.get("/status")
@@ -125,8 +177,9 @@ def connection_status(db: Session = Depends(get_db), tenant: str = Depends(get_t
         GuestPortalSettings.tenant == tenant
     ).first()
     return {
-        "v2_connected": bool(settings and settings.beds24_api_key),
+        "v2_connected": bool(settings and (settings.beds24_refresh_token or settings.beds24_api_key)),
         "v1_connected": bool(settings and settings.beds24_v1_api_key),
+        "invite_flow": bool(settings and settings.beds24_refresh_token),
     }
 
 
@@ -150,11 +203,11 @@ def list_properties(db: Session = Depends(get_db), tenant: str = Depends(get_ten
         except requests.RequestException as exc:
             raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
 
-    api_key = _get_v2_key(tenant, db)
+    token = _get_v2_token(tenant, db)
     try:
         r = requests.get(
             f"{V2_BASE}/properties",
-            headers=_v2_headers(api_key),
+            headers=_v2_headers(token),
             timeout=15,
         )
         r.raise_for_status()

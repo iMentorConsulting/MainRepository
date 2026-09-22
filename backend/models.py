@@ -241,8 +241,9 @@ class GuestPortalSettings(Base):
     pre_arrival_message = Column(Text)
     post_departure_subject = Column(String(300))
     post_departure_message = Column(Text)
-    beds24_api_key = Column(Text, nullable=True)
-    beds24_v1_api_key = Column(Text, nullable=True)
+    beds24_api_key = Column(Text, nullable=True)        # legacy long-life token (read-only)
+    beds24_v1_api_key = Column(Text, nullable=True)     # v1 account access key
+    beds24_refresh_token = Column(Text, nullable=True)  # v2 refresh token from invite code flow
     # IMAP email scanning for guest data extraction
     imap_host = Column(String(200))
     imap_port = Column(Integer, default=993)
