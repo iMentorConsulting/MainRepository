@@ -70,6 +70,8 @@ app.use('/api/logistis-sync', authMiddleware, require('./routes/logistisSync'));
 app.use('/api/payroll-target-sync', authMiddleware, require('./routes/payrollTargetSync'));
 // Receive lead intake webhooks from external systems (own API key auth for POST, user auth for GET/convert/dismiss)
 app.use('/api/lead-intake', require('./routes/leadIntake'));
+// Real-time SSE stream for in-app notifications
+app.use('/api/notifications', require('./routes/notifications'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 

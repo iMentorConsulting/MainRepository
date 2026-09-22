@@ -8,6 +8,8 @@ const { checkAndAutoStatus } = require('./serviceAgreements');
 const { buildCmPayments, sendBatchToCm } = require('../services/logistisSync');
 const { runPayrollTargetSync } = require('../services/payrollTargetSync');
 const { aadeSearchAfm } = require('./customers');
+const { broadcast } = require('../services/notifier');
+const { sendViberMessage } = require('../services/viberNotify');
 
 // ── API key guard ──────────────────────────────────────────────────────────────
 function requireLeadApiKey(req, res, next) {
@@ -211,6 +213,18 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       sales_agent:  agent || null,
       raw_payload:  req.body,           // store verbatim for debugging
     });
+
+    // Notify: SSE popup + Viber message
+    const invoiceType = merged.invoice_type || 'ΑΝΕΥ';
+    const notifPayload = {
+      customer_name:    merged.customer_name || '-',
+      invoice_type:     invoiceType,
+      amount_collected: record.amount_collected,
+      service_type:     merged.service_type || '',
+    };
+    broadcast('new_payment', notifPayload);
+    const viberText = `💰 Νέα πληρωμή\n${notifPayload.customer_name}\n${notifPayload.amount_collected}€ · ${invoiceType}`;
+    sendViberMessage(viberText).catch(() => {});
 
     // Fire side-effects
     if (record.service_agreement_id) checkAndAutoStatus(record.service_agreement_id);
