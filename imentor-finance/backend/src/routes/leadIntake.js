@@ -101,6 +101,8 @@ function normalizeFieldNames(raw) {
 // ── POST /api/lead-intake  — called by external systems ───────────────────────
 router.post('/', requireLeadApiKey, async (req, res) => {
   try {
+    console.log('[lead-intake] RAW KEYS:', Object.keys(req.body || {}).join(', '));
+    console.log('[lead-intake] RAW BODY:', JSON.stringify(req.body));
     const data = sanitize(normalizeFieldNames(req.body));
     const { external_id } = data;
 
