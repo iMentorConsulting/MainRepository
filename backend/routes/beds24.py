@@ -132,25 +132,32 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=f"Beds24 invite code exchange failed: {exc}")
 
-    if v1_key:
-        try:
-            _verify_v1_key(v1_key)
-        except ValueError as exc:
-            raise HTTPException(status_code=400, detail=f"Beds24 V1 auth failed: {exc}")
-
     settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
     if not settings:
         settings = GuestPortalSettings(tenant=tenant)
         db.add(settings)
 
+    # Save invite code result first — never block on V1 key
     if refresh_token:
         settings.beds24_refresh_token = refresh_token
         settings.beds24_api_key = None  # clear any stale legacy token
+
+    v1_warning = None
     if v1_key:
-        settings.beds24_v1_api_key = v1_key
+        try:
+            _verify_v1_key(v1_key)
+            settings.beds24_v1_api_key = v1_key
+        except ValueError as exc:
+            v1_warning = str(exc)
+
     db.commit()
 
-    return {"ok": True, "message": "Connected to Beds24", "has_refresh_token": bool(refresh_token)}
+    return {
+        "ok": True,
+        "message": "Connected to Beds24",
+        "has_refresh_token": bool(refresh_token),
+        "v1_warning": v1_warning,
+    }
 
 
 @router.get("/status")

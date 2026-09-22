@@ -499,10 +499,13 @@ function Beds24Section({ units }) {
     }
     setConnecting(true)
     try {
-      await testBeds24Connection(inviteCode.trim(), v1Key.trim())
+      const res = await testBeds24Connection(inviteCode.trim(), v1Key.trim())
       const r = await getBeds24Status()
       setStatus(r.data)
-      toast.success('Σύνδεση με Beds24 επιτυχής!')
+      setInviteCode('')
+      setV1Key('')
+      if (res.data?.v1_warning) toast.error(`V1 key αγνοήθηκε: ${res.data.v1_warning}`)
+      else toast.success('Σύνδεση με Beds24 επιτυχής!')
       try {
         const pr = await getBeds24Properties()
         const list = Array.isArray(pr.data) ? pr.data : (pr.data?.getProperties || pr.data?.data || [])
