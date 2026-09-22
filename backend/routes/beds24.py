@@ -160,6 +160,50 @@ def connect(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get
     }
 
 
+@router.get("/debug")
+def debug_token(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Return raw responses from Beds24 V2 auth + properties to help diagnose 401/scope issues."""
+    settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
+    result: dict = {
+        "has_refresh_token": bool(settings and settings.beds24_refresh_token),
+        "has_api_key": bool(settings and settings.beds24_api_key),
+    }
+    if not settings or (not settings.beds24_refresh_token and not settings.beds24_api_key):
+        return result
+
+    # Step 1: get access token
+    access_token = None
+    if settings.beds24_refresh_token:
+        try:
+            r = requests.get(
+                f"{V2_BASE}/authentication/token",
+                headers={"accept": "application/json", "token": settings.beds24_refresh_token},
+                timeout=15,
+            )
+            result["auth_token_status"] = r.status_code
+            result["auth_token_body"] = r.json() if r.ok else r.text[:300]
+            if r.ok:
+                data = r.json()
+                access_token = data.get("token") if isinstance(data, dict) else None
+                result["access_token_obtained"] = bool(access_token)
+                result["access_token_preview"] = (access_token or "")[:20] + "..."
+        except Exception as exc:
+            result["auth_token_error"] = str(exc)
+    else:
+        access_token = settings.beds24_api_key
+
+    # Step 2: call /properties
+    if access_token:
+        try:
+            r2 = requests.get(f"{V2_BASE}/properties", headers=_v2_headers(access_token), timeout=15)
+            result["properties_status"] = r2.status_code
+            result["properties_body"] = r2.json() if r2.ok else r2.text[:300]
+        except Exception as exc:
+            result["properties_error"] = str(exc)
+
+    return result
+
+
 @router.get("/status")
 def connection_status(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     """Return which Beds24 credentials are configured."""
@@ -222,6 +266,7 @@ def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant))
             # Try to get all properties first
             prop_ids: list = []
             prop_names: dict = {}
+            props_error: str = ""
             try:
                 rp = requests.get(f"{V2_BASE}/properties", headers=_v2_headers(token), timeout=15)
                 if rp.ok:
@@ -233,8 +278,10 @@ def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant))
                             if pid:
                                 prop_ids.append(pid)
                                 prop_names[pid] = p.get("name", f"Property {pid}")
-            except Exception:
-                pass
+                else:
+                    props_error = f"/properties → {rp.status_code}: {rp.text[:300]}"
+            except Exception as exc:
+                props_error = f"/properties exception: {exc}"
 
             # Fall back to propIds already stored on local units
             if not prop_ids:
@@ -249,8 +296,7 @@ def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant))
 
             if not prop_ids:
                 raise HTTPException(status_code=400, detail=(
-                    "Δεν βρέθηκαν properties. Βεβαιωθείτε ότι το Invite Code περιλαμβάνει "
-                    "read:properties ή write:properties scope."
+                    f"Δεν βρέθηκαν properties. {props_error or 'Βεβαιωθείτε ότι το Invite Code περιλαμβάνει read:properties ή write:properties scope.'}"
                 ))
 
             # Fetch rooms per propId
