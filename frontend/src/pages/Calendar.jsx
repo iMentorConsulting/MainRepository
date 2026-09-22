@@ -186,6 +186,14 @@ export default function Calendar() {
         <span className="text-gray-400 ml-2 hidden sm:inline">· Σύρτε / πατήστε για νέα κράτηση / μπλοκ</span>
       </div>
 
+      {rates.length === 0 && (
+        <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+          ⚠️ Δεν υπάρχουν τιμές για το {year}. Προσθέστε τιμές στον{' '}
+          <a href="/pricing" className="underline font-medium">Τιμοκατάλογο</a>{' '}
+          για να εμφανίζονται στο ημερολόγιο.
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-xl border border-gray-200 bg-white select-none" ref={scrollRef}>
         <div style={{ minWidth: `${160 + daysInMonth * DAY_W}px` }}>
           {/* Day headers */}
@@ -239,13 +247,13 @@ export default function Calendar() {
                       onTouchMove={handleTouchMove}
                       onTouchEnd={e => handleTouchEnd(e, u.id, u.name)}
                     >
-                      {/* Pricing rate on vacant cells — visible gray */}
-                      {rate && (
+                      {/* Rate on vacant cells: configured price, or dash if no rule set */}
+                      {!isBooked && (
                         <span
-                          className="absolute bottom-1 left-0 right-0 text-center text-gray-400 pointer-events-none font-medium"
+                          className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${rate ? 'text-gray-500' : 'text-gray-300'}`}
                           style={{ fontSize: '11px', lineHeight: 1 }}
                         >
-                          €{Math.round(rate.price_per_night)}
+                          {rate ? `€${Math.round(rate.price_per_night)}` : '–'}
                         </span>
                       )}
                     </div>
@@ -299,7 +307,7 @@ export default function Calendar() {
                         <span className="leading-tight text-white/80" style={{ fontSize: '10px' }}>
                           {isBlocked
                             ? (blockedRate ? `€${Math.round(blockedRate.price_per_night)}` : '—')
-                            : `${dailyRate ? `€${dailyRate}/ν` : ''}${b.guests > 0 ? ` ·${b.guests}👤` : ''}`
+                            : [dailyRate ? `€${dailyRate}/ν` : null, b.guests > 0 ? `${b.guests}👤` : null].filter(Boolean).join(' · ')
                           }
                         </span>
                       )}
