@@ -221,26 +221,71 @@ def list_properties(db: Session = Depends(get_db), tenant: str = Depends(get_ten
 
 @router.get("/rooms")
 def list_rooms(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
-    """List all Beds24 properties and their rooms (for mapping UI)."""
-    v1_key = _get_v1_key(tenant, db)
+    """List all Beds24 properties and their rooms (V2 preferred, V1 fallback)."""
+    settings = _get_settings(tenant, db)
+
+    # ── V2 path ──────────────────────────────────────────────────────────────
+    if settings.beds24_refresh_token or settings.beds24_api_key:
+        try:
+            token = _get_v2_token(tenant, db)
+
+            # Get properties
+            rp = requests.get(f"{V2_BASE}/properties", headers=_v2_headers(token), timeout=15)
+            rp.raise_for_status()
+            props_data = rp.json()
+            props = props_data.get("data", props_data) if isinstance(props_data, dict) else props_data
+            if not isinstance(props, list):
+                props = []
+
+            # Get rooms for each property via V2 /inventory/rooms
+            result = []
+            for prop in props:
+                prop_id = prop.get("propId") or prop.get("id")
+                if not prop_id:
+                    continue
+                rr = requests.get(
+                    f"{V2_BASE}/inventory/rooms",
+                    headers=_v2_headers(token),
+                    params={"propId": prop_id},
+                    timeout=15,
+                )
+                rooms_raw = []
+                if rr.ok:
+                    rd = rr.json()
+                    rooms_raw = rd.get("data", rd) if isinstance(rd, dict) else rd
+                    if not isinstance(rooms_raw, list):
+                        rooms_raw = []
+                result.append({
+                    "propId": prop_id,
+                    "propName": prop.get("name", f"Property {prop_id}"),
+                    "rooms": [
+                        {
+                            "roomId": rm.get("roomId") or rm.get("id"),
+                            "roomName": rm.get("name", rm.get("title", "")),
+                        }
+                        for rm in rooms_raw
+                    ],
+                })
+            return result
+        except requests.RequestException as exc:
+            raise HTTPException(status_code=502, detail=f"Beds24 API error: {exc}")
+
+    # ── V1 fallback ───────────────────────────────────────────────────────────
+    v1_key = settings.beds24_v1_api_key
+    if not v1_key:
+        raise HTTPException(status_code=400, detail="Beds24 not configured.")
     try:
-        # Get properties
         r = requests.post(f"{V1_BASE}/getProperties", json=_v1_auth(v1_key), timeout=15)
         r.raise_for_status()
         props_data = r.json()
         props = props_data.get("getProperties", []) if isinstance(props_data, dict) else []
 
-        # Get rooms for each property
         result = []
         for prop in props:
             prop_id = prop.get("propId") or prop.get("id")
             if not prop_id:
                 continue
-            rr = requests.post(
-                f"{V1_BASE}/getRooms",
-                json={**_v1_auth(v1_key), "propId": prop_id},
-                timeout=15,
-            )
+            rr = requests.post(f"{V1_BASE}/getRooms", json={**_v1_auth(v1_key), "propId": prop_id}, timeout=15)
             rooms = []
             if rr.ok:
                 rd = rr.json()
