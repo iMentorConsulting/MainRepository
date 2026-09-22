@@ -56,7 +56,11 @@ function sanitize(body) {
 
 // ── Field-name normalisation (handles different naming conventions from external apps) ─
 function normalizeFieldNames(raw) {
-  const d = { ...raw };
+  // Lowercase all keys first so AFM, Phone, Email etc. all match aliases below
+  const d = {};
+  for (const [k, v] of Object.entries(raw || {})) {
+    d[k.toLowerCase()] = v;
+  }
 
   // customer_name aliases
   if (!d.customer_name) d.customer_name = d.name || d.client_name || d.client || d.onomasia || d.pelatis || null;
@@ -65,7 +69,7 @@ function normalizeFieldNames(raw) {
   if (!d.vat_number) d.vat_number = d.afm || d.tax_id || d.tax_number || null;
 
   // phone aliases
-  if (!d.phone) d.phone = d.mobile || d.tel || d.telephone || d.kinito || null;
+  if (!d.phone) d.phone = d.mobile || d.tel || d.thl || d.telephone || d.kinito || null;
 
   // email aliases
   if (!d.email) d.email = d.email_address || d.mail || null;
