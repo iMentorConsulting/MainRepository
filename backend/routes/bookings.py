@@ -356,25 +356,39 @@ def reply_via_airbnb(booking_id: int, body: dict, db: Session = Depends(get_db),
         raise HTTPException(status_code=400, detail="Το μήνυμα είναι κενό")
 
     settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
-    if not settings or not settings.smtp_host or not settings.smtp_user or not settings.smtp_pass:
-        raise HTTPException(status_code=400, detail="Οι ρυθμίσεις SMTP δεν έχουν διαμορφωθεί στις Ρυθμίσεις")
+
+    # Prefer IMAP account (kvidaki@gmail.com) for sending — Airbnb relay requires
+    # replies to come from the host's registered Airbnb email address.
+    # Fall back to generic SMTP if IMAP not configured.
+    if settings and settings.imap_user and settings.imap_pass:
+        send_host = "smtp.gmail.com"
+        send_port = 587
+        send_user = settings.imap_user
+        send_pass = settings.imap_pass
+    elif settings and settings.smtp_host and settings.smtp_user and settings.smtp_pass:
+        send_host = settings.smtp_host
+        send_port = settings.smtp_port or 587
+        send_user = settings.smtp_user
+        send_pass = settings.smtp_pass
+    else:
+        raise HTTPException(status_code=400, detail="Δεν υπάρχουν ρυθμίσεις email (IMAP ή SMTP) στις Ρυθμίσεις")
 
     guest_name = ""
     if booking.customer:
         guest_name = f"{booking.customer.first_name or ''} {booking.customer.last_name or ''}".strip()
 
     msg = EmailMessage()
-    msg["From"] = settings.smtp_user
+    msg["From"] = send_user
     msg["To"] = booking.reply_email
     msg["Subject"] = f"Re: Your stay at {booking.unit.name if booking.unit else 'our property'}"
     msg.set_content(message)
 
     try:
         ctx = ssl.create_default_context()
-        with smtplib.SMTP(settings.smtp_host, settings.smtp_port or 587) as s:
+        with smtplib.SMTP(send_host, send_port) as s:
             s.ehlo()
             s.starttls(context=ctx)
-            s.login(settings.smtp_user, settings.smtp_pass)
+            s.login(send_user, send_pass)
             s.send_message(msg)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Αποτυχία αποστολής: {exc}")
