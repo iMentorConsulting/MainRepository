@@ -856,6 +856,9 @@ export default function Sync() {
         </div>
       )}
 
+      {/* Beds24 Channel Manager */}
+      <Beds24Section units={units} />
+
       {/* Platform guides */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-200">
