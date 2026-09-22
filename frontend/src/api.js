@@ -126,6 +126,9 @@ export const assignOwnerUnits = (id, unitIds) => api.put(`/owners/${id}/units`, 
 export const getOwnerReport = (id, year, month) => api.get(`/owners/${id}/report`, { params: { year, month } })
 export const sendOwnerReport = (id, year, month) => api.post(`/owners/${id}/send-report`, null, { params: { year, month } })
 
+// Availability rules
+export const getAvailabilityCalendar = (params) => api.get('/availability/calendar', { params })
+
 // Pricing
 export const getPricingRates = (params) => api.get('/pricing/rates', { params })
 export const createPricingRate = (data) => api.post('/pricing/rates', data)

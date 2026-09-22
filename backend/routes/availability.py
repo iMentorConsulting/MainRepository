@@ -68,6 +68,26 @@ def list_rules(
     return [_rule_dict(r) for r in rows]
 
 
+@router.get("/calendar")
+def list_rules_all_units(
+    date_from: str,
+    date_to: str,
+    db: Session = Depends(get_db),
+    tenant: str = Depends(get_tenant),
+):
+    """Return availability rules for ALL units in a date range (for calendar view)."""
+    rows = (
+        db.query(AvailabilityRule)
+        .filter(
+            AvailabilityRule.tenant == tenant,
+            AvailabilityRule.date >= date_from,
+            AvailabilityRule.date <= date_to,
+        )
+        .all()
+    )
+    return [_rule_dict(r) for r in rows]
+
+
 @router.post("/")
 def upsert_rule(data: RuleIn, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     row = db.query(AvailabilityRule).filter_by(

@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
-import { getUnits, getBookings, getPricingRates, createCustomer, createBooking, blockDates } from '../api'
+import { getUnits, getBookings, getPricingRates, getAvailabilityCalendar, createCustomer, createBooking, blockDates } from '../api'
 import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, addDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -29,6 +29,7 @@ export default function Calendar() {
   const [units, setUnits] = useState([])
   const [bookings, setBookings] = useState([])
   const [rates, setRates] = useState([])
+  const [availRules, setAvailRules] = useState([])  // AvailabilityRule records
   const [month, setMonth] = useState(new Date())
   const scrollRef = useRef(null)
 
@@ -54,6 +55,12 @@ export default function Calendar() {
   useEffect(() => {
     getPricingRates({ year }).then(r => setRates(r.data)).catch(() => {})
   }, [year])
+
+  useEffect(() => {
+    getAvailabilityCalendar({ date_from: fromDate, date_to: toDate })
+      .then(r => setAvailRules(r.data))
+      .catch(() => {})
+  }, [fromDate, toDate])
 
   // Cancel drag on window mouseup / touchcancel
   useEffect(() => {
@@ -91,6 +98,15 @@ export default function Calendar() {
   const today = format(new Date(), 'yyyy-MM-dd')
   const selMin = drag ? Math.min(drag.startDay, drag.endDay) : null
   const selMax = drag ? Math.max(drag.startDay, drag.endDay) : null
+
+  // Build stop-sale lookup: stopSales[unitId][dateStr] = true
+  const stopSales = {}
+  availRules.forEach(r => {
+    if (r.status === 'stop_sales') {
+      if (!stopSales[r.unit_id]) stopSales[r.unit_id] = {}
+      stopSales[r.unit_id][r.date] = true
+    }
+  })
 
   const findRate = useCallback((unitId, dateStr) => {
     const match = rates.filter(r =>
@@ -182,6 +198,7 @@ export default function Calendar() {
           </span>
         ))}
         <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-gray-500" /> Μπλοκ</span>
+        <span className="flex items-center gap-1"><span className="w-3 h-3 rounded-sm inline-block bg-red-50 border border-red-200" /><span className="text-red-400 font-bold" style={{fontSize:'9px'}}>STOP</span></span>
         <span className="flex items-center gap-1 text-gray-400">✓ = Τιμολογήθηκε</span>
         <span className="text-gray-400 ml-2 hidden sm:inline">· Σύρτε / πατήστε για νέα κράτηση / μπλοκ</span>
       </div>
@@ -228,6 +245,7 @@ export default function Calendar() {
                   const isWeekend = d.getDay() === 0 || d.getDay() === 6
                   const isSelected = drag?.unitId === u.id && dayNum >= selMin && dayNum <= selMax
                   const isBooked = bookedDates[u.id]?.has(ds)
+                  const isStop = !isBooked && !!stopSales[u.id]?.[ds]
                   const seasonalRate = !isBooked ? findRate(u.id, ds) : null
                   const displayPrice = seasonalRate
                     ? Math.round(seasonalRate.price_per_night)
@@ -240,6 +258,7 @@ export default function Calendar() {
                       style={{ width: `${DAY_W}px`, height: `${ROW_H}px` }}
                       className={`flex-shrink-0 border-r border-gray-100 cursor-crosshair relative transition-colors ${
                         isSelected ? 'bg-blue-200' :
+                        isStop ? 'bg-red-50' :
                         isToday ? 'bg-blue-50' :
                         isWeekend ? 'bg-gray-50' : ''
                       }`}
@@ -250,10 +269,16 @@ export default function Calendar() {
                       onTouchMove={handleTouchMove}
                       onTouchEnd={e => handleTouchEnd(e, u.id, u.name)}
                     >
-                      {/* Rate on vacant cells: seasonal rule > unit base_price > nothing */}
+                      {/* Stop-sale indicator */}
+                      {isStop && (
+                        <span className="absolute top-1 left-0 right-0 text-center text-red-400 font-bold pointer-events-none" style={{ fontSize: '9px' }}>
+                          STOP
+                        </span>
+                      )}
+                      {/* Rate on vacant/stop cells: seasonal rule > unit base_price */}
                       {!isBooked && displayPrice && (
                         <span
-                          className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${seasonalRate ? 'text-gray-500' : 'text-gray-300'}`}
+                          className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${isStop ? 'text-red-300' : seasonalRate ? 'text-gray-500' : 'text-gray-300'}`}
                           style={{ fontSize: '11px', lineHeight: 1 }}
                         >
                           €{displayPrice}
