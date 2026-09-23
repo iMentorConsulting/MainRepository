@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { runMatchingForBusiness, notifyBatchMatchesForBusinesses } from '@/lib/matching'
 import { lookupAfm } from '@/lib/gsis'
+import { mapWithConcurrency } from '@/lib/concurrency'
 import * as XLSX from 'xlsx'
 
 function applySoleProprietorFix(businessData: any) {
@@ -151,15 +152,22 @@ export async function POST(request: NextRequest) {
 
   // Run matching for all imported businesses, then send ONE batched email
   // per program (not one per business) summarizing all newly-eligible clients.
-  // allSettled — one business failing to match must not skip the batch
-  // notification for everyone else that succeeded.
+  // Throttled via mapWithConcurrency — firing runMatchingForBusiness() for
+  // 150+ businesses all at once (each doing a sequential DB round-trip per
+  // active program) blows way past the DB connection pool, causing most
+  // calls to fail silently (caught below, only console.error'd) and leaving
+  // ProgramMatch rows uncreated — which is also why notifyBatchMatchesForBusinesses
+  // then found nothing to notify about. Same concurrency cap used everywhere
+  // else in matching.ts (BUSINESS_MATCH_CONCURRENCY) for the same reason.
+  const IMPORT_MATCH_CONCURRENCY = 20
   if (importedBusinessIds.length > 0) {
-    Promise.allSettled(importedBusinessIds.map(id => runMatchingForBusiness(id)))
-      .then(results => {
-        const failed = results.filter(r => r.status === 'rejected').length
-        if (failed > 0) console.error(`[Matching] ${failed}/${importedBusinessIds.length} imported businesses failed to match`)
-        return notifyBatchMatchesForBusinesses(importedBusinessIds)
+    mapWithConcurrency(importedBusinessIds, IMPORT_MATCH_CONCURRENCY, id =>
+      runMatchingForBusiness(id).catch(err => {
+        console.error(`[Matching] Import match failed for business ${id}:`, err?.message)
+        return null
       })
+    )
+      .then(() => notifyBatchMatchesForBusinesses(importedBusinessIds))
       .catch(err => console.error('[Matching] Batch match/notify for import failed:', err?.message))
   }
 
