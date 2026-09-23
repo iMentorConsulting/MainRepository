@@ -531,7 +531,7 @@ def upsert_config(
         db.add(cfg)
     for field in ("spreadsheet_id", "sheet_tab", "header_row", "column_map", "program_field_map", "enabled"):
         val = getattr(req, field)
-        if val is not None and val != "":  # never overwrite with empty string
+        if val is not None and val != "" and val != {}:  # never overwrite with empty string/dict
             setattr(cfg, field, val)
     if req.reset_watermark:
         cfg.last_row_num = 0
