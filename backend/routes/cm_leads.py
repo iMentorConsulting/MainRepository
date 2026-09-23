@@ -1233,22 +1233,26 @@ def dedup_leads(
 @router.delete("/purge-recent")
 def purge_recent_leads(
     program: str = Query(...),
-    since_minutes: int = Query(120, ge=1, le=1440),
+    since_minutes: int = Query(120, ge=1, le=20160),
+    min_row: Optional[int] = Query(None),
+    max_row: Optional[int] = Query(None),
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Delete NEW LEAD leads for a program created in the last N minutes.
+    """Delete leads for a program created in the last N minutes (any status).
+    Optionally restrict to sheet row range [min_row, max_row].
     Used to undo an accidental mass-import. Admin only."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
     from datetime import timedelta
     from models_cases import CMLeadComment, CMLeadNotificationLog, CMPortalAssignment
     cutoff = datetime.utcnow() - timedelta(minutes=since_minutes)
-    victims = (
-        db.query(CMLead)
-        .filter(CMLead.program == program, CMLead.created_at >= cutoff, CMLead.status == "NEW LEAD")
-        .all()
-    )
+    q = db.query(CMLead).filter(CMLead.program == program, CMLead.created_at >= cutoff)
+    if min_row is not None:
+        q = q.filter(CMLead.sheet_row_num >= min_row)
+    if max_row is not None:
+        q = q.filter(CMLead.sheet_row_num <= max_row)
+    victims = q.all()
     ids = [v.id for v in victims]
     if not ids:
         return {"ok": True, "deleted": 0}

@@ -128,12 +128,13 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={doRefresh} disabled={busy} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">Επανεισαγωγή υπαρχόντων</button>
         <button
           onClick={async () => {
-            const mins = prompt('Διαγραφή NEW LEAD leads που δημιουργήθηκαν τα τελευταία Ν λεπτά. Πόσα λεπτά;', '120')
-            if (!mins) return
-            if (!confirm(`Διαγραφή όλων των NEW LEAD του ${program} από τα τελευταία ${mins} λεπτά. Δεν αναιρείται!`)) return
+            const hrs = prompt('Διαγραφή leads που δημιουργήθηκαν τις τελευταίες Ν ΩΡΕΣ (οποιοδήποτε status). Πόσες ώρες;', '24')
+            if (!hrs) return
+            const mins = Math.round(Number(hrs) * 60)
+            if (!confirm(`Διαγραφή ΟΛΩΝ των leads του ${program} από τις τελευταίες ${hrs} ώρες (${mins} λεπτά). Δεν αναιρείται!`)) return
             setBusy(true)
             try {
-              const res = await purgeRecentLeads(program, Number(mins))
+              const res = await purgeRecentLeads(program, mins)
               toast.success(`Διαγράφηκαν ${res.deleted} leads`)
               onSaved?.()
             } catch (e) { toast.error(e.response?.data?.detail || 'Σφάλμα') } finally { setBusy(false) }
