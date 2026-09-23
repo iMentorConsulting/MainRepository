@@ -436,10 +436,14 @@ def list_leads(
     if consultant:
         matching_agent = db.query(CMUser).filter(CMUser.full_name == consultant).first()
         if matching_agent:
-            query = query.filter(or_(
-                CMLead.assigned_name == consultant,
-                CMLead.assigned_agent_id == matching_agent.id,
-            ))
+            # Also match old code names (HARIS, CHRISTOS etc.) for this agent's first name
+            from routes.cm_leads_ermis import _CONSULTANT_GR
+            first_name_match = matching_agent.full_name.split()[1] if matching_agent.full_name and len(matching_agent.full_name.split()) > 1 else None
+            old_codes = [code for code, fn in _CONSULTANT_GR.items() if first_name_match and fn.lower() in first_name_match.lower()]
+            name_conditions = [CMLead.assigned_name == consultant, CMLead.assigned_agent_id == matching_agent.id]
+            for code in old_codes:
+                name_conditions.append(CMLead.assigned_name == code)
+            query = query.filter(or_(*name_conditions))
         else:
             query = query.filter(CMLead.assigned_name == consultant)
     if program:
@@ -730,9 +734,8 @@ def filter_options(
         {p[0] for p in _pt_rows if _pt_ok(p[0])} |
         {p[0] for p in _st_rows if p[0] and program_category_from_title(p[0])}
     )
-    # Build canonical consultant list: use agent full_name when agent_id is set,
-    # fall back to assigned_name. This de-duplicates code names (HARIS) with the
-    # canonical Greek name (Αποστολάκης Χάρης) when they refer to the same person.
+    # Build consultant list: only official CMUser full_names that have at least one lead.
+    _official_names = {u.full_name for u in db.query(_U).all() if u.full_name}
     _users_map = {u.id: u.full_name for u in db.query(_U).all()}
     _rows = db.query(CMLead.assigned_agent_id, CMLead.assigned_name).filter(
         or_(CMLead.assigned_agent_id.isnot(None), CMLead.assigned_name.isnot(None))
@@ -741,7 +744,8 @@ def filter_options(
     consultants = []
     for agent_id, name in _rows:
         canonical = (_users_map.get(agent_id) if agent_id else None) or (name or "")
-        if canonical and canonical not in _seen:
+        # Only include names that are official CMUser names (skip old code names like HARIS)
+        if canonical and canonical in _official_names and canonical not in _seen:
             _seen.add(canonical)
             consultants.append(canonical)
     # Status counts across all leads (for the filter chips)
