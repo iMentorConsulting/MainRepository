@@ -295,12 +295,18 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
         }
 
     # AFM-level dedup: skip creation when the same (afm, program) already exists
-    # for this sheet config, regardless of row number shifts.
+    # for this sheet config in an active (non-terminal) status.
+    # CANCEL/DEAL leads are excluded so the same person can re-apply.
+    _TERMINAL = {"CANCEL", "DEAL"}
     _resolved_program = _resolve_program(cfg.program) or cfg.program
     existing_afm_programs: set = {
         (r[0], r[1])
         for r in db.query(CMLead.afm, CMLead.program)
-        .filter(CMLead.sheet_config_id == cfg.id, CMLead.afm.isnot(None)).all()
+        .filter(
+            CMLead.sheet_config_id == cfg.id,
+            CMLead.afm.isnot(None),
+            ~CMLead.status.in_(list(_TERMINAL)),
+        ).all()
         if r[0] and str(r[0]).strip()
     }
 
