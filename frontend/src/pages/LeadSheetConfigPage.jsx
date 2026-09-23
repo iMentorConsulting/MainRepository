@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  getLeadSheetConfigs, saveLeadSheetConfig, setLeadSheetWatermark, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus, mergeDuplicateLeads,
+  getLeadSheetConfigs, saveLeadSheetConfig, setLeadSheetWatermark, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus, mergeDuplicateLeads, purgeRecentLeads,
 } from '../api'
 import { ArrowPathIcon, EyeIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -126,6 +126,21 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={doPreview} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><EyeIcon className="w-4 h-4" />Preview</button>
         <button onClick={doRun} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><ArrowPathIcon className="w-4 h-4" />Sync τώρα</button>
         <button onClick={doRefresh} disabled={busy} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">Επανεισαγωγή υπαρχόντων</button>
+        <button
+          onClick={async () => {
+            const mins = prompt('Διαγραφή NEW LEAD leads που δημιουργήθηκαν τα τελευταία Ν λεπτά. Πόσα λεπτά;', '120')
+            if (!mins) return
+            if (!confirm(`Διαγραφή όλων των NEW LEAD του ${program} από τα τελευταία ${mins} λεπτά. Δεν αναιρείται!`)) return
+            setBusy(true)
+            try {
+              const res = await purgeRecentLeads(program, Number(mins))
+              toast.success(`Διαγράφηκαν ${res.deleted} leads`)
+              onSaved?.()
+            } catch (e) { toast.error(e.response?.data?.detail || 'Σφάλμα') } finally { setBusy(false) }
+          }}
+          disabled={busy}
+          className="text-sm font-semibold text-red-700 bg-red-50 border border-red-300 rounded-lg px-3 py-1.5 hover:bg-red-100"
+        >🗑 Ακύρωση τελευταίας εισαγωγής</button>
         <span className="flex items-center gap-1">
           <button
             onClick={async () => {

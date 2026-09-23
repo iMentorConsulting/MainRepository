@@ -1230,6 +1230,36 @@ def dedup_leads(
     return {"ok": True, "groups": groups_affected, "deleted": deleted_total, "details": details}
 
 
+@router.delete("/purge-recent")
+def purge_recent_leads(
+    program: str = Query(...),
+    since_minutes: int = Query(120, ge=1, le=1440),
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Delete NEW LEAD leads for a program created in the last N minutes.
+    Used to undo an accidental mass-import. Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+    from datetime import timedelta
+    from models_cases import CMLeadComment, CMLeadNotificationLog, CMPortalAssignment
+    cutoff = datetime.utcnow() - timedelta(minutes=since_minutes)
+    victims = (
+        db.query(CMLead)
+        .filter(CMLead.program == program, CMLead.created_at >= cutoff, CMLead.status == "NEW LEAD")
+        .all()
+    )
+    ids = [v.id for v in victims]
+    if not ids:
+        return {"ok": True, "deleted": 0}
+    db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(ids)).delete(synchronize_session=False)
+    db.query(CMLeadNotificationLog).filter(CMLeadNotificationLog.lead_id.in_(ids)).delete(synchronize_session=False)
+    db.query(CMPortalAssignment).filter(CMPortalAssignment.lead_id.in_(ids)).update({"lead_id": None}, synchronize_session=False)
+    db.query(CMLead).filter(CMLead.id.in_(ids)).delete(synchronize_session=False)
+    db.commit()
+    return {"ok": True, "deleted": len(ids)}
+
+
 @router.post("/backfill-programs")
 def backfill_programs(
     current_user: CMUser = Depends(get_current_user),
