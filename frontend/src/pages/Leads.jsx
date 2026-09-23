@@ -1155,9 +1155,9 @@ export default function Leads() {
           {isAdmin && (
             <>
               <button onClick={async () => {
-                if (!window.confirm('Διαγραφή διπλοεγγραφών; Θα κρατηθεί μία εγγραφή ανά ΑΦΜ + πρόγραμμα + κατάσταση + ημερομηνία.')) return
+                if (!window.confirm('Συγχώνευση διπλοεγγραφών ανά ΑΦΜ + πρόγραμμα;\n\nΔιατηρείται το lead με την ΚΑΛΥΤΕΡΗ κατάσταση (DEAL > HOT > ACTIVE > CALL > NEW LEAD > CANCEL).\nΜεταφέρονται σχόλια, consultant και ΕΡΜΗΣ από τα διπλά στο κύριο.\nΤα διπλά διαγράφονται.')) return
                 const r = await dedupLeads()
-                toast.success(`Διαγράφηκαν ${r.deleted} διπλοεγγραφές σε ${r.groups} ομάδες`)
+                toast.success(`Συγχωνεύτηκαν ${r.deleted} διπλοεγγραφές σε ${r.groups} ομάδες`)
               }} className="flex items-center gap-1.5 text-sm bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 px-3 py-1.5 rounded-lg font-medium">
                 🧹 Dedup Leads
               </button>

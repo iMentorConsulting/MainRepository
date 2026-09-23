@@ -1119,14 +1119,33 @@ def dedup_leads(
         """Return the id of the lead to keep."""
         return sorted(leads, key=lambda l: (-STATUS_RANK.get(l.status, 0), l.id))[0].id
 
-    def _delete_dupes(ids_to_delete):
-        if not ids_to_delete:
-            return
+    def _merge_into_winner(winner, losers):
+        """Move comments/logs from losers into winner, fill missing fields, then delete losers."""
         from models_cases import CMPortalAssignment as _CPA
-        db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(ids_to_delete)).delete(synchronize_session=False)
-        db.query(CMLeadNotificationLog).filter(CMLeadNotificationLog.lead_id.in_(ids_to_delete)).delete(synchronize_session=False)
-        db.query(_CPA).filter(_CPA.cm_lead_id.in_(ids_to_delete)).update({"cm_lead_id": None}, synchronize_session=False)
-        db.query(CMLead).filter(CMLead.id.in_(ids_to_delete)).delete(synchronize_session=False)
+        loser_ids = [l.id for l in losers]
+        # Move comments to winner
+        db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(loser_ids)).update(
+            {"lead_id": winner.id}, synchronize_session=False)
+        # Move notification logs to winner
+        db.query(CMLeadNotificationLog).filter(CMLeadNotificationLog.lead_id.in_(loser_ids)).update(
+            {"lead_id": winner.id}, synchronize_session=False)
+        # Fill missing fields on winner from losers (best non-empty value)
+        for loser in sorted(losers, key=lambda l: -STATUS_RANK.get(l.status, 0)):
+            if not winner.assigned_agent_id and loser.assigned_agent_id:
+                winner.assigned_agent_id = loser.assigned_agent_id
+                winner.assigned_name = loser.assigned_name
+            if not winner.phone and loser.phone:
+                winner.phone = loser.phone
+            if not winner.email and loser.email:
+                winner.email = loser.email
+            if not winner.name and loser.name:
+                winner.name = loser.name
+            if not winner.ermis_thread_id and loser.ermis_thread_id:
+                winner.ermis_thread_id = loser.ermis_thread_id
+                winner.ermis_status = loser.ermis_status
+        # Unlink portal assignments from losers
+        db.query(_CPA).filter(_CPA.cm_lead_id.in_(loser_ids)).update({"cm_lead_id": None}, synchronize_session=False)
+        db.query(CMLead).filter(CMLead.id.in_(loser_ids)).delete(synchronize_session=False)
 
     deleted_total = 0
     groups_affected = 0
@@ -1149,14 +1168,14 @@ def dedup_leads(
         if len(leads) <= 1:
             continue
         keep_id = _pick_winner(leads)
-        to_delete = [l.id for l in leads if l.id != keep_id]
-        _delete_dupes(to_delete)
-        deleted_total += len(to_delete)
-        groups_affected += 1
         winner = next(l for l in leads if l.id == keep_id)
+        losers = [l for l in leads if l.id != keep_id]
+        _merge_into_winner(winner, losers)
+        deleted_total += len(losers)
+        groups_affected += 1
         details.append({"afm": g.afm, "program": g.program,
                         "kept_id": keep_id, "kept_status": winner.status,
-                        "deleted_ids": to_delete})
+                        "deleted_ids": [l.id for l in losers]})
 
     # Pass 2: leads WITHOUT AFM — group by (phone, program)
     no_afm_groups = (
@@ -1177,14 +1196,14 @@ def dedup_leads(
         if len(leads) <= 1:
             continue
         keep_id = _pick_winner(leads)
-        to_delete = [l.id for l in leads if l.id != keep_id]
-        _delete_dupes(to_delete)
-        deleted_total += len(to_delete)
-        groups_affected += 1
         winner = next(l for l in leads if l.id == keep_id)
+        losers = [l for l in leads if l.id != keep_id]
+        _merge_into_winner(winner, losers)
+        deleted_total += len(losers)
+        groups_affected += 1
         details.append({"phone": g.phone, "program": g.program,
                         "kept_id": keep_id, "kept_status": winner.status,
-                        "deleted_ids": to_delete})
+                        "deleted_ids": [l.id for l in losers]})
 
     db.commit()
     return {"ok": True, "groups": groups_affected, "deleted": deleted_total, "details": details}
