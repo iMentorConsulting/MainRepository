@@ -92,6 +92,15 @@ function normalizeFieldNames(raw) {
   // source_referral aliases
   if (!d.source_referral) d.source_referral = d.referral || d.source || d.pigi || null;
 
+  // invoice_type normalisation: anything that means "no invoice" → ΑΝΕΥ; default missing to ΑΝΕΥ
+  const INVOICE_TYPES = ['ΤΙΜΟΛΟΓΙΟ', 'ΑΠΟΔΕΙΞΗ'];
+  const rawInvoice = normalizeGreek(d.invoice_type || '');
+  if (!INVOICE_TYPES.includes(rawInvoice)) {
+    d.invoice_type = 'ΑΝΕΥ';
+  } else {
+    d.invoice_type = rawInvoice;
+  }
+
   // Extract postal_code embedded in address like "ΔΟΛΙΑΝΩΝ 10 ΤΚ:12242" or "ΤΚ 12242"
   if (!d.postal_code && d.address) {
     const tkMatch = d.address.match(/\bΤ\.?Κ\.?[: ]?(\d{5})\b/i);
