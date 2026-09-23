@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
-import { fmt } from '../utils/calculations'
+import { fmt, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
 
 // ── Viber helpers ────────────────────────────────────────────────────────────
 const VIBER_MSGS = [
@@ -22,18 +22,24 @@ const VIBER_MSGS = [
   { type: 'final',     label: 'Τελευταία' },
 ]
 
-const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR4501714330006433164381388\nEurobank: GR5802601680000060201330648\nAlpha Bank: GR2401407750775002330002138\nΔικαιούχος: *I MENTOR IKE*`
 
-function buildOfferBlock(offer) {
+function buildOfferBlock(offer, debtorType) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
   const lines = ['\n\n💼 *Οικονομική Προσφορά:*']
-  if (offer.application_fee) lines.push(`• Αίτηση & Διαδικασία: *${Number(offer.application_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
-  if (offer.success_fee)     lines.push(`• Success Fee (αποδοχή): *${Number(offer.success_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  if (offer.application_fee) {
+    const appFee = calculateOfferWithWithholding(Number(offer.application_fee), debtorType)
+    lines.push(`• Αίτηση & Διαδικασία: *${appFee.formatted}*`)
+  }
+  if (offer.success_fee) {
+    const successFee = calculateOfferWithWithholding(Number(offer.success_fee), debtorType)
+    lines.push(`• Success Fee (αποδοχή): *${successFee.formatted}*`)
+  }
+  lines.push(getBankingDetailsText())
   return lines.join('\n')
 }
 
-function buildViberMessage(type, name, url, offer = null, includeOffer = false) {
-  const offerSection = includeOffer ? buildOfferBlock(offer) + IBANS_TEXT : ''
+function buildViberMessage(type, name, url, offer = null, includeOffer = false, debtorType = '') {
+  const offerSection = includeOffer ? buildOfferBlock(offer, debtorType) : ''
   switch (type) {
     case 'initial':
       return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
@@ -53,10 +59,10 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
   const [selectedType, setSelectedType] = useState('initial')
   const [includeOffer, setIncludeOffer] = useState(false)
   const [sendEmail, setSendEmail] = useState(!!caseItem.client_email)
-  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url, null, false))
+  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url, null, false, caseItem.debtor_type))
 
   const rebuild = (type, withOffer) =>
-    setMessage(buildViberMessage(type, caseItem.client_name, url, caseItem.commercial_offer, withOffer))
+    setMessage(buildViberMessage(type, caseItem.client_name, url, caseItem.commercial_offer, withOffer, caseItem.debtor_type))
 
   const selectType = (type) => { setSelectedType(type); rebuild(type, includeOffer) }
   const toggleOffer = (checked) => { setIncludeOffer(checked); rebuild(selectedType, checked) }

@@ -84,13 +84,11 @@ export const PARAMS_B = {
   fpSelfEmployedFloorPct: 0.10, // default "εύλογο ποσοστό" — overridable per case via fp_eulogo_pct field
 }
 
-// Conservative scenario factors — empirical, not statutory.
-// Simulate likely intervention by the Coordinator Creditor (ΚΥΑ 77697/2021 §3.4)
-// which typically reduces Proposal B write-offs before the voting phase.
-// Update after each batch of ~20 closed cases with known outcomes.
-// Last updated: 2026-04-28
+// Conservative scenario factors — set to 1.00 to show only the optimistic (best-case) result.
+// Restore PRIVATE_SECURED: 0.65 / PRIVATE_UNSECURED: 0.75 once enough closed cases
+// justify showing a range again.
 export const CONSERVATIVE_FACTORS = {
-  PUBLIC: 1.00,             // Δημόσιο/ΦΚΑ — legally fixed, Coordinator cannot alter
-  PRIVATE_SECURED: 0.65,   // Secured bank: conservative retains 65% of computed write-off
-  PRIVATE_UNSECURED: 0.75, // Unsecured bank: conservative retains 75% of computed write-off
+  PUBLIC: 1.00,
+  PRIVATE_SECURED: 1.00,
+  PRIVATE_UNSECURED: 1.00,
 }

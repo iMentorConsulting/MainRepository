@@ -6,8 +6,9 @@ import os
 from dotenv import load_dotenv
 
 from database import engine, Base
-from models import Case, AppConfig, Lead, IrisPayment, ThemisSession
-from routers import cases, statistics, public, config, leads, auth, external, payments, notifications, themis, analytics
+from models import Case, AppConfig, Lead, IrisPayment, ThemisSession, FinancePayment
+from routers import cases, statistics, public, config, leads, auth, external, payments, notifications, themis, analytics, finance, accountants
+from routers import finance_intake as finance_intake_router
 from auth_utils import get_current_user
 
 load_dotenv()
@@ -155,6 +156,47 @@ def run_migrations():
             except Exception:
                 pass
 
+        # Finance payments table (safe add for existing deployments)
+        try:
+            conn.execute(text("""
+                CREATE TABLE IF NOT EXISTS finance_payments (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    case_id INTEGER NOT NULL,
+                    external_id VARCHAR UNIQUE NOT NULL,
+                    finance_id INTEGER,
+                    payment_type VARCHAR DEFAULT '',
+                    invoice_type VARCHAR DEFAULT '',
+                    amount_collected REAL DEFAULT 0.0,
+                    vat_amount REAL DEFAULT 0.0,
+                    sale_date VARCHAR DEFAULT '',
+                    description VARCHAR DEFAULT '',
+                    targeting_category VARCHAR DEFAULT '',
+                    source_referral VARCHAR DEFAULT '',
+                    work_status VARCHAR DEFAULT '',
+                    address VARCHAR DEFAULT '',
+                    city VARCHAR DEFAULT '',
+                    sent_by VARCHAR DEFAULT '',
+                    is_duplicate INTEGER DEFAULT 0,
+                    error TEXT DEFAULT '',
+                    sent_at DATETIME
+                )
+            """))
+            conn.commit()
+        except Exception:
+            pass
+
+        # finance_payments: add columns added after initial deploy
+        for col_ddl in [
+            "ALTER TABLE finance_payments ADD COLUMN service_type VARCHAR DEFAULT 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ'",
+            "ALTER TABLE finance_payments ADD COLUMN deal_application_fee REAL DEFAULT 0.0",
+            "ALTER TABLE finance_payments ADD COLUMN deal_success_fee REAL DEFAULT 0.0",
+        ]:
+            try:
+                conn.execute(text(col_ddl))
+                conn.commit()
+            except Exception:
+                pass
+
         # Θέμις token-usage tracking (for cost accounting on the conversations list)
         for col_ddl in [
             "ALTER TABLE themis_sessions ADD COLUMN input_tokens INTEGER DEFAULT 0",
@@ -236,6 +278,10 @@ app.include_router(payments.router)
 app.include_router(notifications.router)
 app.include_router(themis.router)
 app.include_router(analytics.router)
+app.include_router(finance.router)
+app.include_router(finance.api_router)
+app.include_router(accountants.router)
+app.include_router(finance_intake_router.router)
 
 
 # ── Daily scheduler: sync then backup at 18:00 Athens (15:00 UTC) ────────────
@@ -272,11 +318,43 @@ def _run_daily_reminders_safe():
 
 from apscheduler.schedulers.background import BackgroundScheduler
 _scheduler = BackgroundScheduler()
-_scheduler.add_job(_run_leads_sync_safe,      "cron", hour=8, minute=45, timezone="Europe/Athens")  # 08:45 Athens (DST-aware)
-_scheduler.add_job(_run_daily_reminders_safe, "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
-_scheduler.add_job(_run_backup_safe,          "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
+def _run_sync_health_check_safe():
+    """Periodic health check: verify all Google Sheet rows are in DB"""
+    try:
+        from sync_monitoring import check_sync_health
+        ok = check_sync_health()
+        if not ok:
+            print("[SyncHealthCheck] ⚠️  Issues detected - check logs")
+    except Exception as e:
+        print(f"[SyncHealthCheck] FAILED — {e}")
+
+
+def _run_full_leads_sync_safe():
+    """Weekly full reconciliation sync to catch any missing rows"""
+    try:
+        from sheets_sync import sync_leads
+        from database import SessionLocal
+        db = SessionLocal()
+        try:
+            result = sync_leads(db, full=True)
+            inserted = result.get('inserted', 0)
+            if inserted > 0:
+                print(f"[FullSyncReconciliation] OK — {inserted} missing rows re-synced")
+            else:
+                print(f"[FullSyncReconciliation] OK — no missing rows found")
+        finally:
+            db.close()
+    except Exception as e:
+        print(f"[FullSyncReconciliation] FAILED — {e}")
+
+
+_scheduler.add_job(_run_leads_sync_safe,           "cron", hour=8, minute=45, timezone="Europe/Athens")  # Daily 08:45 Athens
+_scheduler.add_job(_run_full_leads_sync_safe,      "cron", day_of_week="sun", hour=3, minute=0, timezone="Europe/Athens")  # Weekly Sunday 3am
+_scheduler.add_job(_run_sync_health_check_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
+_scheduler.add_job(_run_daily_reminders_safe,      "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
+_scheduler.add_job(_run_backup_safe,               "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
 _scheduler.start()
-print("[Scheduler] Leads sync 08:45 Athens | Daily reminders 05:00 UTC | Backup 15:00 UTC (Athens = UTC+2/3)")
+print("[Scheduler] Leads sync 08:45 | Full sync Sun 3am | Health check 09:00 | Reminders 05:00 UTC | Backup 15:00 UTC (all Athens time)")
 
 
 @app.get("/")
