@@ -42,10 +42,10 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .then(r => setDescTemplates(r.data.map(x => x.value)));
   }, []);
 
-  // On mount: auto-fetch AADE if record has a valid AFM, and auto-calculate bonus
+  // On mount: auto-fetch AADE only for NEW records (not when editing an existing one)
   useEffect(() => {
     const vat = (record?.vat_number || '').trim();
-    if (/^\d{9}$/.test(vat)) handleAadeSearch(vat);
+    if (!record?.id && /^\d{9}$/.test(vat)) handleAadeSearch(vat);
 
     // Calculate bonus on open if ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ and no bonus already set
     const cat       = record?.targeting_category;
