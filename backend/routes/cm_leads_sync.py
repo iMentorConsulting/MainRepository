@@ -507,6 +507,7 @@ class ConfigIn(BaseModel):
     program_field_map: Optional[dict] = None
     enabled: Optional[bool] = None
     reset_watermark: Optional[bool] = False
+    set_watermark: Optional[int] = None  # set to a specific row number
 
 
 @router.get("/configs")
@@ -534,6 +535,8 @@ def upsert_config(
             setattr(cfg, field, val)
     if req.reset_watermark:
         cfg.last_row_num = 0
+    elif req.set_watermark is not None:
+        cfg.last_row_num = max(0, req.set_watermark)
     db.commit()
     db.refresh(cfg)
     return _cfg_to_dict(cfg)

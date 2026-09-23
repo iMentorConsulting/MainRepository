@@ -12,6 +12,7 @@ function ConfigCard({ program, initial, onSaved }) {
   const [cfg, setCfg] = useState(initial || { program, spreadsheet_id: '', sheet_tab: '', header_row: 1, column_map: {}, program_field_map: {}, enabled: true, last_sync_at: null, last_row_num: 0 })
   const [busy, setBusy] = useState(false)
   const [preview, setPreview] = useState(null)
+  const [wmInput, setWmInput] = useState('')
   const set = (k, v) => setCfg(c => ({ ...c, [k]: v }))
   const setCol = (field, letter) => setCfg(c => ({ ...c, column_map: { ...c.column_map, [field]: letter } }))
 
@@ -125,7 +126,20 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={doPreview} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><EyeIcon className="w-4 h-4" />Preview</button>
         <button onClick={doRun} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><ArrowPathIcon className="w-4 h-4" />Sync τώρα</button>
         <button onClick={doRefresh} disabled={busy} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">Επανεισαγωγή υπαρχόντων</button>
-        <button onClick={() => save({ reset_watermark: true })} disabled={busy} className="text-sm text-gray-400 hover:text-gray-600">Reset watermark</button>
+        <span className="flex items-center gap-1">
+          <input
+            type="number" min="0" placeholder="γρ. #"
+            value={wmInput} onChange={e => setWmInput(e.target.value)}
+            className="w-24 px-2 py-1 border rounded text-sm"
+            title="Ορίστε watermark σε συγκεκριμένη γραμμή (0 = reset)"
+          />
+          <button
+            onClick={() => { save({ set_watermark: wmInput === '' ? 0 : Number(wmInput) }); setWmInput('') }}
+            disabled={busy}
+            className="text-sm text-gray-500 border rounded px-2 py-1 hover:bg-gray-50"
+            title="Ορισμός watermark"
+          >Set watermark</button>
+        </span>
       </div>
 
       {preview && (() => {
