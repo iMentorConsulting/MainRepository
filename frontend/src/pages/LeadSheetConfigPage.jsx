@@ -127,6 +127,17 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={doRun} disabled={busy} className="btn-secondary text-sm flex items-center gap-1"><ArrowPathIcon className="w-4 h-4" />Sync τώρα</button>
         <button onClick={doRefresh} disabled={busy} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">Επανεισαγωγή υπαρχόντων</button>
         <span className="flex items-center gap-1">
+          <button
+            onClick={() => {
+              const cur = cfg.last_row_num || 0
+              const target = Math.max(0, cur - 200)
+              if (!confirm(`Watermark από γρ. ${cur} → γρ. ${target} (−200). Συνέχεια;`)) return
+              save({ set_watermark: target })
+            }}
+            disabled={busy}
+            className="text-sm text-orange-600 border border-orange-300 rounded px-2 py-1 hover:bg-orange-50"
+            title="Μετακίνηση watermark 200 γραμμές πίσω"
+          >−200 γραμμές</button>
           <input
             type="number" min="0" placeholder="γρ. #"
             value={wmInput} onChange={e => setWmInput(e.target.value)}
@@ -135,10 +146,10 @@ function ConfigCard({ program, initial, onSaved }) {
           />
           <button
             onClick={() => { save({ set_watermark: wmInput === '' ? 0 : Number(wmInput) }); setWmInput('') }}
-            disabled={busy}
-            className="text-sm text-gray-500 border rounded px-2 py-1 hover:bg-gray-50"
+            disabled={busy || wmInput === ''}
+            className="text-sm text-gray-500 border rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-40"
             title="Ορισμός watermark"
-          >Set watermark</button>
+          >Set</button>
         </span>
       </div>
 
