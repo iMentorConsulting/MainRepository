@@ -1140,9 +1140,10 @@ def dedup_leads(
                 winner.email = loser.email
             if not winner.name and loser.name:
                 winner.name = loser.name
-            if not winner.ermis_thread_id and loser.ermis_thread_id:
-                winner.ermis_thread_id = loser.ermis_thread_id
+            if not winner.ermis_token and loser.ermis_token:
+                winner.ermis_token = loser.ermis_token
                 winner.ermis_status = loser.ermis_status
+                winner.ermis_chat_url = loser.ermis_chat_url
         # Unlink portal assignments from losers
         db.query(_CPA).filter(_CPA.cm_lead_id.in_(loser_ids)).update({"cm_lead_id": None}, synchronize_session=False)
         db.query(CMLead).filter(CMLead.id.in_(loser_ids)).delete(synchronize_session=False)
