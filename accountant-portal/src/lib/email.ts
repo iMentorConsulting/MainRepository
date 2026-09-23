@@ -240,7 +240,7 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
 
   const ermisButton = ermisLink
     ? `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:4px 0 8px;">
-        <tr><td align="center">
+        <tr><td align="center" bgcolor="#4f46e5" style="border-radius:10px;">
           <a href="${ermisLink}" target="_blank" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#7c3aed);color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:13px 28px;border-radius:10px;box-shadow:0 2px 6px rgba(79,70,229,.35);">
             🪽 Μίλα τώρα με τον Ερμή, τον ψηφιακό σύμβουλο που κάνει τον έλεγχο επιλεξιμότητας σε δευτερόλεπτα
           </a>
@@ -260,11 +260,11 @@ export function renderCampaignEmailHtml(options: CampaignEmailOptions): string {
       </p>`
     : ''
 
-  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:32px 16px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#f1f5f9" style="background:#f1f5f9;padding:32px 16px;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;">
     <tr><td align="center">
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.08);">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" bgcolor="#ffffff" style="max-width:600px;background:#ffffff;border-radius:14px;overflow:hidden;box-shadow:0 1px 3px rgba(15,23,42,.08);">
 
-        <tr><td style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
+        <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
           <table width="100%" cellpadding="0" cellspacing="0"><tr>
             <td valign="middle" align="left" style="padding-right:12px;">${brandLeft}</td>
             <td valign="middle" align="right" style="padding-left:12px;">${brandRight}</td>
