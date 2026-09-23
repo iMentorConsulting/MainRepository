@@ -1230,7 +1230,7 @@ def dedup_leads(
     return {"ok": True, "groups": groups_affected, "deleted": deleted_total, "details": details}
 
 
-@router.delete("/purge-recent")
+@router.post("/purge-recent")
 def purge_recent_leads(
     program: str = Query(...),
     since_minutes: int = Query(120, ge=1, le=20160),
