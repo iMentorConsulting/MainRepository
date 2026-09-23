@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
   ] = await Promise.all([
     isAdmin ? prisma.accountant.count() : Promise.resolve(undefined),
     prisma.business.count({ where: realBusinessWhere }),
-    prisma.program.count({ where: { active: true } }),
+    prisma.program.count({ where: { active: true, archived: false } }),
     prisma.programMatch.count({ where: matchAccountantWhere }),
     prisma.campaign.count({ where: { status: 'SENT', ...(effectiveAccountantId ? { accountantId: effectiveAccountantId } : {}) } }),
     prisma.imentorRequest.count({
