@@ -294,20 +294,28 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             .filter(CMLead.sheet_config_id == cfg.id).all() if r[0]
         }
 
-    # AFM-level dedup: skip creation when the same (afm, program) already exists
-    # for this sheet config in an active (non-terminal) status.
+    # Dedup: skip creation when the same person+program already exists in an active status.
     # CANCEL/DEAL leads are excluded so the same person can re-apply.
     _TERMINAL = {"CANCEL", "DEAL"}
     _resolved_program = _resolve_program(cfg.program) or cfg.program
-    existing_afm_programs: set = {
-        (r[0], r[1])
-        for r in db.query(CMLead.afm, CMLead.program)
+    _active_leads = (
+        db.query(CMLead.afm, CMLead.phone, CMLead.program)
         .filter(
             CMLead.sheet_config_id == cfg.id,
-            CMLead.afm.isnot(None),
             ~CMLead.status.in_(list(_TERMINAL)),
         ).all()
+    )
+    # (afm, program) pairs — used when AFM is present
+    existing_afm_programs: set = {
+        (r[0], r[2])
+        for r in _active_leads
         if r[0] and str(r[0]).strip()
+    }
+    # (phone, program) pairs — fallback when AFM is absent
+    existing_phone_programs: set = {
+        (r[1], r[2])
+        for r in _active_leads
+        if (not r[0] or not str(r[0]).strip()) and r[1] and str(r[1]).strip()
     }
 
     # Fields overwritten on refresh (comments, ΕΡΜΗΣ data and case link are preserved).
@@ -362,14 +370,19 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             if updated % BATCH == 0:
                 db.commit()
         else:
-            # AFM-level dedup: skip if same (afm, program) already imported
+            # Dedup: skip if same person+program already imported in an active status
             _afm = (kwargs.get("afm") or "").strip()
-            if _afm and (_afm, _resolved_program) in existing_afm_programs:
+            _phone = (kwargs.get("phone") or "").strip()
+            _is_dup = (
+                (_afm and (_afm, _resolved_program) in existing_afm_programs)
+                or (not _afm and _phone and (_phone, _resolved_program) in existing_phone_programs)
+            )
+            if _is_dup:
                 log.info(
-                    "[leads-sync] Skipping duplicate: AFM %s already exists for program %s (row %d)",
-                    _afm, _resolved_program, row_num,
+                    "[leads-sync] Skipping duplicate: AFM=%s phone=%s already active for program %s (row %d)",
+                    _afm or "—", _phone or "—", _resolved_program, row_num,
                 )
-                existing_refs.add(ref)  # prevent re-check next run
+                existing_refs.add(ref)
                 max_row = max(max_row, row_num)
                 continue
             _new = CMLead(
@@ -386,6 +399,8 @@ def _sync_config(db: Session, cfg: CMLeadSheetConfig, dry_run: bool = False, ref
             existing_refs.add(ref)
             if _afm:
                 existing_afm_programs.add((_afm, _resolved_program))
+            elif _phone:
+                existing_phone_programs.add((_phone, _resolved_program))
             if imported % BATCH == 0:
                 cfg.last_row_num = max(max_row, row_num)
                 cfg.last_sync_at = datetime.utcnow()
