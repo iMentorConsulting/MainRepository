@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import {
-  getLeadSheetConfigs, saveLeadSheetConfig, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus, mergeDuplicateLeads,
+  getLeadSheetConfigs, saveLeadSheetConfig, setLeadSheetWatermark, previewLeadSync, runLeadSyncProgram, refreshLeadSyncProgram, runLeadSync, getLeadSyncStatus, mergeDuplicateLeads,
 } from '../api'
 import { ArrowPathIcon, EyeIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
@@ -128,11 +128,13 @@ function ConfigCard({ program, initial, onSaved }) {
         <button onClick={doRefresh} disabled={busy} className="text-sm font-semibold text-amber-700 bg-amber-50 border border-amber-300 rounded-lg px-3 py-1.5 hover:bg-amber-100">Επανεισαγωγή υπαρχόντων</button>
         <span className="flex items-center gap-1">
           <button
-            onClick={() => {
+            onClick={async () => {
               const cur = cfg.last_row_num || 0
               const target = Math.max(0, cur - 200)
               if (!confirm(`Watermark από γρ. ${cur} → γρ. ${target} (−200). Συνέχεια;`)) return
-              save({ set_watermark: target })
+              setBusy(true)
+              try { const saved = await setLeadSheetWatermark(program, target); setCfg(saved); toast.success('Watermark ενημερώθηκε') }
+              catch { toast.error('Σφάλμα') } finally { setBusy(false) }
             }}
             disabled={busy}
             className="text-sm text-orange-600 border border-orange-300 rounded px-2 py-1 hover:bg-orange-50"
@@ -145,7 +147,13 @@ function ConfigCard({ program, initial, onSaved }) {
             title="Ορίστε watermark σε συγκεκριμένη γραμμή (0 = reset)"
           />
           <button
-            onClick={() => { save({ set_watermark: wmInput === '' ? 0 : Number(wmInput) }); setWmInput('') }}
+            onClick={async () => {
+              const row = wmInput === '' ? 0 : Number(wmInput)
+              setBusy(true)
+              setWmInput('')
+              try { const saved = await setLeadSheetWatermark(program, row); setCfg(saved); toast.success('Watermark ενημερώθηκε') }
+              catch { toast.error('Σφάλμα') } finally { setBusy(false) }
+            }}
             disabled={busy || wmInput === ''}
             className="text-sm text-gray-500 border rounded px-2 py-1 hover:bg-gray-50 disabled:opacity-40"
             title="Ορισμός watermark"

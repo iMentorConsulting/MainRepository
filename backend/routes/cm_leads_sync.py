@@ -518,6 +518,23 @@ def list_configs(
     return [_cfg_to_dict(c) for c in db.query(CMLeadSheetConfig).order_by(CMLeadSheetConfig.program).all()]
 
 
+@router.patch("/configs/{program}/watermark")
+def set_watermark(
+    program: str,
+    row: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Set watermark to a specific row without touching any other config field."""
+    cfg = db.query(CMLeadSheetConfig).filter(CMLeadSheetConfig.program == program).first()
+    if not cfg:
+        raise HTTPException(status_code=404, detail="Config not found")
+    cfg.last_row_num = max(0, row)
+    db.commit()
+    db.refresh(cfg)
+    return _cfg_to_dict(cfg)
+
+
 @router.put("/configs/{program}")
 def upsert_config(
     program: str,

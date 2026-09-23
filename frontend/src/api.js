@@ -296,6 +296,7 @@ export const getLeadReportEmployeePerformance = () => api.get('/api/cm/leads/rep
 // Leads — Google Sheets sync config
 export const getLeadSheetConfigs = () => api.get('/api/cm/leads-sync/configs').then(r => r.data)
 export const saveLeadSheetConfig = (program, data) => api.put(`/api/cm/leads-sync/configs/${encodeURIComponent(program)}`, data).then(r => r.data)
+export const setLeadSheetWatermark = (program, row) => api.patch(`/api/cm/leads-sync/configs/${encodeURIComponent(program)}/watermark?row=${row}`).then(r => r.data)
 export const getLeadSyncStatus = () => api.get('/api/cm/leads-sync/status').then(r => r.data)
 export const previewLeadSync = (program) => api.get('/api/cm/leads-sync/preview', { params: program ? { program } : {}, timeout: 180000 }).then(r => r.data)
 export const runLeadSync = () => api.post('/api/cm/leads-sync/run', null, { timeout: 300000 }).then(r => r.data)
