@@ -1206,6 +1206,39 @@ def dedup_leads(
                         "kept_id": keep_id, "kept_status": winner.status,
                         "deleted_ids": [l.id for l in losers]})
 
+    # Pass 3: leads WITH AFM — find no-AFM leads in same program with same phone and merge them in
+    db.flush()  # make Pass 1/2 deletes visible before querying
+    afm_leads = (
+        db.query(CMLead)
+        .filter(CMLead.afm.isnot(None), CMLead.afm != "",
+                CMLead.phone.isnot(None), CMLead.phone != "")
+        .all()
+    )
+    seen_afm_phone = set()
+    for lead in afm_leads:
+        key = (lead.phone, lead.program)
+        if key in seen_afm_phone:
+            continue
+        seen_afm_phone.add(key)
+        orphans = (
+            db.query(CMLead)
+            .filter((CMLead.afm.is_(None)) | (CMLead.afm == ""),
+                    CMLead.phone == lead.phone, CMLead.program == lead.program)
+            .all()
+        )
+        if not orphans:
+            continue
+        all_leads = [lead] + orphans
+        keep_id = _pick_winner(all_leads)
+        winner = next(l for l in all_leads if l.id == keep_id)
+        losers = [l for l in all_leads if l.id != keep_id]
+        _merge_into_winner(winner, losers)
+        deleted_total += len(losers)
+        groups_affected += 1
+        details.append({"phone": lead.phone, "program": lead.program,
+                        "kept_id": keep_id, "kept_status": winner.status,
+                        "deleted_ids": [l.id for l in losers]})
+
     db.commit()
     return {"ok": True, "groups": groups_affected, "deleted": deleted_total, "details": details}
 
