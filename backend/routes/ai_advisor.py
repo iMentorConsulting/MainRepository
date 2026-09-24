@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from database import get_db
-from models import Booking, Unit
+from models import Booking, Unit, GapAlertTemplate
 from schemas import BookingRequest
 from auth_utils import get_tenant
 from typing import Optional
@@ -279,3 +279,49 @@ def booking_alerts(db: Session = Depends(get_db), tenant: str = Depends(get_tena
         "past_pending": [fmt(b) for b in past_pending],
         "unbilled_platform": [fmt(b) for b in unbilled_platform],
     }
+
+
+DEFAULT_TEMPLATE_EN = """Hi {{guest_name}},
+
+We have a last-minute opening at {{unit_name}} from {{gap_start}} to {{gap_end}} ({{gap_days}} nights).
+
+This is a great opportunity to enjoy our property at a special rate. If you're flexible on dates, we'd love to host you!
+
+Feel free to reply to this message or book directly.
+
+Best regards"""
+
+DEFAULT_TEMPLATE_GR = """Κενό {{gap_days}} νύχτ. — {{unit_name}}
+Από: {{gap_start}} | Έως: {{gap_end}}
+
+Ενέργεια: Ορίστε ελάχιστη διαμονή {{gap_days}} νύχτες στις πλατφόρμες (Booking.com, Airbnb) ώστε να εμφανιστεί αυτή η περίοδος.
+Εναλλακτικά: Επικοινωνήστε με υπάρχοντες πελάτες για early/late checkout."""
+
+
+from pydantic import BaseModel as _BM
+
+class TemplateIn(_BM):
+    template_en: str
+    template_gr: str
+
+
+@router.get("/gap-templates")
+def get_gap_templates(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    t = db.query(GapAlertTemplate).filter(GapAlertTemplate.tenant == tenant).first()
+    return {
+        "template_en": t.template_en if t else DEFAULT_TEMPLATE_EN,
+        "template_gr": t.template_gr if t else DEFAULT_TEMPLATE_GR,
+    }
+
+
+@router.put("/gap-templates")
+def save_gap_templates(data: TemplateIn, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    t = db.query(GapAlertTemplate).filter(GapAlertTemplate.tenant == tenant).first()
+    if t:
+        t.template_en = data.template_en
+        t.template_gr = data.template_gr
+    else:
+        t = GapAlertTemplate(tenant=tenant, template_en=data.template_en, template_gr=data.template_gr)
+        db.add(t)
+    db.commit()
+    return {"ok": True}

@@ -1,0 +1,177 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+import { sendEmail, renderTemplate, renderCampaignEmailHtml } from '@/lib/email'
+import { sendViberMessage } from '@/lib/viber'
+import { createAuditLog } from '@/lib/audit'
+
+async function processCampaignSend(
+  campaign: any,
+  businesses: any[],
+  matchReasonByBusiness: Map<string, string[]>,
+  userId: string
+) {
+  let sent = 0
+  let failed = 0
+
+  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const imentorLogoUrl = appSetting?.imentorLogoUrl || ''
+
+  const useEmail = campaign.channel === 'EMAIL' || campaign.channel === 'EMAIL_AND_VIBER'
+  const useViber = campaign.channel === 'VIBER' || campaign.channel === 'EMAIL_AND_VIBER'
+
+  for (const business of businesses) {
+    const emailRecipient = business.email
+    const viberRecipient = business.viberPhone || business.phone
+
+    if (useEmail && !emailRecipient && !useViber) { failed++; continue }
+    if (useViber && !viberRecipient && !useEmail) { failed++; continue }
+    if (!emailRecipient && !viberRecipient) { failed++; continue }
+
+    const matchReasons = matchReasonByBusiness.get(business.id) || []
+    const bullet = '•'
+    const variables: Record<string, string> = {
+      business_name: business.onomasia || business.afm,
+      afm: business.afm,
+      accountant_name: business.accountant?.contactPerson || '',
+      accountant_office: business.accountant?.officeName || '',
+      program_title: campaign.program?.title || '',
+      kad_description: business.activities[0]?.firmActCode || '',
+      match_reason: matchReasons.map(r => `${bullet} ${r}`).join('\n'),
+      unsubscribe_link: `${process.env.APP_URL || 'https://logistis.i-mentor.gr'}/api/unsubscribe/${business.unsubscribeToken}`,
+    }
+
+    const rawMessage = renderTemplate(campaign.messageTemplate, variables)
+    // Strip empty *...* pairs left when a variable (e.g. accountant_name) is blank
+    const message = rawMessage.replace(/\*([^*\n]*)\*/g, (_, inner) => inner.trim() || '')
+    const emailSubject = renderTemplate(campaign.subject || campaign.title, variables)
+    let success = false
+
+    try {
+      if (useEmail && emailRecipient) {
+        const emailVariables: Record<string, string> = {
+          ...variables,
+          match_reason: matchReasons.map(r => `${bullet} <strong>${r}</strong>`).join('\n'),
+        }
+        const boldedMessage = renderTemplate(campaign.messageTemplate, emailVariables, {
+          boldKeys: ['business_name', 'afm', 'accountant_name', 'accountant_office', 'program_title', 'kad_description'],
+        })
+        const bodyWithoutUnsubscribe = boldedMessage
+          .split('\n')
+          .filter(line => !line.includes(variables.unsubscribe_link))
+          .join('\n')
+          .trim()
+
+        const emailOk = await sendEmail({
+          to: emailRecipient,
+          subject: emailSubject,
+          html: renderCampaignEmailHtml({
+            title: emailSubject,
+            bodyText: bodyWithoutUnsubscribe,
+            recipientName: business.onomasia || business.afm,
+            imentorLogoUrl,
+            accountantOfficeName: business.accountant?.officeName || '',
+            accountantLogoUrl: business.accountant?.logoUrl || '',
+            unsubscribeUrl: variables.unsubscribe_link,
+          }),
+        })
+        if (emailOk) success = true
+      }
+
+      if (useViber && viberRecipient) {
+        const viberOk = await sendViberMessage({ to: viberRecipient, text: message, senderName: business.onomasia || business.afm })
+        if (viberOk) success = true
+      }
+    } catch (err: any) {
+      console.error(`[Campaign ${campaign.id}] Send error for ${business.afm}:`, err?.message || err)
+    }
+
+    const primaryRecipient = emailRecipient || viberRecipient || ''
+    await prisma.campaignRecipient.create({
+      data: {
+        campaignId: campaign.id,
+        businessId: business.id,
+        channel: campaign.channel,
+        recipient: primaryRecipient,
+        status: success ? 'sent' : 'failed',
+        sentAt: success ? new Date() : null,
+      }
+    })
+
+    if (success) sent++
+    else failed++
+  }
+
+  await prisma.campaign.update({
+    where: { id: campaign.id },
+    data: { status: 'SENT', sentAt: new Date() }
+  })
+
+  await createAuditLog({
+    userId,
+    action: 'SEND_CAMPAIGN',
+    entity: 'Campaign',
+    entityId: campaign.id,
+    details: `Sent to ${sent} recipients, ${failed} failed`,
+  })
+
+  console.log(`[Campaign ${campaign.id}] Finished: ${sent} sent, ${failed} failed, ${businesses.length} total`)
+}
+
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const campaign = await prisma.campaign.findUnique({
+    where: { id: params.id },
+    include: {
+      program: true,
+      accountant: true,
+    }
+  })
+
+  if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // ACCOUNTANT can only send their own campaigns
+  if (session.user.role === 'ACCOUNTANT' && campaign.accountantId !== (session.user as any).accountantId) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  let selectedBusinessIds: string[] | null = null
+  try {
+    const body = await request.json()
+    if (Array.isArray(body?.businessIds)) selectedBusinessIds = body.businessIds
+  } catch {
+    // no body provided — send to all eligible recipients
+  }
+
+  let businesses = await prisma.business.findMany({
+    include: {
+      accountant: true,
+      activities: { where: { firmActKind: 1 }, take: 1 },
+    },
+    ...(campaign.accountantId ? { where: { accountantId: campaign.accountantId } } : {}),
+  })
+
+  businesses = businesses.filter(b => !b.excludedFromCampaigns)
+
+  if (selectedBusinessIds) {
+    const selectedSet = new Set(selectedBusinessIds)
+    businesses = businesses.filter(b => selectedSet.has(b.id))
+  }
+
+  let matchReasonByBusiness = new Map<string, string[]>()
+  if (campaign.programId) {
+    const matches = await prisma.programMatch.findMany({
+      where: { programId: campaign.programId },
+      select: { businessId: true, matchReason: true }
+    })
+    matchReasonByBusiness = new Map(matches.map(m => [m.businessId, m.matchReason]))
+    businesses = businesses.filter(b => matchReasonByBusiness.has(b.id))
+  }
+
+  processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)
+    .catch(err => console.error(`[Campaign ${campaign.id}] Background send failed:`, err?.message || err))
+
+  return NextResponse.json({ started: true, total: businesses.length })
+}

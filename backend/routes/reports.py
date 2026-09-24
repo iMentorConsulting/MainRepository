@@ -2,12 +2,27 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
-from models import Booking, Unit
+from models import Booking, Unit, Expense, Loan
 from auth_utils import get_tenant
 from typing import Optional
 from datetime import date
+from calendar import monthrange
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _loan_installment_sum(loans, from_date, to_date):
+    """Return total loan installments active during the date range."""
+    total = 0.0
+    d = from_date.replace(day=1)
+    while d <= to_date:
+        _, last = monthrange(d.year, d.month)
+        month_end = date(d.year, d.month, last)
+        for loan in loans:
+            if loan.start_date <= month_end and (loan.end_date is None or loan.end_date >= d):
+                total += loan.monthly_installment
+        d = date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
+    return round(total, 2)
 
 
 @router.get("/dashboard")
@@ -116,6 +131,60 @@ def occupancy_report(
             "bookings_count": len(bkgs),
         })
 
+    # --- Per-unit expense and loan attribution ---
+    all_expenses = db.query(Expense).filter(
+        Expense.tenant == tenant,
+        Expense.date >= from_date,
+        Expense.date <= to_date,
+    ).all()
+    exp_by_unit: dict = {}
+    exp_by_type: dict = {}
+    exp_unassigned = 0.0
+    for e in all_expenses:
+        if e.unit_id:
+            exp_by_unit[e.unit_id] = exp_by_unit.get(e.unit_id, 0.0) + e.amount
+        elif e.unit_type:
+            exp_by_type[e.unit_type] = exp_by_type.get(e.unit_type, 0.0) + e.amount
+        else:
+            exp_unassigned += e.amount
+
+    all_loans = db.query(Loan).filter(Loan.tenant == tenant).all()
+    loans_by_unit: dict = {}
+    loans_by_type: dict = {}
+    for loan in all_loans:
+        if loan.unit_id:
+            loans_by_unit.setdefault(loan.unit_id, []).append(loan)
+        elif loan.unit_type:
+            loans_by_type.setdefault(loan.unit_type, []).append(loan)
+
+    # Count active units per type so type costs are split equally
+    units_per_type: dict = {}
+    for r in results:
+        t = r["unit_type"]
+        if t:
+            units_per_type[t] = units_per_type.get(t, 0) + 1
+
+    for r in results:
+        uid = r["unit_id"]
+        utype = r["unit_type"]
+        n = units_per_type.get(utype, 1) or 1
+        # Direct unit costs
+        ue = round(exp_by_unit.get(uid, 0.0), 2)
+        ul = _loan_installment_sum(loans_by_unit.get(uid, []), from_date, to_date)
+        # Prorated type costs (equal share per unit of that type)
+        tes = round(exp_by_type.get(utype, 0.0) / n, 2) if utype else 0.0
+        tls = round(_loan_installment_sum(loans_by_type.get(utype, []), from_date, to_date) / n, 2) if utype else 0.0
+        r["unit_expenses"] = round(ue + tes, 2)
+        r["unit_loan_payments"] = round(ul + tls, 2)
+        r["unit_profit"] = round(r["net_revenue"] - r["unit_expenses"] - r["unit_loan_payments"], 2)
+        r["direct_expenses"] = ue
+        r["shared_expense_share"] = tes
+        r["direct_loans"] = ul
+        r["shared_loan_share"] = tls
+
+    total_expenses_all = round(sum(e.amount for e in all_expenses), 2)
+    total_loans_all = _loan_installment_sum(all_loans, from_date, to_date)
+
     avg_occ = round(sum(r["occupancy_rate"] for r in results) / len(results), 1) if results else 0
     return {
         "from_date": from_date.isoformat(),
@@ -126,6 +195,9 @@ def occupancy_report(
             "avg_occupancy_rate": avg_occ,
             "total_revenue": round(sum(r["total_revenue"] for r in results), 2),
             "total_net_revenue": round(sum(r["net_revenue"] for r in results), 2),
+            "total_expenses": total_expenses_all,
+            "total_loan_payments": total_loans_all,
+            "unassigned_expenses": round(exp_unassigned, 2),
         },
     }
 
@@ -217,7 +289,41 @@ def financial_report(
         g["net_revenue"] = round(g["net_revenue"], 2)
         data.append(g)
 
-    return {"from_date": from_date.isoformat(), "to_date": to_date.isoformat(), "group_by": group_by, "data": data}
+    # Include expense totals per period
+    expenses = db.query(Expense).filter(
+        Expense.tenant == tenant,
+        Expense.date >= from_date,
+        Expense.date < to_date,
+    ).all()
+    exp_groups: dict = {}
+    for e in expenses:
+        if group_by == "month":
+            key = e.date.strftime("%Y-%m")
+        elif group_by == "week":
+            key = e.date.strftime("%Y-W%W")
+        else:
+            key = "all"
+        exp_groups[key] = round(exp_groups.get(key, 0.0) + e.amount, 2)
+
+    for g in data:
+        g["total_expenses"] = exp_groups.get(g["key"], 0.0)
+        g["profit"] = round(g["net_revenue"] - g["total_expenses"], 2)
+
+    total_expenses = round(sum(e.amount for e in expenses), 2)
+    total_net = round(sum(g["net_revenue"] for g in data), 2)
+
+    return {
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+        "group_by": group_by,
+        "data": data,
+        "totals": {
+            "total_revenue": round(sum(g["total_revenue"] for g in data), 2),
+            "total_net_revenue": total_net,
+            "total_expenses": total_expenses,
+            "total_profit": round(total_net - total_expenses, 2),
+        },
+    }
 
 
 @router.get("/price-analytics")

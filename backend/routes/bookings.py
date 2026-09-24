@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Body
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import and_
@@ -240,9 +240,216 @@ def create_booking(booking: BookingCreate, db: Session = Depends(get_db), tenant
         raise HTTPException(status_code=409, detail=f"Σύγκρουση με κράτηση #{overlap.id} ({overlap.check_in} – {overlap.check_out})")
     obj = Booking(**booking.model_dump(), tenant=tenant)
     db.add(obj)
+    db.flush()
+    # Auto-create guest portal token
+    from models import GuestToken
+    gt = GuestToken(booking_id=obj.id, tenant=tenant)
+    db.add(gt)
     db.commit()
     db.refresh(obj)
     return _load(db, obj.id, tenant)
+
+
+@router.post("/block", status_code=201)
+def block_dates(payload: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Block a date range for a unit. Finds or creates a BLOCKED pseudo-customer."""
+    unit_id = payload.get("unit_id")
+    check_in_str = payload.get("check_in")
+    check_out_str = payload.get("check_out")
+    notes = payload.get("notes") or "Μπλοκαρισμένο"
+    if not unit_id or not check_in_str or not check_out_str:
+        raise HTTPException(400, "unit_id, check_in, check_out απαιτούνται")
+    from datetime import date as _date
+    check_in = _date.fromisoformat(check_in_str)
+    check_out = _date.fromisoformat(check_out_str)
+    if check_out <= check_in:
+        raise HTTPException(400, "Η αναχώρηση πρέπει να είναι μετά την άφιξη")
+    overlap = _check_overlap(db, unit_id, check_in, check_out, tenant)
+    if overlap:
+        raise HTTPException(409, f"Σύγκρουση με κράτηση #{overlap.id} ({overlap.check_in} – {overlap.check_out})")
+    blocked_cust = db.query(Customer).filter(
+        Customer.tenant == tenant,
+        Customer.first_name == "BLOCKED",
+        Customer.last_name == "—",
+    ).first()
+    if not blocked_cust:
+        blocked_cust = Customer(tenant=tenant, first_name="BLOCKED", last_name="—")
+        db.add(blocked_cust)
+        db.flush()
+    obj = Booking(
+        tenant=tenant, unit_id=unit_id, customer_id=blocked_cust.id,
+        check_in=check_in, check_out=check_out,
+        channel="blocked", status="confirmed",
+        guests=0, total_price=0.0, commission=0.0, commission_percent=0.0,
+        notes=f"🔒 {notes}", is_billed=False,
+    )
+    db.add(obj)
+    db.commit()
+    db.refresh(obj)
+    return {"id": obj.id, "check_in": str(check_in), "check_out": str(check_out)}
+
+
+DEFAULT_CHANNELS = [
+    {"value": "airbnb", "label": "Airbnb", "color": "bg-red-100 text-red-800"},
+    {"value": "booking", "label": "Booking.com", "color": "bg-blue-100 text-blue-800"},
+    {"value": "vrbo", "label": "VRBO", "color": "bg-indigo-100 text-indigo-800"},
+    {"value": "direct", "label": "Απευθείας", "color": "bg-green-100 text-green-800"},
+    {"value": "other", "label": "Άλλο", "color": "bg-gray-100 text-gray-700"},
+]
+
+
+@router.get("/channels")
+def get_channels(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    import json
+    from models import TenantSettings
+    setting = db.query(TenantSettings).filter(
+        TenantSettings.tenant == tenant, TenantSettings.key == 'channels'
+    ).first()
+    if not setting or not setting.value:
+        return DEFAULT_CHANNELS
+    return json.loads(setting.value)
+
+
+@router.put("/channels")
+def save_channels(body: list = Body(...), db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    import json
+    from models import TenantSettings
+    setting = db.query(TenantSettings).filter(
+        TenantSettings.tenant == tenant, TenantSettings.key == 'channels'
+    ).first()
+    if not setting:
+        setting = TenantSettings(tenant=tenant, key='channels')
+        db.add(setting)
+    setting.value = json.dumps(body)
+    db.commit()
+    return body
+
+
+@router.put("/bulk-bill")
+def bulk_mark_billed(body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    ids = body.get("ids", [])
+    if not ids:
+        return {"updated": 0}
+    updated = db.query(Booking).filter(
+        Booking.id.in_(ids), Booking.tenant == tenant
+    ).update({"is_billed": True}, synchronize_session=False)
+    db.commit()
+    return {"updated": updated}
+
+
+@router.post("/{booking_id}/reply-airbnb")
+def reply_via_airbnb(booking_id: int, body: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Send a message to the guest via their Airbnb relay email."""
+    from models import GuestPortalSettings
+    import smtplib
+    import ssl
+    from email.message import EmailMessage
+
+    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
+    if not booking.reply_email:
+        raise HTTPException(status_code=400, detail="Δεν υπάρχει relay email για αυτή την κράτηση")
+
+    message = (body.get("message") or "").strip()
+    if not message:
+        raise HTTPException(status_code=400, detail="Το μήνυμα είναι κενό")
+
+    settings = db.query(GuestPortalSettings).filter(GuestPortalSettings.tenant == tenant).first()
+
+    # Prefer IMAP account (kvidaki@gmail.com) for sending — Airbnb relay requires
+    # replies to come from the host's registered Airbnb email address.
+    # Fall back to generic SMTP if IMAP not configured.
+    if settings and settings.imap_user and settings.imap_pass:
+        send_host = "smtp.gmail.com"
+        send_port = 587
+        send_user = settings.imap_user
+        send_pass = settings.imap_pass
+    elif settings and settings.smtp_host and settings.smtp_user and settings.smtp_pass:
+        send_host = settings.smtp_host
+        send_port = settings.smtp_port or 587
+        send_user = settings.smtp_user
+        send_pass = settings.smtp_pass
+    else:
+        raise HTTPException(status_code=400, detail="Δεν υπάρχουν ρυθμίσεις email (IMAP ή SMTP) στις Ρυθμίσεις")
+
+    guest_name = ""
+    if booking.customer:
+        guest_name = f"{booking.customer.first_name or ''} {booking.customer.last_name or ''}".strip()
+
+    msg = EmailMessage()
+    msg["From"] = send_user
+    msg["To"] = booking.reply_email
+    msg["Subject"] = f"Re: Your stay at {booking.unit.name if booking.unit else 'our property'}"
+    msg.set_content(message)
+
+    try:
+        ctx = ssl.create_default_context()
+        with smtplib.SMTP(send_host, send_port) as s:
+            s.ehlo()
+            s.starttls(context=ctx)
+            s.login(send_user, send_pass)
+            s.send_message(msg)
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Αποτυχία αποστολής: {exc}")
+
+    from models import GuestCommunication
+    from datetime import datetime as dt
+    comm = GuestCommunication(
+        tenant=tenant,
+        booking_id=booking_id,
+        channel="airbnb",
+        direction="out",
+        subject=f"Re: {booking.unit.name if booking.unit else 'stay'}",
+        body=message,
+        body_preview=message[:300],
+        relay_email=booking.reply_email,
+        sent_at=dt.utcnow(),
+        is_read=True,
+    )
+    db.add(comm)
+    db.commit()
+    return {"ok": True, "sent_to": booking.reply_email, "guest": guest_name}
+
+
+@router.get("/{booking_id}/communications")
+def get_communications(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    from models import GuestCommunication
+    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
+    comms = db.query(GuestCommunication).filter(
+        GuestCommunication.booking_id == booking_id,
+        GuestCommunication.tenant == tenant,
+    ).order_by(GuestCommunication.sent_at.asc()).all()
+    return [
+        {
+            "id": c.id,
+            "channel": c.channel,
+            "direction": c.direction,
+            "subject": c.subject,
+            "body_preview": c.body_preview,
+            "relay_email": c.relay_email,
+            "sent_at": c.sent_at.isoformat() if c.sent_at else None,
+        }
+        for c in comms
+    ]
+
+
+@router.get("/{booking_id}/portal-link")
+def get_portal_link(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Return the guest registration link for this booking."""
+    from models import GuestToken
+    import secrets
+    booking = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not booking:
+        raise HTTPException(status_code=404, detail="Κράτηση δεν βρέθηκε")
+    gt = db.query(GuestToken).filter(GuestToken.booking_id == booking_id, GuestToken.is_active == True).first()
+    if not gt:
+        gt = GuestToken(booking_id=booking_id, tenant=tenant, token=secrets.token_urlsafe(32))
+        db.add(gt)
+        db.commit()
+    return {"token": gt.token}
 
 
 @router.get("/{booking_id}", response_model=BookingResponse)

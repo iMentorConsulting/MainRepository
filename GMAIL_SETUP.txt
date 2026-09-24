@@ -1,0 +1,85 @@
+EMAIL SETUP — Gmail API via Google Service Account
+==================================================
+
+ΑΠΑΙΤΗΣΕΙΣ
+----------
+- Google Workspace (Google Apps) στο domain σου
+- Python packages: google-auth, google-api-python-client
+
+
+ΒΗΜΑ 1 — Google Cloud Console
+------------------------------
+1. console.cloud.google.com → επέλεξε/δημιούργησε Project
+2. APIs & Services → Enable APIs → ενεργοποίησε "Gmail API"
+3. IAM & Admin → Service Accounts → Create Service Account
+   - Όνομα: οτιδήποτε (π.χ. mailer-sa)
+   - Κανένας ρόλος IAM δεν χρειάζεται
+4. Άνοιξε το service account → Keys → Add Key → Create new key → JSON
+   → Κατέβασε το .json αρχείο (αυτό θα γίνει το env var)
+5. Σημείωσε το "Unique ID" (Client ID) — αριθμός 21 ψηφίων
+
+
+ΒΗΜΑ 2 — Google Workspace Admin (Domain-Wide Delegation)
+---------------------------------------------------------
+1. admin.google.com
+2. Security → Access and data control → API controls
+   → Manage Domain-Wide Delegation → Add new
+3. Client ID : <το Unique ID από Βήμα 1>
+   OAuth Scopes : https://www.googleapis.com/auth/gmail.send
+4. Αποθήκευσε
+
+
+ΒΗΜΑ 3 — Environment Variables (Railway / .env)
+------------------------------------------------
+GOOGLE_SERVICE_ACCOUNT_JSON=<ολόκληρο το JSON του service account, μια γραμμή>
+SMTP_USER=info@yourdomain.gr
+PORTAL_BASE_URL=https://your-app.railway.app
+
+
+ΒΗΜΑ 4 — requirements.txt
+--------------------------
+google-auth
+google-api-python-client
+
+
+ΒΗΜΑ 5 — Κώδικας αποστολής
+----------------------------
+import os, json, base64
+from email.mime.text import MIMEText
+from email.mime.multipart import MIMEMultipart
+
+def _send_email(to_email, subject, body):
+    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+    sender  = os.getenv("SMTP_USER", "info@yourdomain.gr")
+    if not sa_json:
+        return False, "GOOGLE_SERVICE_ACCOUNT_JSON not set"
+    try:
+        from google.oauth2.service_account import Credentials
+        from googleapiclient.discovery import build
+
+        creds = Credentials.from_service_account_info(
+            json.loads(sa_json),
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        ).with_subject(sender)
+
+        service = build("gmail", "v1", credentials=creds, cache_discovery=False)
+
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"]    = f"My App <{sender}>"
+        msg["To"]      = to_email
+        msg.attach(MIMEText(body, "plain", "utf-8"))
+
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode("utf-8")
+        service.users().messages().send(userId="me", body={"raw": raw}).execute()
+        return True, "OK"
+    except Exception as e:
+        return False, str(e)
+
+
+ΣΥΝΗΘΙΣΜΕΝΑ ΣΦΑΛΜΑΤΑ
+---------------------
+invalid_grant            → το SMTP_USER δεν ανήκει στο Google Workspace domain
+Token expired/revoked    → Domain-Wide Delegation δεν έχει γίνει σωστά
+Precondition check failed→ Λάθος scope στο delegation
+JSON not set             → Λείπει το env var GOOGLE_SERVICE_ACCOUNT_JSON

@@ -1,0 +1,68 @@
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { prisma } from '@/lib/prisma'
+
+export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+
+  const isAccountant = session.user.role === 'ACCOUNTANT'
+  const accountantId = (session.user as any).accountantId as string | null
+
+  const matchWhere = isAccountant && accountantId
+    ? { programId: params.id, business: { accountantId } }
+    : { programId: params.id }
+
+  const program = await prisma.program.findUnique({
+    where: { id: params.id },
+    include: {
+      matches: {
+        where: matchWhere,
+        include: { business: { select: { id: true, afm: true, onomasia: true } } },
+        orderBy: { matchScore: 'desc' },
+        take: 50,
+      },
+      // ACCOUNTANTs should not see other accountants' campaigns for this program
+      campaigns: isAccountant && accountantId
+        ? { where: { accountantId }, select: { id: true, title: true, status: true, sentAt: true } }
+        : { select: { id: true, title: true, status: true, sentAt: true } },
+    }
+  })
+
+  if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+  return NextResponse.json(program)
+}
+
+export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  const data = await request.json()
+  delete data.id; delete data.matches; delete data.campaigns; delete data.requests
+  delete data.createdAt; delete data.updatedAt; delete data._count
+
+  if (data.startDate) data.startDate = new Date(data.startDate)
+  if (data.endDate) data.endDate = new Date(data.endDate)
+
+  const program = await prisma.program.update({ where: { id: params.id }, data })
+  return NextResponse.json(program)
+}
+
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session || session.user.role !== 'ADMIN') {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+  }
+
+  // Delete dependent records before the program (no cascade set on these relations)
+  await prisma.$transaction([
+    prisma.programMatch.deleteMany({ where: { programId: params.id } }),
+    prisma.imentorRequest.deleteMany({ where: { programId: params.id } }),
+    prisma.paymentRequest.deleteMany({ where: { programId: params.id } }),
+    prisma.commissionPolicy.deleteMany({ where: { programId: params.id } }),
+    prisma.program.delete({ where: { id: params.id } }),
+  ])
+  return NextResponse.json({ success: true })
+}
