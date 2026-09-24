@@ -16,6 +16,7 @@ import {
   PencilIcon,
   BriefcaseIcon,
   ScaleIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
@@ -1424,6 +1425,21 @@ export default function Leads({ currentEmployee }) {
   const [newLeadOpen, setNewLeadOpen] = useState(false)
   const [newLeadData, setNewLeadData] = useState({})
   const [newLeadSaving, setNewLeadSaving] = useState(false)
+  const [syncing, setSyncing] = useState(false)
+
+  const handleSync = async (full = false) => {
+    setSyncing(true)
+    try {
+      const res = await api.syncLeads(full)
+      const d = res.data
+      toast.success(`Sync ολοκληρώθηκε — ${d.inserted ?? 0} νέες εγγραφές`)
+      load()
+    } catch (e) {
+      toast.error('Σφάλμα sync: ' + (e?.response?.data?.detail || e.message))
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   const toggleSort = (col) => {
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
@@ -1620,11 +1636,33 @@ export default function Leads({ currentEmployee }) {
             {displayed.length} εγγραφές{displayed.length !== leads.length ? ` (από ${leads.length})` : ''}
           </p>
         </div>
-        <button
-          onClick={() => { setNewLeadData({}); setNewLeadOpen(true) }}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-colors shadow">
-          + Νέο Lead
-        </button>
+        <div className="flex items-center gap-2">
+          {currentEmployee === 'HARIS' && (
+            <>
+              <button
+                onClick={() => handleSync(false)}
+                disabled={syncing}
+                title="Εισάγει μόνο νέες γραμμές από το Sheet"
+                className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 text-sm font-medium rounded-lg transition-colors border border-gray-200">
+                <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                Sync
+              </button>
+              <button
+                onClick={() => { if (window.confirm('Full sync: εισάγει ΟΛΑ τα sheet rows που λείπουν από τη ΒΔ. Συνέχεια;')) handleSync(true) }}
+                disabled={syncing}
+                title="Αντιστοιχεί με το Sunday Full Sync — εισάγει κάθε γραμμή του Sheet που δεν υπάρχει ήδη"
+                className="flex items-center gap-1.5 px-3 py-2 bg-amber-50 hover:bg-amber-100 text-amber-800 text-sm font-medium rounded-lg transition-colors border border-amber-200">
+                <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+                Full Sync
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => { setNewLeadData({}); setNewLeadOpen(true) }}
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-bold rounded-lg transition-colors shadow">
+            + Νέο Lead
+          </button>
+        </div>
       </div>
 
       {/* New Lead Modal */}
