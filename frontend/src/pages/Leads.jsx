@@ -3,7 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads,
+  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants,
   sendLeadToFinance,
 } from '../api'
 import {
@@ -989,6 +989,8 @@ export default function Leads() {
 
   useEffect(() => { load() }, [load])
   useEffect(() => { loadOptions() }, [loadOptions])
+  // Silently fix assigned_name/agent_id mismatches on page load (admin only)
+  useEffect(() => { if (getAuth()?.user?.role === 'admin') normalizeConsultants().catch(() => {}) }, [])
 
   const patch = async (lead, field, value) => {
     try {
