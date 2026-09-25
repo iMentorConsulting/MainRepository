@@ -1128,13 +1128,28 @@ def dedup_leads(
     STATUS_RANK = {"DEAL": 6, "HOT": 5, "ACTIVE": 4, "CALL": 3, "NEW LEAD": 2, "CANCEL": 1}
 
     def _pick_winner(leads):
-        """Return the id of the lead to keep."""
-        return sorted(leads, key=lambda l: (-STATUS_RANK.get(l.status, 0), l.id))[0].id
+        """Return the id of the lead to keep.
+        CANCEL leads with comments are treated as intentional — they win over plain NEW LEAD."""
+        def _sort_key(l):
+            rank = STATUS_RANK.get(l.status, 0)
+            # A CANCEL with at least one comment was explicitly cancelled — boost its rank
+            # above NEW LEAD (rank 2) so it won't get overridden by a blank import.
+            if l.status == "CANCEL" and l.comments:
+                rank = 2.5
+            return (-rank, l.id)
+        return sorted(leads, key=_sort_key)[0].id
 
     def _merge_into_winner(winner, losers):
         """Move comments/logs from losers into winner, fill missing fields, then delete losers."""
         from models_cases import CMPortalAssignment as _CPA
         loser_ids = [l.id for l in losers]
+        # If ANY loser was intentionally CANCEL (has comments), preserve that status on winner
+        for loser in losers:
+            if loser.status == "CANCEL" and loser.comments and winner.status != "CANCEL":
+                # Only downgrade to CANCEL if winner is NEW LEAD (blank import) — not HOT/ACTIVE/CALL/DEAL
+                if winner.status == "NEW LEAD":
+                    winner.status = "CANCEL"
+                break
         # Move comments to winner
         db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(loser_ids)).update(
             {"lead_id": winner.id}, synchronize_session=False)
