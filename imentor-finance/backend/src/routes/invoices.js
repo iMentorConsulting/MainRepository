@@ -130,7 +130,43 @@ async function findOrCreateContact(orgKey, income) {
   return c.data.id;
 }
 
-const ELORUS_VAT_RATE_ID_REDUCED = '3548882149455168584'; // ΦΠΑ μειωμένος 17% (νησιά)
+const reducedVatCache = {};
+
+// Returns the reduced-VAT tax ID (islands: 17% or 13% depending on account setup).
+// Primary:  ELORUS_REDUCED_VAT_TAX_ID env var — set it to the ID from the Elorus URL
+//           imentor.elorus.com/taxes/<ID>/ (Φόροι → ΦΠΑ Μειωμένος).
+// Fallback: auto-discover by scanning the taxes endpoint for a tax marked "μειωμένος"
+//           or with a percentage between 1 and 22 (anything below standard 24%).
+async function getReducedVatTaxRateId(orgKey) {
+  const envId = process.env.ELORUS_REDUCED_VAT_TAX_ID;
+  if (envId) { console.log('[reducedVat] using env id:', envId); return envId; }
+
+  if (reducedVatCache[orgKey]) return reducedVatCache[orgKey];
+
+  for (const ep of ['taxes/', 'taxes/?active=true', 'itemtaxes/', 'itemtaxes/?active=true']) {
+    try {
+      const r = await api(orgKey).get(ep);
+      const items = r.data.results || (Array.isArray(r.data) ? r.data : []);
+      if (!items.length) continue;
+      console.log(`[reducedVat] ${ep} (${items.length}):`, JSON.stringify(items).slice(0, 400));
+      const reduced = items.find(t => {
+        const title = String(t.title || t.name || '').toLowerCase();
+        const pct   = parseFloat(t.percentage || t.percent || t.rate || 0);
+        return (title.includes('μειωμ') || title.includes('island') || title.includes('νησ'))
+          || (t.operand === '+' && pct > 0 && pct < 22);
+      });
+      if (reduced?.id) {
+        reducedVatCache[orgKey] = String(reduced.id);
+        console.log('[reducedVat found]', reduced.id, reduced.title || reduced.name || '');
+        return reducedVatCache[orgKey];
+      }
+    } catch (e) {
+      if (e.response?.status !== 404) console.warn(`[reducedVat] ${ep}:`, e.message);
+    }
+  }
+  console.warn('[reducedVat] not found — set ELORUS_REDUCED_VAT_TAX_ID in Railway env vars');
+  return null;
+}
 
 const vatTaxRateCache = {};
 
@@ -406,7 +442,7 @@ router.post('/create-draft', async (req, res) => {
     const net = parseFloat(amount);
     const applyWh = needsWithholding(net, org_key, kind);
     const [taxRateId, contactId, docType, whTaxId] = await Promise.all([
-      reduced_vat ? Promise.resolve(ELORUS_VAT_RATE_ID_REDUCED) : getVatTaxRateId(org_key),
+      reduced_vat ? getReducedVatTaxRateId(org_key) : getVatTaxRateId(org_key),
       findOrCreateContact(org_key, income),
       findDocType(org_key, kind),
       applyWh ? getWithholdingTaxId(org_key) : Promise.resolve(null),
@@ -509,7 +545,7 @@ router.post('/one-shot', async (req, res) => {
     const iDate = date || new Date().toISOString().split('T')[0];
     const applyWh = needsWithholding(net, org_key, kind);
     const [taxRateId, contactId, docType, whTaxId] = await Promise.all([
-      reduced_vat ? Promise.resolve(ELORUS_VAT_RATE_ID_REDUCED) : getVatTaxRateId(org_key),
+      reduced_vat ? getReducedVatTaxRateId(org_key) : getVatTaxRateId(org_key),
       findOrCreateContact(org_key, income),
       findDocType(org_key, kind),
       applyWh ? getWithholdingTaxId(org_key) : Promise.resolve(null),
