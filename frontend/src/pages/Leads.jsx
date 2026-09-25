@@ -3,7 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants, upgradeWorkedLeads,
+  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants, upgradeWorkedLeads, downgradeWorkedLeads,
   sendLeadToFinance,
 } from '../api'
 import {
@@ -1165,6 +1165,15 @@ export default function Leads() {
               }}
                 className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
                 ✅ Upgrade WORKED
+              </button>
+              <button onClick={async () => {
+                if (!window.confirm('Επαναφορά WORKED leads χωρίς πραγματικά σχόλια → NEW LEAD;')) return
+                const r = await downgradeWorkedLeads()
+                toast.success(`Επαναφέρθηκαν ${r.downgraded} leads → NEW LEAD`)
+                load()
+              }}
+                className="flex items-center gap-1.5 text-sm bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 px-3 py-1.5 rounded-lg font-medium">
+                ↩ Downgrade WORKED
               </button>
 <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
                 className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">

@@ -1155,6 +1155,49 @@ def upgrade_worked_leads(
     return {"ok": True, "upgraded": count}
 
 
+@router.post("/downgrade-worked")
+def downgrade_worked_leads(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Reverse of upgrade-worked: find all WORKED leads that have NO genuine consultant
+    comment (only auto-generated or system comments) and set them back to NEW LEAD.
+    Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    _SYSTEM_AUTHORS = {"ΕΡΜΗΣ", "Σύστημα", ""}
+    _AUTO_PREFIXES = (
+        "🔥 Ανάθεση LOGISTIS",
+        "📤 Μαζική αποστολή",
+        "🔗 Αποστολή link",
+    )
+
+    # Subquery: lead_ids that DO have at least one genuine consultant comment
+    q_real = db.query(CMLeadComment.lead_id).filter(
+        CMLeadComment.author_name.isnot(None),
+        CMLeadComment.author_name.notin_(_SYSTEM_AUTHORS),
+    )
+    for prefix in _AUTO_PREFIXES:
+        q_real = q_real.filter(~CMLeadComment.content.startswith(prefix))
+    real_comment_lead_ids = q_real.distinct().subquery()
+
+    # WORKED leads that are NOT in the real-comment set
+    leads = (
+        db.query(CMLead)
+        .filter(CMLead.status == "WORKED", ~CMLead.id.in_(real_comment_lead_ids))
+        .all()
+    )
+
+    count = 0
+    for lead in leads:
+        lead.status = "NEW LEAD"
+        count += 1
+
+    db.commit()
+    return {"ok": True, "downgraded": count}
+
+
 @router.post("/dedup")
 def dedup_leads(
     current_user: CMUser = Depends(get_current_user),

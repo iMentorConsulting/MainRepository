@@ -286,6 +286,7 @@ export const backfillErmisTranscripts = () => api.post('/api/cm/leads/backfill-e
 export const dedupLeads = () => api.post('/api/cm/leads/dedup').then(r => r.data)
 export const normalizeConsultants = () => api.post('/api/cm/leads/normalize-consultants').then(r => r.data)
 export const upgradeWorkedLeads = () => api.post('/api/cm/leads/upgrade-worked').then(r => r.data)
+export const downgradeWorkedLeads = () => api.post('/api/cm/leads/downgrade-worked').then(r => r.data)
 export const fetchLeadErmisTranscript = (id) => api.post(`/api/cm/leads/${id}/ermis/fetch-transcript`).then(r => r.data)
 export const backfillPrograms = () => api.post('/api/cm/leads/backfill-programs').then(r => r.data)
 export const syncErmisToSiblings = (id) => api.post(`/api/cm/leads/${id}/ermis/sync-siblings`).then(r => r.data)
