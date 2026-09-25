@@ -1156,14 +1156,7 @@ export default function Leads() {
         <div className="flex items-center gap-2">
           {isAdmin && (
             <>
-              <button onClick={async () => {
-                if (!window.confirm('Συγχώνευση διπλοεγγραφών ανά ΑΦΜ + πρόγραμμα;\n\nΔιατηρείται το lead με την ΚΑΛΥΤΕΡΗ κατάσταση (DEAL > HOT > ACTIVE > CALL > NEW LEAD > CANCEL).\nΜεταφέρονται σχόλια, consultant και ΕΡΜΗΣ από τα διπλά στο κύριο.\nΤα διπλά διαγράφονται.')) return
-                const r = await dedupLeads()
-                toast.success(`Συγχωνεύτηκαν ${r.deleted} διπλοεγγραφές σε ${r.groups} ομάδες`)
-              }} className="flex items-center gap-1.5 text-sm bg-red-100 text-red-700 hover:bg-red-200 border border-red-300 px-3 py-1.5 rounded-lg font-medium">
-                🧹 Dedup Leads
-              </button>
-              <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
+<button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
                 className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
                 💬 Backfill ΕΡΜΗΣ
               </button>
