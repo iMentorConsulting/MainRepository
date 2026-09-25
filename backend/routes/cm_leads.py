@@ -936,6 +936,14 @@ def update_lead(
         elif field in ("phone", "phone2"):
             val = clean_phone(val)
         setattr(l, field, val)
+    # Keep assigned_name in sync with assigned_agent_id
+    if "assigned_agent_id" in req.dict(exclude_unset=True):
+        if l.assigned_agent_id:
+            agent = db.query(CMUser).filter(CMUser.id == l.assigned_agent_id).first()
+            if agent:
+                l.assigned_name = agent.full_name
+        else:
+            l.assigned_name = None
     # Auto-set source from notes keyword; overrides LOGISTIS-derived values
     updated_fields = req.dict(exclude_unset=True)
     _logistis_src = (l.source or "").upper().startswith("LOGISTIS")
