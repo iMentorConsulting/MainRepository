@@ -378,9 +378,6 @@ export default function IncomeList() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="font-semibold text-slate-800 truncate">{r.customer_name}</span>
-                    {r.invoice_type === 'ΑΝΕΥ' && (
-                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>ΜΕΤ</span>
-                    )}
                     {r.organization && (
                       <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em',
                         background: /ΑΠΟΣΤΟΛ/i.test(r.organization) ? '#f97316' : '#6366f1',
@@ -418,7 +415,10 @@ export default function IncomeList() {
                 </div>
               )}
               <div className="flex items-center gap-2 pt-1">
-                <ElorusActionsButton record={r} onRefresh={load} />
+                {r.invoice_type === 'ΑΝΕΥ'
+                  ? <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', letterSpacing: '0.04em' }}>ΜΕΤ</span>
+                  : <ElorusActionsButton record={r} onRefresh={load} />
+                }
                 <button className="btn-secondary text-xs py-1 px-2" title="Αντιγραφή" onClick={() => handleDuplicate(r)}>📋</button>
                 <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
@@ -462,9 +462,6 @@ export default function IncomeList() {
                   <td className="td text-left">
                     <div className="flex items-center gap-1.5 max-w-[200px] flex-wrap">
                       <span className="font-semibold text-slate-800 truncate">{r.customer_name}</span>
-                      {r.invoice_type === 'ΑΝΕΥ' && (
-                        <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>ΜΕΤ</span>
-                      )}
                       {r.organization && (
                         <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em',
                           background: /ΑΠΟΣΤΟΛ/i.test(r.organization) ? '#f97316' : '#6366f1',
@@ -508,7 +505,10 @@ export default function IncomeList() {
                   </td>
                   <td className="td">
                     <div className="flex items-center gap-1">
-                      <ElorusActionsButton record={r} onRefresh={load} />
+                      {r.invoice_type === 'ΑΝΕΥ'
+                        ? <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>ΜΕΤ</span>
+                        : <ElorusActionsButton record={r} onRefresh={load} />
+                      }
                       <button
                         className="btn-secondary text-xs py-1 px-2"
                         title="Αντιγραφή"
