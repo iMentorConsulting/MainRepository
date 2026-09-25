@@ -1126,29 +1126,37 @@ def dedup_leads(
     from sqlalchemy import func as _fn
 
     STATUS_RANK = {"DEAL": 6, "HOT": 5, "ACTIVE": 4, "CALL": 3, "NEW LEAD": 2, "CANCEL": 1}
+    WORKED_STATUSES = {"DEAL", "HOT", "ACTIVE", "CALL"}
+
+    def _is_worked(l):
+        """A lead that was actively worked — must never be deleted as a loser."""
+        return l.status in WORKED_STATUSES or bool(l.comments)
 
     def _pick_winner(leads):
         """Return the id of the lead to keep.
-        CANCEL leads with comments are treated as intentional — they win over plain NEW LEAD."""
+        Any worked lead (HOT/ACTIVE/CALL/DEAL or has comments) always beats an unworked one.
+        Among worked leads, highest status wins; ties broken by lowest id (oldest)."""
         def _sort_key(l):
             rank = STATUS_RANK.get(l.status, 0)
-            # A CANCEL with at least one comment was explicitly cancelled — boost its rank
-            # above NEW LEAD (rank 2) so it won't get overridden by a blank import.
-            if l.status == "CANCEL" and l.comments:
-                rank = 2.5
+            # Any lead with comments is considered "worked" — boost above blank imports
+            if _is_worked(l) and rank < 3:
+                rank = 3  # treated as at least CALL level
             return (-rank, l.id)
         return sorted(leads, key=_sort_key)[0].id
 
     def _merge_into_winner(winner, losers):
-        """Move comments/logs from losers into winner, fill missing fields, then delete losers."""
+        """Move comments/logs from losers into winner, fill missing fields, then delete losers.
+        Safety: never delete a worked lead (HOT/ACTIVE/CALL/DEAL or has comments)."""
         from models_cases import CMPortalAssignment as _CPA
-        loser_ids = [l.id for l in losers]
-        # If ANY loser was intentionally CANCEL (has comments), preserve that status on winner
+        # Hard safety: if any loser is worked, skip this group entirely
         for loser in losers:
-            if loser.status == "CANCEL" and loser.comments and winner.status != "CANCEL":
-                # Only downgrade to CANCEL if winner is NEW LEAD (blank import) — not HOT/ACTIVE/CALL/DEAL
-                if winner.status == "NEW LEAD":
-                    winner.status = "CANCEL"
+            if _is_worked(loser):
+                return  # do not merge — too risky to delete a worked lead
+        loser_ids = [l.id for l in losers]
+        # If ANY loser was intentionally CANCEL (has comments), preserve that on winner
+        for loser in losers:
+            if loser.status == "CANCEL" and loser.comments and winner.status == "NEW LEAD":
+                winner.status = "CANCEL"
                 break
         # Move comments to winner
         db.query(CMLeadComment).filter(CMLeadComment.lead_id.in_(loser_ids)).update(
