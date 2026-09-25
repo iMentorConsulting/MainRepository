@@ -142,7 +142,7 @@ router.put('/:id', async (req, res) => {
   try {
     const record = await Income.findByPk(req.params.id);
     if (!record) return res.status(404).json({ error: 'Δεν βρέθηκε' });
-    await record.update(sanitize(req.body));
+    await record.update({ ...sanitize(req.body), is_new: false });
     const saId = record.service_agreement_id;
     if (saId) checkAndAutoStatus(saId);
     pushToCm(record);
