@@ -38,6 +38,7 @@ const Income = sequelize.define('Income', {
   accountant_notified:     { type: DataTypes.BOOLEAN, defaultValue: false },
   accountant_notified_at:  { type: DataTypes.DATE },
   organization:          { type: DataTypes.STRING },
+  is_new:                { type: DataTypes.BOOLEAN, defaultValue: false },
   invoice_type:          { type: DataTypes.STRING },
   customer_id:           { type: DataTypes.INTEGER },
   service_agreement_id:  { type: DataTypes.INTEGER }

@@ -204,8 +204,9 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       if (sa) merged.service_agreement_id = sa.id;
     }
 
-    // Create Income record immediately
+    // Create Income record immediately — mark as new so the UI highlights it until seen
     const incomeData = sanitize(merged);
+    incomeData.is_new = true;
     // Remove fields that don't exist on Income model
     delete incomeData.external_id;
     delete incomeData.source;
