@@ -365,7 +365,12 @@ export default function IncomeList() {
             <div key={r.id} className="p-4 space-y-2.5">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <div className="font-semibold text-slate-800 truncate">{r.customer_name}</div>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-semibold text-slate-800 truncate">{r.customer_name}</span>
+                    {r.invoice_type === 'ΑΝΕΥ' && (
+                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>ΜΕΤ</span>
+                    )}
+                  </div>
                   <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.sale_date)}{r.vat_number ? ` · ΑΦΜ ${r.vat_number}` : ''}</div>
                   {r.accountant && <div className="text-xs text-slate-400 truncate">{r.accountant}</div>}
                 </div>
@@ -434,7 +439,12 @@ export default function IncomeList() {
                 <tr key={r.id} className="tr">
                   <td className="td whitespace-nowrap text-slate-500 text-xs">{fmtDate(r.sale_date)}</td>
                   <td className="td text-left">
-                    <div className="font-semibold text-slate-800 max-w-[180px] truncate">{r.customer_name}</div>
+                    <div className="flex items-center gap-1.5 max-w-[180px]">
+                      <span className="font-semibold text-slate-800 truncate">{r.customer_name}</span>
+                      {r.invoice_type === 'ΑΝΕΥ' && (
+                        <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>ΜΕΤ</span>
+                      )}
+                    </div>
                     {r.accountant && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{r.accountant}</div>}
                   </td>
                   <td className="td text-xs text-slate-500 whitespace-nowrap">{r.vat_number || '—'}</td>
