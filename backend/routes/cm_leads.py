@@ -157,7 +157,7 @@ def _is_logistis_lead(l) -> bool:
     return (l.source or "").upper().startswith("LOGISTIS") or bool(l.ermis_transcript) or bool(l.ermis_token)
 
 
-_GEMI_STATUS_RANK = {"HOT": 5, "ACTIVE": 4, "DEAL": 3, "CALL": 2, "NEW LEAD": 1, "CANCEL": 0}
+_GEMI_STATUS_RANK = {"HOT": 6, "ACTIVE": 5, "DEAL": 4, "CALL": 3, "WORKED": 2, "NEW LEAD": 1, "CANCEL": 0}
 
 
 def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, token=None):
@@ -286,8 +286,8 @@ def _comment_to_dict(c: CMLeadComment) -> dict:
         "content": c.content,
         "author_name": c.author_name,
         "edited": bool(c.edited),
-        "created_at": c.created_at.isoformat() if c.created_at else None,
-        "updated_at": c.updated_at.isoformat() if c.updated_at else None,
+        "created_at": (c.created_at.isoformat() + "Z") if c.created_at else None,
+        "updated_at": (c.updated_at.isoformat() + "Z") if c.updated_at else None,
     }
 
 
@@ -524,7 +524,7 @@ def list_leads(
                 last_map[c.lead_id] = {
                     "content": c.content,
                     "author_name": c.author_name,
-                    "created_at": c.created_at.isoformat() if c.created_at else None,
+                    "created_at": (c.created_at.isoformat() + "Z") if c.created_at else None,
                 }
 
     # Matched programs per lead (by ΑΦΜ), from the cached AADE business profiles.
@@ -1111,6 +1111,45 @@ def normalize_consultants(
     return {"ok": True, "updated": updated}
 
 
+@router.post("/upgrade-worked")
+def upgrade_worked_leads(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-time job: find all NEW LEAD leads that have at least one comment by a
+    consultant (not a system/sync author) and upgrade their status to WORKED.
+    Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+
+    _SYSTEM_AUTHORS = {"ΕΡΜΗΣ", "Σύστημα", ""}
+
+    # Subquery: lead_ids that have at least one consultant comment
+    consultant_lead_ids = (
+        db.query(CMLeadComment.lead_id)
+        .filter(
+            CMLeadComment.author_name.isnot(None),
+            CMLeadComment.author_name.notin_(_SYSTEM_AUTHORS),
+        )
+        .distinct()
+        .subquery()
+    )
+
+    leads = (
+        db.query(CMLead)
+        .filter(CMLead.status == "NEW LEAD", CMLead.id.in_(consultant_lead_ids))
+        .all()
+    )
+
+    count = 0
+    for lead in leads:
+        lead.status = "WORKED"
+        count += 1
+
+    db.commit()
+    return {"ok": True, "upgraded": count}
+
+
 @router.post("/dedup")
 def dedup_leads(
     current_user: CMUser = Depends(get_current_user),
@@ -1125,8 +1164,8 @@ def dedup_leads(
 
     from sqlalchemy import func as _fn
 
-    STATUS_RANK = {"DEAL": 6, "HOT": 5, "ACTIVE": 4, "CALL": 3, "NEW LEAD": 2, "CANCEL": 1}
-    WORKED_STATUSES = {"DEAL", "HOT", "ACTIVE", "CALL"}
+    STATUS_RANK = {"DEAL": 7, "HOT": 6, "ACTIVE": 5, "CALL": 4, "WORKED": 3, "NEW LEAD": 2, "CANCEL": 1}
+    WORKED_STATUSES = {"DEAL", "HOT", "ACTIVE", "CALL", "WORKED"}
 
     def _is_worked(l):
         """A lead that was actively worked — must never be deleted as a loser."""
@@ -2098,7 +2137,7 @@ def merge_leads(
     return lead_to_dict(primary, include_comments=True)
 
 
-_STATUS_RANK = {"HOT": 5, "ACTIVE": 4, "DEAL": 3, "CALL": 2, "NEW LEAD": 1, "CANCEL": 0}
+_STATUS_RANK = {"HOT": 6, "ACTIVE": 5, "DEAL": 4, "CALL": 3, "WORKED": 2, "NEW LEAD": 1, "CANCEL": 0}
 
 
 def _merge_priority(l: CMLead):

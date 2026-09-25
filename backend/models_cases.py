@@ -562,7 +562,7 @@ class CMBusinessMatchedProgram(Base):
 # ΕΡΜΗΣ AI assistant (hosted in the LOGISTIS app), and converted into CMCase
 # records once they become deals.
 
-LEAD_STATUSES = ["NEW LEAD", "CALL", "HOT", "ACTIVE", "DEAL", "CANCEL"]
+LEAD_STATUSES = ["NEW LEAD", "WORKED", "CALL", "HOT", "ACTIVE", "DEAL", "CANCEL"]
 
 
 class CMWebhookSource(Base):

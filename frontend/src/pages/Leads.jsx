@@ -3,7 +3,7 @@ import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
-  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants,
+  retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants, upgradeWorkedLeads,
   sendLeadToFinance,
 } from '../api'
 import {
@@ -14,7 +14,7 @@ import {
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-export const LEAD_STATUSES = ['NEW LEAD', 'CALL', 'HOT', 'ACTIVE', 'DEAL', 'CANCEL']
+export const LEAD_STATUSES = ['NEW LEAD', 'WORKED', 'CALL', 'HOT', 'ACTIVE', 'DEAL', 'CANCEL']
 
 // Email domain typo corrections (common Greek user mistakes)
 const EMAIL_DOMAIN_FIXES = {
@@ -55,6 +55,7 @@ function suggestEmailFix(email) {
 
 const STATUS_BADGE = {
   'NEW LEAD': 'bg-yellow-100 text-yellow-800',
+  'WORKED': 'bg-purple-100 text-purple-800',
   'CALL': 'bg-blue-100 text-blue-800',
   'HOT': 'bg-red-100 text-red-700',
   'ACTIVE': 'bg-amber-100 text-amber-800',
@@ -62,7 +63,7 @@ const STATUS_BADGE = {
   'CANCEL': 'bg-gray-200 text-gray-600',
 }
 const STATUS_ROW = {
-  'NEW LEAD': 'bg-yellow-50/40', 'CALL': 'bg-blue-50/40', 'HOT': 'bg-red-50/40',
+  'NEW LEAD': 'bg-yellow-50/40', 'WORKED': 'bg-purple-50/40', 'CALL': 'bg-blue-50/40', 'HOT': 'bg-red-50/40',
   'ACTIVE': 'bg-amber-50/30', 'DEAL': 'bg-green-50/40', 'CANCEL': 'bg-gray-50/60',
 }
 const ERMIS_BADGE = { starting: 'bg-amber-100 text-amber-700', in_progress: 'bg-indigo-100 text-indigo-700', reminded: 'bg-orange-100 text-orange-700', eligible: 'bg-green-100 text-green-700', ineligible: 'bg-gray-100 text-gray-500', error: 'bg-red-100 text-red-700' }
@@ -1156,6 +1157,15 @@ export default function Leads() {
         <div className="flex items-center gap-2">
           {isAdmin && (
             <>
+              <button onClick={async () => {
+                if (!window.confirm('Αναβάθμιση όλων των NEW LEAD με σχόλια συμβούλου σε WORKED;')) return
+                const r = await upgradeWorkedLeads()
+                toast.success(`Αναβαθμίστηκαν ${r.upgraded} leads → WORKED`)
+                load()
+              }}
+                className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
+                ✅ Upgrade WORKED
+              </button>
 <button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
                 className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
                 💬 Backfill ΕΡΜΗΣ
