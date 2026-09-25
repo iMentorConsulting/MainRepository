@@ -1123,17 +1123,22 @@ def upgrade_worked_leads(
         raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
 
     _SYSTEM_AUTHORS = {"ΕΡΜΗΣ", "Σύστημα", ""}
-
-    # Subquery: lead_ids that have at least one consultant comment
-    consultant_lead_ids = (
-        db.query(CMLeadComment.lead_id)
-        .filter(
-            CMLeadComment.author_name.isnot(None),
-            CMLeadComment.author_name.notin_(_SYSTEM_AUTHORS),
-        )
-        .distinct()
-        .subquery()
+    # Auto-generated comment prefixes — even when stored under a consultant's name,
+    # these are system messages not genuine human input.
+    _AUTO_PREFIXES = (
+        "🔥 Ανάθεση LOGISTIS",  # LOGISTIS assignment notification
+        "📤 Μαζική αποστολή",    # bulk send notification
+        "🔗 Αποστολή link",      # bulk onboard notification
     )
+
+    # Subquery: lead_ids that have at least one genuine consultant comment
+    q = db.query(CMLeadComment.lead_id).filter(
+        CMLeadComment.author_name.isnot(None),
+        CMLeadComment.author_name.notin_(_SYSTEM_AUTHORS),
+    )
+    for prefix in _AUTO_PREFIXES:
+        q = q.filter(~CMLeadComment.content.startswith(prefix))
+    consultant_lead_ids = q.distinct().subquery()
 
     leads = (
         db.query(CMLead)
