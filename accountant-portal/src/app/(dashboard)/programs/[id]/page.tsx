@@ -48,6 +48,7 @@ export default function ProgramDetailPage() {
   const [diagnoseError, setDiagnoseError] = useState('')
   const [diagnoseResult, setDiagnoseResult] = useState<any>(null)
   const isAdmin = session?.user?.role === 'ADMIN'
+  const canDiagnose = isAdmin || session?.user?.role === 'CONSULTANT'
 
   useEffect(() => {
     fetch(`/api/programs/${id}`)
@@ -625,7 +626,7 @@ export default function ProgramDetailPage() {
         </CardContent>
       </Card>
 
-      {isAdmin && (
+      {canDiagnose && (
         <Card>
           <CardHeader><CardTitle>Έλεγχος Επιλεξιμότητας Επιχείρησης</CardTitle></CardHeader>
           <CardContent>
