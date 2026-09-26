@@ -13,7 +13,8 @@ const Expense = sequelize.define('Expense', {
   vat_amount:       { type: DataTypes.DECIMAL(12,2) },
   payment_method:   { type: DataTypes.STRING },
   notes:            { type: DataTypes.TEXT },
-  source_sheet:     { type: DataTypes.STRING, defaultValue: 'ΕΞΟΔΑ' }
+  source_sheet:     { type: DataTypes.STRING, defaultValue: 'ΕΞΟΔΑ' },
+  department:       { type: DataTypes.STRING }
 }, {
   tableName: 'expenses',
   timestamps: true
