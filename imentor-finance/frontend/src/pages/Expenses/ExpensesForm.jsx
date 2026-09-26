@@ -55,19 +55,11 @@ export default function ExpensesForm({ record, onSave, onCancel }) {
             {suppliers.map(s => <option key={s}>{s}</option>)}
           </select>
         </div>
-        <div>
+        <div className="col-span-2">
           <label className="label">Αφορά Υπηρεσία</label>
           <select className="input" {...register('related_service')}>
             <option value="">— Επιλογή —</option>
             {services.map(s => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="label">Τμήμα</label>
-          <select className="input" {...register('department')}>
-            <option value="">— Χωρίς ανάθεση —</option>
-            <option value="ΟΦΕΙΛΕΣ">ΟΦΕΙΛΕΣ</option>
-            <option value="ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ">ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ</option>
           </select>
         </div>
       </div>

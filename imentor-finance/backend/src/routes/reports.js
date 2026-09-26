@@ -4,6 +4,7 @@ const sequelize = require('../config/db');
 const Income = require('../models/Income');
 const Expense = require('../models/Expense');
 const PayrollEmployeeSetting = require('../models/PayrollEmployeeSetting');
+const ServiceDepartmentMap = require('../models/ServiceDepartmentMap');
 
 // Build Sequelize WHERE for a date field supporting single or multi year/month
 function dateWhere(query, field) {
@@ -615,94 +616,116 @@ router.get('/open-cases', async (req, res) => {
 });
 
 const OFEILES_AGENTS = ['ΣΟΦΙΑ', 'ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ'];
+const DEPT_NAMES = ['ΟΦΕΙΛΕΣ', 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
 
 router.get('/departmental', async (req, res) => {
   try {
-    const { incomeDate, expenseDate } = (() => {
-      const iDate = sqlDateCond(req.query, 'sale_date');
-      const eDate = sqlDateCond(req.query, 'date');
-      return { incomeDate: iDate, expenseDate: eDate };
-    })();
+    const incomeDate = sqlDateCond(req.query, 'sale_date');
+    const expenseDate = sqlDateCond(req.query, 'date');
+    const rep = { ...incomeDate.replacements, ...expenseDate.replacements };
 
     const agentList = OFEILES_AGENTS.map(a => `'${a}'`).join(', ');
 
-    const incomeQ = `
-      SELECT
-        CASE WHEN UPPER(TRIM(sales_agent)) = ANY(ARRAY[${agentList}])
-             THEN 'ΟΦΕΙΛΕΣ'
-             ELSE 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'
-        END AS department,
-        COALESCE(SUM(amount_collected), 0) AS income,
-        COUNT(*) AS count
-      FROM income
-      WHERE ${incomeDate.condition || '1=1'}
-      GROUP BY department
-      ORDER BY department
-    `;
+    // Fetch all data + service mapping in parallel
+    const [incomeRows, expenseRows, serviceMaps] = await Promise.all([
+      sequelize.query(`
+        SELECT
+          CASE WHEN UPPER(TRIM(sales_agent)) = ANY(ARRAY[${agentList}])
+               THEN 'ΟΦΕΙΛΕΣ'
+               ELSE 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'
+          END AS department,
+          COALESCE(SUM(amount_collected), 0) AS income,
+          COUNT(*) AS count
+        FROM income
+        WHERE ${incomeDate.condition || '1=1'}
+        GROUP BY department
+      `, { replacements: rep, type: QueryTypes.SELECT }),
 
-    const expenseQ = `
-      SELECT
-        COALESCE(department, 'ΑΔΙΑΘΕΤΑ') AS department,
-        COALESCE(SUM(amount), 0) AS expenses,
-        COUNT(*) AS count
-      FROM expenses
-      WHERE ${expenseDate.condition || '1=1'}
-      GROUP BY department
-      ORDER BY department
-    `;
+      sequelize.query(`
+        SELECT
+          related_service,
+          category,
+          COALESCE(SUM(amount), 0) AS expenses,
+          COUNT(*) AS count
+        FROM expenses
+        WHERE ${expenseDate.condition || '1=1'}
+        GROUP BY related_service, category
+        ORDER BY related_service NULLS LAST, expenses DESC
+      `, { replacements: rep, type: QueryTypes.SELECT }),
 
-    const expenseCatQ = `
-      SELECT
-        COALESCE(department, 'ΑΔΙΑΘΕΤΑ') AS department,
-        COALESCE(category, 'Άλλο') AS category,
-        COALESCE(SUM(amount), 0) AS expenses
-      FROM expenses
-      WHERE ${expenseDate.condition || '1=1'}
-      GROUP BY department, category
-      ORDER BY department, expenses DESC
-    `;
-
-    const rep = { ...incomeDate.replacements, ...expenseDate.replacements };
-
-    const [incomeRows, expenseRows, expCatRows] = await Promise.all([
-      sequelize.query(incomeQ, { replacements: rep, type: QueryTypes.SELECT }),
-      sequelize.query(expenseQ, { replacements: rep, type: QueryTypes.SELECT }),
-      sequelize.query(expenseCatQ, { replacements: rep, type: QueryTypes.SELECT }),
+      ServiceDepartmentMap.findAll({ raw: true }),
     ]);
 
-    const DEPTS = ['ΟΦΕΙΛΕΣ', 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
+    // Build service→department lookup
+    const svcMap = {};
+    for (const m of serviceMaps) svcMap[m.service_name] = m.department;
 
-    const departments = DEPTS.map(name => {
+    // Distribute expenses: known service → full dept; no service or unmapped → overhead (50/50)
+    const deptExpenses = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
+    const deptCounts   = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
+    const deptBreakdown = { 'ΟΦΕΙΛΕΣ': {}, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': {} };
+    let overheadTotal = 0;
+    let overheadCount = 0;
+    const overheadBreakdown = {};
+
+    for (const row of expenseRows) {
+      const amt = parseFloat(row.expenses || 0);
+      const cnt = parseInt(row.count || 0);
+      const cat = row.category || 'Άλλο';
+      const svc = row.related_service;
+      const dept = svc ? svcMap[svc] : null;
+
+      if (dept && DEPT_NAMES.includes(dept)) {
+        deptExpenses[dept] += amt;
+        deptCounts[dept]   += cnt;
+        deptBreakdown[dept][cat] = (deptBreakdown[dept][cat] || 0) + amt;
+      } else {
+        overheadTotal += amt;
+        overheadCount += cnt;
+        overheadBreakdown[cat] = (overheadBreakdown[cat] || 0) + amt;
+      }
+    }
+
+    // Apply 50/50 overhead split
+    const half = overheadTotal / 2;
+    for (const d of DEPT_NAMES) {
+      deptExpenses[d] += half;
+      for (const [cat, amt] of Object.entries(overheadBreakdown)) {
+        deptBreakdown[d][cat] = (deptBreakdown[d][cat] || 0) + amt / 2;
+      }
+    }
+
+    const departments = DEPT_NAMES.map(name => {
       const inc = incomeRows.find(r => r.department === name);
-      const exp = expenseRows.find(r => r.department === name);
-      const income = parseFloat(inc?.income || 0);
-      const expenses = parseFloat(exp?.expenses || 0);
-      const profit = income - expenses;
-      const breakdown = expCatRows
-        .filter(r => r.department === name)
-        .map(r => ({ category: r.category, expenses: parseFloat(r.expenses || 0) }));
+      const income   = parseFloat(inc?.income || 0);
+      const expenses = parseFloat((deptExpenses[name] || 0).toFixed(2));
+      const profit   = parseFloat((income - expenses).toFixed(2));
+      const breakdown = Object.entries(deptBreakdown[name] || {})
+        .map(([category, amount]) => ({ category, expenses: parseFloat(amount.toFixed(2)) }))
+        .sort((a, b) => b.expenses - a.expenses);
       return {
         name,
         income,
         income_count: parseInt(inc?.count || 0),
         expenses,
-        expenses_count: parseInt(exp?.count || 0),
+        expenses_count: deptCounts[name] || 0,
         profit,
-        margin_pct: income > 0 ? (profit / income) * 100 : 0,
+        margin_pct: income > 0 ? parseFloat(((profit / income) * 100).toFixed(1)) : 0,
         expense_breakdown: breakdown,
       };
     });
 
-    const unassigned = expenseRows.find(r => r.department === 'ΑΔΙΑΘΕΤΑ');
-    const unassigned_expenses = {
-      expenses: parseFloat(unassigned?.expenses || 0),
-      count: parseInt(unassigned?.count || 0),
-      breakdown: expCatRows
-        .filter(r => r.department === 'ΑΔΙΑΘΕΤΑ')
-        .map(r => ({ category: r.category, expenses: parseFloat(r.expenses || 0) })),
-    };
-
-    res.json({ departments, unassigned_expenses });
+    res.json({
+      departments,
+      overhead: {
+        total: parseFloat(overheadTotal.toFixed(2)),
+        count: overheadCount,
+        per_dept: parseFloat((overheadTotal / 2).toFixed(2)),
+        breakdown: Object.entries(overheadBreakdown)
+          .map(([category, expenses]) => ({ category, expenses: parseFloat(expenses.toFixed(2)) }))
+          .sort((a, b) => b.expenses - a.expenses),
+      },
+    });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

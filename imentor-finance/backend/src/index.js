@@ -53,6 +53,7 @@ app.use('/api/lists',      authMiddleware, require('./routes/listItems'));
 app.use('/api/invoices',   authMiddleware, require('./routes/invoices'));
 app.use('/api/emails',     authMiddleware, require('./routes/emails'));
 app.use('/api/reports',           authMiddleware, require('./routes/reports'));
+app.use('/api/service-dept-map',  authMiddleware, require('./routes/serviceDepartmentMap'));
 app.use('/api/payroll-settings',  authMiddleware, require('./routes/payrollSettings'));
 app.use('/api/import',     authMiddleware, require('./routes/importData'));
 app.use('/api/customers',          authMiddleware, require('./routes/customers'));
