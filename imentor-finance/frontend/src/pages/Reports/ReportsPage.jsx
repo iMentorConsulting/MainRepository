@@ -1949,12 +1949,27 @@ function TabDepartmental({ years }) {
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [services, setServices] = useState([]);
+  const [svcMap, setSvcMap] = useState({});
+  const [saving, setSaving] = useState(null);
+  const [showConfig, setShowConfig] = useState(false);
 
   useEffect(() => {
     if (years.length > 0 && !years.includes(selectedYears[0])) setSelectedYears([years[0]]);
   }, [years]);
 
   useEffect(() => {
+    Promise.all([
+      api.get('/lists?list_type=ΕΙΔΟΣ_ΥΠΗΡΕΣΙΑΣ&active_only=true').then(r => setServices(r.data.map(x => x.value))).catch(() => {}),
+      api.get('/service-dept-map').then(r => {
+        const m = {};
+        for (const row of r.data) m[row.service_name] = row.department;
+        setSvcMap(m);
+      }).catch(() => {}),
+    ]);
+  }, []);
+
+  const loadReport = () => {
     setLoading(true);
     const yearParam = selectedYears.length > 1 ? `years=${selectedYears.join(',')}` : `year=${selectedYears[0] || ''}`;
     const monthParam = selectedMonths.length ? `&months=${selectedMonths.join(',')}` : '';
@@ -1962,48 +1977,101 @@ function TabDepartmental({ years }) {
       .then(r => setData(r.data))
       .catch(() => setData(null))
       .finally(() => setLoading(false));
-  }, [selectedYears, selectedMonths]);
+  };
+
+  useEffect(() => { loadReport(); }, [selectedYears, selectedMonths]);
+
+  const assignService = async (service, dept) => {
+    setSaving(service);
+    const prev = { ...svcMap };
+    const next = { ...svcMap };
+    if (dept) next[service] = dept; else delete next[service];
+    setSvcMap(next);
+    try {
+      await api.put(`/service-dept-map/${encodeURIComponent(service)}`, { department: dept || '' });
+      loadReport();
+    } catch {
+      setSvcMap(prev);
+    } finally {
+      setSaving(null);
+    }
+  };
 
   const MONTH_OPTS = ['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => ({
-    value: m,
-    label: ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'][i],
+    value: m, label: ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'][i],
   }));
 
   const DEPT_COLORS = {
-    'ΟΦΕΙΛΕΣ': { bg: '#6366f1', light: 'rgba(99,102,241,0.08)', border: '#6366f1' },
-    'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': { bg: '#10b981', light: 'rgba(16,185,129,0.08)', border: '#10b981' },
+    'ΟΦΕΙΛΕΣ': { bg: '#6366f1', light: 'rgba(99,102,241,0.08)' },
+    'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': { bg: '#10b981', light: 'rgba(16,185,129,0.08)' },
   };
 
   const totalIncome = data?.departments?.reduce((s, d) => s + d.income, 0) || 0;
-  const totalExpenses = (data?.departments?.reduce((s, d) => s + d.expenses, 0) || 0) + (data?.unassigned_expenses?.expenses || 0);
+  const totalExpenses = data?.departments?.reduce((s, d) => s + d.expenses, 0) || 0;
   const totalProfit = totalIncome - totalExpenses;
 
   return (
     <div>
-      <div className="flex flex-wrap gap-2 mb-6">
+      {/* Filters */}
+      <div className="flex flex-wrap items-center gap-2 mb-6">
         <MultiSelectDropdown
           label="Έτος"
           options={(years.length ? years : [new Date().getFullYear()]).map(y => ({ value: String(y), label: String(y) }))}
           selected={selectedYears.map(String)}
           onChange={v => setSelectedYears(v.length ? v.map(Number) : [years[0] || new Date().getFullYear()])}
-          getKey={o => o.value}
-          getLabel={o => o.label}
+          getKey={o => o.value} getLabel={o => o.label}
         />
         <MultiSelectDropdown
-          label="Μήνας"
-          options={MONTH_OPTS}
-          selected={selectedMonths}
-          onChange={setSelectedMonths}
-          getKey={o => o.value}
-          getLabel={o => o.label}
+          label="Μήνας" options={MONTH_OPTS} selected={selectedMonths}
+          onChange={setSelectedMonths} getKey={o => o.value} getLabel={o => o.label}
         />
+        <button
+          className="ml-auto btn-secondary text-xs flex items-center gap-1.5"
+          onClick={() => setShowConfig(v => !v)}
+        >
+          <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5">
+            <path fillRule="evenodd" d="M7.429 1.525a6.593 6.593 0 0 1 1.142 0c.036.003.108.036.137.146l.289 1.105c.147.56.55.967.997 1.189.174.086.341.18.501.28.457.28.953.187 1.37-.016l1.033-.487c.1-.047.19-.019.238.029.288.312.537.663.739 1.043.201.38.343.786.419 1.214.015.089-.02.177-.124.225l-.994.47c-.405.19-.665.537-.693 1.026.003.184.003.368 0 .552.028.489.288.836.693 1.026l.994.47c.104.048.14.136.124.225a6.822 6.822 0 0 1-.419 1.213 6.324 6.324 0 0 1-.739 1.044c-.048.048-.139.076-.238.029l-1.033-.488c-.417-.203-.913-.296-1.37-.015a6.557 6.557 0 0 1-.501.28c-.447.222-.85.628-.997 1.188l-.289 1.105c-.029.11-.101.143-.137.146a6.61 6.61 0 0 1-1.142 0c-.036-.003-.108-.036-.137-.146l-.289-1.105c-.147-.56-.55-.966-.997-1.188a6.557 6.557 0 0 1-.501-.28c-.457-.281-.953-.188-1.37.015l-1.033.488c-.1.047-.19.019-.238-.029a6.324 6.324 0 0 1-.739-1.044 6.822 6.822 0 0 1-.419-1.213c-.015-.089.02-.177.124-.225l.994-.47c.405-.19.665-.537.693-1.026a5.072 5.072 0 0 1 0-.552c-.028-.489-.288-.836-.693-1.026l-.994-.47c-.104-.048-.14-.136-.124-.225.076-.428.218-.834.42-1.214.2-.38.45-.731.738-1.043.048-.048.139-.076.238-.029l1.033.487c.417.203.913.296 1.37.016.16-.1.327-.194.501-.28.447-.222.85-.629.997-1.189l.289-1.105c.029-.11.101-.143.137-.146ZM8 5.5a2.5 2.5 0 1 0 0 5 2.5 2.5 0 0 0 0-5Z" clipRule="evenodd"/>
+          </svg>
+          Ανάθεση Υπηρεσιών
+        </button>
       </div>
+
+      {/* Service → Department config panel */}
+      {showConfig && (
+        <div className="card p-5 mb-6 border border-slate-200">
+          <div className="font-semibold text-slate-700 text-sm mb-1">Ανάθεση Υπηρεσίας σε Τμήμα</div>
+          <p className="text-xs text-slate-400 mb-4">
+            Τα έξοδα με ΥΠΗΡΕΣΙΑ πηγαίνουν στο αντίστοιχο τμήμα. Τα έξοδα <strong>χωρίς ΥΠΗΡΕΣΙΑ</strong> ή με υπηρεσία που δεν έχει ανατεθεί θεωρούνται <strong>overhead</strong> και μοιράζονται 50/50.
+          </p>
+          <div className="divide-y divide-slate-100">
+            {services.map(svc => (
+              <div key={svc} className="flex items-center justify-between py-2.5">
+                <span className="text-sm text-slate-700">{svc}</span>
+                <div className="flex items-center gap-2">
+                  {saving === svc && <span className="text-xs text-slate-400">...</span>}
+                  <select
+                    className="input text-xs py-1 px-2 w-52"
+                    value={svcMap[svc] || ''}
+                    onChange={e => assignService(svc, e.target.value)}
+                    disabled={saving === svc}
+                  >
+                    <option value="">— Overhead (50/50) —</option>
+                    <option value="ΟΦΕΙΛΕΣ">ΟΦΕΙΛΕΣ</option>
+                    <option value="ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ">ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ</option>
+                  </select>
+                </div>
+              </div>
+            ))}
+            {services.length === 0 && <div className="text-xs text-slate-400 py-4 text-center">Δεν βρέθηκαν υπηρεσίες.</div>}
+          </div>
+        </div>
+      )}
 
       {loading && <div className="text-center text-slate-400 py-16">Φόρτωση...</div>}
 
       {!loading && data && (
         <>
-          {/* Summary row */}
+          {/* Summary */}
           <div className="grid grid-cols-3 gap-4 mb-8">
             <div className="card p-5 border-l-4 border-indigo-400">
               <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Σύνολο Εσόδων</div>
@@ -2020,16 +2088,14 @@ function TabDepartmental({ years }) {
           </div>
 
           {/* Department cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             {data.departments.map(dept => {
-              const c = DEPT_COLORS[dept.name] || { bg: '#64748b', light: 'rgba(100,116,139,0.08)', border: '#64748b' };
+              const c = DEPT_COLORS[dept.name] || { bg: '#64748b', light: 'rgba(100,116,139,0.08)' };
               return (
-                <div key={dept.name} className="card overflow-hidden" style={{ border: `1.5px solid ${c.border}22` }}>
-                  <div className="px-5 py-4" style={{ background: c.light, borderBottom: `2px solid ${c.bg}` }}>
-                    <div className="flex items-center gap-2">
-                      <div className="w-3 h-3 rounded-full" style={{ background: c.bg }} />
-                      <span className="font-bold text-slate-800 text-sm tracking-wide">{dept.name}</span>
-                    </div>
+                <div key={dept.name} className="card overflow-hidden">
+                  <div className="px-5 py-3.5 flex items-center gap-2" style={{ background: c.light, borderBottom: `2px solid ${c.bg}` }}>
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: c.bg }} />
+                    <span className="font-bold text-slate-800 text-sm tracking-wide">{dept.name}</span>
                   </div>
                   <div className="p-5">
                     <div className="grid grid-cols-2 gap-3 mb-5">
@@ -2041,7 +2107,7 @@ function TabDepartmental({ years }) {
                       <div>
                         <div className="text-xs text-slate-400 mb-0.5">Έξοδα</div>
                         <div className="text-lg font-black text-slate-800">{fmtMoney(dept.expenses)}</div>
-                        <div className="text-xs text-slate-400">{dept.expenses_count} εγγραφές</div>
+                        <div className="text-xs text-slate-400 text-slate-400">incl. {fmtMoney(data.overhead.per_dept)} overhead</div>
                       </div>
                       <div>
                         <div className="text-xs text-slate-400 mb-0.5">Κέρδος</div>
@@ -2052,19 +2118,15 @@ function TabDepartmental({ years }) {
                         <div className={`text-lg font-black ${dept.margin_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{dept.margin_pct.toFixed(1)}%</div>
                       </div>
                     </div>
-
                     {dept.expense_breakdown.length > 0 && (
                       <div>
                         <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Ανάλυση Εξόδων</div>
                         <div className="space-y-1.5">
-                          {dept.expense_breakdown.slice(0, 6).map(b => (
-                            <div key={b.category} className="flex items-center justify-between">
-                              <span className="text-xs text-slate-600 truncate max-w-[60%]">{b.category}</span>
-                              <div className="flex items-center gap-2">
-                                <div className="h-1.5 rounded-full" style={{
-                                  width: `${Math.round((b.expenses / (dept.expenses || 1)) * 80)}px`,
-                                  background: c.bg, opacity: 0.5, minWidth: 4
-                                }} />
+                          {dept.expense_breakdown.slice(0, 7).map(b => (
+                            <div key={b.category} className="flex items-center justify-between gap-2">
+                              <span className="text-xs text-slate-600 truncate">{b.category}</span>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <div className="h-1.5 rounded-full" style={{ width: `${Math.max(4, Math.round((b.expenses / (dept.expenses || 1)) * 72))}px`, background: c.bg, opacity: 0.45 }} />
                                 <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{fmtMoney(b.expenses)}</span>
                               </div>
                             </div>
@@ -2078,25 +2140,20 @@ function TabDepartmental({ years }) {
             })}
           </div>
 
-          {/* Unassigned expenses warning */}
-          {data.unassigned_expenses.expenses > 0 && (
-            <div className="card p-5 border border-amber-200 bg-amber-50">
+          {/* Overhead info */}
+          {data.overhead.total > 0 && (
+            <div className="card p-4 border border-slate-200 bg-slate-50">
               <div className="flex items-start gap-3">
-                <span className="text-amber-500 text-lg">⚠️</span>
+                <div className="text-slate-400 text-base mt-0.5">⚖️</div>
                 <div className="flex-1">
-                  <div className="font-semibold text-amber-800 text-sm mb-1">
-                    Αδιάθετα Έξοδα: {fmtMoney(data.unassigned_expenses.expenses)} ({data.unassigned_expenses.count} εγγραφές)
+                  <div className="font-semibold text-slate-700 text-sm mb-1">
+                    Overhead (χωρίς ΥΠΗΡΕΣΙΑ ή αδιάθετη ΥΠΗΡΕΣΙΑ): {fmtMoney(data.overhead.total)} → {fmtMoney(data.overhead.per_dept)} / τμήμα
                   </div>
-                  <div className="text-xs text-amber-700">
-                    Αυτά τα έξοδα δεν έχουν ανατεθεί σε τμήμα. Ανοίξτε κάθε εγγραφή και ορίστε το πεδίο «Τμήμα» για πλήρη τμηματική ανάλυση.
-                  </div>
-                  {data.unassigned_expenses.breakdown.length > 0 && (
-                    <div className="mt-2 space-y-1">
-                      {data.unassigned_expenses.breakdown.slice(0, 4).map(b => (
-                        <div key={b.category} className="flex justify-between text-xs text-amber-700">
-                          <span>{b.category}</span>
-                          <span className="font-semibold">{fmtMoney(b.expenses)}</span>
-                        </div>
+                  <div className="text-xs text-slate-500 mb-2">{data.overhead.count} εγγραφές · Μοιράζονται 50/50 μεταξύ των 2 τμημάτων</div>
+                  {data.overhead.breakdown.length > 0 && (
+                    <div className="flex flex-wrap gap-x-4 gap-y-1">
+                      {data.overhead.breakdown.slice(0, 5).map(b => (
+                        <span key={b.category} className="text-xs text-slate-500">{b.category}: <strong>{fmtMoney(b.expenses)}</strong></span>
                       ))}
                     </div>
                   )}
