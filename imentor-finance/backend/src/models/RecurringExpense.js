@@ -13,7 +13,8 @@ const RecurringExpense = sequelize.define('RecurringExpense', {
   notes:       { type: DataTypes.TEXT },
   is_active:   { type: DataTypes.BOOLEAN, defaultValue: true },
   day_of_month: { type: DataTypes.INTEGER, defaultValue: 1 }, // which day to create on (1-28)
-  last_generated_month: { type: DataTypes.STRING }, // 'YYYY-MM' of last auto-generation
+  last_generated_month: { type: DataTypes.STRING },
+  department:           { type: DataTypes.STRING },
 }, { tableName: 'recurring_expenses', timestamps: true });
 
 module.exports = RecurringExpense;

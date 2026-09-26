@@ -389,6 +389,7 @@ export default function ExpensesList() {
                 <SortTh label="Κατηγορία" field="category" sort={sort} onSort={handleSort} />
                 <SortTh label="Προμηθευτής" field="supplier" sort={sort} onSort={handleSort} />
                 <th className="th">Υπηρεσία</th>
+                <th className="th">Τμήμα</th>
                 <th className="th">Αιτιολογία</th>
                 <SortTh label="Ποσό" field="amount" sort={sort} onSort={handleSort} className="text-right" />
                 <th className="th w-16"></th>
@@ -405,6 +406,15 @@ export default function ExpensesList() {
                   </td>
                   <td className="td font-medium text-slate-700">{r.supplier || '—'}</td>
                   <td className="td text-xs text-slate-500">{r.related_service || '—'}</td>
+                  <td className="td">
+                    {r.department === 'ΟΦΕΙΛΕΣ' && (
+                      <span style={{ fontSize: 11, fontWeight: 700, background: '#6366f1', color: '#fff', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>ΟΦΛ</span>
+                    )}
+                    {r.department === 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ' && (
+                      <span style={{ fontSize: 11, fontWeight: 700, background: '#10b981', color: '#fff', borderRadius: 6, padding: '2px 7px', whiteSpace: 'nowrap' }}>ΕΠΧ</span>
+                    )}
+                    {!r.department && <span className="text-slate-300 text-xs">—</span>}
+                  </td>
                   <td className="td max-w-[200px]">
                     <div className="text-xs text-slate-500 truncate">{r.description || '—'}</div>
                   </td>
@@ -431,7 +441,7 @@ export default function ExpensesList() {
                 </tr>
               ))}
               {data.data.length === 0 && (
-                <tr><td colSpan={7} className="td text-center text-slate-400 py-12">
+                <tr><td colSpan={8} className="td text-center text-slate-400 py-12">
                   <div className="text-3xl mb-2">🔍</div>
                   Δεν βρέθηκαν εγγραφές
                 </td></tr>

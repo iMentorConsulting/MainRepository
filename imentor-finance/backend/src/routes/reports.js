@@ -614,6 +614,100 @@ router.get('/open-cases', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+const OFEILES_AGENTS = ['ΣΟΦΙΑ', 'ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ'];
+
+router.get('/departmental', async (req, res) => {
+  try {
+    const { incomeDate, expenseDate } = (() => {
+      const iDate = sqlDateCond(req.query, 'sale_date');
+      const eDate = sqlDateCond(req.query, 'date');
+      return { incomeDate: iDate, expenseDate: eDate };
+    })();
+
+    const agentList = OFEILES_AGENTS.map(a => `'${a}'`).join(', ');
+
+    const incomeQ = `
+      SELECT
+        CASE WHEN UPPER(TRIM(sales_agent)) = ANY(ARRAY[${agentList}])
+             THEN 'ΟΦΕΙΛΕΣ'
+             ELSE 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'
+        END AS department,
+        COALESCE(SUM(amount_collected), 0) AS income,
+        COUNT(*) AS count
+      FROM income
+      WHERE ${incomeDate.condition || '1=1'}
+      GROUP BY department
+      ORDER BY department
+    `;
+
+    const expenseQ = `
+      SELECT
+        COALESCE(department, 'ΑΔΙΑΘΕΤΑ') AS department,
+        COALESCE(SUM(amount), 0) AS expenses,
+        COUNT(*) AS count
+      FROM expenses
+      WHERE ${expenseDate.condition || '1=1'}
+      GROUP BY department
+      ORDER BY department
+    `;
+
+    const expenseCatQ = `
+      SELECT
+        COALESCE(department, 'ΑΔΙΑΘΕΤΑ') AS department,
+        COALESCE(category, 'Άλλο') AS category,
+        COALESCE(SUM(amount), 0) AS expenses
+      FROM expenses
+      WHERE ${expenseDate.condition || '1=1'}
+      GROUP BY department, category
+      ORDER BY department, expenses DESC
+    `;
+
+    const rep = { ...incomeDate.replacements, ...expenseDate.replacements };
+
+    const [incomeRows, expenseRows, expCatRows] = await Promise.all([
+      sequelize.query(incomeQ, { replacements: rep, type: QueryTypes.SELECT }),
+      sequelize.query(expenseQ, { replacements: rep, type: QueryTypes.SELECT }),
+      sequelize.query(expenseCatQ, { replacements: rep, type: QueryTypes.SELECT }),
+    ]);
+
+    const DEPTS = ['ΟΦΕΙΛΕΣ', 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
+
+    const departments = DEPTS.map(name => {
+      const inc = incomeRows.find(r => r.department === name);
+      const exp = expenseRows.find(r => r.department === name);
+      const income = parseFloat(inc?.income || 0);
+      const expenses = parseFloat(exp?.expenses || 0);
+      const profit = income - expenses;
+      const breakdown = expCatRows
+        .filter(r => r.department === name)
+        .map(r => ({ category: r.category, expenses: parseFloat(r.expenses || 0) }));
+      return {
+        name,
+        income,
+        income_count: parseInt(inc?.count || 0),
+        expenses,
+        expenses_count: parseInt(exp?.count || 0),
+        profit,
+        margin_pct: income > 0 ? (profit / income) * 100 : 0,
+        expense_breakdown: breakdown,
+      };
+    });
+
+    const unassigned = expenseRows.find(r => r.department === 'ΑΔΙΑΘΕΤΑ');
+    const unassigned_expenses = {
+      expenses: parseFloat(unassigned?.expenses || 0),
+      count: parseInt(unassigned?.count || 0),
+      breakdown: expCatRows
+        .filter(r => r.department === 'ΑΔΙΑΘΕΤΑ')
+        .map(r => ({ category: r.category, expenses: parseFloat(r.expenses || 0) })),
+    };
+
+    res.json({ departments, unassigned_expenses });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.get('/available-years', async (req, res) => {
   try {
     const rows = await sequelize.query(

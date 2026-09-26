@@ -1944,12 +1944,183 @@ function TabPayroll() {
   );
 }
 
+function TabDepartmental({ years }) {
+  const [selectedYears, setSelectedYears] = useState([years[0] || new Date().getFullYear()]);
+  const [selectedMonths, setSelectedMonths] = useState([]);
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    if (years.length > 0 && !years.includes(selectedYears[0])) setSelectedYears([years[0]]);
+  }, [years]);
+
+  useEffect(() => {
+    setLoading(true);
+    const yearParam = selectedYears.length > 1 ? `years=${selectedYears.join(',')}` : `year=${selectedYears[0] || ''}`;
+    const monthParam = selectedMonths.length ? `&months=${selectedMonths.join(',')}` : '';
+    api.get(`/reports/departmental?${yearParam}${monthParam}`)
+      .then(r => setData(r.data))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, [selectedYears, selectedMonths]);
+
+  const MONTH_OPTS = ['01','02','03','04','05','06','07','08','09','10','11','12'].map((m, i) => ({
+    value: m,
+    label: ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'][i],
+  }));
+
+  const DEPT_COLORS = {
+    'ΟΦΕΙΛΕΣ': { bg: '#6366f1', light: 'rgba(99,102,241,0.08)', border: '#6366f1' },
+    'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': { bg: '#10b981', light: 'rgba(16,185,129,0.08)', border: '#10b981' },
+  };
+
+  const totalIncome = data?.departments?.reduce((s, d) => s + d.income, 0) || 0;
+  const totalExpenses = (data?.departments?.reduce((s, d) => s + d.expenses, 0) || 0) + (data?.unassigned_expenses?.expenses || 0);
+  const totalProfit = totalIncome - totalExpenses;
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-6">
+        <MultiSelectDropdown
+          label="Έτος"
+          options={(years.length ? years : [new Date().getFullYear()]).map(y => ({ value: String(y), label: String(y) }))}
+          selected={selectedYears.map(String)}
+          onChange={v => setSelectedYears(v.length ? v.map(Number) : [years[0] || new Date().getFullYear()])}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
+        <MultiSelectDropdown
+          label="Μήνας"
+          options={MONTH_OPTS}
+          selected={selectedMonths}
+          onChange={setSelectedMonths}
+          getKey={o => o.value}
+          getLabel={o => o.label}
+        />
+      </div>
+
+      {loading && <div className="text-center text-slate-400 py-16">Φόρτωση...</div>}
+
+      {!loading && data && (
+        <>
+          {/* Summary row */}
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="card p-5 border-l-4 border-indigo-400">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Σύνολο Εσόδων</div>
+              <div className="text-2xl font-black text-slate-800">{fmtMoney(totalIncome)}</div>
+            </div>
+            <div className="card p-5 border-l-4 border-rose-400">
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Σύνολο Εξόδων</div>
+              <div className="text-2xl font-black text-slate-800">{fmtMoney(totalExpenses)}</div>
+            </div>
+            <div className={`card p-5 border-l-4 ${totalProfit >= 0 ? 'border-emerald-400' : 'border-rose-500'}`}>
+              <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Κέρδος</div>
+              <div className={`text-2xl font-black ${totalProfit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtMoney(totalProfit)}</div>
+            </div>
+          </div>
+
+          {/* Department cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            {data.departments.map(dept => {
+              const c = DEPT_COLORS[dept.name] || { bg: '#64748b', light: 'rgba(100,116,139,0.08)', border: '#64748b' };
+              return (
+                <div key={dept.name} className="card overflow-hidden" style={{ border: `1.5px solid ${c.border}22` }}>
+                  <div className="px-5 py-4" style={{ background: c.light, borderBottom: `2px solid ${c.bg}` }}>
+                    <div className="flex items-center gap-2">
+                      <div className="w-3 h-3 rounded-full" style={{ background: c.bg }} />
+                      <span className="font-bold text-slate-800 text-sm tracking-wide">{dept.name}</span>
+                    </div>
+                  </div>
+                  <div className="p-5">
+                    <div className="grid grid-cols-2 gap-3 mb-5">
+                      <div>
+                        <div className="text-xs text-slate-400 mb-0.5">Έσοδα</div>
+                        <div className="text-lg font-black text-slate-800">{fmtMoney(dept.income)}</div>
+                        <div className="text-xs text-slate-400">{dept.income_count} εγγραφές</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-400 mb-0.5">Έξοδα</div>
+                        <div className="text-lg font-black text-slate-800">{fmtMoney(dept.expenses)}</div>
+                        <div className="text-xs text-slate-400">{dept.expenses_count} εγγραφές</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-400 mb-0.5">Κέρδος</div>
+                        <div className={`text-lg font-black ${dept.profit >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{fmtMoney(dept.profit)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-slate-400 mb-0.5">Περιθώριο</div>
+                        <div className={`text-lg font-black ${dept.margin_pct >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>{dept.margin_pct.toFixed(1)}%</div>
+                      </div>
+                    </div>
+
+                    {dept.expense_breakdown.length > 0 && (
+                      <div>
+                        <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Ανάλυση Εξόδων</div>
+                        <div className="space-y-1.5">
+                          {dept.expense_breakdown.slice(0, 6).map(b => (
+                            <div key={b.category} className="flex items-center justify-between">
+                              <span className="text-xs text-slate-600 truncate max-w-[60%]">{b.category}</span>
+                              <div className="flex items-center gap-2">
+                                <div className="h-1.5 rounded-full" style={{
+                                  width: `${Math.round((b.expenses / (dept.expenses || 1)) * 80)}px`,
+                                  background: c.bg, opacity: 0.5, minWidth: 4
+                                }} />
+                                <span className="text-xs font-semibold text-slate-700 whitespace-nowrap">{fmtMoney(b.expenses)}</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Unassigned expenses warning */}
+          {data.unassigned_expenses.expenses > 0 && (
+            <div className="card p-5 border border-amber-200 bg-amber-50">
+              <div className="flex items-start gap-3">
+                <span className="text-amber-500 text-lg">⚠️</span>
+                <div className="flex-1">
+                  <div className="font-semibold text-amber-800 text-sm mb-1">
+                    Αδιάθετα Έξοδα: {fmtMoney(data.unassigned_expenses.expenses)} ({data.unassigned_expenses.count} εγγραφές)
+                  </div>
+                  <div className="text-xs text-amber-700">
+                    Αυτά τα έξοδα δεν έχουν ανατεθεί σε τμήμα. Ανοίξτε κάθε εγγραφή και ορίστε το πεδίο «Τμήμα» για πλήρη τμηματική ανάλυση.
+                  </div>
+                  {data.unassigned_expenses.breakdown.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {data.unassigned_expenses.breakdown.slice(0, 4).map(b => (
+                        <div key={b.category} className="flex justify-between text-xs text-amber-700">
+                          <span>{b.category}</span>
+                          <span className="font-semibold">{fmtMoney(b.expenses)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {!loading && !data && (
+        <div className="text-center text-slate-400 py-16">Δεν ήταν δυνατή η φόρτωση δεδομένων.</div>
+      )}
+    </div>
+  );
+}
+
 const TABS = [
   { id: 'overview', label: 'Επισκόπηση' },
   { id: 'top-customers', label: 'Κορυφαίοι Πελάτες' },
   { id: 'accountants', label: 'Αναφορά Λογιστών' },
   { id: 'service-trend', label: 'Ανά Υπηρεσία' },
   { id: 'payroll', label: 'Μισθοδοσία' },
+  { id: 'departmental', label: 'Τμήματα' },
 ];
 
 export default function ReportsPage() {
@@ -2058,6 +2229,7 @@ export default function ReportsPage() {
       {activeTab === 'accountants' && <TabAccountants years={years} />}
       {activeTab === 'service-trend' && <TabServiceTrend />}
       {activeTab === 'payroll' && <TabPayroll />}
+      {activeTab === 'departmental' && <TabDepartmental years={years} />}
     </div>
   );
 }

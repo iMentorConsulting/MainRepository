@@ -159,11 +159,15 @@ export default function IncomeList() {
 
   const openEdit = async (r) => {
     if (r.is_new) {
-      try { await api.patch(`/income/${r.id}/seen`); } catch (_) {}
-      setData(prev => prev
-        ? { ...prev, data: prev.data.map(x => x.id === r.id ? { ...x, is_new: false } : x) }
-        : prev
-      );
+      try {
+        await api.patch(`/income/${r.id}/seen`);
+        setData(prev => prev
+          ? { ...prev, data: prev.data.map(x => x.id === r.id ? { ...x, is_new: false } : x) }
+          : prev
+        );
+      } catch (e) {
+        console.warn('[seen]', e.message);
+      }
     }
     setModal({ open: true, record: r });
   };
