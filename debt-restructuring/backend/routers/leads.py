@@ -282,20 +282,14 @@ def _markup_strip(text: str) -> str:
 
 
 def _send_gmail(to: str, subject: str, body: str, logo_url: str = None) -> tuple:
+    import smtplib
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     sender = os.getenv("SMTP_USER", "").strip()
-    if not sa_json or not sender:
-        return False, "GOOGLE_SERVICE_ACCOUNT_JSON ή SMTP_USER δεν έχουν οριστεί"
+    password = os.getenv("SMTP_PASS", "").strip()
+    if not sender or not password:
+        return False, "SMTP_USER ή SMTP_PASS δεν έχουν οριστεί"
     try:
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-        creds = Credentials.from_service_account_info(
-            json.loads(sa_json),
-            scopes=["https://www.googleapis.com/auth/gmail.send"],
-        ).with_subject(sender)
-        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = sender
@@ -303,8 +297,9 @@ def _send_gmail(to: str, subject: str, body: str, logo_url: str = None) -> tuple
         msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
         msg.attach(MIMEText(_markup_to_html(body, logo_url=logo_url), "html", "utf-8"))
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(sender, password)
+            smtp.sendmail(sender, to, msg.as_bytes())
         return True, ""
     except Exception as e:
         return False, str(e)

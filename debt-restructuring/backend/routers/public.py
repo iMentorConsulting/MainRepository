@@ -72,23 +72,15 @@ STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θε
 
 
 def _send_interested_email(case: Case) -> bool:
-    """Send notification email via Gmail API (Service Account). Returns True on success."""
+    """Send notification email via Gmail SMTP (app password). Returns True on success."""
+    import smtplib
     try:
-        sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
         sender = os.getenv("SMTP_USER", "").strip()
+        password = os.getenv("SMTP_PASS", "").strip()
         notify_to = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
 
-        if not sa_json or not sender:
+        if not sender or not password:
             return False
-
-        from google.oauth2.service_account import Credentials
-        from googleapiclient.discovery import build
-
-        creds = Credentials.from_service_account_info(
-            json.loads(sa_json),
-            scopes=["https://www.googleapis.com/auth/gmail.send"],
-        ).with_subject(sender)
-        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
         body = (
             f"Ο/Η πελάτης {case.client_name or '(άγνωστος)'} "
@@ -105,8 +97,9 @@ def _send_interested_email(case: Case) -> bool:
         msg["Reply-To"] = sender
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
-        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
+        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
+            smtp.login(sender, password)
+            smtp.sendmail(sender, notify_to, msg.as_bytes())
         return True
     except Exception:
         return False
