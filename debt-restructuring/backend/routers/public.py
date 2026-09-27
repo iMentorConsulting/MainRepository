@@ -116,7 +116,9 @@ def _send_interested_email(case: Case) -> bool:
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(f"[EMAIL ERROR] {e}\n{traceback.format_exc()}", flush=True)
         return False
 
 
