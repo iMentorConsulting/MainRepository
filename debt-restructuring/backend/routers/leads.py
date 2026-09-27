@@ -282,14 +282,32 @@ def _markup_strip(text: str) -> str:
 
 
 def _send_gmail(to: str, subject: str, body: str, logo_url: str = None) -> tuple:
-    import smtplib
+    """Send email via Gmail API using OAuth2 user credentials (refresh token).
+    Emails appear in help@'s Sent folder automatically."""
     from email.mime.text import MIMEText
     from email.mime.multipart import MIMEMultipart
     sender = os.getenv("SMTP_USER", "").strip()
-    password = os.getenv("SMTP_PASS", "").strip()
-    if not sender or not password:
-        return False, "SMTP_USER ή SMTP_PASS δεν έχουν οριστεί"
+    client_id = os.getenv("GMAIL_CLIENT_ID", "").strip()
+    client_secret = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
+    if not all([sender, client_id, client_secret, refresh_token]):
+        return False, "SMTP_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET ή GMAIL_REFRESH_TOKEN δεν έχουν οριστεί"
     try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        )
+        creds.refresh(Request())
+        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
+
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
         msg["From"] = sender
@@ -297,9 +315,8 @@ def _send_gmail(to: str, subject: str, body: str, logo_url: str = None) -> tuple
         msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
         msg.attach(MIMEText(_markup_to_html(body, logo_url=logo_url), "html", "utf-8"))
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(sender, password)
-            smtp.sendmail(sender, to, msg.as_bytes())
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True, ""
     except Exception as e:
         return False, str(e)

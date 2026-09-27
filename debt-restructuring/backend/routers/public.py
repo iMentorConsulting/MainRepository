@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import os, smtplib, json, base64
+import os, json, base64
 
 _ATHENS = ZoneInfo("Europe/Athens")
 def _now():
@@ -72,15 +72,31 @@ STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θε
 
 
 def _send_interested_email(case: Case) -> bool:
-    """Send notification email via Gmail SMTP (app password). Returns True on success."""
-    import smtplib
+    """Send notification email via Gmail API (OAuth2 user credentials). Returns True on success."""
     try:
         sender = os.getenv("SMTP_USER", "").strip()
-        password = os.getenv("SMTP_PASS", "").strip()
+        client_id = os.getenv("GMAIL_CLIENT_ID", "").strip()
+        client_secret = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
+        refresh_token = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
         notify_to = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
 
-        if not sender or not password:
+        if not all([sender, client_id, client_secret, refresh_token]):
             return False
+
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        from googleapiclient.discovery import build
+
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
+            scopes=["https://www.googleapis.com/auth/gmail.send"],
+        )
+        creds.refresh(Request())
+        svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
         body = (
             f"Ο/Η πελάτης {case.client_name or '(άγνωστος)'} "
@@ -97,9 +113,8 @@ def _send_interested_email(case: Case) -> bool:
         msg["Reply-To"] = sender
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
-        with smtplib.SMTP_SSL("smtp.gmail.com", 465) as smtp:
-            smtp.login(sender, password)
-            smtp.sendmail(sender, notify_to, msg.as_bytes())
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True
     except Exception:
         return False
