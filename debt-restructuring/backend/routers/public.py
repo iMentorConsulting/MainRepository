@@ -78,7 +78,7 @@ def _send_interested_email(case: Case) -> bool:
         client_id = os.getenv("GMAIL_CLIENT_ID", "").strip()
         client_secret = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
         refresh_token = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
-        notify_to = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
+        notify_to = os.getenv("NOTIFY_EMAIL", "help@i-mentor.gr")
 
         if not all([sender, client_id, client_secret, refresh_token]):
             return False
