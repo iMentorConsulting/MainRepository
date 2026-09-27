@@ -300,6 +300,7 @@ def _send_gmail(to: str, subject: str, body: str, logo_url: str = None) -> tuple
         msg["Subject"] = subject
         msg["From"] = sender
         msg["To"] = to
+        msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
         msg.attach(MIMEText(_markup_to_html(body, logo_url=logo_url), "html", "utf-8"))
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()

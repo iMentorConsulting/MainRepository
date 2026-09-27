@@ -102,6 +102,7 @@ def _send_interested_email(case: Case) -> bool:
         msg["Subject"] = f"[i-Mentor] Ενδιαφέρον πελάτη: {case.client_name or case.id}"
         msg["From"] = sender
         msg["To"] = notify_to
+        msg["Reply-To"] = sender
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()

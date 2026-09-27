@@ -129,6 +129,7 @@ def _send_gmail(to: str, subject: str, body: str) -> tuple[bool, str]:
         msg["Subject"] = subject
         msg["From"] = sender
         msg["To"] = to
+        msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
         msg.attach(MIMEText(_markup_to_html(body), "html", "utf-8"))
 
