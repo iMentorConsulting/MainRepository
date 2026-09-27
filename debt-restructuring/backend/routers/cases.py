@@ -135,7 +135,7 @@ def _send_gmail(to: str, subject: str, body: str) -> tuple[bool, str]:
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = sender
+        msg["From"] = "i-Mentor Συμβουλευτική <" + sender + ">"
         msg["To"] = to
         msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
