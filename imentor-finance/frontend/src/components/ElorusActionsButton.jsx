@@ -69,7 +69,10 @@ function Breakdown({ amount, orgKey, kind, vatRate = 24 }) {
 
 function InvoiceForm({ action, record, onClose, onDone }) {
   const isOneShot = action === 'one-shot';
-  const [orgKey, setOrgKey] = useState('DEFAULT');
+  const defaultOrg = /ΑΠΟΣΤΟΛ/i.test(record.organization || '') ? 'DEFAULT'
+    : /IMENTOR|ΙΜΕΝΤΟΡ|I.?MENTOR/i.test(record.organization || '') ? 'IMENTOR_IKE'
+    : 'DEFAULT';
+  const [orgKey, setOrgKey] = useState(defaultOrg);
   const [kind, setKind] = useState('TPY');
   const [amount, setAmount] = useState(String(record.amount_collected || ''));
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);

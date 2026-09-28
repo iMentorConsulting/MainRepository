@@ -38,8 +38,11 @@ function InvoiceModal({ record, onClose, onDone }) {
   const hasInvoice = !!record.invoice_number;
   // When a draft or invoice exists, use the org that created it — no need to ask again
   const lockedOrg  = record.elorus_org_key || null;
+  const orgFromBadge = /ΑΠΟΣΤΟΛ/i.test(record.organization || '') ? 'DEFAULT'
+    : /IMENTOR|ΙΜΕΝΤΟΡ|I.?MENTOR/i.test(record.organization || '') ? 'IMENTOR_IKE'
+    : 'DEFAULT';
 
-  const [orgKey, setOrgKey]           = useState(lockedOrg || 'DEFAULT');
+  const [orgKey, setOrgKey]           = useState(lockedOrg || orgFromBadge);
   const [kind, setKind]               = useState('TPY');
   const [amount, setAmount]           = useState(String(record.amount_collected || ''));
   const [description, setDescription] = useState(record.description || record.service_type || '');
