@@ -59,8 +59,9 @@ async function aadeSearchAfm(vat) {
         const address = streetNo ? `${street} ${streetNo}`.trim() : street;
         const legalStatus = (get('legal_status_descr') || '').trim();
         let name = ((get('onomasia') || '').replace(/\s+/g, ' ')).trim();
-        // Physical persons (empty legal form) have SURNAME FIRSTNAME PATRONYMIC — strip patronymic
-        if (!legalStatus) {
+        // Sole proprietors (empty legal form OR "ΑΤΟΜΙΚΗ ΕΠΙΧ...") have SURNAME FIRSTNAME PATRONYMIC — strip patronymic
+        const isIndividual = !legalStatus || /ΑΤΟΜΙΚ/i.test(legalStatus);
+        if (isIndividual) {
           const parts = name.split(' ');
           if (parts.length >= 3) name = parts.slice(0, -1).join(' ');
         }
