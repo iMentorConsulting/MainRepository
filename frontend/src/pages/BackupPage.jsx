@@ -280,7 +280,7 @@ export default function BackupPage() {
                   <option value="">— Επιλέξτε backup —</option>
                   {snapshots.map(s => (
                     <option key={s.id} value={s.id}>
-                      {formatDate(s.created_at)} — {s.total_leads} leads ({s.deal_leads} DEAL, {s.cancel_leads} CANCEL)
+                      {formatDate(s.created_at)} — {s.total_leads} leads ({s.deal_leads} DEAL · {s.hot_leads} HOT · {s.active_leads} ACTIVE · {s.call_leads} CALL)
                     </option>
                   ))}
                 </select>

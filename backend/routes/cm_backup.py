@@ -888,18 +888,22 @@ def list_lead_status_snapshots(
         try:
             data = json.loads(lg.json_data)
             leads = data.get("leads", [])
-            cancel_count = sum(1 for l in leads if l.get("status") == "CANCEL")
             deal_count   = sum(1 for l in leads if l.get("status") == "DEAL")
+            hot_count    = sum(1 for l in leads if l.get("status") == "HOT")
+            active_count = sum(1 for l in leads if l.get("status") == "ACTIVE")
+            call_count   = sum(1 for l in leads if l.get("status") == "CALL")
             total        = len(leads)
         except Exception:
-            cancel_count = deal_count = total = None
+            deal_count = hot_count = active_count = call_count = total = None
         result.append({
             "id": lg.id,
             "file_name": lg.file_name,
             "created_at": (lg.created_at.isoformat() + "Z") if lg.created_at else None,
             "total_leads": total,
-            "cancel_leads": cancel_count,
             "deal_leads": deal_count,
+            "hot_leads": hot_count,
+            "active_leads": active_count,
+            "call_leads": call_count,
         })
 
     return result
@@ -912,10 +916,11 @@ def restore_lead_statuses(
     current_user=Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Compare a stored backup's CANCEL/DEAL/HOT/ACTIVE leads with the current DB.
-    For every lead whose ID still exists but whose status has changed, show the diff.
-    Pass ?apply=true to actually restore the statuses.
-    Admin only."""
+    """Find leads that were DEAL/HOT/ACTIVE/CALL in the backup but now have a
+    LOWER-ranked status (i.e. were wrongly downgraded by dedup).
+    CANCEL leads are intentionally excluded — they have too many legitimate
+    changes (consultant reactivations) that would create false positives.
+    Pass ?apply=true to restore.  Admin only."""
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
 
@@ -930,18 +935,22 @@ def restore_lead_statuses(
 
     backup_leads = backup_data.get("leads", [])
 
-    # Only care about leads that had a "worked" status in the backup
-    PROTECTED_STATUSES = {"CANCEL", "DEAL", "HOT", "ACTIVE", "CALL"}
-    protected = [l for l in backup_leads if l.get("status") in PROTECTED_STATUSES]
+    # Status rank — higher = more valuable.  CANCEL excluded on purpose.
+    STATUS_RANK = {"DEAL": 6, "HOT": 5, "ACTIVE": 4, "CALL": 3, "WORKED": 2, "NEW LEAD": 1}
+
+    # Only examine leads that had a HIGH-value status in the backup (not CANCEL)
+    HIGH_STATUSES = {"DEAL", "HOT", "ACTIVE", "CALL"}
+    high_backup = [l for l in backup_leads if l.get("status") in HIGH_STATUSES]
 
     from models_cases import CMLead as _CML
     changes = []
-    for bl in protected:
+    for bl in high_backup:
         lead_id = bl.get("id")
         backup_status = bl.get("status")
         current_lead = db.query(_CML).filter(_CML.id == lead_id).first()
+
         if current_lead is None:
-            # Lead was deleted by dedup — note it but can't restore
+            # Deleted by dedup — can't auto-restore
             changes.append({
                 "id": lead_id,
                 "name": bl.get("name"),
@@ -953,7 +962,12 @@ def restore_lead_statuses(
             })
             continue
 
-        if current_lead.status != backup_status:
+        backup_rank  = STATUS_RANK.get(backup_status, 0)
+        current_rank = STATUS_RANK.get(current_lead.status, 0)
+
+        # Only flag leads where the status went DOWN (dedup damage)
+        # Legitimate upgrades (CALL→DEAL) are left alone
+        if current_rank < backup_rank:
             changes.append({
                 "id": lead_id,
                 "name": current_lead.name or bl.get("name"),
@@ -969,8 +983,8 @@ def restore_lead_statuses(
     if apply:
         db.commit()
 
-    restorable   = [c for c in changes if c["action"] in ("restore", "would_restore")]
-    deleted      = [c for c in changes if c["action"] == "cannot_restore"]
+    restorable = [c for c in changes if c["action"] in ("restore", "would_restore")]
+    deleted    = [c for c in changes if c["action"] == "cannot_restore"]
 
     return {
         "backup_id": backup_id,
