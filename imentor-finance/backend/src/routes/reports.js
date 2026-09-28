@@ -698,7 +698,8 @@ router.get('/departmental', async (req, res) => {
     for (const m of serviceMaps) svcMap[m.service_name] = m.department;
 
     // Distribute expenses using priority rules:
-    // 1. ΜΙΣΘΟΔΟΣΙΑ by supplier name → specific dept or overhead
+    // 1. ΜΙΣΘΟΔΟΣΙΑ by supplier name → specific dept
+    //    IKA/unmatched payroll → proportional split based on direct payroll ratio
     // 2. ΝΟΜΙΚΗ ΥΠΟΣΤΗΡΙΞΗ → always ΟΦΕΙΛΕΣ
     // 3. related_service mapping → mapped dept or overhead
     const deptExpenses = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
@@ -707,21 +708,42 @@ router.get('/departmental', async (req, res) => {
     let overheadTotal = 0;
     let overheadCount = 0;
     const overheadBreakdown = {};
+    const directPayroll = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
+    let unmatchedPayroll = 0;
+    let unmatchedPayrollCount = 0;
 
     for (const row of expenseRows) {
       const amt = parseFloat(row.expenses || 0);
       const cnt = parseInt(row.count || 0);
       const cat = row.category || 'Άλλο';
       const dept = getDeptForExpense(row, svcMap);
+      const isPayroll = nrmGr(row.category || '').includes(PAYROLL_CAT_KEY);
 
       if (dept) {
         deptExpenses[dept] += amt;
         deptCounts[dept]   += cnt;
         deptBreakdown[dept][cat] = (deptBreakdown[dept][cat] || 0) + amt;
+        if (isPayroll) directPayroll[dept] += amt;
+      } else if (isPayroll) {
+        // Unmatched payroll (IKA, ΕΦΚΑ institutional) → split proportionally later
+        unmatchedPayroll += amt;
+        unmatchedPayrollCount += cnt;
       } else {
         overheadTotal += amt;
         overheadCount += cnt;
         overheadBreakdown[cat] = (overheadBreakdown[cat] || 0) + amt;
+      }
+    }
+
+    // Split IKA/unmatched payroll proportionally based on direct employee payroll ratio
+    const totalDirect = directPayroll['ΟΦΕΙΛΕΣ'] + directPayroll['ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
+    if (unmatchedPayroll !== 0) {
+      for (const d of DEPT_NAMES) {
+        const ratio = totalDirect > 0 ? directPayroll[d] / totalDirect : 0.5;
+        const share = unmatchedPayroll * ratio;
+        deptExpenses[d] += share;
+        deptCounts[d]   += Math.round(unmatchedPayrollCount * ratio);
+        deptBreakdown[d]['ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ'] = (deptBreakdown[d]['ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ'] || 0) + share;
       }
     }
 
@@ -754,10 +776,6 @@ router.get('/departmental', async (req, res) => {
       };
     });
 
-    const payrollDebug = expenseRows
-      .filter(r => nrmGr(r.category || '').includes(PAYROLL_CAT_KEY))
-      .map(r => ({ category: r.category, supplier: r.supplier, expenses: r.expenses, nrm_sup: nrmGr(r.supplier || ''), nrm_cat: nrmGr(r.category || '') }));
-
     res.json({
       departments,
       overhead: {
@@ -768,7 +786,6 @@ router.get('/departmental', async (req, res) => {
           .map(([category, expenses]) => ({ category, expenses: parseFloat(expenses.toFixed(2)) }))
           .sort((a, b) => b.expenses - a.expenses),
       },
-      _debug: { PAYROLL_CAT_KEY, OFEILES_PAYROLL_KEYS, EPICH_PAYROLL_KEYS, payroll_rows: payrollDebug },
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
