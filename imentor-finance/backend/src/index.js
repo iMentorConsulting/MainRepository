@@ -73,6 +73,8 @@ app.use('/api/payroll-target-sync', authMiddleware, require('./routes/payrollTar
 app.use('/api/lead-intake', require('./routes/leadIntake'));
 // Real-time SSE stream for in-app notifications
 app.use('/api/notifications', require('./routes/notifications'));
+// Viber webhook — logs sender Viber ID to Railway console (no auth, Viber calls this)
+app.use('/api/viber-webhook', require('./routes/viberWebhook'));
 
 app.get('/health', (_, res) => res.json({ ok: true }));
 
