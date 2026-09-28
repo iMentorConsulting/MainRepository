@@ -754,6 +754,10 @@ router.get('/departmental', async (req, res) => {
       };
     });
 
+    const payrollDebug = expenseRows
+      .filter(r => nrmGr(r.category || '').includes(PAYROLL_CAT_KEY))
+      .map(r => ({ category: r.category, supplier: r.supplier, expenses: r.expenses, nrm_sup: nrmGr(r.supplier || ''), nrm_cat: nrmGr(r.category || '') }));
+
     res.json({
       departments,
       overhead: {
@@ -764,6 +768,7 @@ router.get('/departmental', async (req, res) => {
           .map(([category, expenses]) => ({ category, expenses: parseFloat(expenses.toFixed(2)) }))
           .sort((a, b) => b.expenses - a.expenses),
       },
+      _debug: { PAYROLL_CAT_KEY, OFEILES_PAYROLL_KEYS, EPICH_PAYROLL_KEYS, payroll_rows: payrollDebug },
     });
   } catch (e) {
     res.status(500).json({ error: e.message });
