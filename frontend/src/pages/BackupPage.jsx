@@ -37,6 +37,7 @@ export default function BackupPage() {
   const [loadingSnapshots, setLoadingSnapshots] = useState(false)
   const [selectedBackupId, setSelectedBackupId] = useState(null)
   const [preview, setPreview] = useState(null)
+  const [loadingPreview, setLoadingPreview] = useState(false)
   const [restoring, setRestoring] = useState(false)
 
   const loadStatus = async () => {
@@ -111,6 +112,11 @@ export default function BackupPage() {
     try {
       const res = await api.get('/api/cm/backup/lead-status-snapshots')
       setSnapshots(res.data)
+      // Auto-select the most recent backup (first in list)
+      if (res.data && res.data.length > 0) {
+        setSelectedBackupId(res.data[0].id)
+        setPreview(null)
+      }
     } catch {
       toast.error('Αδυναμία φόρτωσης snapshots')
     } finally {
@@ -121,11 +127,14 @@ export default function BackupPage() {
   const handlePreview = async () => {
     if (!selectedBackupId) return
     setPreview(null)
+    setLoadingPreview(true)
     try {
       const res = await api.post(`/api/cm/backup/restore-lead-statuses/${selectedBackupId}?apply=false`)
       setPreview(res.data)
     } catch (err) {
       toast.error(err.response?.data?.detail || 'Σφάλμα κατά την προεπισκόπηση')
+    } finally {
+      setLoadingPreview(false)
     }
   }
 
@@ -276,9 +285,10 @@ export default function BackupPage() {
                   ))}
                 </select>
               </div>
-              <button onClick={handlePreview} disabled={!selectedBackupId}
-                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40">
-                Προεπισκόπηση
+              <button onClick={handlePreview} disabled={!selectedBackupId || loadingPreview}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40">
+                <ArrowPathIcon className={`w-4 h-4 ${loadingPreview ? 'animate-spin' : ''}`} />
+                {loadingPreview ? 'Φόρτωση...' : 'Προεπισκόπηση'}
               </button>
             </div>
 
