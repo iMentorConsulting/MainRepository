@@ -962,6 +962,10 @@ def restore_lead_statuses(
             })
             continue
 
+        # CANCEL is an intentional consultant action — never treat as dedup damage
+        if current_lead.status == "CANCEL":
+            continue
+
         backup_rank  = STATUS_RANK.get(backup_status, 0)
         current_rank = STATUS_RANK.get(current_lead.status, 0)
 
