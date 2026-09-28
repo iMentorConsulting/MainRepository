@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { sendEmail, renderCampaignEmailHtml } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
+import { sendErmisWebhook } from '@/lib/ermis-webhook'
+import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export const dynamic = 'force-dynamic'
 
@@ -53,12 +55,15 @@ export async function GET(request: NextRequest) {
   const now = new Date()
   const sixHoursAgo = new Date(now.getTime() - 6 * 60 * 60 * 1000)
   const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000)
+  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
   const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
 
   let email1Sent = 0
   let email1Failed = 0
   let viber2Sent = 0
   let viber2Failed = 0
+  let progressSent = 0
+  let progressFailed = 0
 
   // ── Reminder 1: email, 6h after last activity ─────────────────────────────
   // Includes CM-initiated sessions — contactEmail stores what CM provided,
@@ -184,6 +189,67 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  console.log(`[ErmisReminders] email1: ${email1Sent} sent, ${email1Failed} failed | viber2: ${viber2Sent} sent, ${viber2Failed} failed`)
-  return NextResponse.json({ email1Sent, email1Failed, viber2Sent, viber2Failed })
+  // ── Progress update: ermis.progress webhook to CM, 1h after last activity ──
+  // Background transcript update for CM — the client engaged but never
+  // confirmed assignment (no ermis.completed fires without that), so without
+  // this CM has zero visibility until/unless the client says yes. Debounced:
+  // fires once per quiet period (progressSentAt older than lastActivityAt),
+  // not once per message, so a burst of client replies collapses into a
+  // single webhook once the conversation actually goes quiet.
+  const progressCandidates = await prisma.businessMatchToken.findMany({
+    where: {
+      clientRepliedAt: { not: null },
+      caseCreatedId: null,
+      callbackUrl: { not: null },
+      lastActivityAt: { lt: oneHourAgo },
+    },
+  })
+
+  const dueForProgress = progressCandidates.filter(
+    t => !t.progressSentAt || t.progressSentAt < t.lastActivityAt!,
+  )
+
+  if (dueForProgress.length > 0) {
+    const businessIds = dueForProgress.map(t => t.businessId)
+    const programIds = dueForProgress.map(t => t.programId)
+
+    const [businesses, programs] = await Promise.all([
+      prisma.business.findMany({ where: { id: { in: businessIds } }, select: { ...BUSINESS_PROFILE_SELECT, afm: true } }),
+      prisma.program.findMany({ where: { id: { in: programIds } }, select: { id: true, title: true } }),
+    ])
+
+    const bizById = new Map(businesses.map(b => [b.id, b]))
+    const progById = new Map(programs.map(p => [p.id, p]))
+
+    for (const t of dueForProgress) {
+      const biz = bizById.get(t.businessId)
+      const prog = progById.get(t.programId)
+      const chatLog = Array.isArray(t.chatLog) ? (t.chatLog as any[]) : []
+
+      if (!biz || !t.callbackUrl || chatLog.length === 0) {
+        await prisma.businessMatchToken.update({ where: { id: t.id }, data: { progressSentAt: now } })
+        progressFailed++
+        continue
+      }
+
+      const profile = await buildBusinessProfilePayload(biz)
+      await sendErmisWebhook({
+        callbackUrl: t.callbackUrl,
+        event: 'ermis.progress',
+        token: t.token,
+        leadRef: t.leadRef,
+        afm: biz.afm,
+        businessProfile: profile,
+        program: prog?.title ?? null,
+        eligibility: t.eligibilityStatus === 'ELIGIBLE' ? 'eligible' : t.eligibilityStatus === 'NOT_ELIGIBLE' ? 'ineligible' : null,
+        transcript: chatLog.map(m => ({ role: m.role, text: m.text })),
+      })
+
+      await prisma.businessMatchToken.update({ where: { id: t.id }, data: { progressSentAt: now } })
+      progressSent++
+    }
+  }
+
+  console.log(`[ErmisReminders] email1: ${email1Sent} sent, ${email1Failed} failed | viber2: ${viber2Sent} sent, ${viber2Failed} failed | progress: ${progressSent} sent, ${progressFailed} failed`)
+  return NextResponse.json({ email1Sent, email1Failed, viber2Sent, viber2Failed, progressSent, progressFailed })
 }
