@@ -32,6 +32,7 @@ function LoginPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const verifyStatus = searchParams.get('verify')
+  const resetStatus = searchParams.get('reset')
   const rawCallbackUrl = searchParams.get('callbackUrl') || '/'
   const callbackUrl = rawCallbackUrl.startsWith('/') && !rawCallbackUrl.startsWith('//') ? rawCallbackUrl : '/'
 
@@ -213,6 +214,12 @@ function LoginPageInner() {
             </div>
           )}
 
+          {resetStatus === 'success' && !error && (
+            <div className="mb-5 px-4 py-3 rounded-lg bg-emerald-50 border border-emerald-100 text-emerald-700 text-sm">
+              Ο κωδικός πρόσβασής σας άλλαξε επιτυχώς. Μπορείτε τώρα να συνδεθείτε με τον νέο κωδικό.
+            </div>
+          )}
+
           {error && (
             <div className="mb-5 flex items-center gap-2.5 px-4 py-3 rounded-lg bg-red-50 border border-red-100 text-red-700 text-sm">
               <svg className="w-4 h-4 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -236,7 +243,10 @@ function LoginPageInner() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1.5">Κωδικός πρόσβασης</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-sm font-medium text-slate-700">Κωδικός πρόσβασης</label>
+                <a href="/forgot-password" className="text-xs text-indigo-600 hover:underline font-medium">Ξεχάσατε τον κωδικό;</a>
+              </div>
               <div className="relative">
                 <input
                   type={showPass ? 'text' : 'password'}

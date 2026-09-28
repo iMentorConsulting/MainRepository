@@ -18,6 +18,11 @@ model User {
   lastLoginAt   DateTime?
   emailVerified DateTime?
   verifyToken   String?     @unique
+  // Self-service "forgot password" flow: set on request, cleared once used
+  // or on the next successful login. Token is single-use and expires after
+  // 1h (checked against resetTokenExpiresAt in the reset-password route).
+  resetToken           String?   @unique
+  resetTokenExpiresAt  DateTime?
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
   loginLogs     LoginLog[]
