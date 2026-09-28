@@ -19,6 +19,18 @@ function pushPayrollSync() {
 
 const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus','createdAt'];
 
+// Normalize full/variant agent names to canonical short names
+const AGENT_NAME_MAP = {
+  'ΒΑΡΔΙΑΜΠΑΣΗΣ ΜΑΝΟΣ': 'ΜΑΝΟΣ',
+  'ΒΑΡΔΙΆΜΠΑΣΗΣ ΜΆΝΟΣ': 'ΜΑΝΟΣ',
+  'VARDIBAMPASIS MANOS': 'ΜΑΝΟΣ',
+};
+function normalizeSalesAgent(name) {
+  if (!name) return name;
+  const upper = name.trim().toUpperCase();
+  return AGENT_NAME_MAP[upper] || name.trim();
+}
+
 router.get('/', async (req, res) => {
   try {
     const { year, years, month, months, date_from, date_to, service_type, sales_agent, sales_agents, work_status, work_statuses, accountant_email, accountant, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
@@ -96,7 +108,12 @@ router.get('/', async (req, res) => {
       Income.findOne({ where, attributes: [[fn('SUM', col('amount_collected')), 'total']], raw: true }),
       Income.findAll({ where, attributes: ['service_type', [fn('SUM', col('amount_collected')), 'sum']], group: ['service_type'], order: [[fn('SUM', col('amount_collected')), 'DESC']], raw: true })
     ]);
-    res.json({ total: count, sum: parseFloat(sumResult?.total || 0), by_service: byServiceRows, page: parseInt(page), data: rows });
+    const normalizedRows = rows.map(r => {
+      const plain = r.toJSON ? r.toJSON() : { ...r };
+      if (plain.sales_agent) plain.sales_agent = normalizeSalesAgent(plain.sales_agent);
+      return plain;
+    });
+    res.json({ total: count, sum: parseFloat(sumResult?.total || 0), by_service: byServiceRows, page: parseInt(page), data: normalizedRows });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
@@ -113,6 +130,7 @@ const sanitize = body => {
   for (const f of DATE_FIELDS) {
     if (!clean[f] || clean[f] === '') clean[f] = null;
   }
+  if (clean.sales_agent) clean.sales_agent = normalizeSalesAgent(clean.sales_agent);
   return clean;
 };
 
