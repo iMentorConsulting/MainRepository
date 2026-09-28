@@ -618,6 +618,42 @@ router.get('/open-cases', async (req, res) => {
 const OFEILES_AGENTS = ['ΣΟΦΙΑ', 'ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ'];
 const DEPT_NAMES = ['ΟΦΕΙΛΕΣ', 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
 
+// Normalize Greek lookalike letters to ASCII for robust substring matching
+const nrmGr = s => {
+  if (!s) return '';
+  return s.trim().toUpperCase()
+    .replace(/Α/g,'A').replace(/Β/g,'B').replace(/Ε/g,'E').replace(/Ζ/g,'Z')
+    .replace(/Η/g,'H').replace(/Ι/g,'I').replace(/Κ/g,'K').replace(/Μ/g,'M')
+    .replace(/Ν/g,'N').replace(/Ο/g,'O').replace(/Ρ/g,'R').replace(/Τ/g,'T')
+    .replace(/Υ/g,'Y').replace(/Χ/g,'X');
+};
+
+// Pre-computed normalized keys for payroll employee matching
+const PAYROLL_CAT_KEY = nrmGr('ΜΙΣΘΟΔΟΣΙΑ');
+const LEGAL_CAT_KEY   = nrmGr('ΝΟΜΙΚΗ');
+const OFEILES_PAYROLL_KEYS = ['ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ', 'ΣΟΦΙΑ'].map(nrmGr);
+const EPICH_PAYROLL_KEYS   = ['ΕΛΕΥΘΕΡΙΑ', 'ΧΡΗΣΤΟΣ', 'ΚΑΡΑΤΖΗΣ', 'ΜΑΝΟΣ'].map(nrmGr);
+
+function getDeptForExpense(row, svcMap) {
+  const cat = nrmGr(row.category || '');
+  const sup = nrmGr(row.supplier || '');
+
+  // Rule 1: Payroll expenses → split by employee name
+  if (cat.includes(PAYROLL_CAT_KEY)) {
+    if (OFEILES_PAYROLL_KEYS.some(k => sup.includes(k))) return 'ΟΦΕΙΛΕΣ';
+    if (EPICH_PAYROLL_KEYS.some(k => sup.includes(k))) return 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ';
+    return null; // unrecognized payroll → overhead
+  }
+
+  // Rule 2: Legal support always → ΟΦΕΙΛΕΣ
+  if (cat.includes(LEGAL_CAT_KEY)) return 'ΟΦΕΙΛΕΣ';
+
+  // Rule 3: Service mapping
+  if (row.related_service && svcMap[row.related_service]) return svcMap[row.related_service];
+
+  return null; // overhead
+}
+
 router.get('/departmental', async (req, res) => {
   try {
     const incomeDate = sqlDateCond(req.query, 'sale_date');
@@ -645,11 +681,12 @@ router.get('/departmental', async (req, res) => {
         SELECT
           related_service,
           category,
+          supplier,
           COALESCE(SUM(amount), 0) AS expenses,
           COUNT(*) AS count
         FROM expenses
         WHERE ${expenseDate.condition || '1=1'}
-        GROUP BY related_service, category
+        GROUP BY related_service, category, supplier
         ORDER BY related_service NULLS LAST, expenses DESC
       `, { replacements: rep, type: QueryTypes.SELECT }),
 
@@ -660,7 +697,10 @@ router.get('/departmental', async (req, res) => {
     const svcMap = {};
     for (const m of serviceMaps) svcMap[m.service_name] = m.department;
 
-    // Distribute expenses: known service → full dept; no service or unmapped → overhead (50/50)
+    // Distribute expenses using priority rules:
+    // 1. ΜΙΣΘΟΔΟΣΙΑ by supplier name → specific dept or overhead
+    // 2. ΝΟΜΙΚΗ ΥΠΟΣΤΗΡΙΞΗ → always ΟΦΕΙΛΕΣ
+    // 3. related_service mapping → mapped dept or overhead
     const deptExpenses = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
     const deptCounts   = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
     const deptBreakdown = { 'ΟΦΕΙΛΕΣ': {}, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': {} };
@@ -672,10 +712,9 @@ router.get('/departmental', async (req, res) => {
       const amt = parseFloat(row.expenses || 0);
       const cnt = parseInt(row.count || 0);
       const cat = row.category || 'Άλλο';
-      const svc = row.related_service;
-      const dept = svc ? svcMap[svc] : null;
+      const dept = getDeptForExpense(row, svcMap);
 
-      if (dept && DEPT_NAMES.includes(dept)) {
+      if (dept) {
         deptExpenses[dept] += amt;
         deptCounts[dept]   += cnt;
         deptBreakdown[dept][cat] = (deptBreakdown[dept][cat] || 0) + amt;
