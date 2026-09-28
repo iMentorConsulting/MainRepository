@@ -121,6 +121,7 @@ export default function Dashboard() {
   const [monthly, setMonthly] = useState([]);
   const [byService, setByService] = useState([]);
   const [byAgent, setByAgent] = useState([]);
+  const [deptData, setDeptData] = useState(null);
   const [serviceTypes, setServiceTypes] = useState([]);
   const [monthlyTargets, setMonthlyTargets] = useState({});
   const [defaultIncomeTarget, setDefaultIncomeTarget] = useState(20000);
@@ -147,12 +148,14 @@ export default function Dashboard() {
       api.get(`/reports/summary?${buildParams('')}`),
       api.get(`/reports/monthly?year=${monthlyYear}`),
       api.get(`/reports/by-service?${buildParams('')}`),
-      api.get(`/reports/by-agent?${buildParams('')}`)
-    ]).then(([s, m, sv, ag]) => {
+      api.get(`/reports/by-agent?${buildParams('')}`),
+      api.get(`/reports/departmental?${buildParams('')}`),
+    ]).then(([s, m, sv, ag, dp]) => {
       if (s.status === 'fulfilled') setSummary(s.value.data);
       if (m.status === 'fulfilled') setMonthly(m.value.data.map(d => ({ ...d, month: parseInt(d.month, 10), name: d.month_name?.slice(0, 3) || '' })));
       if (sv.status === 'fulfilled') setByService(sv.value.data.slice(0, 7));
       if (ag.status === 'fulfilled') setByAgent(ag.value.data.slice(0, 6));
+      if (dp.status === 'fulfilled') setDeptData(dp.value.data);
     });
   }, [selectedYears, selectedMonths, dateFrom, dateTo]);
 
@@ -317,6 +320,42 @@ export default function Dashboard() {
         <KPICard label="Κέρδος" type="profit" value={fmtK(summary?.profit)} />
         <KPICard label="Περιθώριο" type="margin" value={`${(summary?.profit_pct ?? 0).toFixed(1)}%`} />
       </div>
+
+      {/* Departmental P&L */}
+      {deptData?.departments?.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {deptData.departments.map((d, i) => {
+            const expPct = d.income > 0 ? Math.min(100, (d.expenses / d.income) * 100) : 100;
+            const gradients = [
+              'linear-gradient(90deg,#6366f1,#a855f7)',
+              'linear-gradient(90deg,#10b981,#06b6d4)',
+            ];
+            return (
+              <div key={d.name} className="card p-4">
+                <div className="text-[10px] font-black uppercase tracking-widest text-slate-400 mb-3">{d.name}</div>
+                <div className="grid grid-cols-3 gap-3 mb-3">
+                  <div>
+                    <div className="text-[10px] text-slate-400 mb-0.5">Έσοδα</div>
+                    <div className="text-sm font-bold text-emerald-600 tabular-nums">{fmtK(d.income)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 mb-0.5">Έξοδα</div>
+                    <div className="text-sm font-bold text-rose-500 tabular-nums">{fmtK(d.expenses)}</div>
+                  </div>
+                  <div>
+                    <div className="text-[10px] text-slate-400 mb-0.5">Κέρδος</div>
+                    <div className={`text-sm font-bold tabular-nums ${d.profit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>{fmtK(d.profit)}</div>
+                  </div>
+                </div>
+                <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden mb-1">
+                  <div className="h-full rounded-full transition-all duration-500" style={{ width: `${expPct.toFixed(0)}%`, background: gradients[i % gradients.length] }} />
+                </div>
+                <div className="text-[10px] text-slate-400">Περιθώριο {d.margin_pct}%</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {/* Monthly chart */}
       <div className="card p-6">
