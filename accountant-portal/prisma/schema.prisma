@@ -229,6 +229,11 @@ model BusinessMatchToken {
   clientRepliedAt   DateTime?  // first time a user (not kickoff) message was stored
   reminder1SentAt   DateTime?  // 6h email
   reminder2SentAt   DateTime?  // 24h-after-reminder1 Viber
+  // Last time an ermis.progress webhook (background transcript update to CM,
+  // sent once the client has gone quiet for ~1h without confirming
+  // assignment) was sent. Compared against lastActivityAt to debounce: only
+  // fires again once activity has moved past the last time we sent it.
+  progressSentAt    DateTime?
 
   @@unique([businessId, programId])
 }
