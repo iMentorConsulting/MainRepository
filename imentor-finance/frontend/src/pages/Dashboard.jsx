@@ -621,6 +621,28 @@ export default function Dashboard() {
         const daysElapsed = today.getDate();
         const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
 
+        // Per-month income by department (computed from allIncome already fetched)
+        const OFEILES_AGENT_SET = new Set(['ΣΟΦΙΑ', 'ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ']);
+        const monthDeptInc = {};
+        for (const r of allIncome) {
+          const d = r.sale_date || '';
+          if (d.slice(0, 4) !== String(displayYr)) continue;
+          const mo = parseInt(d.slice(5, 7), 10);
+          if (!monthDeptInc[mo]) monthDeptInc[mo] = { o: 0, e: 0 };
+          const amt = parseFloat(r.amount_collected || 0);
+          if (OFEILES_AGENT_SET.has((r.sales_agent || '').trim())) monthDeptInc[mo].o += amt;
+          else monthDeptInc[mo].e += amt;
+        }
+        // Annual expense ratio from deptData for approximate monthly profit split
+        const annExpTotal = deptData?.departments?.reduce((s, d) => s + d.expenses, 0) || 0;
+        const oExpRatio = annExpTotal > 0 && deptData?.departments?.[0]
+          ? deptData.departments[0].expenses / annExpTotal : 0.5;
+        const fmtD = n => (n < 0 ? '-' : '') + Math.abs(Math.round(n)).toLocaleString('el-GR') + ' €';
+        const totalDeptO = Object.values(monthDeptInc).reduce((s, v) => s + v.o, 0);
+        const totalDeptE = Object.values(monthDeptInc).reduce((s, v) => s + v.e, 0);
+        const DotO = () => <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 shrink-0 inline-block"/>;
+        const DotE = () => <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 inline-block"/>;
+
         let totalActualIncome = 0, totalActualProfit = 0, totalTargetIncome = 0, totalTargetProfit = 0;
         for (let m = 1; m <= 12; m++) {
           const actual = monthly?.find(d => d.month === m) || { income: 0, expenses: 0 };
@@ -696,6 +718,15 @@ export default function Dashboard() {
                 {isDirty && <span className="text-xs text-amber-500 font-medium self-center">● Μη αποθηκευμένες αλλαγές</span>}
               </div>
             </div>
+            <div className="flex items-center gap-5 mb-3 text-xs">
+              <div className="flex items-center gap-1.5">
+                <DotO/><span className="font-semibold text-indigo-600">ΟΦΕΙΛΕΣ</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <DotE/><span className="font-semibold text-emerald-600">ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡ.</span>
+              </div>
+              <span className="text-slate-300 text-[10px]">Κέρδος τμήματος = Έσοδα τμήματος − εκτιμώμενα έξοδα (βάσει ετήσιου λόγου)</span>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
@@ -748,6 +779,11 @@ export default function Dashboard() {
                         paceCell = <td className="td text-center text-slate-300">—</td>;
                       }
                       const fmtC = n => n.toLocaleString('el-GR', {maximumFractionDigits:0}) + ' €';
+                      const di = monthDeptInc[m] || { o: 0, e: 0 };
+                      const monExp = parseFloat(actual.expenses || actual.total_expenses || 0);
+                      const oProfit = di.o - monExp * oExpRatio;
+                      const eProfit = di.e - monExp * (1 - oExpRatio);
+                      const hasData = di.o > 0 || di.e > 0;
                       return (
                         <tr key={m} className={`tr ${isCurrentMonth ? 'bg-indigo-50/40' : ''}`}>
                           <td className="td font-medium">
@@ -763,7 +799,19 @@ export default function Dashboard() {
                             />
                           </td>
                           <td className="td text-right text-xs text-slate-500">{fmtC(cumIncTarget)}</td>
-                          <td className="td text-right">{fmtC(actualIncome)}</td>
+                          <td className="td text-right">
+                            <div>{fmtC(actualIncome)}</div>
+                            {hasData && (
+                              <div className="mt-0.5 space-y-px">
+                                <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                                  <DotO/><span className="text-indigo-500 font-semibold">{fmtD(di.o)}</span>
+                                </div>
+                                <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                                  <DotE/><span className="text-emerald-600 font-semibold">{fmtD(di.e)}</span>
+                                </div>
+                              </div>
+                            )}
+                          </td>
                           <td className="td text-right text-xs font-semibold text-emerald-700">{showCumActual ? fmtC(cumActInc) : <span className="text-slate-300">—</span>}</td>
                           <td className={`td text-center ${achColor(incomeAch)}`}>{incomeAch !== null ? `${incomeAch}%` : '—'}</td>
                           {paceCell}
@@ -776,7 +824,19 @@ export default function Dashboard() {
                             />
                           </td>
                           <td className="td text-right text-xs text-slate-500">{fmtC(cumProfTarget)}</td>
-                          <td className="td text-right">{fmtC(actualProfit)}</td>
+                          <td className="td text-right">
+                            <div>{fmtC(actualProfit)}</div>
+                            {hasData && (
+                              <div className="mt-0.5 space-y-px">
+                                <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                                  <DotO/><span className={`font-semibold ${oProfit >= 0 ? 'text-indigo-500' : 'text-rose-500'}`}>{fmtD(oProfit)}</span>
+                                </div>
+                                <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                                  <DotE/><span className={`font-semibold ${eProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{fmtD(eProfit)}</span>
+                                </div>
+                              </div>
+                            )}
+                          </td>
                           <td className="td text-right text-xs font-semibold text-indigo-700">{showCumActual ? fmtC(cumActProfit) : <span className="text-slate-300">—</span>}</td>
                           <td className={`td text-center ${achColor(profitAch)}`}>{profitAch !== null ? `${profitAch}%` : '—'}</td>
                         </tr>
@@ -785,20 +845,47 @@ export default function Dashboard() {
                   })()}
                 </tbody>
                 <tfoot>
-                  <tr className="bg-slate-100 font-bold">
-                    <td className="td font-bold text-slate-800">Σύνολο</td>
-                    <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-slate-500 text-xs">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-emerald-700 text-xs">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
-                    <td className="td text-center text-slate-300">—</td>
-                    <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-slate-500 text-xs">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className="td text-right text-indigo-700 text-xs">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
-                    <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
-                  </tr>
+                  {(() => {
+                    const totalMonExp = monthly.reduce((s, r) => s + parseFloat(r.expenses || 0), 0);
+                    const totalOProfit = totalDeptO - totalMonExp * oExpRatio;
+                    const totalEProfit = totalDeptE - totalMonExp * (1 - oExpRatio);
+                    return (
+                      <tr className="bg-slate-100 font-bold">
+                        <td className="td font-bold text-slate-800">Σύνολο</td>
+                        <td className="td text-right text-slate-700">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className="td text-right text-slate-500 text-xs">{totalTargetIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className="td text-right">
+                          <div className="text-emerald-700">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</div>
+                          <div className="mt-0.5 space-y-px font-normal">
+                            <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                              <DotO/><span className="text-indigo-500 font-semibold">{fmtD(totalDeptO)}</span>
+                            </div>
+                            <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                              <DotE/><span className="text-emerald-600 font-semibold">{fmtD(totalDeptE)}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="td text-right text-emerald-700 text-xs">{totalActualIncome.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className={`td text-center ${achColor(totalIncomeAch)}`}>{totalIncomeAch !== null ? `${totalIncomeAch}%` : '—'}</td>
+                        <td className="td text-center text-slate-300">—</td>
+                        <td className="td text-right text-slate-700">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className="td text-right text-slate-500 text-xs">{totalTargetProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className="td text-right">
+                          <div className="text-indigo-700">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</div>
+                          <div className="mt-0.5 space-y-px font-normal">
+                            <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                              <DotO/><span className={`font-semibold ${totalOProfit >= 0 ? 'text-indigo-500' : 'text-rose-500'}`}>{fmtD(totalOProfit)}</span>
+                            </div>
+                            <div className="text-[10px] flex items-center justify-end gap-1 tabular-nums">
+                              <DotE/><span className={`font-semibold ${totalEProfit >= 0 ? 'text-emerald-600' : 'text-rose-500'}`}>{fmtD(totalEProfit)}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="td text-right text-indigo-700 text-xs">{totalActualProfit.toLocaleString('el-GR', {maximumFractionDigits:0})} €</td>
+                        <td className={`td text-center ${achColor(totalProfitAch)}`}>{totalProfitAch !== null ? `${totalProfitAch}%` : '—'}</td>
+                      </tr>
+                    );
+                  })()}
                 </tfoot>
               </table>
             </div>
