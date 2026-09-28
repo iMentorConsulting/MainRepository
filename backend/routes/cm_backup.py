@@ -862,3 +862,123 @@ Backup Schedule:
                 "message": f"Ο οδηγός αποθηκεύτηκε στο Drive: {filename}"}
     except Exception as exc:
         raise HTTPException(status_code=500, detail=f"Drive upload failed: {exc}")
+
+
+# ── Lead status restore from backup ─────────────────────────────────────────
+
+@router.get("/lead-status-snapshots")
+def list_lead_status_snapshots(
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """List all DB-stored backups that contain lead data, with their date and
+    a count of CANCEL/DEAL leads — so the admin can pick the right one."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
+
+    logs = (
+        db.query(CMBackupLog)
+        .filter(CMBackupLog.status == "success", CMBackupLog.json_data.isnot(None))
+        .order_by(CMBackupLog.created_at.desc())
+        .all()
+    )
+
+    result = []
+    for lg in logs:
+        try:
+            data = json.loads(lg.json_data)
+            leads = data.get("leads", [])
+            cancel_count = sum(1 for l in leads if l.get("status") == "CANCEL")
+            deal_count   = sum(1 for l in leads if l.get("status") == "DEAL")
+            total        = len(leads)
+        except Exception:
+            cancel_count = deal_count = total = None
+        result.append({
+            "id": lg.id,
+            "file_name": lg.file_name,
+            "created_at": (lg.created_at.isoformat() + "Z") if lg.created_at else None,
+            "total_leads": total,
+            "cancel_leads": cancel_count,
+            "deal_leads": deal_count,
+        })
+
+    return result
+
+
+@router.post("/restore-lead-statuses/{backup_id}")
+def restore_lead_statuses(
+    backup_id: int,
+    apply: bool = False,
+    current_user=Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compare a stored backup's CANCEL/DEAL/HOT/ACTIVE leads with the current DB.
+    For every lead whose ID still exists but whose status has changed, show the diff.
+    Pass ?apply=true to actually restore the statuses.
+    Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο διαχειριστές")
+
+    lg = db.query(CMBackupLog).filter(CMBackupLog.id == backup_id).first()
+    if not lg or not lg.json_data:
+        raise HTTPException(status_code=404, detail="Backup not found or has no data")
+
+    try:
+        backup_data = json.loads(lg.json_data)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Could not parse backup: {exc}")
+
+    backup_leads = backup_data.get("leads", [])
+
+    # Only care about leads that had a "worked" status in the backup
+    PROTECTED_STATUSES = {"CANCEL", "DEAL", "HOT", "ACTIVE", "CALL"}
+    protected = [l for l in backup_leads if l.get("status") in PROTECTED_STATUSES]
+
+    from models_cases import CMLead as _CML
+    changes = []
+    for bl in protected:
+        lead_id = bl.get("id")
+        backup_status = bl.get("status")
+        current_lead = db.query(_CML).filter(_CML.id == lead_id).first()
+        if current_lead is None:
+            # Lead was deleted by dedup — note it but can't restore
+            changes.append({
+                "id": lead_id,
+                "name": bl.get("name"),
+                "afm": bl.get("afm"),
+                "program": bl.get("program"),
+                "backup_status": backup_status,
+                "current_status": "DELETED",
+                "action": "cannot_restore",
+            })
+            continue
+
+        if current_lead.status != backup_status:
+            changes.append({
+                "id": lead_id,
+                "name": current_lead.name or bl.get("name"),
+                "afm": current_lead.afm or bl.get("afm"),
+                "program": current_lead.program or bl.get("program"),
+                "backup_status": backup_status,
+                "current_status": current_lead.status,
+                "action": "restore" if apply else "would_restore",
+            })
+            if apply:
+                current_lead.status = backup_status
+
+    if apply:
+        db.commit()
+
+    restorable   = [c for c in changes if c["action"] in ("restore", "would_restore")]
+    deleted      = [c for c in changes if c["action"] == "cannot_restore"]
+
+    return {
+        "backup_id": backup_id,
+        "backup_file": lg.file_name,
+        "backup_date": (lg.created_at.isoformat() + "Z") if lg.created_at else None,
+        "applied": apply,
+        "restored_count": len(restorable) if apply else 0,
+        "would_restore_count": len(restorable) if not apply else 0,
+        "deleted_count": len(deleted),
+        "changes": changes,
+    }

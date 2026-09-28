@@ -7,6 +7,7 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   CircleStackIcon,
+  ArrowPathIcon,
 } from '@heroicons/react/24/outline'
 
 function formatBytes(bytes) {
@@ -30,6 +31,13 @@ export default function BackupPage() {
   const [backingUp, setBackingUp] = useState(false)
   const [exporting, setExporting] = useState(false)
   const [downloadingId, setDownloadingId] = useState(null)
+
+  // Lead status restore state
+  const [snapshots, setSnapshots] = useState(null)
+  const [loadingSnapshots, setLoadingSnapshots] = useState(false)
+  const [selectedBackupId, setSelectedBackupId] = useState(null)
+  const [preview, setPreview] = useState(null)
+  const [restoring, setRestoring] = useState(false)
 
   const loadStatus = async () => {
     try {
@@ -95,6 +103,44 @@ export default function BackupPage() {
       toast.error('Σφάλμα κατά τη λήψη backup')
     } finally {
       setDownloadingId(null)
+    }
+  }
+
+  const loadSnapshots = async () => {
+    setLoadingSnapshots(true)
+    try {
+      const res = await api.get('/api/cm/backup/lead-status-snapshots')
+      setSnapshots(res.data)
+    } catch {
+      toast.error('Αδυναμία φόρτωσης snapshots')
+    } finally {
+      setLoadingSnapshots(false)
+    }
+  }
+
+  const handlePreview = async () => {
+    if (!selectedBackupId) return
+    setPreview(null)
+    try {
+      const res = await api.post(`/api/cm/backup/restore-lead-statuses/${selectedBackupId}?apply=false`)
+      setPreview(res.data)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα κατά την προεπισκόπηση')
+    }
+  }
+
+  const handleApply = async () => {
+    if (!selectedBackupId || !preview) return
+    if (!window.confirm(`Επαναφορά ${preview.would_restore_count} leads στο παλιό status; Η ενέργεια δεν αναιρείται.`)) return
+    setRestoring(true)
+    try {
+      const res = await api.post(`/api/cm/backup/restore-lead-statuses/${selectedBackupId}?apply=true`)
+      toast.success(`Επαναφέρθηκαν ${res.data.restored_count} leads`)
+      setPreview(res.data)
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα κατά την επαναφορά')
+    } finally {
+      setRestoring(false)
     }
   }
 
@@ -199,6 +245,103 @@ export default function BackupPage() {
           <ArrowDownTrayIcon className="w-4 h-4" />
           {exporting ? 'Εξαγωγή...' : 'Εξαγωγή JSON (Άμεσα)'}
         </button>
+      </div>
+
+      {/* Lead Status Restore */}
+      <div className="bg-white rounded-xl border overflow-hidden">
+        <div className="px-5 py-4 border-b flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-semibold text-gray-900">Επαναφορά Status Leads από Backup</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Συγκρίνει CANCEL / DEAL / HOT / ACTIVE / CALL leads από backup με τα σημερινά και επαναφέρει όσα άλλαξαν λανθασμένα</p>
+          </div>
+          <button onClick={loadSnapshots} disabled={loadingSnapshots}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg text-gray-700 font-medium">
+            <ArrowPathIcon className={`w-4 h-4 ${loadingSnapshots ? 'animate-spin' : ''}`} />
+            {snapshots ? 'Ανανέωση' : 'Φόρτωση Backups'}
+          </button>
+        </div>
+
+        {snapshots && (
+          <div className="p-5 space-y-4">
+            <div className="flex gap-3 items-end">
+              <div className="flex-1">
+                <label className="block text-xs font-medium text-gray-600 mb-1">Επιλογή Backup (πριν το πρόβλημα)</label>
+                <select value={selectedBackupId || ''} onChange={e => { setSelectedBackupId(Number(e.target.value)); setPreview(null) }}
+                  className="w-full border rounded-lg px-3 py-2 text-sm">
+                  <option value="">— Επιλέξτε backup —</option>
+                  {snapshots.map(s => (
+                    <option key={s.id} value={s.id}>
+                      {formatDate(s.created_at)} — {s.total_leads} leads ({s.deal_leads} DEAL, {s.cancel_leads} CANCEL)
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button onClick={handlePreview} disabled={!selectedBackupId}
+                className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg font-medium hover:bg-blue-700 disabled:opacity-40">
+                Προεπισκόπηση
+              </button>
+            </div>
+
+            {preview && (
+              <div className="space-y-3">
+                <div className="flex gap-4 text-sm">
+                  <span className="text-orange-700 font-semibold">⚠ {preview.applied ? preview.restored_count : preview.would_restore_count} leads θα αλλάξουν status</span>
+                  {preview.deleted_count > 0 && <span className="text-red-600">🗑 {preview.deleted_count} leads διαγράφηκαν (δεν μπορούν να επαναφερθούν)</span>}
+                </div>
+
+                {!preview.applied && preview.would_restore_count > 0 && (
+                  <button onClick={handleApply} disabled={restoring}
+                    className="px-5 py-2 bg-red-600 text-white text-sm rounded-lg font-semibold hover:bg-red-700 disabled:opacity-50">
+                    {restoring ? 'Επαναφορά...' : `✅ Εφαρμογή Επαναφοράς (${preview.would_restore_count} leads)`}
+                  </button>
+                )}
+                {preview.applied && <p className="text-green-700 font-semibold text-sm">✅ Επαναφορά ολοκληρώθηκε — {preview.restored_count} leads ενημερώθηκαν</p>}
+
+                {/* Changes table */}
+                {preview.changes.filter(c => c.action !== 'cannot_restore').length > 0 && (
+                  <div className="overflow-x-auto max-h-96 overflow-y-auto rounded-lg border">
+                    <table className="w-full text-xs">
+                      <thead className="bg-gray-50 sticky top-0">
+                        <tr>
+                          <th className="px-3 py-2 text-left text-gray-500">ID</th>
+                          <th className="px-3 py-2 text-left text-gray-500">Όνομα</th>
+                          <th className="px-3 py-2 text-left text-gray-500">ΑΦΜ</th>
+                          <th className="px-3 py-2 text-left text-gray-500">Πρόγραμμα</th>
+                          <th className="px-3 py-2 text-left text-gray-500">Backup Status</th>
+                          <th className="px-3 py-2 text-left text-gray-500">Τρέχον Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-gray-100">
+                        {preview.changes.filter(c => c.action !== 'cannot_restore').map(c => (
+                          <tr key={c.id} className="hover:bg-gray-50">
+                            <td className="px-3 py-1.5 text-gray-500">{c.id}</td>
+                            <td className="px-3 py-1.5 font-medium text-gray-800">{c.name || '—'}</td>
+                            <td className="px-3 py-1.5 text-gray-600">{c.afm || '—'}</td>
+                            <td className="px-3 py-1.5 text-gray-600 max-w-[180px] truncate">{c.program || '—'}</td>
+                            <td className="px-3 py-1.5"><span className="px-1.5 py-0.5 bg-green-100 text-green-800 rounded font-semibold">{c.backup_status}</span></td>
+                            <td className="px-3 py-1.5"><span className="px-1.5 py-0.5 bg-red-100 text-red-800 rounded font-semibold">{c.current_status}</span></td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+
+                {/* Deleted leads */}
+                {preview.deleted_count > 0 && (
+                  <details className="text-xs text-gray-500">
+                    <summary className="cursor-pointer font-medium text-red-600">🗑 {preview.deleted_count} leads που διαγράφηκαν από dedup (δεν επαναφέρονται αυτόματα)</summary>
+                    <div className="mt-2 space-y-0.5 pl-3">
+                      {preview.changes.filter(c => c.action === 'cannot_restore').map(c => (
+                        <div key={c.id}>#{c.id} {c.name} — {c.afm} — {c.backup_status}</div>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Logs table */}
