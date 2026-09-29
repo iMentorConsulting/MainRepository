@@ -220,6 +220,7 @@ def mikropistoseis_cancel_check(lead: CMLead, db: Session) -> bool:
     Triggers on:
       • Any of ΑΣΦ & ΦΟΡ ΕΝΗΜ / ΤΕΙΡΕΣΙΑΣ & ΤΡΑΠΕΖΕΣ / ΕΝΕΡΓΗ ΕΠΙΧΕΙΡΗΣΗ = ΟΧΙ
       • Business regdate within the last 10 months (< 10 months old)
+      • LOGISTIS matchedPrograms already stored and ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ not among them
 
     Sets lead.status = 'CANCEL' and returns True when a rule fires.
     Caller is responsible for committing.
@@ -241,15 +242,48 @@ def mikropistoseis_cancel_check(lead: CMLead, db: Session) -> bool:
             log.info("[mikro-cancel] lead %s cancelled: %s = %s", lead.id, label, value)
             return True
 
-    # ── business age check (≥10 months required) ────────────────────────────
     afm = (lead.afm or "").strip()
     if afm:
         from models_cases import CMBusinessProfile
         biz = db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == afm).first()
+
+        # ── business age check (≥10 months required) ──────────────────────
         if biz and biz.regdate:
             if biz.regdate > _ten_months_ago():
                 lead.status = "CANCEL"
                 log.info("[mikro-cancel] lead %s cancelled: regdate %s < 10 months old", lead.id, biz.regdate)
+                return True
+
+        # ── matchedPrograms check: if LOGISTIS already answered, use it ───
+        # If the shared business profile already has matchedPrograms from a previous
+        # webhook (e.g. for another lead or via ermis.progress) and ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ
+        # is not among them, this lead is ineligible.
+        if biz and biz.matched_programs:
+            from routes.cm_leads_sync import _resolve_program
+            matched_canonicals = {_resolve_program(mp.title) for mp in biz.matched_programs if mp.title}
+            lead_canonical = _resolve_program(lead.program)
+            if matched_canonicals and lead_canonical not in matched_canonicals:
+                lead.status = "CANCEL"
+                matched_titles = [mp.title for mp in biz.matched_programs if mp.title]
+                log.info(
+                    "[mikro-cancel] lead %s cancelled: program '%s' not in stored matchedPrograms %s",
+                    lead.id, lead.program, matched_titles,
+                )
+                try:
+                    from models_cases import CMLeadComment
+                    db.add(CMLeadComment(
+                        lead_id=lead.id,
+                        author="ΕΡΜΗΣ",
+                        content=(
+                            f"ΕΡΜΗΣ/LOGISTIS: Η επιχείρηση δεν πληροί τις προϋποθέσεις για "
+                            f"«{lead.program}» "
+                            f"(matchedPrograms: {', '.join(matched_titles) or 'κανένα'}) "
+                            f"— αυτόματη ακύρωση"
+                        ),
+                    ))
+                except Exception:
+                    pass
+                lead.ermis_status = "ineligible"
                 return True
 
     return False
@@ -1063,6 +1097,29 @@ def backfill_mikropistoseis_cancel(
             cancelled += 1
     db.commit()
     return {"ok": True, "cancelled": cancelled}
+
+
+@router.post("/{lead_id}/recheck-eligibility")
+def recheck_eligibility(
+    lead_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Re-run the ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ eligibility check on a single lead using
+    the stored CMBusinessProfile (matchedPrograms, regdate, program_fields).
+    Returns whether the lead was cancelled and the reason."""
+    lead = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    if lead.status == "CANCEL":
+        return {"ok": True, "cancelled": False, "reason": "already_cancelled"}
+    if "ΜΙΚΡΟΠΙΣΤΩΣ" not in (lead.program or "").upper():
+        return {"ok": True, "cancelled": False, "reason": "not_mikropistoseis"}
+
+    was_cancelled = mikropistoseis_cancel_check(lead, db)
+    if was_cancelled:
+        db.commit()
+    return {"ok": True, "cancelled": was_cancelled, "lead_id": lead_id, "new_status": lead.status}
 
 
 @router.post("/normalize-consultants")
