@@ -377,11 +377,11 @@ def _run_morning_leads_report_safe():
         if count == 0:
             msg = f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*\n\nΔεν υπήρξαν νέα leads χθες."
         else:
-            lines = [f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*", f"", f"🆕 *{count} νέο{'ι' if count != 1 else ''} lead{'s' if count != 1 else ''}:*", ""]
-            for l in leads:
-                assigned = f" ({l.assigned_to})" if l.assigned_to else ""
-                debt = f" — {l.total_debt}" if l.total_debt else ""
-                lines.append(f"• {l.name or '(άγνωστος)'}{assigned}{debt}")
+            from collections import Counter
+            per_agent = Counter(l.assigned_to or "Αδιάθετα" for l in leads)
+            lines = [f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*", f"", f"Σύνολο: *{count}*", ""]
+            for agent, n in sorted(per_agent.items()):
+                lines.append(f"• {agent}: {n}")
             msg = "\n".join(lines)
 
         cw_url    = os.getenv("CHATWOOT_URL", "").strip().rstrip("/")
