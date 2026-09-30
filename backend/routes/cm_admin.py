@@ -154,8 +154,7 @@ def daily_lead_notify(
         "",
     ]
 
-    # Print programs in preferred order, then any remaining
-    shown = set()
+    # Print programs in preferred order, then any remaining alphabetically
     ordered_programs = [p for p in _PROGRAM_ORDER if p in by_program]
     ordered_programs += [p for p in sorted(by_program) if p not in _PROGRAM_ORDER]
 
