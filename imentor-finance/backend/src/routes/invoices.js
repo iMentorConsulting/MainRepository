@@ -289,7 +289,26 @@ async function findDocType(orgKey, kind) {
 }
 
 function errMsg(e) {
+  if (e.code === 'ENOTFOUND' || e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT') {
+    return `Δεν ήταν δυνατή η σύνδεση με το Elorus (${e.code}: ${e.hostname || 'api.elorus.com'}). Το Railway είχε πρόσκαιρο πρόβλημα DNS. Δοκιμάστε ξανά σε 30 δευτερόλεπτα.`;
+  }
   return e.response?.data ? JSON.stringify(e.response.data) : e.message;
+}
+
+const RETRYABLE = new Set(['ENOTFOUND','ECONNRESET','ETIMEDOUT','ECONNREFUSED','EAI_AGAIN']);
+async function withRetry(fn, attempts = 3, delayMs = 2000) {
+  let last;
+  for (let i = 0; i < attempts; i++) {
+    try { return await fn(); }
+    catch (e) {
+      last = e;
+      if (!RETRYABLE.has(e.code) || i === attempts - 1) throw e;
+      console.warn(`[elorus] ${e.code} — retry ${i + 1}/${attempts - 1} in ${delayMs}ms`);
+      await new Promise(r => setTimeout(r, delayMs));
+      delayMs *= 2;
+    }
+  }
+  throw last;
 }
 
 async function elorusPostInvoice(orgKey, body) {

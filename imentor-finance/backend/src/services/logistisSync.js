@@ -125,17 +125,35 @@ function buildCmPayments(rows) {
 }
 
 async function sendBatchToCm(payments) {
+  // CM_FINANCE_PAYMENTS_URL: full URL override — must point to the Railway .up.railway.app
+  // URL directly (NOT the Cloudflare domain, which blocks POST with 405).
+  // Falls back to CM_APP_URL + /api/external/finance-payments if not set.
+  const directUrl = process.env.CM_FINANCE_PAYMENTS_URL;
   const base = normalizeBase(process.env.CM_APP_URL);
   const key  = process.env.FINANCE_APP_API_KEY;
-  if (!base || !key) return null; // silently skip if not configured
+  if ((!directUrl && !base) || !key) return null;
   if (!payments.length) return null;
-  const client = axios.create({
-    baseURL: base,
-    headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
-    timeout: 15000,
-  });
-  const { data } = await client.post('/api/external/finance-payments', { payments });
-  return data;
+
+  const url = directUrl || `${base}/api/external/finance-payments`;
+  console.log(`[CM push] → ${url} (${payments.length} payment(s))`);
+
+  try {
+    const { data } = await axios.post(url, { payments }, {
+      headers: { 'x-api-key': key, 'Content-Type': 'application/json' },
+      timeout: 15000,
+    });
+    console.log('[CM push] OK:', JSON.stringify(data));
+    return data;
+  } catch (e) {
+    const status = e.response?.status;
+    const body   = e.response?.data ? JSON.stringify(e.response.data).slice(0, 300) : e.message;
+    if (status === 405) {
+      console.error(`[CM push] 405 Method Not Allowed on ${url} — set CM_FINANCE_PAYMENTS_URL in Railway to the direct .up.railway.app URL of the CM app (not the Cloudflare domain).`);
+    } else {
+      console.error(`[CM push] ${status || 'network'} error on ${url}: ${body}`);
+    }
+    throw e;
+  }
 }
 
 module.exports = { runDailySync, runSyncForRange, buildPayments, getIncomeForDate, getIncomeForDateRange, yesterdayStr, buildCmPayments, sendBatchToCm };
