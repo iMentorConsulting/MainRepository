@@ -1,6 +1,6 @@
 """
 Receive payment records from iMentor Finance app.
-Protected by x-api-key header: must match FINANCE_API_KEY in Railway env vars.
+Protected by x-api-key header matching FINANCE_APP_API_KEY env var.
 """
 import os
 from datetime import date
@@ -15,9 +15,9 @@ router = APIRouter(prefix="/api/external", tags=["external"])
 
 
 def require_api_key(x_api_key: str = Header(default=None)):
-    api_key = os.getenv("FINANCE_API_KEY", "")
+    api_key = os.getenv("FINANCE_APP_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=500, detail="FINANCE_API_KEY not configured on this server")
+        raise HTTPException(status_code=500, detail="FINANCE_APP_API_KEY not configured on this server")
     if x_api_key != api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -26,7 +26,7 @@ class PaymentItem(BaseModel):
     externalId: str
     afm: str
     onomasia: Optional[str] = None
-    amount: int                    # in cents
+    amount: int
     invoiceNumber: Optional[str] = None
     service: Optional[str] = None
     category: Optional[str] = None
@@ -51,14 +51,12 @@ def receive_finance_payments(
 
     for p in payload.payments:
         try:
-            # Idempotency: skip if already stored
             existing = db.query(FinancePayment).filter_by(external_id=p.externalId).first()
             if existing:
                 matched += 1 if existing.case_id is not None else 0
                 unmatched += 1 if existing.case_id is None else 0
                 continue
 
-            # Match to a CMCase by AFM
             cases = db.query(CMCase).filter(CMCase.afm == p.afm.strip()).all()
             case_id = None
             if cases:
