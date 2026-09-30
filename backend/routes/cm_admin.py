@@ -142,37 +142,36 @@ def daily_lead_notify(
         return {"ok": True, "leads_count": 0, "date": str(yesterday)}
 
     # Group by program
-    by_program: dict[str, list] = {}
+    by_program: dict[str, int] = {}
     for lead in leads:
         prog = lead.program or "ΑΛΛΟ"
-        by_program.setdefault(prog, []).append(lead)
+        by_program[prog] = by_program.get(prog, 0) + 1
+
+    # Group by consultant
+    by_consultant: dict[str, int] = {}
+    for lead in leads:
+        consultant = (lead.assigned_name or "—").strip() or "—"
+        by_consultant[consultant] = by_consultant.get(consultant, 0) + 1
 
     lines = [
         f"📋 Ημερήσια Ενημέρωση Leads",
         f"📅 {yesterday.strftime('%d/%m/%Y')}",
         f"Σύνολο: {len(leads)} νέα lead{'s' if len(leads) != 1 else ''}",
         "",
+        "📊 Ανά Πρόγραμμα:",
     ]
 
-    # Print programs in preferred order, then any remaining alphabetically
     ordered_programs = [p for p in _PROGRAM_ORDER if p in by_program]
     ordered_programs += [p for p in sorted(by_program) if p not in _PROGRAM_ORDER]
-
     for prog in ordered_programs:
-        prog_leads = by_program[prog]
-        lines.append(f"▪️ {prog} ({len(prog_leads)})")
-        for lead in prog_leads:
-            name_part = (lead.name or "—").strip()
-            phone_part = (lead.phone or "").strip()
-            status_part = lead.status or "NEW LEAD"
-            entry = f"  • {name_part}"
-            if phone_part:
-                entry += f" | {phone_part}"
-            entry += f" [{status_part}]"
-            lines.append(entry)
-        lines.append("")
+        lines.append(f"  • {prog}: {by_program[prog]}")
 
-    msg = "\n".join(lines).rstrip()
+    lines.append("")
+    lines.append("👤 Ανά Σύμβουλο:")
+    for consultant, count in sorted(by_consultant.items(), key=lambda x: -x[1]):
+        lines.append(f"  • {consultant}: {count}")
+
+    msg = "\n".join(lines)
 
     from routes.cm_notifications import _send_viber
     ok, err = _send_viber(phone=ADMIN_VIBER_PHONE, message=msg, client_name="Admin", agent_name="system")
