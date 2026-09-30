@@ -29,7 +29,7 @@ function normalizeGreek(s) {
   return (s || '').replace(/[άέήίόύώΆΈΉΊΌΎΏϊΐϋΰΪΫ]/g, c => ACCENT_MAP[c] || c).toUpperCase();
 }
 
-const AGENT_NAMES = ['ΧΡΗΣΤΟΣ', 'ΕΛΕΥΘΕΡΙΑ', 'ΣΟΦΙΑ', 'ΒΑΛΛΙΑ', 'ΣΤΕΛΛΑ', 'ΧΑΡΗΣ'];
+const AGENT_NAMES = ['ΧΡΗΣΤΟΣ', 'ΕΛΕΥΘΕΡΙΑ', 'ΣΟΦΙΑ', 'ΒΑΛΛΙΑ', 'ΣΤΕΛΛΑ', 'ΧΑΡΗΣ', 'ΜΑΝΟΣ', 'ΚΑΤΕΡΙΝΑ'];
 
 function normalizeAgent(raw) {
   if (!raw) return raw;

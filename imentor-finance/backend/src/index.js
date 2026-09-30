@@ -171,7 +171,7 @@ sequelize.sync({ alter: true }).then(async () => {
       runDailySync()
         .then(r => {
           global._lastLogistisSync = { ran_at: new Date().toISOString(), ok: true, ...r };
-          console.log(`[logistis-sync] Sent ${r.sent} payment(s) for ${r.date}:`, JSON.stringify(r.result));
+          console.log(`[logistis-sync] Sent ${r.sent} payment(s) for ${r.dateFrom}:`, JSON.stringify(r.result));
         })
         .catch(e => {
           global._lastLogistisSync = { ran_at: new Date().toISOString(), ok: false, error: e.message };
