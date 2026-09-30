@@ -67,6 +67,8 @@ app.use('/api/settings', authMiddleware, require('./routes/settings'));
 app.use('/api/backup',  authMiddleware, require('./routes/backup'));
 // Push paid Income rows to Logistis (requires LOGISTIS_BASE_URL + LOGISTIS_API_KEY env vars)
 app.use('/api/logistis-sync', authMiddleware, require('./routes/logistisSync'));
+// Manually push / preview payments to Case Management app (requires CM_APP_URL or CM_FINANCE_PAYMENTS_URL + FINANCE_APP_API_KEY)
+app.use('/api/cm-push', authMiddleware, require('./routes/cmPush'));
 // Push daily payroll targets + achievement to external systems (requires EXODIKASTIKOS_WEBHOOK_URL / CASE_MGT_WEBHOOK_URL env vars)
 app.use('/api/payroll-target-sync', authMiddleware, require('./routes/payrollTargetSync'));
 // Receive lead intake webhooks from external systems (own API key auth for POST, user auth for GET/convert/dismiss)
