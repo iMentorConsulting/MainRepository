@@ -348,13 +348,100 @@ def _run_full_leads_sync_safe():
         print(f"[FullSyncReconciliation] FAILED — {e}")
 
 
-_scheduler.add_job(_run_leads_sync_safe,           "cron", hour=8, minute=45, timezone="Europe/Athens")  # Daily 08:45 Athens
-_scheduler.add_job(_run_full_leads_sync_safe,      "cron", day_of_week="sun", hour=3, minute=0, timezone="Europe/Athens")  # Weekly Sunday 3am
-_scheduler.add_job(_run_sync_health_check_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
-_scheduler.add_job(_run_daily_reminders_safe,      "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
-_scheduler.add_job(_run_backup_safe,               "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
+def _run_morning_leads_report_safe():
+    """Daily 09:00 Athens: send Viber to admin with yesterday's new leads."""
+    try:
+        import requests as _req
+        from datetime import date, timedelta
+        from zoneinfo import ZoneInfo
+        from database import SessionLocal
+        from models import Lead
+
+        _ATHENS = ZoneInfo("Europe/Athens")
+        yesterday = (date.today() - timedelta(days=1))
+        yest_start = datetime.combine(yesterday, datetime.min.time())
+        yest_end   = datetime.combine(yesterday, datetime.max.time())
+
+        db = SessionLocal()
+        try:
+            leads = db.query(Lead).filter(
+                Lead.created_at >= yest_start,
+                Lead.created_at <= yest_end,
+            ).order_by(Lead.created_at).all()
+        finally:
+            db.close()
+
+        count = len(leads)
+        yest_label = yesterday.strftime("%d/%m/%Y")
+
+        if count == 0:
+            msg = f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*\n\nΔεν υπήρξαν νέα leads χθες."
+        else:
+            lines = [f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*", f"", f"🆕 *{count} νέο{'ι' if count != 1 else ''} lead{'s' if count != 1 else ''}:*", ""]
+            for l in leads:
+                assigned = f" ({l.assigned_to})" if l.assigned_to else ""
+                debt = f" — {l.total_debt}" if l.total_debt else ""
+                lines.append(f"• {l.name or '(άγνωστος)'}{assigned}{debt}")
+            msg = "\n".join(lines)
+
+        cw_url    = os.getenv("CHATWOOT_URL", "").strip().rstrip("/")
+        cw_token  = os.getenv("CHATWOOT_API_TOKEN", "").strip()
+        cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "").strip()
+        cw_inbox  = os.getenv("CHATWOOT_INBOX_ID", "").strip()
+        admin_phone = "+306952101541"
+
+        if not all([cw_url, cw_token, cw_account, cw_inbox]):
+            print(f"[MorningReport] Chatwoot not configured — skipping Viber")
+            return
+
+        headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
+        base = f"{cw_url}/api/v1/accounts/{cw_account}"
+
+        # Find or create admin contact
+        contact_id = None
+        r = _req.get(f"{base}/contacts/search", params={"q": admin_phone}, headers=headers, timeout=8)
+        if r.status_code == 200:
+            payload = r.json().get("payload", [])
+            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+            if contacts:
+                contact_id = contacts[0]["id"]
+        if not contact_id:
+            r = _req.post(f"{base}/contacts",
+                json={"name": "Χάρης (Admin)", "phone_number": admin_phone},
+                headers=headers, timeout=8)
+            if r.status_code in (200, 201):
+                contact_id = r.json().get("id")
+
+        if not contact_id:
+            print(f"[MorningReport] Could not find/create admin contact")
+            return
+
+        r = _req.post(f"{base}/conversations",
+            json={"inbox_id": int(cw_inbox), "contact_id": contact_id},
+            headers=headers, timeout=8)
+        if r.status_code not in (200, 201):
+            print(f"[MorningReport] Could not create conversation: {r.text}")
+            return
+
+        conv_id = r.json().get("id")
+        _req.post(
+            f"{base}/conversations/{conv_id}/messages",
+            json={"content": msg, "message_type": "outgoing", "private": False},
+            headers=headers, timeout=8,
+        )
+        print(f"[MorningReport] Sent Viber to admin — {count} leads from {yest_label}")
+    except Exception as e:
+        print(f"[MorningReport] FAILED — {e}")
+
+
+_scheduler.add_job(_run_leads_sync_safe,              "cron", hour=8, minute=45, timezone="Europe/Athens")  # Daily 08:45 Athens
+_scheduler.add_job(_run_full_leads_sync_safe,         "cron", day_of_week="sun", hour=3, minute=0, timezone="Europe/Athens")  # Weekly Sunday 3am
+_scheduler.add_job(_run_sync_health_check_safe,       "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
+_scheduler.add_job(_run_daily_reminders_safe,         "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
+_scheduler.add_job(_run_backup_safe,                  "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
+_scheduler.add_job(_run_morning_leads_report_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
 _scheduler.start()
-print("[Scheduler] Leads sync 08:45 | Full sync Sun 3am | Health check 09:00 | Reminders 05:00 UTC | Backup 15:00 UTC (all Athens time)")
+print("[Scheduler] Leads sync 08:45 | Full sync Sun 3am | Health check 09:00 | Reminders 05:00 UTC | Backup 15:00 UTC | Morning report 09:00 Athens")
 
 
 @app.get("/")
