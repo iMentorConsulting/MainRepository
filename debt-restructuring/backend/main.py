@@ -449,6 +449,15 @@ def root():
     return {"status": "ok", "app": "Debt Restructuring API"}
 
 
+@app.post("/admin/morning-report-now")
+def morning_report_now(_: str = Depends(get_current_user)):
+    """Trigger the morning leads report immediately (for testing)."""
+    try:
+        _run_morning_leads_report_safe()
+        return {"ok": True}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
 @app.post("/admin/backup-now")
 def backup_now(_: str = Depends(get_current_user)):
     """Trigger an immediate backup (local + Google Drive if configured)."""
