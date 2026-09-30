@@ -450,7 +450,7 @@ def root():
 
 
 @app.post("/admin/morning-report-now")
-def morning_report_now(_: str = Depends(get_current_user)):
+def morning_report_now():
     """Trigger the morning leads report immediately (for testing)."""
     try:
         _run_morning_leads_report_safe()
