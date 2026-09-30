@@ -1,6 +1,6 @@
 """
 Receive payment records from iMentor Finance app.
-Protected by x-api-key header: set FINANCE_APP_API_KEY in Railway env vars.
+Protected by x-api-key header: must match FINANCE_API_KEY in Railway env vars.
 """
 import os
 from datetime import date
@@ -15,9 +15,9 @@ router = APIRouter(prefix="/api/external", tags=["external"])
 
 
 def require_api_key(x_api_key: str = Header(default=None)):
-    api_key = os.getenv("FINANCE_APP_API_KEY", "")
+    api_key = os.getenv("FINANCE_API_KEY", "")
     if not api_key:
-        raise HTTPException(status_code=500, detail="FINANCE_APP_API_KEY not configured on this server")
+        raise HTTPException(status_code=500, detail="FINANCE_API_KEY not configured on this server")
     if x_api_key != api_key:
         raise HTTPException(status_code=401, detail="Invalid API key")
 
@@ -62,7 +62,6 @@ def receive_finance_payments(
             cases = db.query(CMCase).filter(CMCase.afm == p.afm.strip()).all()
             case_id = None
             if cases:
-                # Prefer cases whose service_type matches; fall back to most recently created
                 if p.service:
                     svc_match = [c for c in cases if c.service_type and p.service.lower() in c.service_type.lower()]
                     cases = svc_match or cases
