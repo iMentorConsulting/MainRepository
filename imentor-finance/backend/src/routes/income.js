@@ -97,13 +97,12 @@ router.get('/', async (req, res) => {
     if (search) {
       where[Op.or] = [
         { customer_name: { [Op.iLike]: `%${search}%` } },
-        { vat_number: { [Op.iLike]: `%${search}%` } },
-        { phone: { [Op.iLike]: `%${search}%` } },
-        { email: { [Op.iLike]: `%${search}%` } },
+        { vat_number:    { [Op.iLike]: `%${search}%` } },
+        { phone:         { [Op.iLike]: `%${search}%` } },
+        { email:         { [Op.iLike]: `%${search}%` } },
       ];
     }
 
-    // Organization filter
     if (organization === 'NONE') {
       if (!where[Op.and]) where[Op.and] = [];
       where[Op.and].push({ [Op.or]: [{ organization: null }, { organization: '' }] });
@@ -111,11 +110,11 @@ router.get('/', async (req, res) => {
       where.organization = { [Op.iLike]: `%${organization}%` };
     }
 
-    // Invoice filter: INVOICED = has invoice_number, MET = invoice_type ΑΝΕΥ
     if (invoice_filter === 'INVOICED') {
       where.invoice_number = { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] };
     } else if (invoice_filter === 'MET') {
-      where.invoice_type = 'ΑΝΕΥ';
+      if (!where[Op.and]) where[Op.and] = [];
+      where[Op.and].push({ [Op.or]: [{ invoice_number: null }, { invoice_number: '' }] });
     }
 
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'sale_date';
