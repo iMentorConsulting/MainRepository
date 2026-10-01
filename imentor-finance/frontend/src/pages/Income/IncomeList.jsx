@@ -90,7 +90,6 @@ function SortTh({ label, field, sort, onSort, className = '' }) {
   );
 }
 
-// Max 3 years of history
 const yearOptions = Array.from({ length: 3 }, (_, i) => ({ value: String(now.getFullYear() - i), label: String(now.getFullYear() - i) }));
 const monthOptions = [
   { value: '01', label: 'Ιαν' }, { value: '02', label: 'Φεβ' }, { value: '03', label: 'Μαρ' },
@@ -102,21 +101,22 @@ const monthOptions = [
 export default function IncomeList() {
   const [data, setData] = useState({ total: 0, data: [] });
   const [filters, setFilters] = useState({ service_type: '', search: '', page: 1 });
-  // Default: current year only, no month filter
   const [selectedYears, setSelectedYears] = useState([String(now.getFullYear())]);
   const [selectedMonths, setSelectedMonths] = useState([]);
   const [selectedAgents, setSelectedAgents] = useState([]);
   const [selectedStatuses, setSelectedStatuses] = useState([]);
+  const [selectedOrg, setSelectedOrg] = useState('');
+  const [selectedInvoice, setSelectedInvoice] = useState('');
   const [sort, setSort] = useState({ field: 'createdAt', dir: 'DESC' });
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
   const [modal, setModal] = useState({ open: false, record: null });
   const [deleteId, setDeleteId] = useState(null);
-  const [services, setServices] = useState([]); // full objects: { id, value, category, ... }
+  const [services, setServices] = useState([]);
   const [agents, setAgents] = useState([]);
   const [workStatusOptions, setWorkStatusOptions] = useState([]);
 
-  const load = useCallback(() => {
+  const buildParams = useCallback(() => {
     const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
@@ -136,9 +136,15 @@ export default function IncomeList() {
 
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
+    if (selectedOrg) params.organization = selectedOrg;
+    if (selectedInvoice) params.invoice_filter = selectedInvoice;
 
-    api.get('/income', { params }).then(r => setData(r.data));
-  }, [filters, selectedYears, selectedMonths, selectedAgents, selectedStatuses, sort, dateFrom, dateTo]);
+    return params;
+  }, [filters, selectedYears, selectedMonths, selectedAgents, selectedStatuses, sort, dateFrom, dateTo, selectedOrg, selectedInvoice]);
+
+  const load = useCallback(() => {
+    api.get('/income', { params: buildParams() }).then(r => setData(r.data));
+  }, [buildParams]);
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
@@ -189,25 +195,15 @@ export default function IncomeList() {
     setSelectedMonths([]);
     setSelectedAgents([]);
     setSelectedStatuses([]);
+    setSelectedOrg('');
+    setSelectedInvoice('');
     setDateFrom('');
     setDateTo('');
   };
 
   const handleExport = async () => {
     try {
-      const params = Object.fromEntries(Object.entries(filters).filter(([, v]) => v !== ''));
-      if (selectedYears.length === 1) params.year = selectedYears[0];
-      else if (selectedYears.length > 1) params.years = selectedYears.join(',');
-      if (selectedMonths.length === 1) params.month = selectedMonths[0];
-      else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
-      if (selectedAgents.length === 1) params.sales_agent = selectedAgents[0];
-      else if (selectedAgents.length > 1) params.sales_agents = selectedAgents.join(',');
-      if (selectedStatuses.length === 1) params.work_status = selectedStatuses[0];
-      else if (selectedStatuses.length > 1) params.work_statuses = selectedStatuses.join(',');
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
-      params.limit = 5000;
-      params.page = 1;
+      const params = { ...buildParams(), limit: 5000, page: 1 };
       const r = await api.get('/income', { params });
       const rows = r.data.data.map(row => ({
         'Ημερομηνία': row.sale_date || '',
@@ -239,7 +235,6 @@ export default function IncomeList() {
     ? workStatusOptions.map(s => ({ value: s }))
     : Object.keys(STATUS_STYLE).map(s => ({ value: s }));
 
-  // Build category → services grouping for the summary bar
   const hasCategories = services.some(s => s.category);
   const summaryCategoryGroups = (() => {
     if (!hasCategories || !data.by_service?.length) return null;
@@ -318,6 +313,17 @@ export default function IncomeList() {
           getKey={o => o.value}
           getLabel={o => o.value}
         />
+        <select className="input" value={selectedOrg} onChange={e => { setSelectedOrg(e.target.value); setFilters(f => ({ ...f, page: 1 })); }}>
+          <option value="">Οργανισμός</option>
+          <option value="ΑΠΟΣΤΟΛΑΚΗΣ">ΑΠΟΣΤΟΛΑΚΗΣ</option>
+          <option value="I MENTOR">I MENTOR</option>
+          <option value="NONE">Χωρίς</option>
+        </select>
+        <select className="input" value={selectedInvoice} onChange={e => { setSelectedInvoice(e.target.value); setFilters(f => ({ ...f, page: 1 })); }}>
+          <option value="">Τιμολόγιο</option>
+          <option value="INVOICED">Τιμολογημένο</option>
+          <option value="MET">ΜΕΤ</option>
+        </select>
         <div className="flex items-center gap-1">
           <input type="date" className="input w-34 text-sm" value={dateFrom} onChange={e => setDateFrom(e.target.value)} />
           <span className="text-slate-400 text-xs">—</span>
@@ -342,7 +348,6 @@ export default function IncomeList() {
                 <div key={cat} className="group relative px-3 py-1.5 bg-indigo-50 rounded-lg border border-indigo-100 shrink-0 cursor-default">
                   <div className="text-[10px] font-bold text-indigo-400 uppercase truncate max-w-[140px]">{cat}</div>
                   <div className="text-sm font-black text-indigo-700">{kLabel} <span className="text-xs font-semibold text-indigo-300">{pct}%</span></div>
-                  {/* Hover breakdown tooltip */}
                   <div className="absolute z-20 bottom-full left-0 mb-1 hidden group-hover:block bg-white border border-slate-200 rounded-xl shadow-xl p-3 min-w-[180px]">
                     <div className="text-[10px] font-bold text-slate-400 uppercase mb-2">{cat} – Ανάλυση</div>
                     {info.services.sort((a, b) => b.sum - a.sum).map(sv => {
@@ -513,13 +518,7 @@ export default function IncomeList() {
                         <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>ΜΕΤ</span>
                       )}
                       <ElorusActionsButton record={r} onRefresh={load} />
-                      <button
-                        className="btn-secondary text-xs py-1 px-2"
-                        title="Αντιγραφή"
-                        onClick={() => handleDuplicate(r)}
-                      >
-                        📋
-                      </button>
+                      <button className="btn-secondary text-xs py-1 px-2" title="Αντιγραφή" onClick={() => handleDuplicate(r)}>📋</button>
                       <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
                         <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
                       </button>

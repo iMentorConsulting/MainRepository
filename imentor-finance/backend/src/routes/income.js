@@ -19,7 +19,6 @@ function pushPayrollSync() {
 
 const ALLOWED_SORT = ['sale_date','customer_name','amount_collected','amount_application','amount_implementation','service_type','sales_agent','work_status','vat_number','bonus','createdAt'];
 
-// Normalize full/variant agent names to canonical short names
 const AGENT_NAME_MAP = {
   'ΒΑΡΔΙΑΜΠΑΣΗΣ ΜΑΝΟΣ': 'ΜΑΝΟΣ',
   'ΒΑΡΔΙΆΜΠΑΣΗΣ ΜΆΝΟΣ': 'ΜΑΝΟΣ',
@@ -33,10 +32,16 @@ function normalizeSalesAgent(name) {
 
 router.get('/', async (req, res) => {
   try {
-    const { year, years, month, months, date_from, date_to, service_type, sales_agent, sales_agents, work_status, work_statuses, accountant_email, accountant, search, page = 1, limit = 50, sort_field, sort_dir } = req.query;
+    const {
+      year, years, month, months, date_from, date_to,
+      service_type, sales_agent, sales_agents,
+      work_status, work_statuses,
+      accountant_email, accountant, search,
+      organization, invoice_filter,
+      page = 1, limit = 50, sort_field, sort_dir,
+    } = req.query;
     const where = {};
 
-    // Date filtering — normalize year/years and month/months to arrays
     const yearArr  = years  ? years.split(',').map(y => y.trim()).filter(Boolean)
                             : (year  ? [year]  : []);
     const monthArr = months ? months.split(',').map(m => m.trim().padStart(2,'0')).filter(Boolean)
@@ -66,7 +71,6 @@ router.get('/', async (req, res) => {
 
     if (service_type) where.service_type = service_type;
 
-    // Multi-agent support
     if (sales_agents) {
       const agentList = sales_agents.split(',').map(a => a.trim()).filter(Boolean);
       if (agentList.length === 1) where.sales_agent = agentList[0];
@@ -75,7 +79,6 @@ router.get('/', async (req, res) => {
       where.sales_agent = sales_agent;
     }
 
-    // Work status filter
     if (work_statuses) {
       const statusList = work_statuses.split(',').map(s => s.trim()).filter(Boolean);
       if (statusList.length === 1) where.work_status = statusList[0];
@@ -90,6 +93,7 @@ router.get('/', async (req, res) => {
       if (names.length === 1) where.accountant = names[0];
       else if (names.length > 1) where.accountant = { [Op.in]: names };
     }
+
     if (search) {
       where[Op.or] = [
         { customer_name: { [Op.iLike]: `%${search}%` } },
@@ -97,6 +101,21 @@ router.get('/', async (req, res) => {
         { phone: { [Op.iLike]: `%${search}%` } },
         { email: { [Op.iLike]: `%${search}%` } },
       ];
+    }
+
+    // Organization filter
+    if (organization === 'NONE') {
+      if (!where[Op.and]) where[Op.and] = [];
+      where[Op.and].push({ [Op.or]: [{ organization: null }, { organization: '' }] });
+    } else if (organization) {
+      where.organization = { [Op.iLike]: `%${organization}%` };
+    }
+
+    // Invoice filter: INVOICED = has invoice_number, MET = invoice_type ΑΝΕΥ
+    if (invoice_filter === 'INVOICED') {
+      where.invoice_number = { [Op.and]: [{ [Op.ne]: null }, { [Op.ne]: '' }] };
+    } else if (invoice_filter === 'MET') {
+      where.invoice_type = 'ΑΝΕΥ';
     }
 
     const sf = ALLOWED_SORT.includes(sort_field) ? sort_field : 'sale_date';
