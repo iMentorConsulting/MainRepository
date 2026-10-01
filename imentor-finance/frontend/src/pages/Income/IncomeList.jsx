@@ -121,24 +121,18 @@ export default function IncomeList() {
     params.sort_field = sort.field;
     params.sort_dir = sort.dir;
     params.limit = 50;
-
     if (selectedYears.length === 1) params.year = selectedYears[0];
     else if (selectedYears.length > 1) params.years = selectedYears.join(',');
-
     if (selectedMonths.length === 1) params.month = selectedMonths[0];
     else if (selectedMonths.length > 1) params.months = selectedMonths.join(',');
-
     if (selectedAgents.length === 1) params.sales_agent = selectedAgents[0];
     else if (selectedAgents.length > 1) params.sales_agents = selectedAgents.join(',');
-
     if (selectedStatuses.length === 1) params.work_status = selectedStatuses[0];
     else if (selectedStatuses.length > 1) params.work_statuses = selectedStatuses.join(',');
-
     if (dateFrom) params.date_from = dateFrom;
     if (dateTo) params.date_to = dateTo;
     if (selectedOrg) params.organization = selectedOrg;
     if (selectedInvoice) params.invoice_filter = selectedInvoice;
-
     return params;
   }, [filters, selectedYears, selectedMonths, selectedAgents, selectedStatuses, sort, dateFrom, dateTo, selectedOrg, selectedInvoice]);
 
@@ -167,13 +161,8 @@ export default function IncomeList() {
     if (r.is_new) {
       try {
         await api.patch(`/income/${r.id}/seen`);
-        setData(prev => prev
-          ? { ...prev, data: prev.data.map(x => x.id === r.id ? { ...x, is_new: false } : x) }
-          : prev
-        );
-      } catch (e) {
-        console.warn('[seen]', e.message);
-      }
+        setData(prev => prev ? { ...prev, data: prev.data.map(x => x.id === r.id ? { ...x, is_new: false } : x) } : prev);
+      } catch (e) { console.warn('[seen]', e.message); }
     }
     setModal({ open: true, record: r });
   };
@@ -277,49 +266,29 @@ export default function IncomeList() {
             <path fillRule="evenodd" d="M9 3.5a5.5 5.5 0 1 0 0 11 5.5 5.5 0 0 0 0-11ZM2 9a7 7 0 1 1 12.452 4.391l3.328 3.329a.75.75 0 1 1-1.06 1.06l-3.329-3.328A7 7 0 0 1 2 9Z" clipRule="evenodd"/>
           </svg>
         </div>
-        <MultiSelectDropdown
-          label="Έτος"
-          options={yearOptions}
-          selected={selectedYears}
+        <MultiSelectDropdown label="Έτος" options={yearOptions} selected={selectedYears}
           onChange={v => { setSelectedYears(v); setFilters(f => ({ ...f, page: 1 })); }}
-          getKey={o => o.value}
-          getLabel={o => o.label}
-        />
-        <MultiSelectDropdown
-          label="Μήνας"
-          options={monthOptions}
-          selected={selectedMonths}
+          getKey={o => o.value} getLabel={o => o.label} />
+        <MultiSelectDropdown label="Μήνας" options={monthOptions} selected={selectedMonths}
           onChange={v => { setSelectedMonths(v); setFilters(f => ({ ...f, page: 1 })); }}
-          getKey={o => o.value}
-          getLabel={o => o.label}
-        />
+          getKey={o => o.value} getLabel={o => o.label} />
         <select className="input w-44" value={filters.service_type} onChange={e => setFilters(f => ({ ...f, service_type: e.target.value, page: 1 }))}>
           <option value="">Υπηρεσία</option>
           {services.map(s => <option key={s.id} value={s.value}>{s.value}</option>)}
         </select>
-        <MultiSelectDropdown
-          label="Σύμβουλος"
-          options={agentOptions}
-          selected={selectedAgents}
+        <MultiSelectDropdown label="Σύμβουλος" options={agentOptions} selected={selectedAgents}
           onChange={v => { setSelectedAgents(v); setFilters(f => ({ ...f, page: 1 })); }}
-          getKey={o => o.value}
-          getLabel={o => o.value}
-        />
-        <MultiSelectDropdown
-          label="Κατάσταση"
-          options={statusOpts}
-          selected={selectedStatuses}
+          getKey={o => o.value} getLabel={o => o.value} />
+        <MultiSelectDropdown label="Κατάσταση" options={statusOpts} selected={selectedStatuses}
           onChange={v => { setSelectedStatuses(v); setFilters(f => ({ ...f, page: 1 })); }}
-          getKey={o => o.value}
-          getLabel={o => o.value}
-        />
-        <select className="input" value={selectedOrg} onChange={e => { setSelectedOrg(e.target.value); setFilters(f => ({ ...f, page: 1 })); }}>
+          getKey={o => o.value} getLabel={o => o.value} />
+        <select className="input w-36" value={selectedOrg} onChange={e => { setSelectedOrg(e.target.value); setFilters(f => ({ ...f, page: 1 })); }}>
           <option value="">Οργανισμός</option>
           <option value="ΑΠΟΣΤΟΛΑΚΗΣ">ΑΠΟΣΤΟΛΑΚΗΣ</option>
           <option value="I MENTOR">I MENTOR</option>
           <option value="NONE">Χωρίς</option>
         </select>
-        <select className="input" value={selectedInvoice} onChange={e => { setSelectedInvoice(e.target.value); setFilters(f => ({ ...f, page: 1 })); }}>
+        <select className="input w-36" value={selectedInvoice} onChange={e => { setSelectedInvoice(e.target.value); setFilters(f => ({ ...f, page: 1 })); }}>
           <option value="">Τιμολόγιο</option>
           <option value="INVOICED">Τιμολογημένο</option>
           <option value="MET">ΜΕΤ</option>
@@ -379,7 +348,6 @@ export default function IncomeList() {
       </div>
 
       <div className="card overflow-hidden">
-        {/* Mobile card list */}
         <div className="md:hidden divide-y divide-slate-100">
           {data.data.map(r => (
             <div key={r.id} className="p-4 space-y-2.5" style={r.is_new ? { borderLeft: '3px solid #10b981', background: 'rgba(16,185,129,0.06)' } : {}}>
@@ -389,14 +357,11 @@ export default function IncomeList() {
                     <span className="font-semibold text-slate-800 truncate">{r.customer_name}</span>
                     {r.organization && (
                       <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em',
-                        background: /ΑΠΟΣΤΟΛ/i.test(r.organization) ? '#f97316' : '#6366f1',
-                        color: '#fff' }}>
+                        background: /ΑΠΟΣΤΟΛ/i.test(r.organization) ? '#f97316' : '#6366f1', color: '#fff' }}>
                         {/ΑΠΟΣΤΟΛ/i.test(r.organization) ? 'ΑΠΟΣΤ' : 'IM'}
                       </span>
                     )}
-                    {r.is_new && (
-                      <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#10b981', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>ΝΕΟ</span>
-                    )}
+                    {r.is_new && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#10b981', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>ΝΕΟ</span>}
                   </div>
                   <div className="text-xs text-slate-400 mt-0.5">{fmtDate(r.sale_date)}{r.vat_number ? ` · ΑΦΜ ${r.vat_number}` : ''}</div>
                   {r.accountant && <div className="text-xs text-slate-400 truncate">{r.accountant}</div>}
@@ -411,25 +376,13 @@ export default function IncomeList() {
                 {r.sales_agent && <span className="badge-purple">{r.sales_agent}</span>}
                 {r.service_type && <span className="text-xs text-slate-500">{r.service_type}</span>}
               </div>
-              {(r.amount_application || r.amount_implementation) && (
-                <div className="text-xs text-slate-500 flex flex-wrap gap-3">
-                  {r.amount_application ? <span>Αίτ.: {fmtNum(r.amount_application)}</span> : null}
-                  {r.amount_implementation ? <span>Υλ.: {fmtNum(r.amount_implementation)}</span> : null}
-                </div>
-              )}
-              {(r.phone || r.email) && (
-                <div className="text-xs text-slate-500 flex flex-wrap gap-3">
-                  {r.phone && <span>📞 {r.phone}</span>}
-                  {r.email && <a href={`mailto:${r.email}`} className="text-indigo-500 hover:underline">{r.email}</a>}
-                </div>
-              )}
               <div className="flex items-center gap-2 pt-1">
                 {r.invoice_type === 'ΑΝΕΥ' && (
-                  <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', letterSpacing: '0.04em' }}>ΜΕΤ</span>
+                  <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px' }}>ΜΕΤ</span>
                 )}
                 <ElorusActionsButton record={r} onRefresh={load} />
-                <button className="btn-secondary text-xs py-1 px-2" title="Αντιγραφή" onClick={() => handleDuplicate(r)}>📋</button>
-                <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
+                <button className="btn-secondary text-xs py-1 px-2" onClick={() => handleDuplicate(r)}>📋</button>
+                <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg">
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
                 </button>
                 <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
@@ -439,13 +392,9 @@ export default function IncomeList() {
             </div>
           ))}
           {data.data.length === 0 && (
-            <div className="text-center text-slate-400 py-12">
-              <div className="text-3xl mb-2">🔍</div>
-              Δεν βρέθηκαν εγγραφές
-            </div>
+            <div className="text-center text-slate-400 py-12"><div className="text-3xl mb-2">🔍</div>Δεν βρέθηκαν εγγραφές</div>
           )}
         </div>
-        {/* Desktop table */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full">
             <thead>
@@ -473,41 +422,22 @@ export default function IncomeList() {
                       <span className="font-semibold text-slate-800 truncate">{r.customer_name}</span>
                       {r.organization && (
                         <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em',
-                          background: /ΑΠΟΣΤΟΛ/i.test(r.organization) ? '#f97316' : '#6366f1',
-                          color: '#fff' }}>
+                          background: /ΑΠΟΣΤΟΛ/i.test(r.organization) ? '#f97316' : '#6366f1', color: '#fff' }}>
                           {/ΑΠΟΣΤΟΛ/i.test(r.organization) ? 'ΑΠΟΣΤ' : 'IM'}
                         </span>
                       )}
-                      {r.is_new && (
-                        <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#10b981', color: '#fff', borderRadius: 4, padding: '1px 5px', letterSpacing: '0.04em' }}>ΝΕΟ</span>
-                      )}
+                      {r.is_new && <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 700, background: '#10b981', color: '#fff', borderRadius: 4, padding: '1px 5px' }}>ΝΕΟ</span>}
                     </div>
                     {r.accountant && <div className="text-xs text-slate-400 mt-0.5 truncate max-w-[180px]">{r.accountant}</div>}
                   </td>
                   <td className="td text-xs text-slate-500 whitespace-nowrap">{r.vat_number || '—'}</td>
-                  <td className="td max-w-[140px]">
-                    <div className="text-xs text-slate-600 truncate">{r.service_type || '—'}</div>
-                  </td>
+                  <td className="td max-w-[140px]"><div className="text-xs text-slate-600 truncate">{r.service_type || '—'}</div></td>
                   <td className="td">{statusBadge(r.work_status)}</td>
-                  <td className="td">
-                    {r.sales_agent
-                      ? <span className="badge-purple">{r.sales_agent}</span>
-                      : <span className="text-slate-300">—</span>}
-                  </td>
-                  <td className="td w-20 max-w-[80px]">
-                    <div className="text-xs text-slate-500 truncate">{r.phone || '—'}</div>
-                  </td>
-                  <td className="td w-24 max-w-[96px]">
-                    {r.email
-                      ? <a href={`mailto:${r.email}`} className="text-xs text-indigo-500 hover:underline truncate block max-w-[96px]">{r.email}</a>
-                      : <span className="text-xs text-slate-300">—</span>}
-                  </td>
-                  <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
-                    {r.amount_application ? fmtNum(r.amount_application) : <span className="text-slate-200">—</span>}
-                  </td>
-                  <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">
-                    {r.amount_implementation ? fmtNum(r.amount_implementation) : <span className="text-slate-200">—</span>}
-                  </td>
+                  <td className="td">{r.sales_agent ? <span className="badge-purple">{r.sales_agent}</span> : <span className="text-slate-300">—</span>}</td>
+                  <td className="td w-20 max-w-[80px]"><div className="text-xs text-slate-500 truncate">{r.phone || '—'}</div></td>
+                  <td className="td w-24 max-w-[96px]">{r.email ? <a href={`mailto:${r.email}`} className="text-xs text-indigo-500 hover:underline truncate block max-w-[96px]">{r.email}</a> : <span className="text-xs text-slate-300">—</span>}</td>
+                  <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">{r.amount_application ? fmtNum(r.amount_application) : <span className="text-slate-200">—</span>}</td>
+                  <td className="td text-right text-xs font-medium text-slate-600 whitespace-nowrap">{r.amount_implementation ? fmtNum(r.amount_implementation) : <span className="text-slate-200">—</span>}</td>
                   <td className="td text-right">
                     <span className="font-bold text-emerald-600 whitespace-nowrap">{fmt(r.amount_collected)}</span>
                     {r.bonus > 0 && <div className="text-xs text-amber-500 whitespace-nowrap">+{fmtNum(r.bonus)} bonus</div>}
@@ -515,11 +445,11 @@ export default function IncomeList() {
                   <td className="td">
                     <div className="flex items-center gap-1">
                       {r.invoice_type === 'ΑΝΕΥ' && (
-                        <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', letterSpacing: '0.04em', whiteSpace: 'nowrap' }}>ΜΕΤ</span>
+                        <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>ΜΕΤ</span>
                       )}
                       <ElorusActionsButton record={r} onRefresh={load} />
-                      <button className="btn-secondary text-xs py-1 px-2" title="Αντιγραφή" onClick={() => handleDuplicate(r)}>📋</button>
-                      <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg" title="Επεξεργασία">
+                      <button className="btn-secondary text-xs py-1 px-2" onClick={() => handleDuplicate(r)}>📋</button>
+                      <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg">
                         <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
                       </button>
                       <button onClick={() => setDeleteId(r.id)} className="p-2 rounded-lg text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors">
@@ -530,10 +460,7 @@ export default function IncomeList() {
                 </tr>
               ))}
               {data.data.length === 0 && (
-                <tr><td colSpan={12} className="td text-center text-slate-400 py-12">
-                  <div className="text-3xl mb-2">🔍</div>
-                  Δεν βρέθηκαν εγγραφές
-                </td></tr>
+                <tr><td colSpan={12} className="td text-center text-slate-400 py-12"><div className="text-3xl mb-2">🔍</div>Δεν βρέθηκαν εγγραφές</td></tr>
               )}
             </tbody>
           </table>
