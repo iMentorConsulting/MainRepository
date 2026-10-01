@@ -953,12 +953,77 @@ def _run_lead_reminder_digest():
         db.close()
 
 
+def _run_daily_lead_notify():
+    from routes.cm_notifications import _send_viber
+    from models_cases import CMLead as _CMLead
+    from datetime import date as _date, timedelta as _td
+    _ADMIN_PHONE = "6952101541"
+    _PROGRAM_ORDER = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ"]
+    db = SessionLocal()
+    try:
+        yesterday = _date.today() - _td(days=1)
+        day_start = datetime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0)
+        day_end   = datetime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59)
+        leads = db.query(_CMLead).filter(
+            _CMLead.created_at >= day_start,
+            _CMLead.created_at <= day_end,
+        ).order_by(_CMLead.program, _CMLead.created_at).all()
+
+        if not leads:
+            msg = (
+                f"📋 Ημερήσια Ενημέρωση Leads\n"
+                f"📅 {yesterday.strftime('%d/%m/%Y')}\n\n"
+                f"Δεν υπήρξαν νέα leads χθες."
+            )
+            _send_viber(phone=_ADMIN_PHONE, message=msg, client_name="Admin", agent_name="system")
+            print(f"[scheduler] Daily lead notify: 0 leads for {yesterday}")
+            return
+
+        by_program: dict = {}
+        for lead in leads:
+            prog = lead.program or "ΑΛΛΟ"
+            by_program[prog] = by_program.get(prog, 0) + 1
+
+        by_consultant: dict = {}
+        for lead in leads:
+            consultant = (lead.assigned_name or "—").strip() or "—"
+            by_consultant[consultant] = by_consultant.get(consultant, 0) + 1
+
+        lines = [
+            "📋 Ημερήσια Ενημέρωση Leads",
+            f"📅 {yesterday.strftime('%d/%m/%Y')}",
+            f"Σύνολο: {len(leads)} νέα lead{'s' if len(leads) != 1 else ''}",
+            "",
+            "📊 Ανά Πρόγραμμα:",
+        ]
+        ordered = [p for p in _PROGRAM_ORDER if p in by_program]
+        ordered += [p for p in sorted(by_program) if p not in _PROGRAM_ORDER]
+        for prog in ordered:
+            lines.append(f"  • {prog}: {by_program[prog]}")
+        lines.append("")
+        lines.append("👤 Ανά Σύμβουλο:")
+        for consultant, count in sorted(by_consultant.items(), key=lambda x: -x[1]):
+            lines.append(f"  • {consultant}: {count}")
+
+        msg = "\n".join(lines)
+        ok, err = _send_viber(phone=_ADMIN_PHONE, message=msg, client_name="Admin", agent_name="system")
+        if ok:
+            print(f"[scheduler] Daily lead notify sent: {len(leads)} leads for {yesterday}")
+        else:
+            print(f"[scheduler] Daily lead notify Viber ERROR: {err}")
+    except Exception as e:
+        print(f"[scheduler] Daily lead notify ERROR: {e}")
+    finally:
+        db.close()
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=12, minute=0, id="refresh_12")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=22, minute=0, id="refresh_22")
 _scheduler.add_job(_run_agent_sla_digest, "cron", day="*/3", hour=9, minute=0, id="sla_digest_09")
 _scheduler.add_job(_run_leads_sheet_sync, "cron", hour=7, minute=0, id="leads_sync_07")
 _scheduler.add_job(_run_lead_reminder_digest, "cron", hour=8, minute=30, id="lead_reminders")
+_scheduler.add_job(_run_daily_lead_notify, "cron", hour=9, minute=0, id="daily_lead_notify_09")
 _backup_hour = int(os.getenv("BACKUP_SCHEDULE_HOUR", "2"))
 _scheduler.add_job(_scheduled_backup, "cron", hour=_backup_hour, minute=0, id="drive_backup")
 _scheduler.start()
