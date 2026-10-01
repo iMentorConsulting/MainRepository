@@ -105,7 +105,28 @@ router.get('/', async (req, res) => {
 
     if (organization === 'NONE') {
       if (!where[Op.and]) where[Op.and] = [];
-      where[Op.and].push({ [Op.or]: [{ organization: null }, { organization: '' }] });
+      where[Op.and].push({
+        [Op.and]: [
+          { [Op.or]: [{ organization: null }, { organization: '' }] },
+          { [Op.or]: [{ elorus_org_key: null }, { elorus_org_key: '' }] },
+        ],
+      });
+    } else if (organization === 'ΑΠΟΣΤΟΛΑΚΗΣ') {
+      if (!where[Op.and]) where[Op.and] = [];
+      where[Op.and].push({
+        [Op.or]: [
+          { organization: { [Op.iLike]: '%ΑΠΟΣΤΟΛΑΚΗΣ%' } },
+          { elorus_org_key: 'DEFAULT' },
+        ],
+      });
+    } else if (organization === 'I MENTOR') {
+      if (!where[Op.and]) where[Op.and] = [];
+      where[Op.and].push({
+        [Op.or]: [
+          { organization: { [Op.iLike]: '%I MENTOR%' } },
+          { elorus_org_key: 'IMENTOR_IKE' },
+        ],
+      });
     } else if (organization) {
       where.organization = { [Op.iLike]: `%${organization}%` };
     }
