@@ -351,87 +351,53 @@ def _run_full_leads_sync_safe():
 def _run_morning_leads_report_safe():
     """Daily 09:00 Athens: send Viber to admin with yesterday's new leads."""
     try:
-        import requests as _req
-        from datetime import date, timedelta
+        from datetime import datetime, timedelta, timezone
         from zoneinfo import ZoneInfo
         from database import SessionLocal
         from models import Lead
 
-        _ATHENS = ZoneInfo("Europe/Athens")
-        yesterday = (date.today() - timedelta(days=1))
-        yest_start = datetime.combine(yesterday, datetime.min.time())
-        yest_end   = datetime.combine(yesterday, datetime.max.time())
+        # "Yesterday" in Athens time, converted to naive UTC (Lead.created_at is stored as utcnow)
+        athens = ZoneInfo("Europe/Athens")
+        yesterday = datetime.now(athens).date() - timedelta(days=1)
+        start_local = datetime.combine(yesterday, datetime.min.time(), tzinfo=athens)
+        end_local = start_local + timedelta(days=1)
+        yest_start = start_local.astimezone(timezone.utc).replace(tzinfo=None)
+        yest_end = end_local.astimezone(timezone.utc).replace(tzinfo=None)
 
         db = SessionLocal()
         try:
             leads = db.query(Lead).filter(
                 Lead.created_at >= yest_start,
-                Lead.created_at <= yest_end,
+                Lead.created_at < yest_end,
             ).order_by(Lead.created_at).all()
+            assigned = [l.assigned_to for l in leads]
         finally:
             db.close()
 
-        count = len(leads)
+        count = len(assigned)
         yest_label = yesterday.strftime("%d/%m/%Y")
 
         if count == 0:
             msg = f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*\n\nΔεν υπήρξαν νέα leads χθες."
         else:
             from collections import Counter
-            per_agent = Counter(l.assigned_to or "Αδιάθετα" for l in leads)
-            lines = [f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*", f"", f"Σύνολο: *{count}*", ""]
+            per_agent = Counter(a or "Αδιάθετα" for a in assigned)
+            lines = [f"📋 *Ημερήσια Αναφορά Leads — {yest_label}*", "", f"Σύνολο: *{count}*", ""]
             for agent, n in sorted(per_agent.items()):
                 lines.append(f"• {agent}: {n}")
             msg = "\n".join(lines)
 
-        cw_url    = os.getenv("CHATWOOT_URL", "").strip().rstrip("/")
-        cw_token  = os.getenv("CHATWOOT_API_TOKEN", "").strip()
-        cw_account = os.getenv("CHATWOOT_ACCOUNT_ID", "").strip()
-        cw_inbox  = os.getenv("CHATWOOT_INBOX_ID", "").strip()
-        admin_phone = "+306952101541"
-
-        if not all([cw_url, cw_token, cw_account, cw_inbox]):
-            print(f"[MorningReport] Chatwoot not configured — skipping Viber")
-            return
-
-        headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
-        base = f"{cw_url}/api/v1/accounts/{cw_account}"
-
-        # Find or create admin contact
-        contact_id = None
-        r = _req.get(f"{base}/contacts/search", params={"q": admin_phone}, headers=headers, timeout=8)
-        if r.status_code == 200:
-            payload = r.json().get("payload", [])
-            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
-            if contacts:
-                contact_id = contacts[0]["id"]
-        if not contact_id:
-            r = _req.post(f"{base}/contacts",
-                json={"name": "Χάρης (Admin)", "phone_number": admin_phone},
-                headers=headers, timeout=8)
-            if r.status_code in (200, 201):
-                contact_id = r.json().get("id")
-
-        if not contact_id:
-            print(f"[MorningReport] Could not find/create admin contact")
-            return
-
-        r = _req.post(f"{base}/conversations",
-            json={"inbox_id": int(cw_inbox), "contact_id": contact_id},
-            headers=headers, timeout=8)
-        if r.status_code not in (200, 201):
-            print(f"[MorningReport] Could not create conversation: {r.text}")
-            return
-
-        conv_id = r.json().get("id")
-        _req.post(
-            f"{base}/conversations/{conv_id}/messages",
-            json={"content": msg, "message_type": "outgoing", "private": False},
-            headers=headers, timeout=8,
-        )
-        print(f"[MorningReport] Sent Viber to admin — {count} leads from {yest_label}")
+        # Reuse the shared Chatwoot sender (contact search variants, conversation reuse, retries)
+        from routers.cases import _chatwoot_send_with_retry
+        ok, err = _chatwoot_send_with_retry("Χάρης (Admin)", "+306952101541", msg)
+        if ok:
+            print(f"[MorningReport] Sent Viber to admin — {count} leads from {yest_label}")
+        else:
+            print(f"[MorningReport] FAILED to send Viber — {err}")
+        return {"ok": ok, "error": err, "count": count, "date": yest_label}
     except Exception as e:
         print(f"[MorningReport] FAILED — {e}")
+        return {"ok": False, "error": str(e)}
 
 
 _scheduler.add_job(_run_leads_sync_safe,              "cron", hour=8, minute=45, timezone="Europe/Athens")  # Daily 08:45 Athens
@@ -439,7 +405,7 @@ _scheduler.add_job(_run_full_leads_sync_safe,         "cron", day_of_week="sun",
 _scheduler.add_job(_run_sync_health_check_safe,       "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
 _scheduler.add_job(_run_daily_reminders_safe,         "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
 _scheduler.add_job(_run_backup_safe,                  "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
-_scheduler.add_job(_run_morning_leads_report_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
+_scheduler.add_job(_run_morning_leads_report_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens", misfire_grace_time=3600, coalesce=True)  # Daily 09:00 Athens
 _scheduler.start()
 print("[Scheduler] Leads sync 08:45 | Full sync Sun 3am | Health check 09:00 | Reminders 05:00 UTC | Backup 15:00 UTC | Morning report 09:00 Athens")
 
@@ -452,11 +418,10 @@ def root():
 @app.post("/admin/morning-report-now")
 def morning_report_now():
     """Trigger the morning leads report immediately (for testing)."""
-    try:
-        _run_morning_leads_report_safe()
-        return {"ok": True}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    result = _run_morning_leads_report_safe()
+    if not result.get("ok"):
+        raise HTTPException(status_code=500, detail=result.get("error") or "send failed")
+    return result
 
 @app.post("/admin/backup-now")
 def backup_now(_: str = Depends(get_current_user)):
