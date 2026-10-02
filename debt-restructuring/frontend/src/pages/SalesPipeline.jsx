@@ -205,11 +205,21 @@ function DaysBadge({ c }) {
   return <span className={`text-xs ${cls}`}>{d}ημ. χωρίς επαφή</span>
 }
 
+const CASE_STATUS_LABELS = {
+  draft: 'Άντληση Στοιχείων',
+  submitted: 'Οριστικοποίηση Αίτησης',
+  in_review: 'Πρόταση Ρύθμισης',
+  completed: 'Αποδοχή Ρύθμισης',
+  cancelled: 'Απορρίψη Ρύθμισης',
+}
+
 export default function SalesPipeline() {
   const navigate = useNavigate()
-  const [cases, setCases] = useState([])
+  const [allCases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterEmployee, setFilterEmployee] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStage, setFilterStage] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
   const [viberModal, setViberModal] = useState(null) // caseItem object
   const [viberSending, setViberSending] = useState(false)
@@ -229,6 +239,11 @@ export default function SalesPipeline() {
   }
 
   useEffect(() => { load() }, [filterEmployee])
+
+  const cases = useMemo(() => allCases.filter(c =>
+    (!filterStatus || c.status === filterStatus) &&
+    (!filterStage || (c.contact_stage || 'Νέα Ανάλυση') === filterStage)
+  ), [allCases, filterStatus, filterStage])
 
   const handleViberSend = async (caseId, message, msgType, doEmail, clientEmail, clientName) => {
     setViberSending(true)
@@ -345,6 +360,17 @@ export default function SalesPipeline() {
             <option value="">Όλοι οι σύμβουλοι</option>
             {EMPLOYEES.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
+          <select className="input w-auto text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">Όλες οι καταστάσεις</option>
+            {Object.entries(CASE_STATUS_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+          <select className="input w-auto text-sm" value={filterStage} onChange={e => setFilterStage(e.target.value)}>
+            <option value="">Όλα τα Pipeline</option>
+            {STAGE_CONFIG.map(s => <option key={s.key} value={s.key}>{s.icon} {s.key}</option>)}
+          </select>
+          {(filterStatus || filterStage) && (
+            <button className="btn-secondary text-xs" onClick={() => { setFilterStatus(''); setFilterStage('') }}>Καθαρισμός</button>
+          )}
           <button onClick={load} className="btn-secondary p-2" title="Ανανέωση">
             <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>
