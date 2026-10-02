@@ -3,7 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import * as api from '../api'
-import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus } from '../utils/calculations'
+import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding } from '../utils/calculations'
 import {
   PhoneIcon,
   EnvelopeIcon,
@@ -473,10 +473,39 @@ export default function ClientPreview() {
                 <p className="text-blue-300 text-xs text-center mt-2">Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας άμεσα</p>
               </>
             ) : (
-              <div className="bg-green-500/20 border border-green-400/40 rounded-2xl p-5 text-center">
-                <CheckCircleIcon className="w-10 h-10 text-green-300 mx-auto mb-2" />
-                <div className="text-green-300 font-black text-lg">Λάβαμε το αίτημά σας!</div>
-                <div className="text-green-200 text-sm mt-1">Ένας σύμβουλός μας θα επικοινωνήσει μαζί σας σύντομα.</div>
+              <div className="bg-white rounded-2xl shadow-lg p-5">
+                <div className="flex items-center gap-2 mb-3">
+                  <CheckCircleIcon className="w-7 h-7 text-green-500 shrink-0" />
+                  <div className="text-green-700 font-black text-lg">Η ανάλυσή σας έχει ολοκληρωθεί!</div>
+                </div>
+                <p className="text-gray-700 text-sm leading-relaxed mb-4">
+                  Η προετοιμασία και ανάλυση της υπόθεσής σας έχει ολοκληρωθεί. Για να προχωρήσουμε στο επόμενο βήμα, παρακαλούμε να καταθέσετε το ποσό της <b>Αίτησης & Διαδικασίας</b> στον τραπεζικό λογαριασμό μας.
+                </p>
+                {(() => {
+                  const offer = data.commercial_offer || {}
+                  if (!offer.application_fee) return null
+                  const incomeSubType = data.income_data?.fpSubType || 'Επιτηδευματίας'
+                  const appFee = calculateOfferWithWithholding(offer.application_fee, incomeSubType)
+                  return (
+                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 text-center">
+                      <div className="text-xs font-semibold text-blue-600 uppercase mb-1">Ποσό 1ης Πληρωμής</div>
+                      <div className="text-2xl font-black text-blue-800">{fmt(appFee.grossBeforeTax)}</div>
+                      <div className="text-xs text-gray-500 mt-1">(συμπ. ΦΠΑ 24%{appFee.hasWithholding ? ` — μετά παρακράτηση: ${fmt(appFee.finalPayable)}` : ''})</div>
+                    </div>
+                  )
+                })()}
+                <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
+                  <div className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5">
+                    <BuildingLibraryIcon className="w-4 h-4 text-gray-600" />Τραπεζικοί Λογαριασμοί Κατάθεσης
+                  </div>
+                  <div className="space-y-1 text-sm font-mono">
+                    <div><span className="text-gray-500">Πειραιώς:</span> GR4501714330006433164381388</div>
+                    <div><span className="text-gray-500">Alpha Bank:</span> GR2401407750775002330002138</div>
+                    <div><span className="text-gray-500">Eurobank:</span> GR5802601680000060201330648</div>
+                    <div className="mt-1"><span className="text-gray-500">Δικαιούχος:</span> <b>I MENTOR IKE</b></div>
+                  </div>
+                </div>
+                <p className="text-gray-500 text-xs mt-3 text-center">Μετά την κατάθεση, επικοινωνήστε μαζί μας για να σας ενημερώσουμε για τα επόμενα βήματα.</p>
               </div>
             )}
           </div>
@@ -960,26 +989,28 @@ export default function ClientPreview() {
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-5">
                 {offer.application_fee > 0 && (() => {
-                  const appFee = formatOfferWithVAT(offer.application_fee)
+                  const incomeSubType = data.income_data?.fpSubType || (data.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+                  const appFee = calculateOfferWithWithholding(offer.application_fee, incomeSubType)
                   return (
                     <div className={`rounded-xl p-4 text-center ${paymentStatus.firstPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-blue-50'}`}>
                       <div className="text-xs font-semibold text-blue-600 uppercase mb-1 flex items-center justify-center gap-1">
                         {paymentStatus.firstPaymentMade && '✅'} Αίτηση & Διαδικασία
                       </div>
-                      <div className="text-2xl font-black text-blue-800">{appFee.formatted}</div>
-                      <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                      <div className="text-xl font-black text-blue-800">{fmt(appFee.net)}</div>
+                      <div className="text-xs text-gray-600 mt-1">+ ΦΠΑ 24% = {fmt(appFee.grossBeforeTax)}{appFee.hasWithholding && ` - Παρακράτηση 20% = ${fmt(appFee.finalPayable)}`}</div>
                     </div>
                   )
                 })()}
                 {offer.success_fee > 0 && (() => {
-                  const successFee = formatOfferWithVAT(offer.success_fee)
+                  const incomeSubType = data.income_data?.fpSubType || (data.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+                  const successFee = calculateOfferWithWithholding(offer.success_fee, incomeSubType)
                   return (
                     <div className={`rounded-xl p-4 text-center ${paymentStatus.secondPaymentMade ? 'bg-green-50 border-2 border-green-300' : 'bg-green-50'}`}>
                       <div className="text-xs font-semibold text-green-600 uppercase mb-1 flex items-center justify-center gap-1">
                         {paymentStatus.secondPaymentMade && '✅'} Success Fee (σε αποδοχή)
                       </div>
-                      <div className="text-2xl font-black text-green-800">{successFee.formatted}</div>
-                      <div className="text-xs text-gray-500 mt-1">Σύνολο με ΦΠΑ</div>
+                      <div className="text-xl font-black text-green-800">{fmt(successFee.net)}</div>
+                      <div className="text-xs text-gray-600 mt-1">+ ΦΠΑ 24% = {fmt(successFee.grossBeforeTax)}{successFee.hasWithholding && ` - Παρακράτηση 20% = ${fmt(successFee.finalPayable)}`}</div>
                     </div>
                   )
                 })()}
@@ -988,8 +1019,8 @@ export default function ClientPreview() {
                 <div className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5"><BuildingLibraryIcon className="w-4 h-4 text-gray-600" />Τραπεζικοί Λογαριασμοί Πληρωμής</div>
                 <div className="space-y-1 text-sm font-mono">
                   <div><span className="text-gray-500">Πειραιώς:</span> GR4501714330006433164381388</div>
-                  <div><span className="text-gray-500">Eurobank:</span> GR5802601680000060201330648</div>
                   <div><span className="text-gray-500">Alpha Bank:</span> GR2401407750775002330002138</div>
+                  <div><span className="text-gray-500">Eurobank:</span> GR5802601680000060201330648</div>
                   <div className="mt-1"><span className="text-gray-500">Δικαιούχος:</span> <b>I MENTOR IKE</b></div>
                 </div>
               </div>

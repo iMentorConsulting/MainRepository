@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 from datetime import datetime
 from zoneinfo import ZoneInfo
-import os, smtplib, json, base64
+import os, json, base64
 
 _ATHENS = ZoneInfo("Europe/Athens")
 def _now():
@@ -72,22 +72,30 @@ STAGE_ORDER = ['Νέα Ανάλυση', 'Εστάλη Σύνδεσμος', 'Θε
 
 
 def _send_interested_email(case: Case) -> bool:
-    """Send notification email via Gmail API (Service Account). Returns True on success."""
+    """Send notification email via Gmail API (OAuth2 user credentials). Returns True on success."""
     try:
-        sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
         sender = os.getenv("SMTP_USER", "").strip()
-        notify_to = os.getenv("NOTIFY_EMAIL", "info@i-mentor.gr")
+        client_id = os.getenv("GMAIL_CLIENT_ID", "").strip()
+        client_secret = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
+        refresh_token = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
+        notify_to = os.getenv("NOTIFY_EMAIL", "help@i-mentor.gr")
 
-        if not sa_json or not sender:
+        if not all([sender, client_id, client_secret, refresh_token]):
             return False
 
-        from google.oauth2.service_account import Credentials
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
 
-        creds = Credentials.from_service_account_info(
-            json.loads(sa_json),
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
             scopes=["https://www.googleapis.com/auth/gmail.send"],
-        ).with_subject(sender)
+        )
+        creds.refresh(Request())
         svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
         body = (
@@ -100,14 +108,17 @@ def _send_interested_email(case: Case) -> bool:
         )
         msg = MIMEMultipart("alternative")
         msg["Subject"] = f"[i-Mentor] Ενδιαφέρον πελάτη: {case.client_name or case.id}"
-        msg["From"] = sender
+        msg["From"] = "i-Mentor Συμβουλευτική <" + sender + ">"
         msg["To"] = notify_to
+        msg["Reply-To"] = sender
         msg.attach(MIMEText(body, "plain", "utf-8"))
 
         raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
         svc.users().messages().send(userId="me", body={"raw": raw}).execute()
         return True
-    except Exception:
+    except Exception as e:
+        import traceback
+        print(f"[EMAIL ERROR] {e}\n{traceback.format_exc()}", flush=True)
         return False
 
 

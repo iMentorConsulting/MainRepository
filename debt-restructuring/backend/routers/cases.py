@@ -108,27 +108,36 @@ def _markup_strip(text: str) -> str:
 
 
 def _send_gmail(to: str, subject: str, body: str) -> tuple[bool, str]:
-    """Send email via Gmail API using Google Service Account (Domain-Wide Delegation).
+    """Send email via Gmail API using OAuth2 user credentials (refresh token).
+    Emails appear in help@'s Sent folder automatically.
     Returns (True, "") on success, (False, reason) on failure."""
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     sender = os.getenv("SMTP_USER", "").strip()
-    if not sa_json or not sender:
-        return False, "GOOGLE_SERVICE_ACCOUNT_JSON ή SMTP_USER δεν έχουν οριστεί"
+    client_id = os.getenv("GMAIL_CLIENT_ID", "").strip()
+    client_secret = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
+    if not all([sender, client_id, client_secret, refresh_token]):
+        return False, "SMTP_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET ή GMAIL_REFRESH_TOKEN δεν έχουν οριστεί"
     try:
-        from google.oauth2.service_account import Credentials
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
 
-        creds = Credentials.from_service_account_info(
-            json.loads(sa_json),
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
             scopes=["https://www.googleapis.com/auth/gmail.send"],
-        ).with_subject(sender)
-
+        )
+        creds.refresh(Request())
         svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = sender
+        msg["From"] = "i-Mentor Συμβουλευτική <" + sender + ">"
         msg["To"] = to
+        msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
         msg.attach(MIMEText(_markup_to_html(body), "html", "utf-8"))
 
@@ -154,26 +163,36 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
 
     headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
     base = f"{cw_url}/api/v1/accounts/{cw_account}"
+
+    # Normalize phone: strip double country code (+3030... → +30...) before anything
+    import re as _re
+    phone = _re.sub(r'^\+?(30){2}', '+30', phone)
     print(f"[Chatwoot] base={base} inbox={cw_inbox} phone={phone}")
 
-    # 1. Search for existing contact by phone
+    # Build search variants: full number + local digits only (catches malformed existing contacts)
+    digits_only = _re.sub(r'^\+30', '', phone)  # e.g. "6947659866"
+    search_variants = [phone, digits_only] if digits_only != phone else [phone]
+
+    # 1. Search for existing contact by phone (try each variant)
     contact_id = None
-    try:
-        r = http_requests.get(
-            f"{base}/contacts/search",
-            params={"q": phone, "include_contacts": "true"},
-            headers=headers, timeout=8,
-        )
-        print(f"[Chatwoot] search status={r.status_code} body={r.text[:300]}")
-        if r.status_code == 200:
-            # payload is a list of contacts directly (not a dict with "contacts" key)
-            payload = r.json().get("payload", [])
-            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
-            if contacts:
-                contact_id = contacts[0]["id"]
-                print(f"[Chatwoot] found existing contact id={contact_id}")
-    except Exception as e:
-        print(f"[Chatwoot] search exception: {e}")
+    for variant in search_variants:
+        if contact_id:
+            break
+        try:
+            r = http_requests.get(
+                f"{base}/contacts/search",
+                params={"q": variant, "include_contacts": "true"},
+                headers=headers, timeout=8,
+            )
+            print(f"[Chatwoot] search q={variant} status={r.status_code} body={r.text[:300]}")
+            if r.status_code == 200:
+                payload = r.json().get("payload", [])
+                contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+                    print(f"[Chatwoot] found existing contact id={contact_id} via q={variant}")
+        except Exception as e:
+            print(f"[Chatwoot] search exception (q={variant}): {e}")
 
     # 2. Create contact if not found
     if not contact_id:
@@ -239,20 +258,52 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
     if not contact_id:
         return False, f"Αδυναμία δημιουργίας/εύρεσης contact για αριθμό {phone}"
 
-    # 3. Create new conversation
+    # 3. Find existing conversation for this contact on this inbox, or create one
     conv_id = None
     try:
-        conv_url = f"{base}/conversations"
-        conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
-        print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
-        r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
-        print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
-        if r.status_code in (200, 201):
-            conv_id = r.json().get("id")
-        else:
-            return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+        r = http_requests.get(
+            f"{base}/contacts/{contact_id}/conversations",
+            headers=headers, timeout=8,
+        )
+        print(f"[Chatwoot] contact_convs status={r.status_code} body={r.text[:400]}")
+        if r.status_code == 200:
+            payload = r.json().get("payload", [])
+            inbox_id_int = int(cw_inbox)
+            # Pick the most recent conversation on this inbox
+            inbox_convs = [
+                c for c in payload
+                if c.get("inbox_id") == inbox_id_int
+            ]
+            if inbox_convs:
+                inbox_convs.sort(key=lambda c: c.get("id", 0), reverse=True)
+                existing = inbox_convs[0]
+                conv_id = existing["id"]
+                print(f"[Chatwoot] reusing conversation id={conv_id} status={existing.get('status')}")
+                # Reopen if resolved/pending so the message surfaces to agents
+                if existing.get("status") in ("resolved", "pending"):
+                    r2 = http_requests.patch(
+                        f"{base}/conversations/{conv_id}/toggle_status",
+                        json={"status": "open"},
+                        headers=headers, timeout=8,
+                    )
+                    print(f"[Chatwoot] reopen_conv status={r2.status_code} body={r2.text[:200]}")
     except Exception as e:
-        return False, f"create_conv exception: {e}"
+        print(f"[Chatwoot] contact_convs exception: {e}")
+
+    # Create new conversation only if none exists
+    if not conv_id:
+        try:
+            conv_url = f"{base}/conversations"
+            conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
+            print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
+            r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
+            print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
+            if r.status_code in (200, 201):
+                conv_id = r.json().get("id")
+            else:
+                return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            return False, f"create_conv exception: {e}"
 
     if not conv_id:
         return False, "Αδυναμία δημιουργίας conversation"
@@ -343,9 +394,6 @@ def save_actual_results(id: int, data: ActualResultsUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     case.actual_results = data.actual_results
     case.updated_at = _now()
-    if case.status not in ("completed", "cancelled"):
-        case.status = "completed"
-        case.completed_at = _now()
     db.commit()
     db.refresh(case)
     return case
