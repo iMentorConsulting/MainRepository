@@ -290,6 +290,30 @@ def _acquire_sync_lock(timeout: int = 60):
         raise RuntimeError(f"Failed to acquire sync lock: {e}")
 
 
+_DELETED_ROWS_KEY = "deleted_lead_rows"
+
+
+def _get_deleted_rows(db) -> set:
+    from models import AppConfig
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == _DELETED_ROWS_KEY).first()
+        return set(json.loads(row.value)) if row and row.value else set()
+    except Exception:
+        return set()
+
+
+def mark_sheet_row_deleted(db, row_num: int) -> None:
+    """Remember a sheet row the user deleted in the app so syncs never re-import it."""
+    from models import AppConfig
+    rows = _get_deleted_rows(db)
+    rows.add(int(row_num))
+    row = db.query(AppConfig).filter(AppConfig.key == _DELETED_ROWS_KEY).first()
+    if row:
+        row.value = json.dumps(sorted(rows))
+    else:
+        db.add(AppConfig(key=_DELETED_ROWS_KEY, value=json.dumps(sorted(rows))))
+
+
 def sync_leads(db, full: bool = False) -> dict:
     """
     full=False → incremental: only new rows beyond max sheet_row_num in DB.
@@ -325,7 +349,12 @@ def sync_leads(db, full: bool = False) -> dict:
                 r[0] for r in db.query(Lead.sheet_row_num).filter(Lead.sheet_row_num != None).all()
             )
 
+        deleted_rows = _get_deleted_rows(db)
+
         for row in rows:
+            if row["_row_num"] in deleted_rows:
+                skipped += 1
+                continue
             fields = _build_sheet_fields(row)
             phone = fields["phone"]
             name = fields["name"]

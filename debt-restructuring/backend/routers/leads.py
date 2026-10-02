@@ -934,6 +934,28 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
     return _lead_to_dict(lead)
 
 
+@router.delete("/{lead_id}")
+def delete_lead(lead_id: int, db: Session = Depends(get_db), user: str = Depends(get_current_user)):
+    """Permanently delete a lead (admin only). Remembers its sheet row so syncs don't re-import it."""
+    if (user or "").upper() != "HARIS":
+        raise HTTPException(status_code=403, detail="Μόνο ο διαχειριστής μπορεί να διαγράψει εγγραφές")
+    lead = db.query(Lead).filter(Lead.id == lead_id).first()
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if lead.sheet_row_num:
+        from sheets_sync import mark_sheet_row_deleted
+        mark_sheet_row_deleted(db, lead.sheet_row_num)
+
+    from models import ThemisSession
+    db.query(CallAttempt).filter(CallAttempt.lead_id == lead_id).delete(synchronize_session=False)
+    db.query(ViberMessage).filter(ViberMessage.lead_id == lead_id).delete(synchronize_session=False)
+    db.query(ThemisSession).filter(ThemisSession.lead_id == lead_id).delete(synchronize_session=False)
+    db.delete(lead)
+    db.commit()
+    return {"ok": True, "id": lead_id}
+
+
 @router.post("/{lead_id}/comment")
 def add_comment(lead_id: int, data: CommentAdd, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()

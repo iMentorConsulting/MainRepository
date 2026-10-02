@@ -773,7 +773,7 @@ function EmailPanel({ lead, onUpdate, templates }) {
 }
 
 // ── Edit panel (inline edit name/phone/email with confirmation) ─────────────
-function EditPanel({ lead, onUpdate }) {
+function EditPanel({ lead, onUpdate, currentEmployee, onDelete }) {
   const [name, setName] = useState(lead.name || '')
   const [phone, setPhone] = useState(lead.phone || '')
   const [phone2, setPhone2] = useState(lead.phone2 || '')
@@ -849,6 +849,16 @@ function EditPanel({ lead, onUpdate }) {
         </div>
       )}
       {!hasChanges && <p className="text-xs text-gray-400">Τροποποιήστε τα στοιχεία και πατήστε αποθήκευση.</p>}
+      {currentEmployee === 'HARIS' && onDelete && (
+        <div className="pt-3 mt-3 border-t border-gray-100">
+          <button onClick={() => {
+              if (window.confirm(`Οριστική διαγραφή της εγγραφής "${lead.name || lead.phone || lead.id}";\nΘα διαγραφούν και τα σχόλια, οι κλήσεις και τα Viber της. Η ενέργεια δεν αναιρείται.`)) onDelete(lead)
+            }}
+            className="text-xs px-3 py-1.5 rounded border border-red-200 text-red-600 hover:bg-red-50 font-semibold">
+            🗑 Διαγραφή εγγραφής
+          </button>
+        </div>
+      )}
     </div>
   )
 }
@@ -1073,7 +1083,7 @@ export function ThemisTranscriptModal({ lead, onClose }) {
 }
 
 // ── Expanded inline row ─────────────────────────────────────────────────────
-function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, taxisnetLinks, allLeads }) {
+function ExpandedRow({ lead, currentEmployee, onUpdate, onDelete, colCount, templates, taxisnetLinks, allLeads }) {
   const [tab, setTab] = useState('comments')
   const [creatingCase, setCreatingCase] = useState(false)
   const [showThemisTranscript, setShowThemisTranscript] = useState(false)
@@ -1227,7 +1237,7 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
             {tab === 'viber' && <ViberPanel lead={lead} onUpdate={onUpdate} templates={templates} />}
             {tab === 'email' && <EmailPanel lead={lead} onUpdate={onUpdate} templates={templates} />}
             {tab === 'taxisnet' && <TaxisNetPanel lead={lead} onUpdate={onUpdate} links={taxisnetLinks} />}
-            {tab === 'edit' && <EditPanel lead={lead} onUpdate={onUpdate} />}
+            {tab === 'edit' && <EditPanel lead={lead} onUpdate={onUpdate} currentEmployee={currentEmployee} onDelete={onDelete} />}
           </div>
         </div>
       </td>
@@ -1236,7 +1246,7 @@ function ExpandedRow({ lead, currentEmployee, onUpdate, colCount, templates, tax
 }
 
 // ── Single lead row ─────────────────────────────────────────────────────────
-function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, templates, taxisnetLinks, allLeads, selected, onSelect }) {
+function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, onLeadDelete, templates, taxisnetLinks, allLeads, selected, onSelect }) {
   const update = async (fields) => {
     try {
       const res = await api.patchLead(lead.id, fields)
@@ -1390,7 +1400,7 @@ function LeadRow({ lead, currentEmployee, expanded, onToggle, onLeadUpdate, temp
       </tr>
       {expanded && (
         <ExpandedRow
-          lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate}
+          lead={lead} currentEmployee={currentEmployee} onUpdate={onLeadUpdate} onDelete={onLeadDelete}
           colCount={11} templates={templates} taxisnetLinks={taxisnetLinks} allLeads={allLeads}
         />
       )}
@@ -1488,6 +1498,17 @@ export default function Leads({ currentEmployee }) {
 
   const updateLead = (updated) => {
     setLeads(prev => prev.map(l => l.id === updated.id ? updated : l))
+  }
+
+  const deleteLead = async (lead) => {
+    try {
+      await api.deleteLead(lead.id)
+      setLeads(prev => prev.filter(l => l.id !== lead.id))
+      setExpandedId(null)
+      toast.success('Η εγγραφή διαγράφηκε')
+    } catch (e) {
+      toast.error(e?.response?.data?.detail || 'Σφάλμα διαγραφής')
+    }
   }
 
   function parseMonth(s) {
@@ -1886,6 +1907,7 @@ export default function Leads({ currentEmployee }) {
                     expanded={expandedId === lead.id}
                     onToggle={() => setExpandedId(expandedId === lead.id ? null : lead.id)}
                     onLeadUpdate={updateLead}
+                    onLeadDelete={deleteLead}
                     templates={templates}
                     taxisnetLinks={taxisnetLinks}
                     allLeads={leads}
