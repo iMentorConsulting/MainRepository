@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
-import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics } from '../api'
+import { useEffect, useState, useMemo } from 'react'
+import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal, getOwners, getOwnerReport, sendOwnerReport, getUnits } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer,
+  LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine, LabelList,
 } from 'recharts'
 import { format, startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
+import toast from 'react-hot-toast'
 
 const CHANNEL_COLORS_PIE = {
   booking: '#003580', airbnb: '#FF5A5F', direct: '#10B981',
@@ -22,6 +23,9 @@ const DEF_TO = format(endOfYear(today), 'yyyy-MM-dd')
 function formatEur(v) {
   return `€${Number(v).toLocaleString('el-GR', { minimumFractionDigits: 0 })}`
 }
+function formatEurInt(v) {
+  return `€${Math.round(Number(v)).toLocaleString('el-GR')}`
+}
 
 export default function Reports() {
   const [tab, setTab] = useState('occupancy')
@@ -34,21 +38,94 @@ export default function Reports() {
   const [finGroup, setFinGroup] = useState('month')
   const [priceGroup, setPriceGroup] = useState('month')
   const [loading, setLoading] = useState(false)
+  const [units, setUnits] = useState([])
+  const [selectedUnitIds, setSelectedUnitIds] = useState([])
+  const [expenseList, setExpenseList] = useState([])
+  const [totalExpenses, setTotalExpenses] = useState(0)
+  const [totalLoans, setTotalLoans] = useState(0)
+  const [loanByMonth, setLoanByMonth] = useState({})
+
+  // Owner report state
+  const [owners, setOwners] = useState([])
+  const [ownerReport, setOwnerReport] = useState(null)
+  const [ownerLoading, setOwnerLoading] = useState(false)
+  const [ownerSending, setOwnerSending] = useState(false)
+  const [selectedOwner, setSelectedOwner] = useState('')
+  const nowDate = new Date()
+  const [ownerMonth, setOwnerMonth] = useState(nowDate.getMonth() + 1)
+  const [ownerYear, setOwnerYear] = useState(nowDate.getFullYear())
+
+  useEffect(() => {
+    if (tab === 'owners') getOwners().then(r => setOwners(r.data)).catch(() => {})
+  }, [tab])
+
+  const loadOwnerReport = async () => {
+    if (!selectedOwner) return
+    setOwnerLoading(true)
+    try {
+      const r = await getOwnerReport(selectedOwner, ownerYear, ownerMonth)
+      setOwnerReport(r.data)
+    } catch { setOwnerReport(null) } finally { setOwnerLoading(false) }
+  }
+
+  useEffect(() => { if (tab === 'owners' && selectedOwner) loadOwnerReport() }, [selectedOwner, ownerMonth, ownerYear])
+
+  const handleSendOwnerEmail = async () => {
+    setOwnerSending(true)
+    try {
+      await sendOwnerReport(selectedOwner, ownerYear, ownerMonth)
+      toast.success('Αναφορά στάλθηκε!')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής email', { duration: 6000 })
+    } finally { setOwnerSending(false) }
+  }
+
+  function fmtEurO(n) {
+    return `€${Math.round(Number(n || 0)).toLocaleString('el-GR')}`
+  }
+
+  const MONTH_NAMES_GR = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος',
+    'Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος']
+
+  useEffect(() => {
+    getUnits({ is_active: true }).then(r => setUnits(r.data || [])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
+    getExpenses({ from_date: from, to_date: to }).then(r => {
+      setExpenseList(r.data.expenses || [])
+      setTotalExpenses(r.data.total || 0)
+    }).catch(() => {})
+    getLoanTotal({ from_date: from, to_date: to }).then(r => {
+      setTotalLoans(r.data.total || 0)
+      setLoanByMonth(r.data.by_month || {})
+    }).catch(() => {})
+  }, [from, to])
+
+  const expByMonth = useMemo(() => {
+    const map = {}
+    expenseList.forEach(e => {
+      const key = e.date.slice(0, 7)
+      map[key] = (map[key] || 0) + e.amount
+    })
+    return map
+  }, [expenseList])
 
   const load = async () => {
     setLoading(true)
+    const unitIdsParam = selectedUnitIds.length > 0 ? selectedUnitIds.join(',') : undefined
     try {
       if (tab === 'occupancy') {
-        const r = await getOccupancy({ from_date: from, to_date: to })
+        const r = await getOccupancy({ from_date: from, to_date: to, unit_ids: unitIdsParam })
         setOccData(r.data)
       } else if (tab === 'channel') {
-        const r = await getByChannel({ from_date: from, to_date: to })
+        const r = await getByChannel({ from_date: from, to_date: to, unit_ids: unitIdsParam })
         setChData(r.data)
       } else if (tab === 'financial') {
-        const r = await getFinancial({ from_date: from, to_date: to, group_by: finGroup })
+        const r = await getFinancial({ from_date: from, to_date: to, group_by: finGroup, unit_ids: unitIdsParam })
         setFinData(r.data)
       } else if (tab === 'price') {
-        const r = await getPriceAnalytics({ from_date: from, to_date: to, group_by: priceGroup })
+        const r = await getPriceAnalytics({ from_date: from, to_date: to, group_by: priceGroup, unit_ids: unitIdsParam })
         setPriceData(r.data)
       }
     } finally {
@@ -56,28 +133,29 @@ export default function Reports() {
     }
   }
 
-  useEffect(() => { load() }, [tab, from, to, finGroup, priceGroup])
+  useEffect(() => { load() }, [tab, from, to, finGroup, priceGroup, selectedUnitIds])
 
   const tabs = [
     { id: 'occupancy', label: 'Πληρότητα' },
     { id: 'channel', label: 'Ανά Κανάλι' },
     { id: 'financial', label: 'Οικονομικά' },
     { id: 'price', label: 'Τιμή/Νύχτα' },
+    { id: 'owners', label: 'Ιδιοκτήτες' },
   ]
 
   return (
     <div className="p-4 md:p-6 space-y-4">
       <h2 className="text-xl font-bold text-gray-800">Αναφορές & Στατιστικά</h2>
 
-      {/* Date range */}
-      <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
+      {/* Date range — hidden on owner tab which has its own controls */}
+      {tab !== 'owners' && <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="label">Από</label>
-          <input className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+          <label htmlFor="rep-from" className="label">Από</label>
+          <input id="rep-from" className="input" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
         </div>
         <div>
-          <label className="label">Έως</label>
-          <input className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+          <label htmlFor="rep-to" className="label">Έως</label>
+          <input id="rep-to" className="input" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
         </div>
         <div className="flex gap-2">
           {[
@@ -87,7 +165,34 @@ export default function Reports() {
             <button key={q.label} onClick={() => { setFrom(q.f); setTo(q.t) }} className="btn-secondary text-xs">{q.label}</button>
           ))}
         </div>
-      </div>
+      </div>}
+
+      {/* Unit filter — hidden on owners tab */}
+      {tab !== 'owners' && units.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-medium text-gray-500 mr-1">Μονάδες:</span>
+          <button
+            onClick={() => setSelectedUnitIds([])}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${selectedUnitIds.length === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+          >
+            Όλες
+          </button>
+          {units.map((u) => {
+            const sel = selectedUnitIds.includes(u.id)
+            return (
+              <button
+                key={u.id}
+                onClick={() => setSelectedUnitIds(prev =>
+                  prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                )}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${sel ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+              >
+                {u.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
@@ -95,7 +200,7 @@ export default function Reports() {
           <button
             key={t.id}
             onClick={() => setTab(t.id)}
-            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${tab === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-colors whitespace-nowrap ${tab === t.id ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-700 hover:text-gray-900'}`}
           >
             {t.label}
           </button>
@@ -105,49 +210,105 @@ export default function Reports() {
       {loading && <div className="text-center py-8 text-gray-400">Φόρτωση...</div>}
 
       {/* OCCUPANCY */}
-      {!loading && tab === 'occupancy' && occData && (
+      {!loading && tab === 'occupancy' && occData && occData.summary && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μ.Ο. Πληρότητας</p><p className="text-2xl font-bold text-blue-700">{occData.summary.avg_occupancy_rate}%</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μονάδες</p><p className="text-2xl font-bold text-gray-700">{occData.summary.total_units}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(occData.summary.total_revenue)}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(occData.summary.total_net_revenue)}</p></div>
+          {/* occupancy quick stats */}
+          <div className="flex gap-3 flex-wrap">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-xs text-blue-600 font-medium">Μ.Ο. Πληρότητας</span>
+              <span className="text-lg font-bold text-blue-700">{occData.summary.avg_occupancy_rate}%</span>
+            </div>
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-xs text-gray-600 font-medium">Μονάδες</span>
+              <span className="text-lg font-bold text-gray-700">{occData.summary.total_units}</span>
+            </div>
+            {(() => {
+              const totalNights = occData.units.reduce((s,u) => s + u.occupied_days, 0)
+              const adr = totalNights > 0 ? occData.summary.total_revenue / totalNights : 0
+              return (<>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600 font-medium">Νύχτες</span>
+                  <span className="text-lg font-bold text-gray-700">{totalNights}</span>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-blue-600 font-medium">ADR</span>
+                  <span className="text-lg font-bold text-blue-700">{formatEur(Math.round(adr))}</span>
+                </div>
+              </>)
+            })()}
           </div>
+          {(() => {
+            const gross = occData.summary.total_revenue
+            const netExVat = gross * 0.87
+            const platformFee = gross * 0.15
+            const ebitda = netExVat - platformFee - totalExpenses
+            const cashflow = ebitda - totalLoans
+            return (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEurInt(gross)}</p></div>
+              <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEurInt(netExVat)}</p></div>
+              <div className="bg-white rounded-xl border border-amber-100 p-4"><p className="text-xs text-gray-500 mb-1">Προμήθ. Πλατφόρμες</p><p className="text-2xl font-bold text-amber-600">{formatEurInt(platformFee)}</p></div>
+              <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-500 mb-1">Λειτουργικά Έξοδα</p><p className="text-2xl font-bold text-red-600">{formatEurInt(totalExpenses)}</p></div>
+              <div className="bg-white rounded-xl border border-violet-200 p-4" title="Έσοδα χωρίς ΦΠΑ − Λειτουργικά Έξοδα"><p className="text-xs text-gray-500 mb-1">EBITDA</p><p className={`text-2xl font-bold ${ebitda >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEurInt(ebitda)}</p></div>
+              <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEurInt(totalLoans)}</p></div>
+              <div className={`rounded-xl border p-4 ${cashflow >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><p className="text-xs text-gray-500 mb-1">Cash Flow</p><p className={`text-2xl font-bold ${cashflow >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEurInt(cashflow)}</p></div>
+            </div>
+            )
+          })()}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Πληρότητα ανά Μονάδα (%)</h3>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={occData.units} margin={{ top: 0, right: 0, left: -10, bottom: 40 }}>
+              <BarChart data={occData.units} margin={{ top: 22, right: 0, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="unit_name" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} />
                 <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v) => `${v}%`} />
-                <Bar dataKey="occupancy_rate" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Πληρότητα" />
+                <Bar dataKey="occupancy_rate" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Πληρότητα">
+                  <LabelList dataKey="occupancy_rate" position="top" formatter={(v) => `${v}%`} style={{ fontSize: 11, fill: '#3B82F6', fontWeight: 600 }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Μονάδα</th>
                   <th className="text-right px-4 py-3">Πληρ. Μέρες</th>
                   <th className="text-right px-4 py-3">Ελεύθ. Μέρες</th>
                   <th className="text-right px-4 py-3">Πληρότητα</th>
                   <th className="text-right px-4 py-3">Έσοδα</th>
+                  <th className="text-right px-4 py-3">Προμήθειες</th>
                   <th className="text-right px-4 py-3">Καθαρά</th>
+                  <th className="text-right px-4 py-3 text-red-500">Έξοδα</th>
+                  <th className="text-right px-4 py-3 text-orange-500">Δάνεια</th>
+                  <th className="text-right px-4 py-3 text-emerald-600">Cash Flow</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-50">
-                  {occData.units.map((u) => (
+                  {occData.units.map((u) => {
+                    const unitExp = u.unit_expenses ?? 0
+                    const unitLoans = u.unit_loan_payments ?? 0
+                    const cashflow = u.unit_profit ?? (u.net_revenue - unitExp - unitLoans)
+                    return (
                     <tr key={u.unit_id} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{u.unit_name}</td>
                       <td className="px-4 py-3 text-right">{u.occupied_days}</td>
                       <td className="px-4 py-3 text-right text-gray-400">{u.free_days}</td>
                       <td className="px-4 py-3 text-right"><span className={`font-semibold ${u.occupancy_rate >= 70 ? 'text-green-600' : u.occupancy_rate >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{u.occupancy_rate}%</span></td>
                       <td className="px-4 py-3 text-right">{formatEur(u.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(u.total_revenue - u.net_revenue)}</td>
                       <td className="px-4 py-3 text-right text-emerald-600">{formatEur(u.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{unitExp > 0 ? formatEur(unitExp) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{unitLoans > 0 ? formatEur(unitLoans) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t-2 border-gray-300 text-xs text-gray-500">
+                    <td colSpan={10} className="px-4 py-2 italic">Έξοδα/Δάνεια: αναλογούν στη μονάδα — άμεσα + ισόμερη κατανομή κοινόχρηστων τύπου μονάδας.</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -157,11 +318,44 @@ export default function Reports() {
       {/* BY CHANNEL */}
       {!loading && tab === 'channel' && chData && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Σύνολο Κρατήσεων</p><p className="text-2xl font-bold text-gray-700">{chData.total_bookings}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(chData.total_revenue)}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(chData.total_net_revenue)}</p></div>
+          <div className="flex gap-3 flex-wrap">
+            <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+              <span className="text-xs text-gray-600 font-medium">Κρατήσεις</span>
+              <span className="text-lg font-bold text-gray-700">{chData.total_bookings}</span>
+            </div>
+            {(() => {
+              const totalNights = chData.channels.reduce((s,c) => s + (c.total_nights || 0), 0)
+              const adr = totalNights > 0 ? chData.total_revenue / totalNights : 0
+              return (<>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600 font-medium">Νύχτες</span>
+                  <span className="text-lg font-bold text-gray-700">{totalNights}</span>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-blue-600 font-medium">ADR</span>
+                  <span className="text-lg font-bold text-blue-700">{formatEur(Math.round(adr))}</span>
+                </div>
+              </>)
+            })()}
           </div>
+          {(() => {
+            const gross = chData.total_revenue
+            const netExVat = gross * 0.87
+            const platformFee = gross * 0.15
+            const ebitda = netExVat - platformFee - totalExpenses
+            const cashflow = ebitda - totalLoans
+            return (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEurInt(gross)}</p></div>
+              <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEurInt(netExVat)}</p></div>
+              <div className="bg-white rounded-xl border border-amber-100 p-4"><p className="text-xs text-gray-500 mb-1">Προμήθ. Πλατφόρμες</p><p className="text-2xl font-bold text-amber-600">{formatEurInt(platformFee)}</p></div>
+              <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-500 mb-1">Λειτουργικά Έξοδα</p><p className="text-2xl font-bold text-red-600">{formatEurInt(totalExpenses)}</p></div>
+              <div className="bg-white rounded-xl border border-violet-200 p-4" title="Έσοδα χωρίς ΦΠΑ − Λειτουργικά Έξοδα"><p className="text-xs text-gray-500 mb-1">EBITDA</p><p className={`text-2xl font-bold ${ebitda >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEurInt(ebitda)}</p></div>
+              <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEurInt(totalLoans)}</p></div>
+              <div className={`rounded-xl border p-4 ${cashflow >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><p className="text-xs text-gray-500 mb-1">Cash Flow</p><p className={`text-2xl font-bold ${cashflow >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEurInt(cashflow)}</p></div>
+            </div>
+            )
+          })()}
           <div className="grid md:grid-cols-2 gap-4">
             <div className="bg-white rounded-xl border border-gray-200 p-4">
               <h3 className="text-sm font-semibold text-gray-700 mb-4">Κρατήσεις ανά Κανάλι</h3>
@@ -179,7 +373,7 @@ export default function Reports() {
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chData.channels} layout="vertical" margin={{ left: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
                   <YAxis type="category" dataKey="channel" tick={{ fontSize: 11 }} tickFormatter={(v) => CH_LABELS[v] || v} width={70} />
                   <Tooltip formatter={(v) => formatEur(v)} />
                   <Bar dataKey="net_revenue" fill="#10B981" radius={[0, 4, 4, 0]} name="Καθαρά" />
@@ -191,7 +385,7 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Κανάλι</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>
@@ -220,48 +414,136 @@ export default function Reports() {
       {/* FINANCIAL */}
       {!loading && tab === 'financial' && finData && (
         <div className="space-y-4">
+          {(() => {
+            const grossRev = finData.data.reduce((s,d)=>s+d.total_revenue,0)
+            const totalNights = finData.data.reduce((s,d)=>s+d.nights,0)
+            const adr = totalNights > 0 ? grossRev / totalNights : 0
+            const netExVat = grossRev * 0.87
+            const platformFee = grossRev * 0.15
+            const ebitda = netExVat - platformFee - totalExpenses
+            const cashflow = ebitda - totalLoans
+            return (<>
+            <div className="flex gap-3 flex-wrap">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-xs text-gray-600 font-medium">Νύχτες</span>
+                <span className="text-lg font-bold text-gray-700">{totalNights}</span>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-xs text-blue-600 font-medium">ADR</span>
+                <span className="text-lg font-bold text-blue-700">{formatEur(Math.round(adr))}</span>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEurInt(grossRev)}</p></div>
+              <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEurInt(netExVat)}</p></div>
+              <div className="bg-white rounded-xl border border-amber-100 p-4"><p className="text-xs text-gray-500 mb-1">Προμήθ. Πλατφόρμες</p><p className="text-2xl font-bold text-amber-600">{formatEurInt(platformFee)}</p></div>
+              <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-500 mb-1">Λειτουργικά Έξοδα</p><p className="text-2xl font-bold text-red-600">{formatEurInt(totalExpenses)}</p></div>
+              <div className="bg-white rounded-xl border border-violet-200 p-4" title="Έσοδα χωρίς ΦΠΑ − Λειτουργικά Έξοδα"><p className="text-xs text-gray-500 mb-1">EBITDA</p><p className={`text-2xl font-bold ${ebitda >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEurInt(ebitda)}</p></div>
+              <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEurInt(totalLoans)}</p></div>
+              <div className={`rounded-xl border p-4 ${cashflow >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><p className="text-xs text-gray-500 mb-1">Cash Flow</p><p className={`text-2xl font-bold ${cashflow >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEurInt(cashflow)}</p></div>
+            </div>
+            </>)
+          })()}
+
           <div className="flex gap-2">
             {[{ v: 'month', l: 'Ανά Μήνα' }, { v: 'week', l: 'Ανά Εβδομάδα' }, { v: 'channel', l: 'Ανά Κανάλι' }].map((g) => (
               <button key={g.v} onClick={() => setFinGroup(g.v)} className={`btn-secondary text-xs ${finGroup === g.v ? 'bg-blue-600 text-white border-blue-600' : ''}`}>{g.l}</button>
             ))}
           </div>
+
+          {/* Chart: revenue + commissions + expenses + profit */}
           <div className="bg-white rounded-xl border border-gray-200 p-4">
-            <h3 className="text-sm font-semibold text-gray-700 mb-4">Έσοδα (€)</h3>
-            <ResponsiveContainer width="100%" height={250}>
-              <BarChart data={finData.data} margin={{ top: 0, right: 0, left: -10, bottom: 40 }}>
+            <h3 className="text-sm font-semibold text-gray-700 mb-4">Έσοδα, Έξοδα & Κέρδος (€)</h3>
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart
+                data={finData.data.map(d => ({
+                  ...d,
+                  expenses: expByMonth[d.key] || 0,
+                  loans: loanByMonth[d.key] || 0,
+                  cashflow: d.net_revenue - (expByMonth[d.key] || 0) - (loanByMonth[d.key] || 0),
+                }))}
+                margin={{ top: 10, right: 10, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="label" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} />
-                <Tooltip formatter={(v) => formatEur(v)} />
+                <ReferenceLine y={0} stroke="#666" strokeWidth={1} />
+                <Tooltip formatter={(v, name) => [formatEur(Math.abs(v)), name]} />
                 <Legend />
-                <Bar dataKey="net_revenue" fill="#10B981" radius={[4, 4, 0, 0]} name="Καθαρά Έσοδα" />
-                <Bar dataKey="total_commission" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Προμήθειες" />
+                <Bar dataKey="net_revenue" fill="#10B981" radius={[4,4,0,0]} name="Καθαρά Έσοδα" stackId="a" />
+                <Bar dataKey="total_commission" fill="#F59E0B" radius={[0,0,0,0]} name="Προμήθειες" stackId="a" />
+                <Bar dataKey="expenses" fill="#EF4444" radius={[4,4,0,0]} name="Έξοδα" />
+                <Bar dataKey="loans" fill="#F97316" radius={[4,4,0,0]} name="Δάνεια" />
+                <Bar dataKey="cashflow" fill="#059669" radius={[4,4,0,0]} name="Cash Flow" />
               </BarChart>
             </ResponsiveContainer>
           </div>
+
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Περίοδος</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>
-                  <th className="text-right px-4 py-3">Μ.Ο. Διαμονής</th>
+                  <th className="text-right px-4 py-3">Πληρότητα</th>
                   <th className="text-right px-4 py-3">Έσοδα</th>
+                  <th className="text-right px-4 py-3">Προμήθειες</th>
                   <th className="text-right px-4 py-3">Καθαρά</th>
+                  <th className="text-right px-4 py-3 text-red-500">Έξοδα</th>
+                  <th className="text-right px-4 py-3 text-orange-500">Δάνεια</th>
+                  <th className="text-right px-4 py-3 text-emerald-600">Cash Flow</th>
                 </tr></thead>
                 <tbody className="divide-y divide-gray-50">
-                  {finData.data.map((d) => (
+                  {finData.data.map((d) => {
+                    const exp = expByMonth[d.key] || 0
+                    const loan = loanByMonth[d.key] || 0
+                    const cashflow = d.net_revenue - exp - loan
+                    return (
                     <tr key={d.key} className="hover:bg-gray-50">
                       <td className="px-4 py-3 font-medium">{d.label}</td>
                       <td className="px-4 py-3 text-right">{d.bookings_count}</td>
                       <td className="px-4 py-3 text-right">{d.nights}</td>
-                      <td className="px-4 py-3 text-right">{d.avg_stay} νύχτες</td>
+                      <td className="px-4 py-3 text-right">{(() => {
+                        const units = finData.total_units || 1
+                        let avail = 0
+                        if (finGroup === 'month') {
+                          const [y, m] = d.key.split('-').map(Number)
+                          avail = units * new Date(y, m, 0).getDate()
+                        } else if (finGroup === 'week') {
+                          avail = units * 7
+                        } else {
+                          return <span className="text-gray-400">—</span>
+                        }
+                        const pct = Math.round(d.nights / avail * 100)
+                        return <span className={`font-semibold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</span>
+                      })()}</td>
                       <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600 font-semibold">{formatEur(d.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(d.total_commission)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{formatEur(d.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{exp > 0 ? formatEur(exp) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{loan > 0 ? formatEur(loan) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
                     </tr>
-                  ))}
+                  )})}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t-2 border-gray-300 font-semibold text-sm">
+                    <td className="px-4 py-3">ΣΥΝΟΛΟ</td>
+                    <td className="px-4 py-3 text-right">{finData.data.reduce((s,d)=>s+d.bookings_count,0)}</td>
+                    <td className="px-4 py-3 text-right">{finData.data.reduce((s,d)=>s+d.nights,0)}</td>
+                    <td className="px-4 py-3 text-right text-gray-400">—</td>
+                    <td className="px-4 py-3 text-right">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-amber-600">{formatEur(finData.data.reduce((s,d)=>s+d.total_commission,0))}</td>
+                    <td className="px-4 py-3 text-right text-emerald-600">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-red-500">{formatEur(totalExpenses)}</td>
+                    <td className="px-4 py-3 text-right text-orange-500">{totalLoans > 0 ? formatEur(totalLoans) : '—'}</td>
+                    <td className="px-4 py-3 text-right font-bold">
+                      <span className={finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans>=0?'text-emerald-700':'text-red-600'}>
+                        {formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans)}
+                      </span>
+                    </td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
@@ -287,12 +569,14 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Μέση Τιμή ανά Νύχτα (€)</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={priceData.data} margin={{ top: 5, right: 10, left: -10, bottom: 40 }}>
+              <LineChart data={priceData.data} margin={{ top: 28, right: 20, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="label" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} unit="€" />
                 <Tooltip formatter={(v) => [`€${v}`, 'Τιμή/νύχτα']} />
-                <Line type="monotone" dataKey="avg_price_per_night" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Τιμή/νύχτα" />
+                <Line type="monotone" dataKey="avg_price_per_night" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Τιμή/νύχτα">
+                  <LabelList dataKey="avg_price_per_night" position="top" formatter={(v) => `€${Math.round(v)}`} style={{ fontSize: 10, fill: '#3B82F6', fontWeight: 600 }} />
+                </Line>
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -317,7 +601,7 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="border-b bg-gray-50 text-xs text-gray-500 uppercase">
+                <thead><tr className="border-b bg-gray-50 text-xs text-gray-700 uppercase">
                   <th className="text-left px-4 py-3">Περίοδος</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>
@@ -338,6 +622,177 @@ export default function Reports() {
               </table>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* ── Owner Report Tab ─────────────────────────────── */}
+      {tab === 'owners' && (
+        <div className="space-y-4">
+          {/* Controls */}
+          <div className="bg-white rounded-xl border border-gray-200 p-4 flex flex-wrap gap-3 items-end">
+            <div className="flex-1 min-w-[180px]">
+              <label className="label">Ιδιοκτήτης</label>
+              <select className="input" value={selectedOwner} onChange={e => { setSelectedOwner(e.target.value); setOwnerReport(null) }}>
+                <option value="">-- Επιλέξτε --</option>
+                {owners.map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Μήνας</label>
+              <select className="input" value={ownerMonth} onChange={e => setOwnerMonth(+e.target.value)}>
+                {MONTH_NAMES_GR.slice(1).map((m, i) => <option key={i+1} value={i+1}>{m}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Έτος</label>
+              <input type="number" className="input w-24" value={ownerYear} onChange={e => setOwnerYear(+e.target.value)} />
+            </div>
+            <button onClick={loadOwnerReport} disabled={!selectedOwner || ownerLoading} className="btn-primary text-sm">
+              {ownerLoading ? 'Φόρτωση...' : 'Εμφάνιση'}
+            </button>
+          </div>
+
+          {ownerLoading && <div className="text-center py-10 text-gray-400">Φόρτωση αναφοράς...</div>}
+
+          {!ownerLoading && ownerReport && (() => {
+            const s = ownerReport.summary
+            const o = ownerReport.owner
+            return (
+              <div className="bg-white rounded-xl border border-gray-200 p-6 space-y-6">
+                {/* Header */}
+                <div className="flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <h3 className="font-bold text-gray-800 text-lg">Αναφορά: {o.name}</h3>
+                    <p className="text-sm text-gray-500">{ownerReport.period.label} · Μονάδες: {ownerReport.units.map(u => u.name).join(' · ') || '—'}</p>
+                    <p className="text-xs text-gray-400 mt-0.5">Αμοιβή Διαχειριστή: {o.management_fee_percent}% (χρεώνεται στον ιδιοκτήτη)</p>
+                  </div>
+                  {o.email && (
+                    <button onClick={handleSendOwnerEmail} disabled={ownerSending} className="btn-primary text-sm flex items-center gap-1">
+                      {ownerSending ? '...' : '✉ Email'}
+                    </button>
+                  )}
+                </div>
+
+                {/* Summary tiles */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+                  {[
+                    { label: 'Συνολικά Έσοδα', value: fmtEurO(s.total_revenue), color: 'text-gray-800' },
+                    { label: 'Καθαρά Έσοδα', value: fmtEurO(s.net_revenue), color: 'text-blue-700' },
+                    { label: 'Έξοδα Μονάδων', value: fmtEurO(s.total_expenses), color: 'text-red-600' },
+                    { label: 'Δανειακές Υποχρ.', value: fmtEurO(s.total_loan_payments ?? 0), color: 'text-orange-600' },
+                    { label: `Αμοιβή Διαχ. (${o.management_fee_percent}%)`, value: fmtEurO(s.management_fee), color: 'text-amber-600' },
+                  ].map(t => (
+                    <div key={t.label} className="bg-gray-50 border border-gray-200 rounded-xl p-3">
+                      <p className="text-xs text-gray-500 mb-1">{t.label}</p>
+                      <p className={`text-lg font-bold ${t.color}`}>{t.value}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Profit */}
+                <div className={`rounded-xl border-2 p-4 flex items-center justify-between ${s.owner_profit >= 0 ? 'bg-green-50 border-green-300' : 'bg-red-50 border-red-300'}`}>
+                  <p className="font-bold text-gray-700 text-lg">ΚΑΘΑΡΟ ΚΕΡΔΟΣ ΙΔΙΟΚΤΗΤΗ</p>
+                  <p className={`text-3xl font-bold ${s.owner_profit >= 0 ? 'text-green-700' : 'text-red-600'}`}>{fmtEurO(s.owner_profit)}</p>
+                </div>
+
+                {/* Bookings */}
+                <div>
+                  <h4 className="font-semibold text-gray-700 mb-2">📋 Κρατήσεις ({ownerReport.bookings.length})</h4>
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead><tr className="bg-[#1e3a5f] text-white text-xs">
+                        <th className="text-left px-3 py-2">Μονάδα</th>
+                        <th className="text-left px-3 py-2">Πελάτης</th>
+                        <th className="text-left px-3 py-2">Check-in</th>
+                        <th className="text-center px-3 py-2">Νύχτες</th>
+                        <th className="text-left px-3 py-2">Κανάλι</th>
+                        <th className="text-right px-3 py-2">Έσοδα</th>
+                        <th className="text-right px-3 py-2 text-red-300">Προμήθεια</th>
+                        <th className="text-right px-3 py-2 text-green-300">Καθαρά</th>
+                      </tr></thead>
+                      <tbody>
+                        {ownerReport.bookings.length === 0
+                          ? <tr><td colSpan={8} className="text-center py-6 text-gray-400">Δεν υπάρχουν κρατήσεις</td></tr>
+                          : ownerReport.bookings.map(b => (
+                            <tr key={b.id} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-3 py-2 font-medium text-gray-700">{b.unit_name}</td>
+                              <td className="px-3 py-2">{b.customer}</td>
+                              <td className="px-3 py-2 text-gray-500">{b.check_in}</td>
+                              <td className="px-3 py-2 text-center">{b.nights}</td>
+                              <td className="px-3 py-2 text-gray-500">{b.channel}</td>
+                              <td className="px-3 py-2 text-right">{fmtEurO(b.total_price)}</td>
+                              <td className="px-3 py-2 text-right text-red-600">-{fmtEurO(b.commission)}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-green-700">{fmtEurO(b.net)}</td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                      {ownerReport.bookings.length > 0 && (
+                        <tfoot><tr className="bg-gray-50 border-t-2 border-gray-300 font-bold text-sm">
+                          <td colSpan={5} className="px-3 py-2 text-right">Σύνολο</td>
+                          <td className="px-3 py-2 text-right">{fmtEurO(s.total_revenue)}</td>
+                          <td className="px-3 py-2 text-right text-red-600">-{fmtEurO(s.total_commission)}</td>
+                          <td className="px-3 py-2 text-right text-green-700">{fmtEurO(s.net_revenue)}</td>
+                        </tr></tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+
+                {/* Expenses */}
+                <div>
+                  <h4 className="font-semibold text-gray-700 mb-2">💶 Έξοδα Μονάδων ({ownerReport.expenses.length})</h4>
+                  <div className="overflow-x-auto rounded-xl border border-gray-200">
+                    <table className="w-full text-sm">
+                      <thead><tr className="bg-[#1e3a5f] text-white text-xs">
+                        <th className="text-left px-3 py-2">Ημ/νία</th>
+                        <th className="text-left px-3 py-2">Κατηγορία</th>
+                        <th className="text-left px-3 py-2">Περιγραφή</th>
+                        <th className="text-left px-3 py-2">Μονάδα/Τύπος</th>
+                        <th className="text-right px-3 py-2">Ποσό</th>
+                      </tr></thead>
+                      <tbody>
+                        {ownerReport.expenses.length === 0
+                          ? <tr><td colSpan={5} className="text-center py-6 text-gray-400">Δεν υπάρχουν έξοδα</td></tr>
+                          : ownerReport.expenses.map(e => (
+                            <tr key={e.id} className="border-t border-gray-100 hover:bg-gray-50">
+                              <td className="px-3 py-2 text-gray-500">{new Date(e.date+'T00:00:00').toLocaleDateString('el-GR')}</td>
+                              <td className="px-3 py-2"><span className="text-xs bg-gray-100 px-2 py-0.5 rounded-full">{e.category}</span></td>
+                              <td className="px-3 py-2">{e.item}</td>
+                              <td className="px-3 py-2 text-gray-400 text-xs">{e.unit_name}</td>
+                              <td className="px-3 py-2 text-right font-semibold text-red-600">{fmtEurO(e.amount)}</td>
+                            </tr>
+                          ))
+                        }
+                      </tbody>
+                      {ownerReport.expenses.length > 0 && (
+                        <tfoot><tr className="bg-gray-50 border-t-2 border-gray-300 font-bold">
+                          <td colSpan={4} className="px-3 py-2 text-right">Σύνολο Εξόδων</td>
+                          <td className="px-3 py-2 text-right text-red-700">{fmtEurO(s.total_expenses)}</td>
+                        </tr></tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+
+                {/* Expense by category */}
+                {ownerReport.expense_by_category && ownerReport.expense_by_category.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold text-gray-700 mb-3">📊 Έξοδα ανά Κατηγορία</h4>
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-2">
+                      {ownerReport.expense_by_category.map(cat => (
+                        <div key={cat.category} className="bg-red-50 border border-red-100 rounded-xl p-3">
+                          <p className="text-xs font-medium text-gray-600 mb-0.5">{cat.category}</p>
+                          <p className="text-sm font-bold text-red-700">{fmtEurO(cat.amount)}</p>
+                          <p className="text-xs text-gray-400">{cat.pct}%</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )
+          })()}
         </div>
       )}
     </div>
