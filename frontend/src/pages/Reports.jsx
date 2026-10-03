@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react'
 import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal, getOwners, getOwnerReport, sendOwnerReport, getUnits } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
-  LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine,
+  LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine, LabelList,
 } from 'recharts'
 import { format, startOfYear, endOfYear, startOfMonth, endOfMonth } from 'date-fns'
 import toast from 'react-hot-toast'
@@ -81,7 +81,7 @@ export default function Reports() {
   }
 
   function fmtEurO(n) {
-    return `€${Number(n || 0).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    return `€${Math.round(Number(n || 0)).toLocaleString('el-GR')}`
   }
 
   const MONTH_NAMES_GR = ['','Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος',
@@ -244,12 +244,14 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Πληρότητα ανά Μονάδα (%)</h3>
             <ResponsiveContainer width="100%" height={220}>
-              <BarChart data={occData.units} margin={{ top: 0, right: 0, left: -10, bottom: 40 }}>
+              <BarChart data={occData.units} margin={{ top: 22, right: 0, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="unit_name" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} />
                 <YAxis domain={[0, 100]} unit="%" tick={{ fontSize: 11 }} />
                 <Tooltip formatter={(v) => `${v}%`} />
-                <Bar dataKey="occupancy_rate" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Πληρότητα" />
+                <Bar dataKey="occupancy_rate" fill="#3B82F6" radius={[4, 4, 0, 0]} name="Πληρότητα">
+                  <LabelList dataKey="occupancy_rate" position="top" formatter={(v) => `${v}%`} style={{ fontSize: 11, fill: '#3B82F6', fontWeight: 600 }} />
+                </Bar>
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -343,7 +345,7 @@ export default function Reports() {
               <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={chData.channels} layout="vertical" margin={{ left: 60 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                  <XAxis type="number" tick={{ fontSize: 11 }} />
+                  <XAxis type="number" tick={{ fontSize: 11 }} tickFormatter={(v) => v >= 1000 ? `${(v/1000).toFixed(0)}k` : v} />
                   <YAxis type="category" dataKey="channel" tick={{ fontSize: 11 }} tickFormatter={(v) => CH_LABELS[v] || v} width={70} />
                   <Tooltip formatter={(v) => formatEur(v)} />
                   <Bar dataKey="net_revenue" fill="#10B981" radius={[0, 4, 4, 0]} name="Καθαρά" />
@@ -498,7 +500,10 @@ export default function Reports() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-300 font-semibold text-sm">
-                    <td className="px-4 py-3" colSpan={4}>ΣΥΝΟΛΟ</td>
+                    <td className="px-4 py-3">ΣΥΝΟΛΟ</td>
+                    <td className="px-4 py-3 text-right">{finData.data.reduce((s,d)=>s+d.bookings_count,0)}</td>
+                    <td className="px-4 py-3 text-right">{finData.data.reduce((s,d)=>s+d.nights,0)}</td>
+                    <td className="px-4 py-3 text-right text-gray-400">—</td>
                     <td className="px-4 py-3 text-right">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
                     <td className="px-4 py-3 text-right text-amber-600">{formatEur(finData.data.reduce((s,d)=>s+d.total_commission,0))}</td>
                     <td className="px-4 py-3 text-right text-emerald-600">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</td>
@@ -536,12 +541,14 @@ export default function Reports() {
           <div className="bg-white rounded-xl border border-gray-200 p-4">
             <h3 className="text-sm font-semibold text-gray-700 mb-4">Μέση Τιμή ανά Νύχτα (€)</h3>
             <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={priceData.data} margin={{ top: 5, right: 10, left: -10, bottom: 40 }}>
+              <LineChart data={priceData.data} margin={{ top: 28, right: 20, left: -10, bottom: 40 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
                 <XAxis dataKey="label" angle={-35} textAnchor="end" tick={{ fontSize: 11 }} />
                 <YAxis tick={{ fontSize: 11 }} unit="€" />
                 <Tooltip formatter={(v) => [`€${v}`, 'Τιμή/νύχτα']} />
-                <Line type="monotone" dataKey="avg_price_per_night" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Τιμή/νύχτα" />
+                <Line type="monotone" dataKey="avg_price_per_night" stroke="#3B82F6" strokeWidth={2.5} dot={{ r: 4 }} activeDot={{ r: 6 }} name="Τιμή/νύχτα">
+                  <LabelList dataKey="avg_price_per_night" position="top" formatter={(v) => `€${Math.round(v)}`} style={{ fontSize: 10, fill: '#3B82F6', fontWeight: 600 }} />
+                </Line>
               </LineChart>
             </ResponsiveContainer>
           </div>
