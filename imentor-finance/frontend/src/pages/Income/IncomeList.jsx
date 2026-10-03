@@ -195,9 +195,11 @@ export default function IncomeList() {
       const params = { ...buildParams(), limit: 5000, page: 1 };
       const r = await api.get('/income', { params });
       const rows = r.data.data.map(row => ({
+        'ID': row.id,
         'Ημερομηνία': row.sale_date || '',
         'Επωνυμία': row.customer_name || '',
         'ΑΦΜ': row.vat_number || '',
+        'Οργανισμός': row.organization || '',
         'Υπηρεσία': row.service_type || '',
         'Κατάσταση': row.work_status || '',
         'Σύμβουλος': row.sales_agent || '',
@@ -251,6 +253,29 @@ export default function IncomeList() {
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
             Excel
           </button>
+          <label className="btn-ghost btn-sm flex-1 sm:flex-initial justify-center cursor-pointer" title="Εισαγωγή οργανισμού από Excel (ID + Οργανισμός)">
+            📥 Import Org
+            <input type="file" accept=".xlsx,.xls" className="hidden" onChange={async e => {
+              const file = e.target.files?.[0];
+              if (!file) return;
+              e.target.value = '';
+              try {
+                const buf = await file.arrayBuffer();
+                const wb = XLSX.read(buf, { type: 'array' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(ws);
+                const rows = data
+                  .filter(r => r['ID'] && r['Οργανισμός'])
+                  .map(r => ({ id: Number(r['ID']), organization: String(r['Οργανισμός']).trim() }));
+                if (!rows.length) return toast.error('Δεν βρέθηκαν γραμμές με ID και Οργανισμό');
+                const res = await api.post('/income/import-org', { rows });
+                toast.success(`✅ Ενημερώθηκαν ${res.data.updated} εγγραφές`);
+                load();
+              } catch (err) {
+                toast.error(err.response?.data?.error || 'Σφάλμα εισαγωγής');
+              }
+            }} />
+          </label>
           <button className="btn-ghost btn-sm flex-1 sm:flex-initial justify-center" title="Συμπλήρωσε οργανισμό από Elorus για εγγραφές χωρίς οργανισμό" onClick={async () => {
             if (!window.confirm('Θα συμπληρωθεί αυτόματα ο οργανισμός (ΑΠΟΣΤΟΛΑΚΗΣ / I MENTOR) για όλες τις εγγραφές που τιμολογήθηκαν μέσω Elorus αλλά δεν έχουν οργανισμό. Συνέχεια;')) return;
             try {

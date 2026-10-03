@@ -232,6 +232,27 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.post('/import-org', async (req, res) => {
+  try {
+    // Expects: { rows: [{id, organization}] }
+    const { rows } = req.body;
+    if (!Array.isArray(rows) || !rows.length) return res.status(400).json({ error: 'Δεν βρέθηκαν γραμμές' });
+
+    const VALID = ['ΑΠΟΣΤΟΛΑΚΗΣ', 'I MENTOR'];
+    let updated = 0;
+    for (const { id, organization } of rows) {
+      if (!id || !organization) continue;
+      const org = String(organization).trim();
+      if (!VALID.includes(org)) continue;
+      const n = await Income.update({ organization: org }, { where: { id } });
+      updated += n[0];
+    }
+    res.json({ updated });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 router.post('/sync-org-from-elorus', async (req, res) => {
   try {
     const noOrg = { [Op.or]: [{ organization: null }, { organization: '' }] };
