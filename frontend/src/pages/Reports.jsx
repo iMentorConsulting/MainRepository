@@ -386,11 +386,23 @@ export default function Reports() {
         <div className="space-y-4">
           {(() => {
             const grossRev = finData.data.reduce((s,d)=>s+d.total_revenue,0)
+            const totalNights = finData.data.reduce((s,d)=>s+d.nights,0)
+            const adr = totalNights > 0 ? grossRev / totalNights : 0
             const netExVat = grossRev * 0.87
             const platformFee = grossRev * 0.15
             const ebitda = netExVat - platformFee - totalExpenses
             const cashflow = ebitda - totalLoans
-            return (
+            return (<>
+            <div className="flex gap-3 flex-wrap">
+              <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-xs text-gray-600 font-medium">Νύχτες</span>
+                <span className="text-lg font-bold text-gray-700">{totalNights}</span>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                <span className="text-xs text-blue-600 font-medium">ADR</span>
+                <span className="text-lg font-bold text-blue-700">{formatEur(Math.round(adr))}</span>
+              </div>
+            </div>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
               <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEurInt(grossRev)}</p></div>
               <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEurInt(netExVat)}</p></div>
@@ -400,7 +412,7 @@ export default function Reports() {
               <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEurInt(totalLoans)}</p></div>
               <div className={`rounded-xl border p-4 ${cashflow >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}><p className="text-xs text-gray-500 mb-1">Cash Flow</p><p className={`text-2xl font-bold ${cashflow >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEurInt(cashflow)}</p></div>
             </div>
-            )
+            </>)
           })()}
 
           <div className="flex gap-2">
@@ -472,7 +484,7 @@ export default function Reports() {
                         } else {
                           return <span className="text-gray-400">—</span>
                         }
-                        const pct = Math.round(d.nights / avail * 100)
+                        const pct = Math.min(100, Math.round(d.nights / avail * 100))
                         return <span className={`font-semibold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</span>
                       })()}</td>
                       <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>
