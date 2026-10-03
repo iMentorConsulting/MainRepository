@@ -187,8 +187,7 @@ export default function Reports() {
             </div>
           </div>
           {(() => {
-            const net = occData.summary.total_net_revenue
-            const netExVat = net * 0.87
+            const netExVat = occData.summary.total_revenue * 0.87
             const ebitda = netExVat - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
@@ -270,8 +269,7 @@ export default function Reports() {
             </div>
           </div>
           {(() => {
-            const net = chData.total_net_revenue
-            const netExVat = net * 0.87
+            const netExVat = chData.total_revenue * 0.87
             const ebitda = netExVat - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
@@ -345,8 +343,7 @@ export default function Reports() {
         <div className="space-y-4">
           {(() => {
             const grossRev = finData.data.reduce((s,d)=>s+d.total_revenue,0)
-            const finNet = finData.data.reduce((s,d)=>s+d.net_revenue,0)
-            const netExVat = finNet * 0.87
+            const netExVat = grossRev * 0.87
             const ebitda = netExVat - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
