@@ -187,13 +187,16 @@ export default function Reports() {
             </div>
           </div>
           {(() => {
-            const netExVat = occData.summary.total_revenue * 0.87
+            const gross = occData.summary.total_revenue
+            const netExVat = gross * 0.87
+            const platformFee = gross * 0.15
             const ebitda = netExVat - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(occData.summary.total_revenue)}</p></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(gross)}</p></div>
               <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEur(netExVat)}</p></div>
+              <div className="bg-white rounded-xl border border-amber-100 p-4"><p className="text-xs text-gray-500 mb-1">Προμήθ. Πλατφόρμες</p><p className="text-2xl font-bold text-amber-600">{formatEur(platformFee)}</p></div>
               <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-500 mb-1">Λειτουργικά Έξοδα</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
               <div className="bg-white rounded-xl border border-violet-200 p-4" title="Έσοδα χωρίς ΦΠΑ − Λειτουργικά Έξοδα"><p className="text-xs text-gray-500 mb-1">EBITDA</p><p className={`text-2xl font-bold ${ebitda >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEur(ebitda)}</p></div>
               <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
@@ -269,13 +272,16 @@ export default function Reports() {
             </div>
           </div>
           {(() => {
-            const netExVat = chData.total_revenue * 0.87
+            const gross = chData.total_revenue
+            const netExVat = gross * 0.87
+            const platformFee = gross * 0.15
             const ebitda = netExVat - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(chData.total_revenue)}</p></div>
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
+              <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(gross)}</p></div>
               <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEur(netExVat)}</p></div>
+              <div className="bg-white rounded-xl border border-amber-100 p-4"><p className="text-xs text-gray-500 mb-1">Προμήθ. Πλατφόρμες</p><p className="text-2xl font-bold text-amber-600">{formatEur(platformFee)}</p></div>
               <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-500 mb-1">Λειτουργικά Έξοδα</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
               <div className="bg-white rounded-xl border border-violet-200 p-4" title="Έσοδα χωρίς ΦΠΑ − Λειτουργικά Έξοδα"><p className="text-xs text-gray-500 mb-1">EBITDA</p><p className={`text-2xl font-bold ${ebitda >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEur(ebitda)}</p></div>
               <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
@@ -344,12 +350,14 @@ export default function Reports() {
           {(() => {
             const grossRev = finData.data.reduce((s,d)=>s+d.total_revenue,0)
             const netExVat = grossRev * 0.87
+            const platformFee = grossRev * 0.15
             const ebitda = netExVat - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
               <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-500 mb-1">Μεικτά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(grossRev)}</p></div>
               <div className="bg-white rounded-xl border border-emerald-200 p-4"><p className="text-xs text-gray-500 mb-1">Έσοδα χωρίς ΦΠΑ 13%</p><p className="text-2xl font-bold text-emerald-700">{formatEur(netExVat)}</p></div>
+              <div className="bg-white rounded-xl border border-amber-100 p-4"><p className="text-xs text-gray-500 mb-1">Προμήθ. Πλατφόρμες</p><p className="text-2xl font-bold text-amber-600">{formatEur(platformFee)}</p></div>
               <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-500 mb-1">Λειτουργικά Έξοδα</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
               <div className="bg-white rounded-xl border border-violet-200 p-4" title="Έσοδα χωρίς ΦΠΑ − Λειτουργικά Έξοδα"><p className="text-xs text-gray-500 mb-1">EBITDA</p><p className={`text-2xl font-bold ${ebitda >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEur(ebitda)}</p></div>
               <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-500 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
