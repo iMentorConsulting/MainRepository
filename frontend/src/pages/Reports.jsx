@@ -222,6 +222,20 @@ export default function Reports() {
               <span className="text-xs text-gray-600 font-medium">Μονάδες</span>
               <span className="text-lg font-bold text-gray-700">{occData.summary.total_units}</span>
             </div>
+            {(() => {
+              const totalNights = occData.units.reduce((s,u) => s + u.occupied_days, 0)
+              const adr = totalNights > 0 ? occData.summary.total_revenue / totalNights : 0
+              return (<>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600 font-medium">Νύχτες</span>
+                  <span className="text-lg font-bold text-gray-700">{totalNights}</span>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-blue-600 font-medium">ADR</span>
+                  <span className="text-lg font-bold text-blue-700">{formatEur(Math.round(adr))}</span>
+                </div>
+              </>)
+            })()}
           </div>
           {(() => {
             const gross = occData.summary.total_revenue
@@ -309,6 +323,20 @@ export default function Reports() {
               <span className="text-xs text-gray-600 font-medium">Κρατήσεις</span>
               <span className="text-lg font-bold text-gray-700">{chData.total_bookings}</span>
             </div>
+            {(() => {
+              const totalNights = chData.channels.reduce((s,c) => s + (c.total_nights || 0), 0)
+              const adr = totalNights > 0 ? chData.total_revenue / totalNights : 0
+              return (<>
+                <div className="bg-gray-50 border border-gray-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-gray-600 font-medium">Νύχτες</span>
+                  <span className="text-lg font-bold text-gray-700">{totalNights}</span>
+                </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2 flex items-center gap-2">
+                  <span className="text-xs text-blue-600 font-medium">ADR</span>
+                  <span className="text-lg font-bold text-blue-700">{formatEur(Math.round(adr))}</span>
+                </div>
+              </>)
+            })()}
           </div>
           {(() => {
             const gross = chData.total_revenue
