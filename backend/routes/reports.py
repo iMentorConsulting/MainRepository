@@ -328,7 +328,12 @@ def financial_report(
 
     total_expenses = round(sum(e.amount for e in expenses), 2)
     total_net = round(sum(g["net_revenue"] for g in data), 2)
-    total_units = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True).count()
+    units_q = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True)
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            units_q = units_q.filter(Unit.id.in_(ids))
+    total_units = units_q.count()
 
     return {
         "from_date": from_date.isoformat(),
