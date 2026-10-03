@@ -190,7 +190,7 @@ export default function Reports() {
             const gross = occData.summary.total_revenue
             const netExVat = gross * 0.87
             const platformFee = gross * 0.15
-            const ebitda = netExVat - totalExpenses
+            const ebitda = netExVat - platformFee - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
@@ -275,7 +275,7 @@ export default function Reports() {
             const gross = chData.total_revenue
             const netExVat = gross * 0.87
             const platformFee = gross * 0.15
-            const ebitda = netExVat - totalExpenses
+            const ebitda = netExVat - platformFee - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
@@ -351,7 +351,7 @@ export default function Reports() {
             const grossRev = finData.data.reduce((s,d)=>s+d.total_revenue,0)
             const netExVat = grossRev * 0.87
             const platformFee = grossRev * 0.15
-            const ebitda = netExVat - totalExpenses
+            const ebitda = netExVat - platformFee - totalExpenses
             const cashflow = ebitda - totalLoans
             return (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-7 gap-3">
