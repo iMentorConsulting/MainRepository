@@ -86,6 +86,7 @@ def occupancy_report(
     from_date: date = Query(...),
     to_date: date = Query(...),
     unit_id: Optional[int] = None,
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
@@ -94,7 +95,11 @@ def occupancy_report(
         return {"error": "Μη έγκυρο εύρος ημερομηνιών"}
 
     units_q = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True)
-    if unit_id:
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            units_q = units_q.filter(Unit.id.in_(ids))
+    elif unit_id:
         units_q = units_q.filter(Unit.id == unit_id)
     units = units_q.order_by(Unit.name).all()
 
@@ -206,15 +211,21 @@ def occupancy_report(
 def by_channel(
     from_date: date = Query(...),
     to_date: date = Query(...),
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    bookings = db.query(Booking).filter(
+    bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
-    ).all()
+    )
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            bkgs_q = bkgs_q.filter(Booking.unit_id.in_(ids))
+    bookings = bkgs_q.all()
 
     channels: dict = {}
     for b in bookings:
@@ -250,15 +261,21 @@ def financial_report(
     from_date: date = Query(...),
     to_date: date = Query(...),
     group_by: str = Query("month"),
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    bookings = db.query(Booking).filter(
+    bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
-    ).all()
+    )
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            bkgs_q = bkgs_q.filter(Booking.unit_id.in_(ids))
+    bookings = bkgs_q.all()
 
     groups: dict = {}
     for b in bookings:
@@ -333,15 +350,21 @@ def price_analytics(
     from_date: date = Query(...),
     to_date: date = Query(...),
     group_by: str = Query("month"),
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    bookings = db.query(Booking).filter(
+    bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
-    ).all()
+    )
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            bkgs_q = bkgs_q.filter(Booking.unit_id.in_(ids))
+    bookings = bkgs_q.all()
 
     CHANNEL_LABELS = {
         'booking': 'Booking.com', 'airbnb': 'Airbnb', 'direct': 'Απευθείας',

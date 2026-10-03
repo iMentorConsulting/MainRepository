@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
-import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal, getOwners, getOwnerReport, sendOwnerReport } from '../api'
+import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal, getOwners, getOwnerReport, sendOwnerReport, getUnits } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
   LineChart, Line, PieChart, Pie, Cell, ResponsiveContainer, ReferenceLine,
@@ -38,6 +38,8 @@ export default function Reports() {
   const [finGroup, setFinGroup] = useState('month')
   const [priceGroup, setPriceGroup] = useState('month')
   const [loading, setLoading] = useState(false)
+  const [units, setUnits] = useState([])
+  const [selectedUnitIds, setSelectedUnitIds] = useState([])
   const [expenseList, setExpenseList] = useState([])
   const [totalExpenses, setTotalExpenses] = useState(0)
   const [totalLoans, setTotalLoans] = useState(0)
@@ -86,6 +88,10 @@ export default function Reports() {
     'Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος']
 
   useEffect(() => {
+    getUnits({ is_active: true }).then(r => setUnits(r.data || [])).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     getExpenses({ from_date: from, to_date: to }).then(r => {
       setExpenseList(r.data.expenses || [])
       setTotalExpenses(r.data.total || 0)
@@ -107,18 +113,19 @@ export default function Reports() {
 
   const load = async () => {
     setLoading(true)
+    const unitIdsParam = selectedUnitIds.length > 0 ? selectedUnitIds.join(',') : undefined
     try {
       if (tab === 'occupancy') {
-        const r = await getOccupancy({ from_date: from, to_date: to })
+        const r = await getOccupancy({ from_date: from, to_date: to, unit_ids: unitIdsParam })
         setOccData(r.data)
       } else if (tab === 'channel') {
-        const r = await getByChannel({ from_date: from, to_date: to })
+        const r = await getByChannel({ from_date: from, to_date: to, unit_ids: unitIdsParam })
         setChData(r.data)
       } else if (tab === 'financial') {
-        const r = await getFinancial({ from_date: from, to_date: to, group_by: finGroup })
+        const r = await getFinancial({ from_date: from, to_date: to, group_by: finGroup, unit_ids: unitIdsParam })
         setFinData(r.data)
       } else if (tab === 'price') {
-        const r = await getPriceAnalytics({ from_date: from, to_date: to, group_by: priceGroup })
+        const r = await getPriceAnalytics({ from_date: from, to_date: to, group_by: priceGroup, unit_ids: unitIdsParam })
         setPriceData(r.data)
       }
     } finally {
@@ -126,7 +133,7 @@ export default function Reports() {
     }
   }
 
-  useEffect(() => { load() }, [tab, from, to, finGroup, priceGroup])
+  useEffect(() => { load() }, [tab, from, to, finGroup, priceGroup, selectedUnitIds])
 
   const tabs = [
     { id: 'occupancy', label: 'Πληρότητα' },
@@ -159,6 +166,33 @@ export default function Reports() {
           ))}
         </div>
       </div>}
+
+      {/* Unit filter — hidden on owners tab */}
+      {tab !== 'owners' && units.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-medium text-gray-500 mr-1">Μονάδες:</span>
+          <button
+            onClick={() => setSelectedUnitIds([])}
+            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${selectedUnitIds.length === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+          >
+            Όλες
+          </button>
+          {units.map((u) => {
+            const sel = selectedUnitIds.includes(u.id)
+            return (
+              <button
+                key={u.id}
+                onClick={() => setSelectedUnitIds(prev =>
+                  prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
+                )}
+                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${sel ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
+              >
+                {u.name}
+              </button>
+            )
+          })}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-1 bg-gray-100 rounded-xl p-1 overflow-x-auto">
