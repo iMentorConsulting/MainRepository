@@ -484,7 +484,7 @@ export default function Reports() {
                         } else {
                           return <span className="text-gray-400">—</span>
                         }
-                        const pct = Math.min(100, Math.round(d.nights / avail * 100))
+                        const pct = Math.round(d.nights / avail * 100)
                         return <span className={`font-semibold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</span>
                       })()}</td>
                       <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>

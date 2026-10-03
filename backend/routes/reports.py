@@ -5,7 +5,7 @@ from database import get_db
 from models import Booking, Unit, Expense, Loan
 from auth_utils import get_tenant
 from typing import Optional
-from datetime import date
+from datetime import date, timedelta
 from calendar import monthrange
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -278,25 +278,64 @@ def financial_report(
     bookings = bkgs_q.all()
 
     groups: dict = {}
-    for b in bookings:
-        if group_by == "month":
-            key = b.check_in.strftime("%Y-%m")
-            label = b.check_in.strftime("%m/%Y")
-        elif group_by == "week":
-            key = b.check_in.strftime("%Y-W%W")
-            label = f"Εβδ. {b.check_in.strftime('%W')}/{b.check_in.year}"
-        else:
-            key = b.channel
-            label = b.channel
 
+    def _add_to_group(key, label, nights_n, revenue, commission, count_booking):
         if key not in groups:
             groups[key] = {"key": key, "label": label, "bookings_count": 0, "nights": 0, "total_revenue": 0.0, "total_commission": 0.0, "net_revenue": 0.0}
-        nights = (b.check_out - b.check_in).days
-        groups[key]["bookings_count"] += 1
-        groups[key]["nights"] += nights
-        groups[key]["total_revenue"] += b.total_price
-        groups[key]["total_commission"] += b.commission
-        groups[key]["net_revenue"] += b.total_price - b.commission
+        if count_booking:
+            groups[key]["bookings_count"] += 1
+        groups[key]["nights"] += nights_n
+        groups[key]["total_revenue"] += revenue
+        groups[key]["total_commission"] += commission
+        groups[key]["net_revenue"] += revenue - commission
+
+    for b in bookings:
+        total_nights = (b.check_out - b.check_in).days
+        if total_nights <= 0:
+            continue
+
+        if group_by == "month":
+            # Split booking nights (and prorated revenue) across calendar months
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                yr, mo = cur.year, cur.month
+                next_month = date(yr + 1, 1, 1) if mo == 12 else date(yr, mo + 1, 1)
+                seg_end = min(b.check_out, next_month)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_to_group(
+                    cur.strftime("%Y-%m"), cur.strftime("%m/%Y"),
+                    nights_here, b.total_price * frac, b.commission * frac,
+                    count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        elif group_by == "week":
+            # Split booking nights across ISO calendar weeks
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                # advance to end of this Mon-Sun week
+                days_to_monday = (7 - cur.weekday()) % 7 or 7
+                next_week = cur + timedelta(days=days_to_monday)
+                seg_end = min(b.check_out, next_week)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_to_group(
+                    cur.strftime("%Y-W%W"), f"Εβδ. {cur.strftime('%W')}/{cur.year}",
+                    nights_here, b.total_price * frac, b.commission * frac,
+                    count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        else:
+            # Channel grouping — no time split
+            _add_to_group(
+                b.channel, b.channel,
+                total_nights, b.total_price, b.commission,
+                count_booking=True,
+            )
 
     data = []
     for g in sorted(groups.values(), key=lambda x: x["key"]):
