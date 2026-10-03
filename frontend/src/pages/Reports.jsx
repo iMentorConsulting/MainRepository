@@ -175,13 +175,17 @@ export default function Reports() {
       {/* OCCUPANCY */}
       {!loading && tab === 'occupancy' && occData && occData.summary && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Μ.Ο. Πληρότητας</p><p className="text-2xl font-bold text-blue-700">{occData.summary.avg_occupancy_rate}%</p></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Μονάδες</p><p className="text-2xl font-bold text-gray-700">{occData.summary.total_units}</p></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(occData.summary.total_revenue)}</p></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(occData.summary.total_net_revenue)}</p></div>
             <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Εξόδων</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
             <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-700 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
+            <div className="bg-white rounded-xl border border-violet-200 p-4" title="EBITDA = Καθαρά Έσοδα × (1 − 13% ΦΠΑ) − Λειτουργικά Έξοδα">
+              <p className="text-xs text-gray-700 mb-1">EBITDA <span className="text-gray-400 font-normal">(−ΦΠΑ 13%)</span></p>
+              <p className={`text-2xl font-bold ${occData.summary.total_net_revenue * 0.87 - totalExpenses >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEur(occData.summary.total_net_revenue * 0.87 - totalExpenses)}</p>
+            </div>
             <div className={`rounded-xl border p-4 ${occData.summary.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
               <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
               <p className={`text-2xl font-bold ${occData.summary.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(occData.summary.total_net_revenue - totalExpenses - totalLoans)}</p>
@@ -248,12 +252,16 @@ export default function Reports() {
       {/* BY CHANNEL */}
       {!loading && tab === 'channel' && chData && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Κρατήσεων</p><p className="text-2xl font-bold text-gray-700">{chData.total_bookings}</p></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(chData.total_revenue)}</p></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(chData.total_net_revenue)}</p></div>
             <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Εξόδων</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
             <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-700 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
+            <div className="bg-white rounded-xl border border-violet-200 p-4" title="EBITDA = Καθαρά Έσοδα × (1 − 13% ΦΠΑ) − Λειτουργικά Έξοδα">
+              <p className="text-xs text-gray-700 mb-1">EBITDA <span className="text-gray-400 font-normal">(−ΦΠΑ 13%)</span></p>
+              <p className={`text-2xl font-bold ${chData.total_net_revenue * 0.87 - totalExpenses >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEur(chData.total_net_revenue * 0.87 - totalExpenses)}</p>
+            </div>
             <div className={`rounded-xl border p-4 ${chData.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
               <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
               <p className={`text-2xl font-bold ${chData.total_net_revenue - totalExpenses - totalLoans >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(chData.total_net_revenue - totalExpenses - totalLoans)}</p>
@@ -317,16 +325,22 @@ export default function Reports() {
       {/* FINANCIAL */}
       {!loading && tab === 'financial' && finData && (
         <div className="space-y-4">
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+            {(() => { const finNet = finData.data.reduce((s,d)=>s+d.net_revenue,0); const finCf = finNet - totalExpenses - totalLoans; return (<>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Συνολικά Έσοδα</p><p className="text-2xl font-bold text-green-700">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</p></div>
-            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</p></div>
+            <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Καθαρά Έσοδα</p><p className="text-2xl font-bold text-emerald-700">{formatEur(finNet)}</p></div>
             <div className="bg-white rounded-xl border border-red-100 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Εξόδων</p><p className="text-2xl font-bold text-red-600">{formatEur(totalExpenses)}</p></div>
             <div className="bg-white rounded-xl border border-orange-100 p-4"><p className="text-xs text-gray-700 mb-1">Δανειακές Υποχρ.</p><p className="text-2xl font-bold text-orange-600">{formatEur(totalLoans)}</p></div>
             <div className="bg-white rounded-xl border border-gray-200 p-4"><p className="text-xs text-gray-700 mb-1">Σύνολο Κόστους</p><p className="text-2xl font-bold text-red-700">{formatEur(totalExpenses + totalLoans)}</p></div>
-            <div className={`rounded-xl border p-4 ${finData.data.reduce((s,d)=>s+d.net_revenue,0) - totalExpenses - totalLoans >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
-              <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
-              <p className={`text-2xl font-bold ${finData.data.reduce((s,d)=>s+d.net_revenue,0) - totalExpenses - totalLoans >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0) - totalExpenses - totalLoans)}</p>
+            <div className="bg-white rounded-xl border border-violet-200 p-4" title="EBITDA = Καθαρά Έσοδα × (1 − 13% ΦΠΑ) − Λειτουργικά Έξοδα">
+              <p className="text-xs text-gray-700 mb-1">EBITDA <span className="text-gray-400 font-normal">(−ΦΠΑ 13%)</span></p>
+              <p className={`text-2xl font-bold ${finNet * 0.87 - totalExpenses >= 0 ? 'text-violet-700' : 'text-red-700'}`}>{formatEur(finNet * 0.87 - totalExpenses)}</p>
             </div>
+            <div className={`rounded-xl border p-4 ${finCf >= 0 ? 'bg-emerald-50 border-emerald-200' : 'bg-red-50 border-red-200'}`}>
+              <p className="text-xs text-gray-700 mb-1">Καθαρό Cash Flow</p>
+              <p className={`text-2xl font-bold ${finCf >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatEur(finCf)}</p>
+            </div>
+            </>)})()}
           </div>
 
           <div className="flex gap-2">
