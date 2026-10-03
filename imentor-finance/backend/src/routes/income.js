@@ -232,4 +232,23 @@ router.delete('/:id', async (req, res) => {
   }
 });
 
+router.post('/sync-org-from-elorus', async (req, res) => {
+  try {
+    const noOrg = { [Op.or]: [{ organization: null }, { organization: '' }] };
+
+    const [apostCount] = await Income.update(
+      { organization: 'ΑΠΟΣΤΟΛΑΚΗΣ' },
+      { where: { [Op.and]: [noOrg, { elorus_org_key: 'DEFAULT' }] } }
+    );
+    const [imentorCount] = await Income.update(
+      { organization: 'I MENTOR' },
+      { where: { [Op.and]: [noOrg, { elorus_org_key: 'IMENTOR_IKE' }] } }
+    );
+
+    res.json({ updated: apostCount + imentorCount, apostolakis: apostCount, imentor: imentorCount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 module.exports = router;

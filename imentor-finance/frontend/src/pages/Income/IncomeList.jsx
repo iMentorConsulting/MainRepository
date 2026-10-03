@@ -251,6 +251,18 @@ export default function IncomeList() {
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path fillRule="evenodd" d="M10 3a.75.75 0 0 1 .75.75v8.69l2.22-2.22a.75.75 0 1 1 1.06 1.06l-3.5 3.5a.75.75 0 0 1-1.06 0l-3.5-3.5a.75.75 0 1 1 1.06-1.06l2.22 2.22V3.75A.75.75 0 0 1 10 3ZM5.75 16a.75.75 0 0 0 0 1.5h8.5a.75.75 0 0 0 0-1.5h-8.5Z" clipRule="evenodd"/></svg>
             Excel
           </button>
+          <button className="btn-ghost btn-sm flex-1 sm:flex-initial justify-center" title="Συμπλήρωσε οργανισμό από Elorus για εγγραφές χωρίς οργανισμό" onClick={async () => {
+            if (!window.confirm('Θα συμπληρωθεί αυτόματα ο οργανισμός (ΑΠΟΣΤΟΛΑΚΗΣ / I MENTOR) για όλες τις εγγραφές που τιμολογήθηκαν μέσω Elorus αλλά δεν έχουν οργανισμό. Συνέχεια;')) return;
+            try {
+              const r = await api.post('/income/sync-org-from-elorus');
+              toast.success(`✅ Ενημερώθηκαν ${r.data.updated} εγγραφές (${r.data.apostolakis} ΑΠΟΣΤΟΛΑΚΗΣ, ${r.data.imentor} I MENTOR)`);
+              load();
+            } catch (e) {
+              toast.error(e.response?.data?.error || 'Σφάλμα');
+            }
+          }}>
+            🔄 Sync Org
+          </button>
           <button className="btn-primary flex-1 sm:flex-initial justify-center" onClick={() => setModal({ open: true, record: null })}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4"><path d="M10.75 4.75a.75.75 0 0 0-1.5 0v4.5h-4.5a.75.75 0 0 0 0 1.5h4.5v4.5a.75.75 0 0 0 1.5 0v-4.5h4.5a.75.75 0 0 0 0-1.5h-4.5v-4.5Z"/></svg>
             Νέα Εγγραφή
