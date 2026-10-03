@@ -311,11 +311,13 @@ def financial_report(
 
     total_expenses = round(sum(e.amount for e in expenses), 2)
     total_net = round(sum(g["net_revenue"] for g in data), 2)
+    total_units = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True).count()
 
     return {
         "from_date": from_date.isoformat(),
         "to_date": to_date.isoformat(),
         "group_by": group_by,
+        "total_units": total_units,
         "data": data,
         "totals": {
             "total_revenue": round(sum(g["total_revenue"] for g in data), 2),

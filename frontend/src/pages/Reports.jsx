@@ -409,6 +409,7 @@ export default function Reports() {
                   <th className="text-left px-4 py-3">Περίοδος</th>
                   <th className="text-right px-4 py-3">Κρατήσεις</th>
                   <th className="text-right px-4 py-3">Νύχτες</th>
+                  <th className="text-right px-4 py-3">Πληρότητα</th>
                   <th className="text-right px-4 py-3">Έσοδα</th>
                   <th className="text-right px-4 py-3">Προμήθειες</th>
                   <th className="text-right px-4 py-3">Καθαρά</th>
@@ -426,6 +427,20 @@ export default function Reports() {
                       <td className="px-4 py-3 font-medium">{d.label}</td>
                       <td className="px-4 py-3 text-right">{d.bookings_count}</td>
                       <td className="px-4 py-3 text-right">{d.nights}</td>
+                      <td className="px-4 py-3 text-right">{(() => {
+                        const units = finData.total_units || 1
+                        let avail = 0
+                        if (finGroup === 'month') {
+                          const [y, m] = d.key.split('-').map(Number)
+                          avail = units * new Date(y, m, 0).getDate()
+                        } else if (finGroup === 'week') {
+                          avail = units * 7
+                        } else {
+                          return <span className="text-gray-400">—</span>
+                        }
+                        const pct = Math.round(d.nights / avail * 100)
+                        return <span className={`font-semibold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</span>
+                      })()}</td>
                       <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>
                       <td className="px-4 py-3 text-right text-amber-600">{formatEur(d.total_commission)}</td>
                       <td className="px-4 py-3 text-right text-emerald-600">{formatEur(d.net_revenue)}</td>
@@ -437,7 +452,7 @@ export default function Reports() {
                 </tbody>
                 <tfoot>
                   <tr className="bg-gray-50 border-t-2 border-gray-300 font-semibold text-sm">
-                    <td className="px-4 py-3" colSpan={3}>ΣΥΝΟΛΟ</td>
+                    <td className="px-4 py-3" colSpan={4}>ΣΥΝΟΛΟ</td>
                     <td className="px-4 py-3 text-right">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
                     <td className="px-4 py-3 text-right text-amber-600">{formatEur(finData.data.reduce((s,d)=>s+d.total_commission,0))}</td>
                     <td className="px-4 py-3 text-right text-emerald-600">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</td>
