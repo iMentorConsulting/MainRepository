@@ -255,7 +255,10 @@ export default function IncomeList() {
             if (!window.confirm('Θα συμπληρωθεί αυτόματα ο οργανισμός (ΑΠΟΣΤΟΛΑΚΗΣ / I MENTOR) για όλες τις εγγραφές που τιμολογήθηκαν μέσω Elorus αλλά δεν έχουν οργανισμό. Συνέχεια;')) return;
             try {
               const r = await api.post('/income/sync-org-from-elorus');
-              toast.success(`✅ Ενημερώθηκαν ${r.data.updated} εγγραφές (${r.data.apostolakis} ΑΠΟΣΤΟΛΑΚΗΣ, ${r.data.imentor} I MENTOR)`);
+              const msg = r.data.updated > 0
+                ? `✅ Ενημερώθηκαν ${r.data.updated} εγγραφές (${r.data.apostolakis} ΑΠΟΣΤΟΛΑΚΗΣ, ${r.data.imentor} I MENTOR)`
+                : `ℹ️ 0 εγγραφές ενημερώθηκαν — οι παλιές εγγραφές δεν έχουν αποθηκευμένο Elorus org key`;
+              r.data.updated > 0 ? toast.success(msg) : toast(msg);
               load();
             } catch (e) {
               toast.error(e.response?.data?.error || 'Σφάλμα');

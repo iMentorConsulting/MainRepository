@@ -245,7 +245,12 @@ router.post('/sync-org-from-elorus', async (req, res) => {
       { where: { [Op.and]: [noOrg, { elorus_org_key: 'IMENTOR_IKE' }] } }
     );
 
-    res.json({ updated: apostCount + imentorCount, apostolakis: apostCount, imentor: imentorCount });
+    // Also count records still missing org after sync (no elorus_org_key stored)
+    const stillMissing = await Income.count({
+      where: { [Op.and]: [noOrg, { [Op.or]: [{ elorus_org_key: null }, { elorus_org_key: '' }] }] },
+    });
+
+    res.json({ updated: apostCount + imentorCount, apostolakis: apostCount, imentor: imentorCount, still_missing: stillMissing });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }

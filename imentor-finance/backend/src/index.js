@@ -25,6 +25,7 @@ if (process.env.ADMIN_PASSWORD && !process.env.ADMIN_PASSWORD.startsWith('$2')) 
 }
 
 const app = express();
+app.set('trust proxy', 1); // Railway runs behind a proxy
 
 // ── Fix 4: Restrict CORS ────────────────────────────────────────────────────
 // Set CORS_ORIGINS in Railway env vars (comma-separated) to lock down origins.
