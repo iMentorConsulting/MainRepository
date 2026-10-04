@@ -100,13 +100,26 @@ def _get_drive_service():
         from google.oauth2 import service_account
     except ImportError:
         return None
-    creds_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
+
+    creds_env = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+    try:
+        # Cloud deployments (e.g. Railway) store the raw JSON content as the env var value
+        info = json.loads(creds_env)
+        creds = service_account.Credentials.from_service_account_info(
+            info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return build("drive", "v3", credentials=creds)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Fall back to treating env var as a file path
+    creds_path = creds_env or "service_account.json"
     if not os.path.exists(creds_path):
         return None
     try:
         creds = service_account.Credentials.from_service_account_file(
-            creds_path,
-            scopes=["https://www.googleapis.com/auth/drive"],
+            creds_path, scopes=["https://www.googleapis.com/auth/drive"]
         )
         return build("drive", "v3", credentials=creds)
     except Exception:
@@ -116,14 +129,21 @@ def _get_drive_service():
 @router.get("/drive-status")
 def drive_status(tenant: str = Depends(get_tenant)):
     folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
-    creds_path = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "service_account.json")
-    has_creds = os.path.exists(creds_path)
+    creds_env = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+    # Check whether the env var holds JSON content or a valid file path
+    has_creds = False
+    try:
+        json.loads(creds_env)
+        has_creds = True  # raw JSON content (Railway-style)
+    except (json.JSONDecodeError, ValueError):
+        has_creds = os.path.exists(creds_env) if creds_env else False
+
     svc = _get_drive_service()
     return {
         "drive_configured": bool(folder_id and svc),
         "has_folder_id": bool(folder_id),
         "has_credentials": has_creds,
-        "service_account_path": creds_path,
     }
 
 
