@@ -178,7 +178,10 @@ def upload_to_drive(db: Session = Depends(get_db), tenant: str = Depends(get_ten
         from googleapiclient.http import MediaIoBaseUpload
         meta = {"name": filename, "parents": [folder_id], "mimeType": "application/json"}
         media = MediaIoBaseUpload(io.BytesIO(body), mimetype="application/json")
-        f = svc.files().create(body=meta, media_body=media, fields="id,name,size,createdTime").execute()
+        f = svc.files().create(
+            body=meta, media_body=media, fields="id,name,size,createdTime",
+            supportsAllDrives=True,
+        ).execute()
         return {"ok": True, "file": f, "filename": filename}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Σφάλμα ανεβάσματος: {e}")
@@ -200,6 +203,8 @@ def list_drive_backups(tenant: str = Depends(get_tenant)):
             fields="files(id,name,size,createdTime)",
             orderBy="createdTime desc",
             pageSize=30,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
         ).execute()
         return {"files": result.get("files", []), "drive_configured": True}
     except Exception as e:
@@ -214,7 +219,7 @@ def download_from_drive(file_id: str, tenant: str = Depends(get_tenant)):
         raise HTTPException(status_code=503, detail="Google Drive δεν είναι διαθέσιμο")
     try:
         from googleapiclient.http import MediaIoBaseDownload
-        req = svc.files().get_media(fileId=file_id)
+        req = svc.files().get_media(fileId=file_id, supportsAllDrives=True)
         buf = io.BytesIO()
         dl = MediaIoBaseDownload(buf, req)
         done = False
