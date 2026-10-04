@@ -872,6 +872,11 @@ def _run_ical_sync():
         db.close()
 
 
+def _run_daily_backup():
+    from routes.backup import run_scheduled_backups
+    run_scheduled_backups(SessionLocal)
+
+
 _scheduler = _BGScheduler(timezone=_athens_tz)
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=8, minute=0, id="refresh_08")
 _scheduler.add_job(_run_scheduled_refresh, "cron", hour=14, minute=0, id="refresh_14")
@@ -879,6 +884,7 @@ _scheduler.add_job(_run_agent_sla_digest, "cron", hour=9, minute=0, id="sla_dige
 _scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="owner_reports_monthly")
 _scheduler.add_job(_run_ical_sync, "interval", minutes=15, id="ical_sync_15m")
 _scheduler.add_job(_run_auto_emails, "cron", hour=9, minute=30, id="auto_emails_daily")
+_scheduler.add_job(_run_daily_backup, "cron", hour=3, minute=0, id="backup_daily_3am")
 _scheduler.start()
 
 app = FastAPI(

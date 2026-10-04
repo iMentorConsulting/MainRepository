@@ -5,7 +5,8 @@ import {
   ClockIcon, DocumentTextIcon, XCircleIcon,
 } from '@heroicons/react/24/outline'
 import {
-  getBackupDriveStatus, getDriveDiagnostics, exportBackup, uploadBackupToDrive,
+  getBackupDriveStatus, getDriveDiagnostics, getBackupScheduleStatus,
+  exportBackup, uploadBackupToDrive,
   listDriveBackups, downloadFromDrive, restoreBackup,
 } from '../api'
 import toast from 'react-hot-toast'
@@ -45,9 +46,11 @@ export default function Backup() {
   const [confirmRestore, setConfirmRestore] = useState(null) // file to confirm
   const [diagnostics, setDiagnostics] = useState(null)
   const [loadingDiag, setLoadingDiag] = useState(false)
+  const [scheduleStatus, setScheduleStatus] = useState(null)
 
   useEffect(() => {
     getBackupDriveStatus().then(r => setDriveStatus(r.data)).catch(() => {})
+    getBackupScheduleStatus().then(r => setScheduleStatus(r.data)).catch(() => {})
     loadList()
   }, [])
 
@@ -312,6 +315,29 @@ export default function Backup() {
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      {/* Scheduled backup status */}
+      <div className="bg-white rounded-2xl border border-gray-200 p-5 space-y-2">
+        <h2 className="font-semibold text-gray-800 flex items-center gap-2">
+          <ClockIcon className="w-5 h-5 text-gray-400" />
+          Αυτόματο Backup
+        </h2>
+        <p className="text-xs text-gray-500">Εκτελείται καθημερινά στις 03:00 (ώρα Ελλάδος) για κάθε επιχείρηση ξεχωριστά</p>
+        {scheduleStatus && scheduleStatus.status !== 'never_run' ? (
+          <div className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 ${scheduleStatus.status === 'ok' ? 'bg-green-50 text-green-700' : 'bg-red-50 text-red-700'}`}>
+            {scheduleStatus.status === 'ok'
+              ? <CheckCircleIcon className="w-4 h-4 shrink-0" />
+              : <ExclamationTriangleIcon className="w-4 h-4 shrink-0" />}
+            <span>
+              {scheduleStatus.status === 'ok'
+                ? <>Τελευταίο backup: <strong>{scheduleStatus.filename}</strong> — {formatDriveDate(scheduleStatus.timestamp)}</>
+                : <>Σφάλμα: {scheduleStatus.error}</>}
+            </span>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 italic">Δεν έχει εκτελεστεί ακόμα (εκκρεμεί το πρώτο αυτόματο backup)</p>
         )}
       </div>
 

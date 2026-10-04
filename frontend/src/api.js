@@ -197,6 +197,7 @@ export const getBeds24Debug = () => api.get('/beds24/debug')
 // Backup
 export const getBackupDriveStatus = () => api.get('/backup/drive-status')
 export const getDriveDiagnostics = () => api.get('/backup/drive-diagnostics')
+export const getBackupScheduleStatus = () => api.get('/backup/schedule-status')
 export const exportBackup = () => api.get('/backup/export', { responseType: 'blob' })
 export const uploadBackupToDrive = () => api.post('/backup/upload-drive')
 export const listDriveBackups = () => api.get('/backup/list-drive')

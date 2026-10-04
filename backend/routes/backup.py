@@ -22,6 +22,9 @@ router = APIRouter(prefix="/backup", tags=["backup"])
 
 BACKUP_VERSION = "1.0"
 
+# Tracks the most recent scheduled backup result per tenant
+_schedule_log: dict = {}  # tenant_id -> {status, filename, timestamp, error?}
+
 # Ordered so dependencies come first (foreign key safety on restore)
 TENANT_MODELS = [
     ("tenant_settings", TenantSettings),
@@ -124,6 +127,92 @@ def _get_drive_service():
         return build("drive", "v3", credentials=creds)
     except Exception:
         return None
+
+
+def _get_or_create_subfolder(svc, parent_id: str, name: str) -> str:
+    """Return the Drive folder ID for `name` under `parent_id`, creating it if absent."""
+    safe = name.replace("'", "\\'")
+    q = (
+        f"'{parent_id}' in parents and name='{safe}' "
+        "and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    )
+    res = svc.files().list(
+        q=q, fields="files(id)",
+        supportsAllDrives=True, includeItemsFromAllDrives=True,
+    ).execute()
+    files = res.get("files", [])
+    if files:
+        return files[0]["id"]
+    meta = {
+        "name": name,
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [parent_id],
+    }
+    folder = svc.files().create(body=meta, fields="id", supportsAllDrives=True).execute()
+    return folder["id"]
+
+
+def run_scheduled_backups(db_session_factory) -> None:
+    """
+    Called by the APScheduler daily job.
+    Exports every active tenant and uploads to its own subfolder in Drive.
+    """
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    if not folder_id:
+        print("[backup] Skipping scheduled backup — GOOGLE_DRIVE_FOLDER_ID not set")
+        return
+
+    svc = _get_drive_service()
+    if svc is None:
+        print("[backup] Skipping scheduled backup — Drive service not available")
+        return
+
+    from models import TenantRecord
+    db = db_session_factory()
+    try:
+        tenants = db.query(TenantRecord).filter_by(is_active=True).all()
+    finally:
+        db.close()
+
+    print(f"[backup] Starting scheduled backup for {len(tenants)} tenant(s)")
+    for tr in tenants:
+        db = db_session_factory()
+        try:
+            from googleapiclient.http import MediaIoBaseUpload
+            data = _export_tenant(db, tr.id)
+            filename = f"backup_{tr.id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+            subfolder_id = _get_or_create_subfolder(svc, folder_id, tr.id.upper())
+
+            meta = {"name": filename, "parents": [subfolder_id], "mimeType": "application/json"}
+            media = MediaIoBaseUpload(io.BytesIO(body), mimetype="application/json")
+            svc.files().create(
+                body=meta, media_body=media, fields="id,name",
+                supportsAllDrives=True,
+            ).execute()
+
+            _schedule_log[tr.id] = {
+                "status": "ok",
+                "filename": filename,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            print(f"[backup] ✓ {tr.id} → {filename}")
+        except Exception as e:
+            _schedule_log[tr.id] = {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            print(f"[backup] ✗ {tr.id}: {e}")
+        finally:
+            db.close()
+
+
+@router.get("/schedule-status")
+def schedule_status(tenant: str = Depends(get_tenant)):
+    """Last scheduled backup result for this tenant."""
+    return _schedule_log.get(tenant, {"status": "never_run"})
 
 
 @router.get("/drive-diagnostics")
