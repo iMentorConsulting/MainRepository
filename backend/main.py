@@ -47,6 +47,7 @@ from routes.cm_modifications import router as cm_modifications_router
 from routes.cm_portal_files import router as cm_portal_files_router
 from routes.cm_revenue import router as cm_revenue_router
 from routes.finance_api import router as finance_api_router
+from routes.backup import router as backup_router
 
 load_dotenv()
 
@@ -917,6 +918,7 @@ app.include_router(channel_rates_router, prefix="/api")
 app.include_router(beds24_router, prefix="/api")
 app.include_router(email_scan_router, prefix="/api")
 app.include_router(communications_router, prefix="/api")
+app.include_router(backup_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

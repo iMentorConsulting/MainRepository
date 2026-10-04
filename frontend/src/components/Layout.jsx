@@ -7,6 +7,7 @@ import {
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
   HomeModernIcon, TagIcon, ArrowsRightLeftIcon, CodeBracketIcon, CalendarIcon,
   CreditCardIcon, Bars3Icon, XMarkIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon,
+  CloudArrowUpIcon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -47,6 +48,7 @@ const navGroups = [
       { to: '/smart-advisor', label: 'AI Σύμβουλος', Icon: SparklesIcon },
       { to: '/portal', label: 'Guest Portal', Icon: GlobeAltIcon },
       { to: '/settings', label: 'Ρυθμίσεις', Icon: Cog6ToothIcon },
+      { to: '/backup', label: 'Backup', Icon: CloudArrowUpIcon },
     ],
   },
 ]

@@ -194,4 +194,12 @@ export const pushRatesToBeds24 = (unitId) => api.post(`/beds24/push-rates/${unit
 export const syncBookingsFromBeds24 = () => api.post('/beds24/sync-bookings')
 export const getBeds24Debug = () => api.get('/beds24/debug')
 
+// Backup
+export const getBackupDriveStatus = () => api.get('/backup/drive-status')
+export const exportBackup = () => api.get('/backup/export', { responseType: 'blob' })
+export const uploadBackupToDrive = () => api.post('/backup/upload-drive')
+export const listDriveBackups = () => api.get('/backup/list-drive')
+export const downloadFromDrive = (fileId) => api.get(`/backup/download-drive/${fileId}`)
+export const restoreBackup = (payload) => api.post('/backup/restore', payload)
+
 export default api
