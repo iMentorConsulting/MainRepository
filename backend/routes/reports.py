@@ -415,26 +415,56 @@ def price_analytics(
         'oga': 'ΟΓΑ', 'social_tourism': 'Κοιν.Τουρισμός', 'other': 'Άλλο',
     }
 
-    groups: dict = {}
-    for b in bookings:
-        nights = (b.check_out - b.check_in).days
-        if nights <= 0:
-            continue
-        if group_by == "month":
-            key = b.check_in.strftime("%Y-%m")
-            label = b.check_in.strftime("%m/%Y")
-        elif group_by == "week":
-            key = b.check_in.strftime("%Y-W%W")
-            label = f"Εβδ.{b.check_in.strftime('%W')}/{b.check_in.year}"
-        else:
-            key = b.channel
-            label = CHANNEL_LABELS.get(b.channel, b.channel)
-
+    def _add_price_group(key, label, nights_n, revenue, count_booking):
         if key not in groups:
             groups[key] = {"key": key, "label": label, "bookings_count": 0, "total_nights": 0, "total_revenue": 0.0}
-        groups[key]["bookings_count"] += 1
-        groups[key]["total_nights"] += nights
-        groups[key]["total_revenue"] += b.total_price
+        if count_booking:
+            groups[key]["bookings_count"] += 1
+        groups[key]["total_nights"] += nights_n
+        groups[key]["total_revenue"] += revenue
+
+    groups: dict = {}
+    for b in bookings:
+        total_nights = (b.check_out - b.check_in).days
+        if total_nights <= 0:
+            continue
+
+        if group_by == "month":
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                yr, mo = cur.year, cur.month
+                next_month = date(yr + 1, 1, 1) if mo == 12 else date(yr, mo + 1, 1)
+                seg_end = min(b.check_out, next_month)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_price_group(
+                    cur.strftime("%Y-%m"), cur.strftime("%m/%Y"),
+                    nights_here, b.total_price * frac, count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        elif group_by == "week":
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                days_to_monday = (7 - cur.weekday()) % 7 or 7
+                next_week = cur + timedelta(days=days_to_monday)
+                seg_end = min(b.check_out, next_week)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_price_group(
+                    cur.strftime("%Y-W%W"), f"Εβδ.{cur.strftime('%W')}/{cur.year}",
+                    nights_here, b.total_price * frac, count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        else:
+            key = b.channel
+            _add_price_group(
+                key, CHANNEL_LABELS.get(key, key),
+                total_nights, b.total_price, count_booking=True,
+            )
 
     data = []
     for g in sorted(groups.values(), key=lambda x: x["key"]):
