@@ -126,6 +126,51 @@ def _get_drive_service():
         return None
 
 
+@router.get("/drive-diagnostics")
+def drive_diagnostics(tenant: str = Depends(get_tenant)):
+    """Check what the service account can actually reach."""
+    svc = _get_drive_service()
+    if svc is None:
+        return {"error": "Drive service not available — check credentials"}
+
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    result: dict = {"folder_id": folder_id, "checks": {}}
+
+    # Try treating it as a Shared Drive root
+    if folder_id:
+        try:
+            drive = svc.drives().get(driveId=folder_id, fields="id,name").execute()
+            result["checks"]["is_shared_drive_root"] = True
+            result["checks"]["drive_name"] = drive.get("name")
+        except Exception as e:
+            result["checks"]["is_shared_drive_root"] = False
+            result["checks"]["shared_drive_error"] = str(e)
+
+        # Try as a file/folder (regular or inside shared drive)
+        try:
+            f = svc.files().get(
+                fileId=folder_id, supportsAllDrives=True, fields="id,name,mimeType,driveId"
+            ).execute()
+            result["checks"]["folder_accessible"] = True
+            result["checks"]["folder_name"] = f.get("name")
+            result["checks"]["folder_mime"] = f.get("mimeType")
+        except Exception as e:
+            result["checks"]["folder_accessible"] = False
+            result["checks"]["folder_error"] = str(e)
+
+    # List all drives the service account can see
+    try:
+        drives = svc.drives().list(pageSize=20, fields="drives(id,name)").execute()
+        result["accessible_drives"] = [
+            {"id": d["id"], "name": d["name"]} for d in drives.get("drives", [])
+        ]
+    except Exception as e:
+        result["accessible_drives"] = []
+        result["drives_list_error"] = str(e)
+
+    return result
+
+
 @router.get("/drive-status")
 def drive_status(tenant: str = Depends(get_tenant)):
     folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
@@ -184,6 +229,16 @@ def upload_to_drive(db: Session = Depends(get_db), tenant: str = Depends(get_ten
         ).execute()
         return {"ok": True, "file": f, "filename": filename}
     except Exception as e:
+        err = str(e)
+        if "404" in err:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Ο φάκελος/drive δεν βρέθηκε ({folder_id}). "
+                    "Προσθέστε το service account email ως μέλος του Shared Drive "
+                    "με ρόλο 'Content manager' (Shared Drive → Manage members)."
+                ),
+            )
         raise HTTPException(status_code=500, detail=f"Σφάλμα ανεβάσματος: {e}")
 
 

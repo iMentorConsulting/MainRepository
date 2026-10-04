@@ -5,7 +5,7 @@ import {
   ClockIcon, DocumentTextIcon, XCircleIcon,
 } from '@heroicons/react/24/outline'
 import {
-  getBackupDriveStatus, exportBackup, uploadBackupToDrive,
+  getBackupDriveStatus, getDriveDiagnostics, exportBackup, uploadBackupToDrive,
   listDriveBackups, downloadFromDrive, restoreBackup,
 } from '../api'
 import toast from 'react-hot-toast'
@@ -43,6 +43,8 @@ export default function Backup() {
   const [downloading, setDownloading] = useState(false)
   const [restoring, setRestoring] = useState(null) // file id being restored
   const [confirmRestore, setConfirmRestore] = useState(null) // file to confirm
+  const [diagnostics, setDiagnostics] = useState(null)
+  const [loadingDiag, setLoadingDiag] = useState(false)
 
   useEffect(() => {
     getBackupDriveStatus().then(r => setDriveStatus(r.data)).catch(() => {})
@@ -55,6 +57,18 @@ export default function Backup() {
       .then(r => setBackups(r.data.files || []))
       .catch(() => setBackups([]))
       .finally(() => setLoadingList(false))
+  }
+
+  async function handleDiagnostics() {
+    setLoadingDiag(true)
+    try {
+      const r = await getDriveDiagnostics()
+      setDiagnostics(r.data)
+    } catch (e) {
+      toast.error('Σφάλμα diagnostics')
+    } finally {
+      setLoadingDiag(false)
+    }
   }
 
   async function handleExport() {
@@ -128,6 +142,43 @@ export default function Backup() {
           </h2>
           {driveStatus && (
             <StatusBadge ok={driveOk} label={driveOk ? 'Συνδεδεμένο' : 'Μη ρυθμισμένο'} />
+          )}
+        </div>
+
+        {/* Diagnostics */}
+        <div>
+          <button
+            onClick={handleDiagnostics}
+            disabled={loadingDiag}
+            className="text-xs text-blue-600 hover:text-blue-800 underline flex items-center gap-1"
+          >
+            {loadingDiag ? <ArrowPathIcon className="w-3 h-3 animate-spin" /> : null}
+            Έλεγχος σύνδεσης Drive
+          </button>
+          {diagnostics && (
+            <div className="mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs font-mono space-y-1 text-gray-700 overflow-x-auto">
+              <p><span className="font-semibold">Folder ID:</span> {diagnostics.folder_id || '—'}</p>
+              {diagnostics.checks && Object.entries(diagnostics.checks).map(([k, v]) => (
+                <p key={k}><span className="font-semibold">{k}:</span> {JSON.stringify(v)}</p>
+              ))}
+              {diagnostics.accessible_drives?.length > 0 && (
+                <div>
+                  <p className="font-semibold mt-1">Προσβάσιμα Shared Drives:</p>
+                  {diagnostics.accessible_drives.map(d => (
+                    <p key={d.id} className="pl-2">• {d.name} <span className="text-gray-400">({d.id})</span></p>
+                  ))}
+                </div>
+              )}
+              {diagnostics.accessible_drives?.length === 0 && (
+                <p className="text-red-600 font-semibold">
+                  ⚠ Κανένα Shared Drive δεν είναι ορατό — το service account δεν είναι μέλος κανενός Shared Drive.
+                  Προσθέστε το στο Shared Drive: Manage members → Add το email του service account → Content manager.
+                </p>
+              )}
+              {diagnostics.drives_list_error && (
+                <p className="text-red-500">{diagnostics.drives_list_error}</p>
+              )}
+            </div>
           )}
         </div>
 
