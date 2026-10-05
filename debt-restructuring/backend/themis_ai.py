@@ -268,15 +268,8 @@ _EMAIL_BODY_TEMPLATE = (
 
 
 def _normalize_phone(phone: str) -> str:
-    phone = (phone or "").strip().replace(" ", "").replace("-", "")
-    if phone and not phone.startswith("+"):
-        if phone.startswith("00"):
-            phone = "+" + phone[2:]
-        elif phone.startswith("0"):
-            phone = "+30" + phone[1:]
-        else:
-            phone = "+30" + phone
-    return phone
+    from phone_utils import normalize_greek_phone
+    return normalize_greek_phone(phone)
 
 
 def send_themis_link(lead) -> dict:

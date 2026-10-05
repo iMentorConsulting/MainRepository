@@ -19,6 +19,7 @@ from database import get_db
 from models import Case, Lead
 from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate, ContactUpdate
 from auth_utils import get_current_user
+from phone_utils import normalize_greek_phone as _normalize_greek_phone
 from routers.notifications import create_notification, ADMIN_RECIPIENT
 
 router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(get_current_user)])
@@ -164,9 +165,10 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
     headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
     base = f"{cw_url}/api/v1/accounts/{cw_account}"
 
-    # Normalize phone: strip double country code (+3030... → +30...) before anything
+    # Normalize phone to +30XXXXXXXXXX (also fixes doubled country codes, e.g. +3030…)
     import re as _re
-    phone = _re.sub(r'^\+?(30){2}', '+30', phone)
+    from phone_utils import normalize_greek_phone
+    phone = normalize_greek_phone(phone)
     print(f"[Chatwoot] base={base} inbox={cw_inbox} phone={phone}")
 
     # Build search variants: full number + local digits only (catches malformed existing contacts)
@@ -604,8 +606,6 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
         if not phone:
             errors.append("Δεν υπάρχει τηλέφωνο πελάτη")
         else:
-            if not phone.startswith("+"):
-                phone = "+30" + (phone[1:] if phone.startswith("0") else phone)
             ok, err = _chatwoot_send_with_retry(case.client_name, phone, data.message)
             if not ok:
                 errors.append(f"Viber: {err}")
@@ -647,13 +647,7 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
 
     phone = (case.client_phone or "").strip().replace(" ", "").replace("-", "")
-    if phone and not phone.startswith("+"):
-        if phone.startswith("00"):
-            phone = "+" + phone[2:]
-        elif phone.startswith("0"):
-            phone = "+30" + phone[1:]
-        else:
-            phone = "+30" + phone
+    phone = _normalize_greek_phone(phone)
 
     # Try Chatwoot first (creates contact + conversation + delivers via Viber inbox)
     chatwoot_ok, chatwoot_err = _chatwoot_send(case.client_name, phone, data.message)

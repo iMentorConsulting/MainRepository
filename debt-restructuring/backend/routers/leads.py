@@ -160,6 +160,8 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple:
         return False, "Chatwoot env vars not set"
 
     import requests as _req
+    from phone_utils import normalize_greek_phone
+    phone = normalize_greek_phone(phone)
     hdrs = {"api_access_token": cw_token, "Content-Type": "application/json"}
 
     # Find existing contact by phone number first; only create if not found
