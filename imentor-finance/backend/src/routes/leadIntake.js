@@ -101,6 +101,16 @@ function normalizeFieldNames(raw) {
     d.invoice_type = rawInvoice;
   }
 
+  // Organization normalization: map Latin/key variants to canonical Greek values
+  if (d.organization) {
+    const orgUp = String(d.organization).toUpperCase().trim();
+    if (/APOSTOL/.test(orgUp) || orgUp === 'DEFAULT') {
+      d.organization = 'ΑΠΟΣΤΟΛΑΚΗΣ';
+    } else if (/IMENTOR|I.MENTOR|I_MENTOR/.test(orgUp) || orgUp === 'IMENTOR_IKE') {
+      d.organization = 'I MENTOR';
+    }
+  }
+
   // Extract postal_code embedded in address like "ΔΟΛΙΑΝΩΝ 10 ΤΚ:12242" or "ΤΚ 12242"
   if (!d.postal_code && d.address) {
     const tkMatch = d.address.match(/\bΤ\.?Κ\.?[: ]?(\d{5})\b/i);

@@ -266,12 +266,23 @@ router.post('/sync-org-from-elorus', async (req, res) => {
       { where: { [Op.and]: [noOrg, { elorus_org_key: 'IMENTOR_IKE' }] } }
     );
 
+    // Fix records with Latin org values stored from external systems
+    const [apostLatinCount] = await Income.update(
+      { organization: 'ΑΠΟΣΤΟΛΑΚΗΣ' },
+      { where: { organization: { [Op.iLike]: 'APOSTOL%' } } }
+    );
+    const [imentorLatinCount] = await Income.update(
+      { organization: 'I MENTOR' },
+      { where: { organization: { [Op.iLike]: 'IMENTOR%' } } }
+    );
+
     // Also count records still missing org after sync (no elorus_org_key stored)
     const stillMissing = await Income.count({
       where: { [Op.and]: [noOrg, { [Op.or]: [{ elorus_org_key: null }, { elorus_org_key: '' }] }] },
     });
 
-    res.json({ updated: apostCount + imentorCount, apostolakis: apostCount, imentor: imentorCount, still_missing: stillMissing });
+    const totalUpdated = apostCount + imentorCount + apostLatinCount + imentorLatinCount;
+    res.json({ updated: totalUpdated, apostolakis: apostCount + apostLatinCount, imentor: imentorCount + imentorLatinCount, still_missing: stillMissing });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
