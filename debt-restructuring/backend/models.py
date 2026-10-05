@@ -156,6 +156,7 @@ class FinancePayment(Base):
     deal_success_fee = Column(Float, default=0.0)
     address = Column(String, default="")
     city = Column(String, default="")
+    paid_to = Column(String, default="IMENTOR")  # IMENTOR / APOSTOLAKIS
     sent_by = Column(String, default="")
     is_duplicate = Column(Boolean, default=False)
     error = Column(Text, default="")

@@ -23,6 +23,14 @@ EMPLOYEE_GREEK = {
 }
 
 
+# Which entity received the payment -> organization code sent to the Finance app.
+# The ΑΠΟΣΤΟΛΑΚΗΣ code can be overridden via env if Finance expects a different value.
+PAID_TO_ORGANIZATION = {
+    "IMENTOR": "I-MENTOR",
+    "APOSTOLAKIS": os.getenv("FINANCE_ORG_APOSTOLAKIS", "APOSTOLAKIS").strip() or "APOSTOLAKIS",
+}
+
+
 class FinanceIntakeRequest(BaseModel):
     case_id: int
     payment_type: str
@@ -38,6 +46,7 @@ class FinanceIntakeRequest(BaseModel):
     deal_success_fee: Optional[float] = 0.0        # agreed Ποσό Υλοποίησης from commercial offer
     address: Optional[str] = ""
     city: Optional[str] = ""
+    paid_to: Optional[str] = "IMENTOR"             # IMENTOR (I MENTOR IKE) / APOSTOLAKIS
 
 
 @router.post("")
@@ -50,6 +59,10 @@ def record_payment(
     if not api_key:
         raise HTTPException(status_code=503, detail="LEAD_INTAKE_API_KEY not configured")
 
+    paid_to = (req.paid_to or "IMENTOR").upper()
+    if paid_to not in PAID_TO_ORGANIZATION:
+        raise HTTPException(status_code=400, detail="Μη έγκυρος δικαιούχος πληρωμής")
+
     case = db.query(Case).filter(Case.id == req.case_id).first()
     if not case:
         raise HTTPException(status_code=404, detail="Case not found")
@@ -60,7 +73,7 @@ def record_payment(
 
     payload = {
         "external_id": external_id,
-        "organization": "I-MENTOR",
+        "organization": PAID_TO_ORGANIZATION[paid_to],
         "source": "exodikastikos",
         "client_name": case.client_name or "",
         "client_vat": case.client_vat or "",
@@ -121,6 +134,7 @@ def record_payment(
         deal_success_fee=req.deal_success_fee or 0.0,
         address=req.address or "",
         city=req.city or "",
+        paid_to=paid_to,
         sent_by=EMPLOYEE_GREEK.get(employee, employee),
         is_duplicate=is_duplicate,
         error=error_text,
@@ -170,6 +184,7 @@ def list_payments(
             "source_referral": r.source_referral,
             "work_status": r.work_status,
             "service_type": r.service_type,
+            "paid_to": r.paid_to or "IMENTOR",
             "sent_by": r.sent_by,
             "is_duplicate": r.is_duplicate,
             "error": r.error,

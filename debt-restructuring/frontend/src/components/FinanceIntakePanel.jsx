@@ -48,6 +48,11 @@ const SERVICE_TYPE_OPTIONS = [
   'ΠΤΩΧΕΥΣΗ',
 ]
 
+const PAID_TO_OPTIONS = [
+  { value: 'IMENTOR', label: 'I MENTOR IKE' },
+  { value: 'APOSTOLAKIS', label: 'ΑΠΟΣΤΟΛΑΚΗΣ' },
+]
+
 const INVOICE_TYPES = ['ΤΙΜΟΛΟΓΙΟ', 'ΑΠΟΔΕΙΞΗ', 'ΑΝΕΥ']
 
 function fmt(amount) {
@@ -75,6 +80,7 @@ const DEFAULT_FORM = {
   service_type: 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ',
   address: '',
   city: '',
+  paid_to: 'IMENTOR',
 }
 
 // Address is needed for ΑΠΟΔΕΙΞΗ and ΑΝΕΥ (ΤΙΜΟΛΟΓΙΟ fetches it automatically from Finance)
@@ -161,6 +167,7 @@ export default function FinanceIntakePanel({ caseData }) {
         deal_success_fee: successFee,
         address: form.address,
         city: form.city,
+        paid_to: form.paid_to,
       })
       const d = res.data
       setSuccess(
@@ -218,6 +225,7 @@ export default function FinanceIntakePanel({ caseData }) {
                 <div>
                   <span className="font-medium">{p.payment_type}</span>
                   <span className="text-gray-500 ml-2">{p.invoice_type}</span>
+                  {p.paid_to === 'APOSTOLAKIS' && <span className="ml-2 text-purple-700 font-medium">· ΑΠΟΣΤΟΛΑΚΗΣ</span>}
                   <span className="ml-2">{fmt(p.amount_collected)}</span>
                   {p.vat_amount > 0 && <span className="text-gray-400"> + ΦΠΑ {fmt(p.vat_amount)}</span>}
                   {p.is_duplicate && <span className="ml-2 text-yellow-600 font-medium">(διπλότυπο)</span>}
@@ -254,6 +262,23 @@ export default function FinanceIntakePanel({ caseData }) {
                 <div className="flex gap-4 pt-0.5 border-t border-gray-200 mt-1">
                   <span><span className="font-medium text-green-700">Ποσό Αίτησης:</span> {fmt(appFee)}</span>
                   <span><span className="font-medium text-blue-700">Ποσό Υλοποίησης:</span> {fmt(successFee)}</span>
+                </div>
+              </div>
+
+              {/* Who received the payment */}
+              <div>
+                <label className="block text-xs font-medium text-gray-600 mb-1">Η πληρωμή έγινε προς *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  {PAID_TO_OPTIONS.map(o => (
+                    <button
+                      key={o.value}
+                      type="button"
+                      onClick={() => field('paid_to', o.value)}
+                      className={`py-2 rounded border text-sm font-semibold transition-colors ${form.paid_to === o.value ? 'bg-blue-600 border-blue-600 text-white' : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'}`}
+                    >
+                      {o.label}
+                    </button>
+                  ))}
                 </div>
               </div>
 

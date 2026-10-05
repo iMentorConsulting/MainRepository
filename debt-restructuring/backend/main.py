@@ -133,6 +133,12 @@ def run_migrations():
             except Exception:
                 pass
 
+        try:
+            conn.execute(text("ALTER TABLE finance_payments ADD COLUMN paid_to VARCHAR DEFAULT 'IMENTOR'"))
+            conn.commit()
+        except Exception:
+            pass
+
         # Leads table columns (safe adds for existing deployments)
         for col_ddl in [
             "ALTER TABLE leads ADD COLUMN app_comments TEXT DEFAULT '[]'",
