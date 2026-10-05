@@ -295,12 +295,12 @@ export default function Reports() {
                       <td className="px-4 py-3 text-right">{u.occupied_days}</td>
                       <td className="px-4 py-3 text-right text-gray-400">{u.free_days}</td>
                       <td className="px-4 py-3 text-right"><span className={`font-semibold ${u.occupancy_rate >= 70 ? 'text-green-600' : u.occupancy_rate >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{u.occupancy_rate}%</span></td>
-                      <td className="px-4 py-3 text-right">{formatEur(u.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(u.total_revenue - u.net_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600">{formatEur(u.net_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-red-500">{unitExp > 0 ? formatEur(unitExp) : '—'}</td>
-                      <td className="px-4 py-3 text-right text-orange-500">{unitLoans > 0 ? formatEur(unitLoans) : '—'}</td>
-                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
+                      <td className="px-4 py-3 text-right">{formatEurInt(u.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEurInt(u.total_revenue - u.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{formatEurInt(u.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{unitExp > 0 ? formatEurInt(unitExp) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{unitLoans > 0 ? formatEurInt(unitLoans) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEurInt(cashflow)}</span></td>
                     </tr>
                   )})}
                 </tbody>
@@ -399,9 +399,9 @@ export default function Reports() {
                       <td className="px-4 py-3 font-medium">{CH_LABELS[c.channel] || c.channel}</td>
                       <td className="px-4 py-3 text-right">{c.bookings_count}</td>
                       <td className="px-4 py-3 text-right">{c.total_nights}</td>
-                      <td className="px-4 py-3 text-right">{formatEur(c.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(c.total_commission)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600 font-semibold">{formatEur(c.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right">{formatEurInt(c.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEurInt(c.total_commission)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600 font-semibold">{formatEurInt(c.net_revenue)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -517,12 +517,12 @@ export default function Reports() {
                         const pct = Math.round(d.nights / avail * 100)
                         return <span className={`font-semibold ${pct >= 70 ? 'text-green-600' : pct >= 40 ? 'text-amber-600' : 'text-red-500'}`}>{pct}%</span>
                       })()}</td>
-                      <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-amber-600">{formatEur(d.total_commission)}</td>
-                      <td className="px-4 py-3 text-right text-emerald-600">{formatEur(d.net_revenue)}</td>
-                      <td className="px-4 py-3 text-right text-red-500">{exp > 0 ? formatEur(exp) : '—'}</td>
-                      <td className="px-4 py-3 text-right text-orange-500">{loan > 0 ? formatEur(loan) : '—'}</td>
-                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEur(cashflow)}</span></td>
+                      <td className="px-4 py-3 text-right">{formatEurInt(d.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-amber-600">{formatEurInt(d.total_commission)}</td>
+                      <td className="px-4 py-3 text-right text-emerald-600">{formatEurInt(d.net_revenue)}</td>
+                      <td className="px-4 py-3 text-right text-red-500">{exp > 0 ? formatEurInt(exp) : '—'}</td>
+                      <td className="px-4 py-3 text-right text-orange-500">{loan > 0 ? formatEurInt(loan) : '—'}</td>
+                      <td className="px-4 py-3 text-right font-bold"><span className={cashflow >= 0 ? 'text-emerald-700' : 'text-red-600'}>{formatEurInt(cashflow)}</span></td>
                     </tr>
                   )})}
                 </tbody>
@@ -532,14 +532,14 @@ export default function Reports() {
                     <td className="px-4 py-3 text-right">{finData.data.reduce((s,d)=>s+d.bookings_count,0)}</td>
                     <td className="px-4 py-3 text-right">{finData.data.reduce((s,d)=>s+d.nights,0)}</td>
                     <td className="px-4 py-3 text-right text-gray-400">—</td>
-                    <td className="px-4 py-3 text-right">{formatEur(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
-                    <td className="px-4 py-3 text-right text-amber-600">{formatEur(finData.data.reduce((s,d)=>s+d.total_commission,0))}</td>
-                    <td className="px-4 py-3 text-right text-emerald-600">{formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</td>
-                    <td className="px-4 py-3 text-right text-red-500">{formatEur(totalExpenses)}</td>
-                    <td className="px-4 py-3 text-right text-orange-500">{totalLoans > 0 ? formatEur(totalLoans) : '—'}</td>
+                    <td className="px-4 py-3 text-right">{formatEurInt(finData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-amber-600">{formatEurInt(finData.data.reduce((s,d)=>s+d.total_commission,0))}</td>
+                    <td className="px-4 py-3 text-right text-emerald-600">{formatEurInt(finData.data.reduce((s,d)=>s+d.net_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-red-500">{formatEurInt(totalExpenses)}</td>
+                    <td className="px-4 py-3 text-right text-orange-500">{totalLoans > 0 ? formatEurInt(totalLoans) : '—'}</td>
                     <td className="px-4 py-3 text-right font-bold">
                       <span className={finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans>=0?'text-emerald-700':'text-red-600'}>
-                        {formatEur(finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans)}
+                        {formatEurInt(finData.data.reduce((s,d)=>s+d.net_revenue,0)-totalExpenses-totalLoans)}
                       </span>
                     </td>
                   </tr>
@@ -561,7 +561,7 @@ export default function Reports() {
             </div>
             <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-2">
               <span className="text-xs text-blue-600">Μ.Ο. τιμή/νύχτα: </span>
-              <span className="font-bold text-blue-800 text-lg">€{priceData.overall_avg_price_per_night}</span>
+              <span className="font-bold text-blue-800 text-lg">{formatEurInt(priceData.overall_avg_price_per_night)}</span>
             </div>
           </div>
 
@@ -614,11 +614,20 @@ export default function Reports() {
                       <td className="px-4 py-3 font-medium">{d.label}</td>
                       <td className="px-4 py-3 text-right">{d.bookings_count}</td>
                       <td className="px-4 py-3 text-right">{d.total_nights}</td>
-                      <td className="px-4 py-3 text-right">{formatEur(d.total_revenue)}</td>
-                      <td className="px-4 py-3 text-right font-semibold text-blue-700">€{d.avg_price_per_night}</td>
+                      <td className="px-4 py-3 text-right">{formatEurInt(d.total_revenue)}</td>
+                      <td className="px-4 py-3 text-right font-semibold text-blue-700">{formatEurInt(d.avg_price_per_night)}</td>
                     </tr>
                   ))}
                 </tbody>
+                <tfoot>
+                  <tr className="bg-gray-50 border-t-2 border-gray-300 font-semibold text-sm">
+                    <td className="px-4 py-3">ΣΥΝΟΛΟ</td>
+                    <td className="px-4 py-3 text-right">{priceData.data.reduce((s,d)=>s+d.bookings_count,0)}</td>
+                    <td className="px-4 py-3 text-right">{priceData.data.reduce((s,d)=>s+d.total_nights,0)}</td>
+                    <td className="px-4 py-3 text-right">{formatEurInt(priceData.data.reduce((s,d)=>s+d.total_revenue,0))}</td>
+                    <td className="px-4 py-3 text-right text-blue-700">{formatEurInt(priceData.overall_avg_price_per_night)}</td>
+                  </tr>
+                </tfoot>
               </table>
             </div>
           </div>
