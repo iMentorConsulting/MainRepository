@@ -288,6 +288,8 @@ async function findDocType(orgKey, kind) {
   return docTypeCache[cacheKey];
 }
 
+const ORG_FROM_KEY = { DEFAULT: 'ΑΠΟΣΤΟΛΑΚΗΣ', IMENTOR_IKE: 'I MENTOR' };
+
 function errMsg(e) {
   if (e.code === 'ENOTFOUND' || e.code === 'ECONNRESET' || e.code === 'ETIMEDOUT') {
     return `Δεν ήταν δυνατή η σύνδεση με το Elorus (${e.code}: ${e.hostname || 'api.elorus.com'}). Το Railway είχε πρόσκαιρο πρόβλημα DNS. Δοκιμάστε ξανά σε 30 δευτερόλεπτα.`;
@@ -485,7 +487,8 @@ router.post('/create-draft', async (req, res) => {
     };
     console.log(`[create-draft] kind=${kind} docTypeId=${docType.id} mydata=${body.mydata_document_type} classType=${body.items[0]?.mydata_classification_type} wh=${whTaxId || 'none'}`);
     const inv = await elorusPostInvoice(org_key, body);
-    await income.update({ elorus_invoice_id: String(inv.id), elorus_org_key: org_key, elorus_invoice_kind: kind });
+    const orgFromElorus = ORG_FROM_KEY[org_key];
+    await income.update({ elorus_invoice_id: String(inv.id), elorus_org_key: org_key, elorus_invoice_kind: kind, ...(orgFromElorus ? { organization: orgFromElorus } : {}) });
     res.json({ success: true, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
@@ -626,7 +629,8 @@ router.post('/one-shot', async (req, res) => {
       });
     } catch (payErr) { console.warn('one-shot payment:', payErr.message); }
 
-    await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id), elorus_org_key: org_key, elorus_invoice_kind: kind });
+    const orgFromElorus = ORG_FROM_KEY[org_key];
+    await income.update({ invoice_number: invoiceNumber, elorus_invoice_id: String(inv.id), elorus_org_key: org_key, elorus_invoice_kind: kind, ...(orgFromElorus ? { organization: orgFromElorus } : {}) });
     res.json({ success: true, invoice_number: invoiceNumber, invoice: inv });
   } catch (e) { res.status(500).json({ error: errMsg(e) }); }
 });
@@ -654,7 +658,8 @@ router.post('/record-payment', async (req, res) => {
         if (match) foundId = String(match.id);
       } catch (_) {}
       if (!foundId) return res.status(400).json({ error: `Δεν βρέθηκε τιμολόγιο Νο.${numStr} στο Elorus` });
-      await income.update({ elorus_invoice_id: foundId, elorus_org_key: org_key });
+      const orgFromElorus = ORG_FROM_KEY[org_key];
+      await income.update({ elorus_invoice_id: foundId, elorus_org_key: org_key, ...(orgFromElorus ? { organization: orgFromElorus } : {}) });
       income.elorus_invoice_id = foundId;
     }
     const invData = (await a.get(`invoices/${income.elorus_invoice_id}/`)).data;
