@@ -124,6 +124,7 @@ router.get('/', async (req, res) => {
       where[Op.and].push({
         [Op.or]: [
           { organization: { [Op.iLike]: '%I MENTOR%' } },
+          { organization: { [Op.iLike]: 'I-%MENTOR%' } },
           { elorus_org_key: 'IMENTOR_IKE' },
         ],
       });
@@ -275,14 +276,19 @@ router.post('/sync-org-from-elorus', async (req, res) => {
       { organization: 'I MENTOR' },
       { where: { organization: { [Op.iLike]: 'IMENTOR%' } } }
     );
+    // Fix I-MENTOR (hyphen variant from case_management source)
+    const [imentorHyphenCount] = await Income.update(
+      { organization: 'I MENTOR' },
+      { where: { organization: { [Op.iLike]: 'I-MENTOR%' } } }
+    );
 
     // Also count records still missing org after sync (no elorus_org_key stored)
     const stillMissing = await Income.count({
       where: { [Op.and]: [noOrg, { [Op.or]: [{ elorus_org_key: null }, { elorus_org_key: '' }] }] },
     });
 
-    const totalUpdated = apostCount + imentorCount + apostLatinCount + imentorLatinCount;
-    res.json({ updated: totalUpdated, apostolakis: apostCount + apostLatinCount, imentor: imentorCount + imentorLatinCount, still_missing: stillMissing });
+    const totalUpdated = apostCount + imentorCount + apostLatinCount + imentorLatinCount + imentorHyphenCount;
+    res.json({ updated: totalUpdated, apostolakis: apostCount + apostLatinCount, imentor: imentorCount + imentorLatinCount + imentorHyphenCount, still_missing: stillMissing });
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
