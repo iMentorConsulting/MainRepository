@@ -256,16 +256,17 @@ router.post('/import-org', async (req, res) => {
 
 router.post('/sync-org-from-elorus', async (req, res) => {
   try {
-    const noOrg = { [Op.or]: [{ organization: null }, { organization: '' }] };
-
+    // Elorus org key is the ground truth — overwrite organization regardless of current value
     const [apostCount] = await Income.update(
       { organization: 'ΑΠΟΣΤΟΛΑΚΗΣ' },
-      { where: { [Op.and]: [noOrg, { elorus_org_key: 'DEFAULT' }] } }
+      { where: { elorus_org_key: 'DEFAULT' } }
     );
     const [imentorCount] = await Income.update(
       { organization: 'I MENTOR' },
-      { where: { [Op.and]: [noOrg, { elorus_org_key: 'IMENTOR_IKE' }] } }
+      { where: { elorus_org_key: 'IMENTOR_IKE' } }
     );
+
+    const noOrg = { [Op.or]: [{ organization: null }, { organization: '' }] };
 
     // Fix records with Latin org values stored from external systems
     const [apostLatinCount] = await Income.update(
