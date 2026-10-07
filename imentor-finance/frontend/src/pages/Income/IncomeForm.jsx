@@ -13,7 +13,7 @@ const SectionTitle = ({ children }) => (
   </div>
 );
 
-export default function IncomeForm({ record, onSave, onCancel }) {
+export default function IncomeForm({ record, onSave, onCancel, isDuplicate = false }) {
   const [lists, setLists] = useState({});
   const [descTemplates, setDescTemplates] = useState([]);
   const [customerLinked, setCustomerLinked] = useState(false);
@@ -42,10 +42,10 @@ export default function IncomeForm({ record, onSave, onCancel }) {
       .then(r => setDescTemplates(r.data.map(x => x.value)));
   }, []);
 
-  // On mount: auto-fetch AADE only for NEW records (not when editing an existing one)
+  // On mount: auto-fetch AADE only for brand-new records (not edits, not copies)
   useEffect(() => {
     const vat = (record?.vat_number || '').trim();
-    if (!record?.id && /^\d{9}$/.test(vat)) handleAadeSearch(vat);
+    if (!record?.id && !isDuplicate && /^\d{9}$/.test(vat)) handleAadeSearch(vat);
 
     // Calculate bonus on open if ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ and no bonus already set
     const cat       = record?.targeting_category;

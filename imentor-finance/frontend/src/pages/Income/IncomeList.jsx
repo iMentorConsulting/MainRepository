@@ -519,6 +519,7 @@ export default function IncomeList() {
       <Modal open={modal.open} onClose={() => setModal({ open: false, record: null, isDuplicate: false })}
         title={modal.isDuplicate ? 'Αντιγραφή Εσόδου' : modal.record ? 'Επεξεργασία Εγγραφής' : 'Νέα Εγγραφή Εσόδου'} size="lg">
         <IncomeForm record={modal.isDuplicate ? { ...modal.record, id: undefined } : modal.record}
+          isDuplicate={modal.isDuplicate}
           onSave={() => { setModal({ open: false, record: null, isDuplicate: false }); load(); }}
           onCancel={() => setModal({ open: false, record: null, isDuplicate: false })} />
       </Modal>
