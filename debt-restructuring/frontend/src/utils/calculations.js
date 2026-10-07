@@ -460,6 +460,8 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     const rentCapMonthly = Math.min(params.rentCapBase + params.rentCapPerMember * (fpSize - 1), params.rentCapMax)
     const effectiveRent = Math.min(incomeData.rentCost || 0, rentCapMonthly * 12)
 
+    const effectiveStudentRent = Math.min(incomeData.studentRentCost || 0, params.studentRentCapMonthly * 12)
+
     const householdExempt = Math.min(
       params.fpExemptSavingsBase + params.fpExemptSavingsPerMember * (fpSize - 1),
       params.fpExemptSavingsMax
@@ -486,7 +488,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const edd = incomeData.householdValue || 0
       // ΕΝΦΙΑ, alimony, student rent: personal obligations — full amount
       totalExpenses = edd * fpRatio + effectiveRent * fpRatio + (incomeData.medicalCost || 0) * fpRatio +
-        (incomeData.enfiaCost || 0) + (incomeData.studentRentCost || 0) + (incomeData.alimonyCost || 0)
+        (incomeData.enfiaCost || 0) + effectiveStudentRent + (incomeData.alimonyCost || 0)
 
       const savingsAdd = countableSavings / 20
 
@@ -567,7 +569,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const effectiveRent2 = Math.min(incomeData.rentCost || 0, rentCapMonthly2 * 12)
       totalExpenses = (incomeData.householdValue || 0) + (incomeData.enfiaCost || 0) +
         (incomeData.medicalCost || 0) + effectiveRent2 +
-        (incomeData.studentRentCost || 0) + (incomeData.alimonyCost || 0)
+        Math.min(incomeData.studentRentCost || 0, params.studentRentCapMonthly * 12) + (incomeData.alimonyCost || 0)
       annualIncome = incomeData.annualIncome || 0
       dispAnnual = Math.max(0, annualIncome - totalExpenses) * 0.8 + countableSavings * params.fpSavingsIncomeRate
       dispYear1 = dispYear24 = dispYear5 = dispAnnual

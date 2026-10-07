@@ -13,7 +13,10 @@ const HOUSEHOLD_OPTIONS = [
   { value: 21458, label: 'Δύο ενήλικες με 4 τέκνα' },
 ]
 
-function MoneyField({ label, id, value, onChange, placeholder = '' }) {
+// Household size implied by each ΕΛΣΤΑΤ household type (drives rent cap + protected deposits)
+const HOUSEHOLD_SIZE = { 6448: 1, 10866: 2, 9096: 2, 13514: 3, 16162: 4, 18659: 5, 18810: 5, 21307: 6, 21458: 6 }
+
+function MoneyField({ label, id, value, onChange, placeholder = '', hint = '' }) {
   // State for displaying the input while user types (unformatted)
   const [displayValue, setDisplayValue] = useState(String(value || ''))
   // Track if this input is currently being edited to avoid prop-driven updates interfering
@@ -60,6 +63,7 @@ function MoneyField({ label, id, value, onChange, placeholder = '' }) {
         onFocus={handleFocus}
         onBlur={handleBlur}
       />
+      {hint && <p className="text-xs text-gray-500 mt-1">{hint}</p>}
     </div>
   )
 }
@@ -80,7 +84,9 @@ function SignedMoneyField({ label, value, onChange, placeholder = '' }) {
 }
 
 // Common personal expense + household fields — used by both FP sub-types
-function FpCommonFields({ income, set, fpSubType }) {
+function FpCommonFields({ income, set, onChange, fpSubType }) {
+  const impliedSize = HOUSEHOLD_SIZE[income.householdValue]
+  const sizeMismatch = impliedSize && (income.householdSize || 1) !== impliedSize
   return (
     <div className="space-y-3">
       <MoneyField
@@ -92,7 +98,10 @@ function FpCommonFields({ income, set, fpSubType }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className="label">Τύπος Νοικοκυριού (ΕΛΣΤΑΤ)</label>
-          <select className="input" value={income.householdValue} onChange={(e) => set('householdValue', Number(e.target.value))}>
+          <select className="input" value={income.householdValue} onChange={(e) => {
+            const v = Number(e.target.value)
+            onChange({ ...income, householdValue: v, householdSize: HOUSEHOLD_SIZE[v] || income.householdSize || 1 })
+          }}>
             <option value={0}>-- Επιλογή --</option>
             {HOUSEHOLD_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
@@ -105,6 +114,11 @@ function FpCommonFields({ income, set, fpSubType }) {
             value={income.householdSize || ''}
             onChange={(e) => set('householdSize', e.target.value ? parseInt(e.target.value) : 1)}
           />
+          {sizeMismatch && (
+            <p className="text-xs text-amber-600 mt-1">
+              ⚠ Ο τύπος νοικοκυριού αντιστοιχεί σε {impliedSize} μέλη. Το όριο ενοικίου και οι προστατευμένες καταθέσεις υπολογίζονται με {income.householdSize || 1}.
+            </p>
+          )}
         </div>
       </div>
       <div>
@@ -120,7 +134,8 @@ function FpCommonFields({ income, set, fpSubType }) {
       <MoneyField label="Ετήσιες Ιατρικές Δαπάνες (€)" value={income.medicalCost} onChange={(v) => set('medicalCost', v)} />
       <MoneyField label="Ετήσιο Ενοίκιο (€)" value={income.rentCost} onChange={(v) => set('rentCost', v)} />
       {fpSubType !== 'Επιτηδευματίας' && (
-        <MoneyField label="Ετήσιο Ενοίκιο Εξαρτ. Μέλους (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)} />
+        <MoneyField label="Ετήσιο Ενοίκιο Εξαρτ. Μέλους (€)" value={income.studentRentCost} onChange={(v) => set('studentRentCost', v)}
+          hint="Μετράει έως 300 €/μήνα (3.600 €/έτος) επιπλέον του ορίου ενοικίου." />
       )}
       <MoneyField label="Ετήσια Διατροφή λόγω Διαζυγίου (€)" value={income.alimonyCost} onChange={(v) => set('alimonyCost', v)} />
     </div>
@@ -253,9 +268,10 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
               <p className="text-xs text-amber-600 mt-1">ΚΕ Τ χρησιμοποιείται για τον έλεγχο ορίου ρύθμισης</p>
             </div>
 
-            <MoneyField label="Καταθέσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
+            <MoneyField label="Καταθέσεις Αιτούντος (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000"
+              hint="Μόνο λογαριασμοί όπου ο αιτών είναι δικαιούχος ή συνδικαιούχος. Δεν περιλαμβάνονται καταθέσεις συζύγου." />
 
-            <FpCommonFields income={income} set={set} fpSubType={fpSubType} />
+            <FpCommonFields income={income} set={set} onChange={onChange} fpSubType={fpSubType} />
           </div>
 
         ) : (
@@ -273,9 +289,10 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
               <p className="text-xs text-green-600 mt-1">Χρησιμοποιείται ο μέσος όρος των 2 υψηλότερων ετών</p>
             </div>
 
-            <MoneyField label="Καταθέσεις / Αποταμιεύσεις (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000" />
+            <MoneyField label="Καταθέσεις Αιτούντος (€)" value={income.savings} onChange={(v) => set('savings', v)} placeholder="π.χ. 5.000"
+              hint="Μόνο λογαριασμοί όπου ο αιτών είναι δικαιούχος ή συνδικαιούχος. Δεν περιλαμβάνονται καταθέσεις συζύγου." />
 
-            <FpCommonFields income={income} set={set} fpSubType={fpSubType} />
+            <FpCommonFields income={income} set={set} onChange={onChange} fpSubType={fpSubType} />
           </div>
         )}
       </div>
@@ -305,7 +322,8 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
                 type="text"
                 inputMode="numeric"
                 className="input w-32 shrink-0 text-center"
-                placeholder="Αξία €"
+                placeholder="Αξία ΕΝΦΙΑ €"
+                title="Φορολογητέα αξία ΕΝΦΙΑ (εκτός σχεδίου: αντικειμενική αξία, εξωτερικό: εμπορική), μόνο το μερίδιο του αιτούντος"
                 value={a.value > 0 ? a.value.toLocaleString('el-GR') : ''}
                 onChange={(e) => {
                   const raw = e.target.value.replace(/[^\d]/g, '')
@@ -317,6 +335,10 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
               </button>
             </div>
           ))}
+          <p className="text-xs text-gray-500">
+            Αξία ακινήτων: φορολογητέα αξία ΕΝΦΙΑ (εκτός σχεδίου: αντικειμενική αξία, εξωτερικό: εμπορική).
+            Καταχωρείται μόνο η περιουσία του αιτούντος, ανάλογα με το ποσοστό ιδιοκτησίας του. Η περιουσία συζύγου δεν υπολογίζεται.
+          </p>
           <button onClick={addAsset} className="btn-secondary gap-2 text-sm mt-2">
             <PlusIcon className="w-4 h-4" /> Προσθήκη Στοιχείου
           </button>

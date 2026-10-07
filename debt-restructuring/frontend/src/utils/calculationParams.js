@@ -59,6 +59,7 @@ export const PARAMS_B = {
   rentCapBase: 350,       // base monthly cap for single-member household
   rentCapPerMember: 50,   // +€50 per additional member
   rentCapMax: 550,        // absolute monthly ceiling
+  studentRentCapMonthly: 300, // extra monthly cap for dependent student rent (ΚΥΑ 67360 άρθρο 1 περ. κα(i))
 
   // FP exempt savings (not counted as available asset for coverage)
   fpExemptSavingsBase: 2000,
