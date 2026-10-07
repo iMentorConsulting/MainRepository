@@ -12,7 +12,7 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
-import { fmt } from '../utils/calculations'
+import { fmt, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
 
 // ── Viber helpers ────────────────────────────────────────────────────────────
 const VIBER_MSGS = [
@@ -22,18 +22,24 @@ const VIBER_MSGS = [
   { type: 'final',     label: 'Τελευταία' },
 ]
 
-const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR4501714330006433164381388\nEurobank: GR5802601680000060201330648\nAlpha Bank: GR2401407750775002330002138\nΔικαιούχος: *I MENTOR IKE*`
 
-function buildOfferBlock(offer) {
+function buildOfferBlock(offer, debtorType) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
   const lines = ['\n\n💼 *Οικονομική Προσφορά:*']
-  if (offer.application_fee) lines.push(`• Αίτηση & Διαδικασία: *${Number(offer.application_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
-  if (offer.success_fee)     lines.push(`• Success Fee (αποδοχή): *${Number(offer.success_fee).toLocaleString('el-GR')}€* + ΦΠΑ`)
+  if (offer.application_fee) {
+    const appFee = calculateOfferWithWithholding(Number(offer.application_fee), debtorType)
+    lines.push(`• Αίτηση & Διαδικασία: *${appFee.formatted}*`)
+  }
+  if (offer.success_fee) {
+    const successFee = calculateOfferWithWithholding(Number(offer.success_fee), debtorType)
+    lines.push(`• Success Fee (αποδοχή): *${successFee.formatted}*`)
+  }
+  lines.push(getBankingDetailsText())
   return lines.join('\n')
 }
 
-function buildViberMessage(type, name, url, offer = null, includeOffer = false) {
-  const offerSection = includeOffer ? buildOfferBlock(offer) + IBANS_TEXT : ''
+function buildViberMessage(type, name, url, offer = null, includeOffer = false, debtorType = '') {
+  const offerSection = includeOffer ? buildOfferBlock(offer, debtorType) : ''
   switch (type) {
     case 'initial':
       return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
@@ -53,10 +59,10 @@ function ViberInlineModal({ caseItem, onSend, onClose, sending }) {
   const [selectedType, setSelectedType] = useState('initial')
   const [includeOffer, setIncludeOffer] = useState(false)
   const [sendEmail, setSendEmail] = useState(!!caseItem.client_email)
-  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url, null, false))
+  const [message, setMessage] = useState(() => buildViberMessage('initial', caseItem.client_name, url, null, false, caseItem.debtor_type))
 
   const rebuild = (type, withOffer) =>
-    setMessage(buildViberMessage(type, caseItem.client_name, url, caseItem.commercial_offer, withOffer))
+    setMessage(buildViberMessage(type, caseItem.client_name, url, caseItem.commercial_offer, withOffer, caseItem.debtor_type))
 
   const selectType = (type) => { setSelectedType(type); rebuild(type, includeOffer) }
   const toggleOffer = (checked) => { setIncludeOffer(checked); rebuild(selectedType, checked) }
@@ -199,11 +205,21 @@ function DaysBadge({ c }) {
   return <span className={`text-xs ${cls}`}>{d}ημ. χωρίς επαφή</span>
 }
 
+const CASE_STATUS_LABELS = {
+  draft: 'Άντληση Στοιχείων',
+  submitted: 'Οριστικοποίηση Αίτησης',
+  in_review: 'Πρόταση Ρύθμισης',
+  completed: 'Αποδοχή Ρύθμισης',
+  cancelled: 'Απορρίψη Ρύθμισης',
+}
+
 export default function SalesPipeline() {
   const navigate = useNavigate()
-  const [cases, setCases] = useState([])
+  const [allCases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterEmployee, setFilterEmployee] = useState('')
+  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStage, setFilterStage] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
   const [viberModal, setViberModal] = useState(null) // caseItem object
   const [viberSending, setViberSending] = useState(false)
@@ -223,6 +239,11 @@ export default function SalesPipeline() {
   }
 
   useEffect(() => { load() }, [filterEmployee])
+
+  const cases = useMemo(() => allCases.filter(c =>
+    (!filterStatus || c.status === filterStatus) &&
+    (!filterStage || (c.contact_stage || 'Νέα Ανάλυση') === filterStage)
+  ), [allCases, filterStatus, filterStage])
 
   const handleViberSend = async (caseId, message, msgType, doEmail, clientEmail, clientName) => {
     setViberSending(true)
@@ -339,6 +360,17 @@ export default function SalesPipeline() {
             <option value="">Όλοι οι σύμβουλοι</option>
             {EMPLOYEES.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
+          <select className="input w-auto text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
+            <option value="">Όλες οι καταστάσεις</option>
+            {Object.entries(CASE_STATUS_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
+          </select>
+          <select className="input w-auto text-sm" value={filterStage} onChange={e => setFilterStage(e.target.value)}>
+            <option value="">Όλα τα Pipeline</option>
+            {STAGE_CONFIG.map(s => <option key={s.key} value={s.key}>{s.icon} {s.key}</option>)}
+          </select>
+          {(filterStatus || filterStage) && (
+            <button className="btn-secondary text-xs" onClick={() => { setFilterStatus(''); setFilterStage('') }}>Καθαρισμός</button>
+          )}
           <button onClick={load} className="btn-secondary p-2" title="Ανανέωση">
             <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
           </button>

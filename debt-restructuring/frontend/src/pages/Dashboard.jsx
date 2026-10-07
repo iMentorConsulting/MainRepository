@@ -53,6 +53,7 @@ export default function Dashboard({ currentEmployee }) {
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState('')
+  const [filterStage, setFilterStage] = useState('')
   const [filterLogistis, setFilterLogistis] = useState(false)
 
   const load = async () => {
@@ -111,7 +112,8 @@ export default function Dashboard({ currentEmployee }) {
 
   const attentionCases = cases.filter(needsAttention)
   const logistisCases = cases.filter(c => c.external_source === 'logistis')
-  const visibleCases = filterLogistis ? logistisCases : cases
+  const visibleCases = (filterLogistis ? logistisCases : cases)
+    .filter(c => !filterStage || (c.contact_stage || 'Νέα Ανάλυση') === filterStage)
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -204,8 +206,12 @@ export default function Dashboard({ currentEmployee }) {
           <option value="">Όλες οι καταστάσεις</option>
           {Object.entries(STATUS_LABELS).map(([k, { label }]) => <option key={k} value={k}>{label}</option>)}
         </select>
-        {(filterEmployee || filterStatus || search) && (
-          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus(''); setSearch('') }}>
+        <select className="input w-auto min-w-[140px]" value={filterStage} onChange={(e) => setFilterStage(e.target.value)}>
+          <option value="">Όλα τα Pipeline</option>
+          {Object.keys(CONTACT_STAGE_CONFIG).map((k) => <option key={k} value={k}>{CONTACT_STAGE_CONFIG[k].icon} {k}</option>)}
+        </select>
+        {(filterEmployee || filterStatus || filterStage || search) && (
+          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus(''); setFilterStage(''); setSearch('') }}>
             Καθαρισμός
           </button>
         )}
