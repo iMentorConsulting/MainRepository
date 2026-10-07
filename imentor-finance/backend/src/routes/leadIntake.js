@@ -245,7 +245,14 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       service_type:     merged.service_type || '',
     };
     broadcast('new_payment', notifPayload);
-    const viberText = `💰 Νέα πληρωμή\n${notifPayload.customer_name}\n${notifPayload.amount_collected}€ · ${invoiceType}`;
+    const SOURCE_LABEL = { case_management: 'Case Mgmt', exodikastikos: 'Εξωδικαστικός' };
+    const sourceLabel = SOURCE_LABEL[data.source] || data.source || '';
+    const viberText = [
+      `💰 Νέα πληρωμή${sourceLabel ? ` [${sourceLabel}]` : ''}`,
+      `${notifPayload.customer_name}`,
+      `${notifPayload.amount_collected}€ · ${invoiceType}`,
+      notifPayload.service_type,
+    ].filter(Boolean).join('\n');
     sendViberMessage(viberText).catch(() => {});
 
     // Fire side-effects
