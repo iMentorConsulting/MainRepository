@@ -23,6 +23,31 @@ def _send_alert_email(subject: str, message: str):
         logger.error(f"Error sending alert email: {e}")
         return False
 
+_ALERTED_ROWS_KEY = "sync_alerted_missing_rows"
+
+
+def _get_alerted_rows(db) -> set:
+    import json
+    from models import AppConfig
+    try:
+        row = db.query(AppConfig).filter(AppConfig.key == _ALERTED_ROWS_KEY).first()
+        return set(json.loads(row.value)) if row and row.value else set()
+    except Exception:
+        return set()
+
+
+def _mark_rows_alerted(db, rows) -> None:
+    import json
+    from models import AppConfig
+    all_rows = _get_alerted_rows(db) | set(int(r) for r in rows)
+    row = db.query(AppConfig).filter(AppConfig.key == _ALERTED_ROWS_KEY).first()
+    if row:
+        row.value = json.dumps(sorted(all_rows))
+    else:
+        db.add(AppConfig(key=_ALERTED_ROWS_KEY, value=json.dumps(sorted(all_rows))))
+    db.commit()
+
+
 def check_sync_health():
     """Periodically check for missing/corrupted data and send email alerts"""
     db = SessionLocal()
@@ -41,6 +66,22 @@ def check_sync_health():
         )
 
         missing = sheet_rows - db_rows
+
+        # Rows deleted on purpose in the app are never "missing"
+        from sheets_sync import _get_deleted_rows
+        missing -= _get_deleted_rows(db)
+
+        # Alert only once per row: rows already reported in a previous alert are skipped
+        # (the admin has seen them), so the same email is not repeated every day.
+        already_alerted = _get_alerted_rows(db)
+        new_missing = missing - already_alerted
+        if missing and not new_missing:
+            logger.info(f"Sync health check: {len(missing)} known missing rows already alerted — no new alert")
+            missing = set()
+
+        if new_missing:
+            _mark_rows_alerted(db, new_missing)
+            missing = new_missing
 
         if missing:
             missing_list = sorted(list(missing))
