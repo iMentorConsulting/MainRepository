@@ -247,11 +247,13 @@ router.post('/', requireLeadApiKey, async (req, res) => {
     broadcast('new_payment', notifPayload);
     const SOURCE_LABEL = { case_management: 'Case Mgmt', exodikastikos: 'Εξωδικαστικός' };
     const sourceLabel = SOURCE_LABEL[data.source] || data.source || '';
+    const orgLabel = merged.organization === 'I MENTOR' ? 'I MENTOR' : merged.organization === 'ΑΠΟΣΤΟΛΑΚΗΣ' ? 'ΑΠΟΣΤΟΛΑΚΗΣ' : '';
     const viberText = [
       `💰 Νέα πληρωμή${sourceLabel ? ` [${sourceLabel}]` : ''}`,
       `${notifPayload.customer_name}`,
       `${notifPayload.amount_collected}€ · ${invoiceType}`,
       notifPayload.service_type,
+      orgLabel,
     ].filter(Boolean).join('\n');
     sendViberMessage(viberText).catch(() => {});
 
