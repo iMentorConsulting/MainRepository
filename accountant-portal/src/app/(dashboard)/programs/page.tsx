@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles, AlertTriangle, RefreshCw } from 'lucide-react'
+import { Plus, Target, Calendar, Zap, TrendingUp, MapPin, Archive, Megaphone, Check, X, ExternalLink, Clock, Sparkles, AlertTriangle, RefreshCw, Bell, Send } from 'lucide-react'
 import { formatDate, formatDateTime } from '@/lib/utils'
 import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { AiTrainingTab } from '@/components/programs/ai-training-tab'
@@ -660,6 +660,75 @@ function AnaptyxiakosAnnouncementsTab() {
   )
 }
 
+interface PendingNotificationProgram {
+  id: string
+  title: string
+  archived: boolean
+  pending: number
+}
+
+function PendingNotificationsTable() {
+  const [rows, setRows] = useState<PendingNotificationProgram[]>([])
+  const [loading, setLoading] = useState(true)
+  const [sendingId, setSendingId] = useState<string | null>(null)
+
+  function load() {
+    fetch('/api/programs/pending-notifications')
+      .then(r => r.ok ? r.json() : { programs: [] })
+      .then(data => setRows(Array.isArray(data.programs) ? data.programs : []))
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }
+
+  useEffect(() => { load() }, [])
+
+  async function sendNow(id: string) {
+    setSendingId(id)
+    try {
+      await fetch(`/api/programs/${id}/notify`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      setRows(prev => prev.filter(r => r.id !== id))
+    } catch {
+      // leave the row — admin can retry or open the program
+    } finally {
+      setSendingId(null)
+    }
+  }
+
+  if (loading || rows.length === 0) return null
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl overflow-hidden">
+      <div className="flex items-center gap-2 px-4 py-2.5 border-b border-amber-200">
+        <Bell size={14} className="text-amber-700" />
+        <h2 className="text-sm font-semibold text-amber-900">Προγράμματα με εκκρεμείς ειδοποιήσεις</h2>
+      </div>
+      <table className="w-full text-sm">
+        <tbody>
+          {rows.map(row => (
+            <tr key={row.id} className="border-b border-amber-100 last:border-0">
+              <td className="px-4 py-2.5">
+                <Link href={`/programs/${row.id}`} className="text-blue-800 hover:underline font-medium">
+                  {row.title}
+                </Link>
+                {row.archived && <span className="ml-2 text-xs text-amber-700">(αρχειοθετημένο)</span>}
+              </td>
+              <td className="px-4 py-2.5 w-36">
+                <span className="bg-green-600 text-white text-xs font-bold rounded-full px-2 py-0.5">{row.pending} εκκρεμ{row.pending === 1 ? 'ή' : 'είς'}</span>
+              </td>
+              <td className="px-4 py-2.5 w-40 text-right">
+                <Button size="sm" variant="outline" disabled={sendingId === row.id} onClick={() => sendNow(row.id)} className="gap-1.5">
+                  <Send size={12} />
+                  {sendingId === row.id ? 'Αποστολή…' : 'Αποστολή'}
+                </Button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 export default function ProgramsPage() {
   const { data: session } = useSession()
   const [programs, setPrograms] = useState<Program[]>([])
@@ -827,6 +896,8 @@ export default function ProgramsPage() {
         isAdmin ? <AiTrainingTab /> : null
       ) : (
         <>
+      {isAdmin && <PendingNotificationsTable />}
+
       {/* Category Filters */}
       <div className="flex gap-2 flex-wrap items-center">
         {['', 'ESPA', 'DYPA', 'MICROCREDITS', 'ANAPTYXIAKOS'].map(cat => (
