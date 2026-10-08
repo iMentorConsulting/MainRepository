@@ -15,6 +15,7 @@ export const CM_CATEGORY_LABEL: Record<string, string> = {
   ANAPTYXIAKOS: 'ΑΝΑΠΤΥΞΙΑΚΟΣ',
   RENOVATION: 'ΑΝΑΚΑΙΝΙΖΩ',
   EXTRAJUDICIAL: 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ',
+  LEADER: 'LEADER',
   OTHER: 'ΑΛΛΟ',
 }
 

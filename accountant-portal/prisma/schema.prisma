@@ -379,6 +379,7 @@ enum ProgramCategory {
   EXTRAJUDICIAL
   RENOVATION
   ANAPTYXIAKOS
+  LEADER
   OTHER
 }
 
