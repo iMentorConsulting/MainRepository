@@ -61,9 +61,14 @@ async function sendToPhone(cfg, rawPhone, text) {
 }
 
 async function findContact(api, headers, phone) {
-  for (const q of [phone, `+${phone}`]) {
+  // Try multiple formats: international with/without +, and local (strip country code)
+  const local = phone.startsWith('30') ? phone.slice(2) : phone;
+  for (const q of [phone, `+${phone}`, local]) {
     const data = await chatwootGet(`${api}/contacts/search?q=${encodeURIComponent(q)}&include_contacts=true`, headers);
-    const hits = data?.payload?.contacts || [];
+    // Chatwoot may return payload as {contacts:[]} or as a bare list
+    const payload = data?.payload;
+    const hits = Array.isArray(payload) ? payload
+      : (Array.isArray(payload?.contacts) ? payload.contacts : []);
     if (hits.length) return hits[0].id;
   }
   return null;
@@ -125,6 +130,11 @@ function chatwootRequest(method, url, headers, body) {
       let data = '';
       res.on('data', c => data += c);
       res.on('end', () => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          console.warn(`[viber-chatwoot] ${method} ${parsed.pathname} → HTTP ${res.statusCode}: ${data.slice(0, 300)}`);
+          resolve(null);
+          return;
+        }
         try { resolve(JSON.parse(data)); } catch { resolve(null); }
       });
     });
