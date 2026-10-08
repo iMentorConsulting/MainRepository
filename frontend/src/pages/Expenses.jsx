@@ -642,7 +642,7 @@ export default function Expenses() {
                             <button onClick={() => setModal(e)} title="Επεξεργασία" className="p-1 rounded hover:bg-blue-50 text-gray-400 hover:text-blue-600">
                               <PencilSquareIcon className="h-4 w-4" />
                             </button>
-                            <button onClick={() => setModal({ ...e, id: undefined })} title="Αντιγραφή" className="p-1 rounded hover:bg-green-50 text-gray-400 hover:text-green-600">
+                            <button onClick={() => setModal({ ...e, id: undefined, date: new Date().toISOString().split('T')[0], _copy: true })} title="Αντιγραφή" className="p-1 rounded hover:bg-green-50 text-gray-400 hover:text-green-600">
                               <DocumentDuplicateIcon className="h-4 w-4" />
                             </button>
                             <button onClick={() => setDeleting(e)} title="Διαγραφή" className="p-1 rounded hover:bg-red-50 text-gray-400 hover:text-red-500">
@@ -685,7 +685,7 @@ export default function Expenses() {
           categories={categories}
           units={units}
           unitTypes={unitTypes}
-          editing={modal?.id ? modal : null}
+          editing={modal?.id ? modal : modal?._copy ? { ...modal, _copy: undefined } : null}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
         />
