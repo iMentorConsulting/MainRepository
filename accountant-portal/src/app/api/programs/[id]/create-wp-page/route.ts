@@ -121,7 +121,14 @@ export async function POST(
 
     await prisma.program.update({
       where: { id },
-      data: { wpPageId: wpId, wpPageUrl: link },
+      data: {
+        wpPageId: wpId,
+        wpPageUrl: link,
+        // Also fill "Σελίδα Προγράμματος στο Website μας" if it's empty —
+        // only when empty, so a deliberately different custom URL already
+        // set by an admin is never overwritten.
+        ...(program.websiteUrl ? {} : { websiteUrl: link }),
+      },
     })
 
     // Add to WP nav menu if template specifies a parent menu item
