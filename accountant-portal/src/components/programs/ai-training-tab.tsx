@@ -1,5 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { FileUp, Plus, Save, Sparkles, Trash2 } from 'lucide-react'
@@ -9,6 +10,16 @@ interface Announcement {
   id: string
   title: string
   detailUrl: string
+}
+
+const CATEGORY_LABEL: Record<string, string> = {
+  ESPA: 'ΕΣΠΑ',
+  DYPA: 'ΔΥΠΑ',
+  MICROCREDITS: 'Μικροπιστώσεις',
+  EXTRAJUDICIAL: 'Εξωδικαστικός',
+  RENOVATION: 'Ανακαίνιση',
+  ANAPTYXIAKOS: 'Αναπτυξιακός Νόμος',
+  OTHER: 'Άλλο',
 }
 
 interface FundedAction {
@@ -124,6 +135,7 @@ function FundedActionsEditor({ value, onChange }: { value: FundedAction[]; onCha
 }
 
 export function AiTrainingTab() {
+  const router = useRouter()
   const [mode, setMode] = useState<'upload' | 'announcement'>('upload')
   const [file, setFile] = useState<File | null>(null)
   const [announcements, setAnnouncements] = useState<Announcement[]>([])
@@ -137,6 +149,10 @@ export function AiTrainingTab() {
   const [programs, setPrograms] = useState<{ id: string; title: string }[]>([])
   const [targetProgramId, setTargetProgramId] = useState('')
   const [applyMsg, setApplyMsg] = useState('')
+  const [applyTarget, setApplyTarget] = useState<'existing' | 'new'>('existing')
+  const [newTitle, setNewTitle] = useState('')
+  const [newCategory, setNewCategory] = useState('OTHER')
+  const [creating, setCreating] = useState(false)
 
   useEffect(() => {
     fetch('/api/programs')
@@ -184,6 +200,8 @@ export function AiTrainingTab() {
       setSourceText(data.sourceText)
       setSourceUrl(data.sourceUrl)
       setFields(data.result)
+      const announcementTitle = mode === 'announcement' ? announcements.find(a => a.id === announcementId)?.title : null
+      setNewTitle(announcementTitle || (file ? file.name.replace(/\.pdf$/i, '') : ''))
     } catch {
       setError('Σφάλμα εξαγωγής')
     } finally {
@@ -237,6 +255,35 @@ export function AiTrainingTab() {
       body: JSON.stringify(payload),
     })
     setApplyMsg(res.ok ? 'Εφαρμόστηκε στο πρόγραμμα' : 'Σφάλμα εφαρμογής στο πρόγραμμα')
+  }
+
+  async function createProgram() {
+    if (!fields || !newTitle.trim()) return
+    setCreating(true)
+    setApplyMsg('')
+    try {
+      const payload = {
+        title: newTitle.trim(),
+        category: newCategory,
+        ...fields,
+        otherRequirements: fields.otherRequirements.map((r, i) => `${i + 1}. ${r}`).join('\n'),
+      }
+      const res = await fetch('/api/programs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setApplyMsg(data.error || 'Σφάλμα δημιουργίας προγράμματος')
+        return
+      }
+      router.push(`/programs/${data.id}`)
+    } catch {
+      setApplyMsg('Σφάλμα δημιουργίας προγράμματος')
+    } finally {
+      setCreating(false)
+    }
   }
 
   return (
@@ -303,18 +350,44 @@ export function AiTrainingTab() {
             <FundedActionsEditor value={fields.fundedActions} onChange={v => updateField('fundedActions', v)} />
             <ExpenseCategoriesEditor value={fields.expenseCategories} onChange={v => updateField('expenseCategories', v)} />
 
-            <div className="flex flex-wrap items-center gap-2 border-t pt-3">
+            <div className="space-y-3 border-t pt-3">
               <Button type="button" variant="outline" onClick={saveExample} disabled={saved}>
                 <Save size={14} className="mr-1.5" /> {saved ? 'Αποθηκεύτηκε ως παράδειγμα' : 'Αποθήκευση ως παράδειγμα'}
               </Button>
 
-              <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm" value={targetProgramId} onChange={e => setTargetProgramId(e.target.value)}>
-                <option value="">— Εφαρμογή σε πρόγραμμα —</option>
-                {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
-              </select>
-              <Button type="button" variant="outline" onClick={applyToProgram} disabled={!targetProgramId}>
-                Εφαρμογή στο Πρόγραμμα
-              </Button>
+              <div className="flex gap-2">
+                <Button type="button" variant={applyTarget === 'existing' ? 'default' : 'outline'} size="sm" onClick={() => setApplyTarget('existing')}>Εφαρμογή σε υπάρχον</Button>
+                <Button type="button" variant={applyTarget === 'new' ? 'default' : 'outline'} size="sm" onClick={() => setApplyTarget('new')}>
+                  <Plus size={14} className="mr-1.5" /> Δημιουργία νέου προγράμματος
+                </Button>
+              </div>
+
+              {applyTarget === 'existing' ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm" value={targetProgramId} onChange={e => setTargetProgramId(e.target.value)}>
+                    <option value="">— Εφαρμογή σε πρόγραμμα —</option>
+                    {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+                  </select>
+                  <Button type="button" variant="outline" onClick={applyToProgram} disabled={!targetProgramId}>
+                    Εφαρμογή στο Πρόγραμμα
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    className="rounded-lg border border-gray-300 px-3 py-2 text-sm w-80"
+                    placeholder="Τίτλος νέου προγράμματος"
+                    value={newTitle}
+                    onChange={e => setNewTitle(e.target.value)}
+                  />
+                  <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm" value={newCategory} onChange={e => setNewCategory(e.target.value)}>
+                    {Object.entries(CATEGORY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                  </select>
+                  <Button type="button" loading={creating} onClick={createProgram} disabled={!newTitle.trim()}>
+                    Δημιουργία Προγράμματος
+                  </Button>
+                </div>
+              )}
               {applyMsg && <span className="text-sm text-gray-600">{applyMsg}</span>}
             </div>
           </div>
