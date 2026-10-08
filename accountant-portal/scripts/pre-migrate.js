@@ -63,6 +63,22 @@ async function main() {
     console.log(`  Backfilled ΑΤΟΜΙΚΗ legal form on ${gemiLookups} GemiLookup rows`)
   } catch (e) { console.log('  GemiLookup ΑΤΟΜΙΚΗ backfill skip:', e.message) }
 
+  // create-wp-page used to only save wpPageId/wpPageUrl and never copied the
+  // link into websiteUrl (the "Σελίδα Προγράμματος στο Website μας" field
+  // shown on the edit page) — so programs with an already-published WP page
+  // could still show that field empty. Backfill: only touches rows where
+  // websiteUrl is empty, so a deliberately different custom URL is never
+  // overwritten.
+  try {
+    const websiteUrls = await prisma.$executeRawUnsafe(`
+      UPDATE "Program"
+      SET "websiteUrl" = "wpPageUrl"
+      WHERE ("websiteUrl" IS NULL OR "websiteUrl" = '')
+        AND "wpPageUrl" IS NOT NULL AND "wpPageUrl" != ''
+    `)
+    console.log(`  Backfilled websiteUrl from wpPageUrl on ${websiteUrls} Program rows`)
+  } catch (e) { console.log('  Program websiteUrl backfill skip:', e.message) }
+
   console.log('>>> Pre-migration done.')
 }
 
