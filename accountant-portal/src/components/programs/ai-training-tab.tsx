@@ -19,6 +19,7 @@ const CATEGORY_LABEL: Record<string, string> = {
   EXTRAJUDICIAL: 'Εξωδικαστικός',
   RENOVATION: 'Ανακαίνιση',
   ANAPTYXIAKOS: 'Αναπτυξιακός Νόμος',
+  LEADER: 'LEADER',
   OTHER: 'Άλλο',
 }
 

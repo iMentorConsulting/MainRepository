@@ -23,7 +23,7 @@ function formatEuro(value: number | null | undefined) {
 }
 
 const categoryLabel: Record<string, string> = {
-  ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', MICROCREDITS: 'Μικροπιστώσεις', EXTRAJUDICIAL: 'Εξωδικαστικός Μηχανισμός', RENOVATION: 'Ανακαίνιση', OTHER: 'Άλλο',
+  ESPA: 'ΕΣΠΑ', DYPA: 'ΔΥΠΑ', MICROCREDITS: 'Μικροπιστώσεις', EXTRAJUDICIAL: 'Εξωδικαστικός Μηχανισμός', RENOVATION: 'Ανακαίνιση', ANAPTYXIAKOS: 'Αναπτυξιακός Νόμος', LEADER: 'LEADER', OTHER: 'Άλλο',
 }
 
 export default function ProgramDetailPage() {
