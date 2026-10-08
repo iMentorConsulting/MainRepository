@@ -254,6 +254,7 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       `${notifPayload.amount_collected}€ · ${invoiceType}`,
       notifPayload.service_type,
       orgLabel,
+      merged.sales_agent,
     ].filter(Boolean).join('\n');
     sendViberMessage(viberText).catch(() => {});
 
