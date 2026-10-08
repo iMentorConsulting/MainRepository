@@ -33,6 +33,7 @@ DEFAULT_CONFIG = {
     "max_periods": 2,      # free periods searched per run — keeps Apify free-tier usage low
     "max_results": 40,     # listings fetched per search
     "lookahead_days": 60,
+    "luxury_min_nightly": 0,  # €/night floor for the luxury-segment rank; 0 = 60% of own price
     "units": {},           # unit_id -> {airbnb_url, booking_url, title, description, highlights}
 }
 
@@ -190,9 +191,22 @@ def _listing_key(url: str, platform: str) -> Optional[str]:
     return m.group(1).lower() if m else None
 
 
+def _segment_rank(comps: list, nights: int, min_nightly: float, my_price: Optional[float]):
+    """Rank among comparable luxury listings only (price ≥ floor). Returns (rank, total) or (None, None)."""
+    if not comps or not any(c.get("mine") for c in comps):
+        return None, None
+    floor = (min_nightly * nights) if min_nightly else (my_price * 0.6 if my_price else None)
+    if not floor:
+        return None, None
+    seg = [c for c in comps if c.get("mine") or (c.get("price") or 0) >= floor]
+    rank = next(i + 1 for i, c in enumerate(seg) if c.get("mine"))
+    return rank, len(seg)
+
+
 # ── Claude advice ───────────────────────────────────────────────────────
 
-def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, location: str) -> list:
+def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, location: str,
+                            min_nightly: float = 0) -> list:
     api_key = os.getenv("ANTHROPIC_API_KEY", "")
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY δεν έχει οριστεί")
@@ -201,25 +215,27 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
     blocks = []
     for s in snapshots:
         comps = json.loads(s.competitors or "[]")
+        nights = (s.check_out - s.check_in).days
         rank_txt = f"#{s.rank} από {s.total_results}" if s.rank else f"ΔΕΝ εμφανίζεται στα πρώτα {s.total_results}"
-        above = comps[: (s.rank - 1) if s.rank else 8][:8]
-        prices = [c["price"] for c in comps if c.get("price")]
-        median = round(statistics.median(prices)) if prices else None
+        lux_rank, lux_total = _segment_rank(comps, nights, min_nightly, s.my_price)
+        others = [c for c in comps if not c.get("mine")]
+        above = [c for c in others if s.rank and c.get("position", 999) < s.rank][:10] or others[:8]
         blocks.append(
             f"### {s.platform.upper()} · {s.check_in:%d/%m}–{s.check_out:%d/%m/%Y} "
-            f"({(s.check_out - s.check_in).days} νύχτες, {s.adults} ενήλικες)\n"
-            f"Θέση μας: {rank_txt}. Δική μας τιμή διαμονής: {s.my_price or 'άγνωστη'} €. "
-            f"Διάμεση τιμή αγοράς: {median or 'άγνωστη'} €.\n"
-            f"Listings πάνω από εμάς:\n"
+            f"({nights} νύχτες, {s.adults} ενήλικες)\n"
+            f"Θέση μας: {rank_txt}"
+            + (f" · στα luxury listings: #{lux_rank} από {lux_total}" if lux_rank else "")
+            + f". Δική μας τιμή διαμονής: {s.my_price or 'άγνωστη'} €.\n"
+            f"Listings πάνω από εμάς (με τη σειρά της αναζήτησης):\n"
             + "\n".join(
-                f"- {c['name']} | {c.get('type','')} | τιμή {c.get('price') or '?'}€ | "
+                f"- #{c.get('position', '?')} {c['name']} | {c.get('type','')} | τιμή {c.get('price') or '?'}€ | "
                 f"βαθμ. {c.get('rating') or '?'} ({c.get('reviews', 0)} κριτικές)"
                 + (f" | {c['description'][:160]}" if c.get("description") else "")
                 for c in above
             )
         )
 
-    prompt = f"""Είσαι ειδικός σε revenue management και SEO για Airbnb και Booking.com.
+    prompt = f"""Είσαι ειδικός στον αλγόριθμο κατάταξης του Airbnb και του Booking.com για LUXURY καταλύματα.
 Περιοχή αναζήτησης: {location}
 
 ΤΟ ΔΙΚΟ ΜΑΣ LISTING: "{unit.name}" ({unit.type}, έως {unit.capacity} άτομα, βασική τιμή {unit.base_price}€/νύχτα)
@@ -230,15 +246,27 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
 ΔΕΔΟΜΕΝΑ ΑΝΑΖΗΤΗΣΕΩΝ ΓΙΑ ΤΙΣ ΚΕΝΕΣ ΠΕΡΙΟΔΟΥΣ ΜΑΣ:
 {chr(10).join(blocks)}
 
-Δώσε 4–8 ΣΥΓΚΕΚΡΙΜΕΝΕΣ ενέργειες για να ανέβουμε στην 1η θέση και να γεμίσουμε αυτές τις ημερομηνίες.
-Κάθε ενέργεια πρέπει να αναφέρεται σε συγκεκριμένη πλατφόρμα/ημερομηνίες/αριθμούς από τα δεδομένα
-(π.χ. "έκπτωση 12% για 14–19/10 ώστε η τιμή να πέσει στα 640€, κάτω από τη διάμεση 690€").
-ΟΧΙ γενικές συμβουλές τύπου "βάλε καλές φωτογραφίες". Όπου προτείνεις νέο τίτλο ή περιγραφή, γράψε
+ΣΤΟΧΟΣ: να ανέβει η ΘΕΣΗ ΚΑΤΑΤΑΞΗΣ μας (ιδανικά #1) σε αυτές τις αναζητήσεις.
+ΑΠΑΡΑΒΑΤΟΣ ΚΑΝΟΝΑΣ: είμαστε luxury και ΔΕΝ μειώνουμε τιμή. ΜΗΝ προτείνεις έκπτωση, μείωση τιμής ή
+σύγκριση με φθηνότερα καταλύματα. Αγνόησε listings χαμηλότερης κατηγορίας.
+
+Δούλεψε μόνο με μοχλούς κατάταξης που δεν αγγίζουν την τιμή, π.χ.:
+- τίτλος/περιγραφή με τις λέξεις που έχουν οι πρώτοι (pool, sea view, private chef, κλπ.)
+- προσφορές προστιθέμενης αξίας αντί έκπτωσης (welcome hamper, δωρεάν transfer, late check-out, chef night)
+- ρυθμίσεις που ευνοεί ο αλγόριθμος: Instant Book, ευέλικτη πολιτική ακύρωσης, ελάχιστη διαμονή,
+  διαθεσιμότητα ημερολογίου, χρόνος απάντησης, Preferred Partner / Genius / Guest Favourite
+- παροχές και φωτογραφίες που έχουν οι πρώτοι και λείπουν από εμάς
+- κριτικές: πώς να αυξηθεί ο αριθμός/βαθμολογία σε σχέση με αυτούς που προηγούνται
+
+Δώσε 4–8 ΣΥΓΚΕΚΡΙΜΕΝΕΣ ενέργειες. Κάθε μία να αναφέρεται σε συγκεκριμένη πλατφόρμα, ημερομηνίες και
+συγκεκριμένα listings που μας ξεπερνούν (π.χ. "Στο Airbnb 18–25/10 τα #1 και #2 έχουν 'heated pool' στον
+τίτλο και 140+ κριτικές· προσθέστε το στον τίτλο και ενεργοποιήστε Instant Book").
+ΟΧΙ γενικές συμβουλές. Όπου προτείνεις νέο τίτλο ή περιγραφή, γράψε
 το έτοιμο κείμενο (στα Αγγλικά, όπως εμφανίζεται στους ξένους επισκέπτες) στο suggested_text.
 
 Απάντησε ΜΟΝΟ με JSON array, χωρίς άλλο κείμενο:
 [{{"platform":"airbnb|booking|both","check_in":"YYYY-MM-DD ή null","check_out":"YYYY-MM-DD ή null",
-"priority":"high|medium|low","category":"price|offer|title|description|photos|amenities|policy|availability|other",
+"priority":"high|medium|low","category":"offer|title|description|photos|amenities|policy|availability|reviews|other",
 "title":"σύντομος τίτλος στα Ελληνικά","action":"τι ακριβώς να γίνει και γιατί, στα Ελληνικά",
 "suggested_text":"έτοιμο κείμενο ή null"}}]"""
 
@@ -321,7 +349,9 @@ def run_optimizer(db_factory, tenant: str):
                         adults=int(cfg.get("adults", 2)), rank=rank, total_results=len(listings),
                         my_price=mine["price"] if mine else None,
                         my_rating=mine["rating"] if mine else None,
-                        competitors=json.dumps([l for l in listings if l is not mine][:15], ensure_ascii=False),
+                        competitors=json.dumps(
+                            [{**l, "position": i + 1, "mine": l is mine} for i, l in enumerate(listings)],
+                            ensure_ascii=False),
                         error=err,
                     )
                     db.add(snap)
@@ -336,7 +366,8 @@ def run_optimizer(db_factory, tenant: str):
                 continue
             log(f"AI ανάλυση για {u.name}…")
             try:
-                recs = _claude_recommendations(u, unit_cfgs.get(str(u.id), {}), snaps, location)
+                recs = _claude_recommendations(u, unit_cfgs.get(str(u.id), {}), snaps, location,
+                                              float(cfg.get("luxury_min_nightly") or 0))
             except Exception as e:
                 log(f"  ✗ {e}")
                 continue
@@ -384,6 +415,7 @@ class ConfigIn(BaseModel):
     max_periods: int = 2
     max_results: int = 40
     lookahead_days: int = 60
+    luxury_min_nightly: float = 0
     units: dict = {}
 
 
@@ -420,14 +452,17 @@ def run_status(tenant: str = Depends(get_tenant)):
     return _run_state.get(tenant, {"running": False})
 
 
-def _snap_dict(s: ListingSnapshot) -> dict:
-    comps = json.loads(s.competitors or "[]")
+def _snap_dict(s: ListingSnapshot, min_nightly: float = 0) -> dict:
+    all_comps = json.loads(s.competitors or "[]")
+    comps = [c for c in all_comps if not c.get("mine")]
     prices = [c["price"] for c in comps if c.get("price")]
+    lux_rank, lux_total = _segment_rank(all_comps, (s.check_out - s.check_in).days, min_nightly, s.my_price)
     return {
         "id": s.id, "run_id": s.run_id, "unit_id": s.unit_id, "platform": s.platform,
         "check_in": s.check_in.isoformat(), "check_out": s.check_out.isoformat(),
         "rank": s.rank, "total_results": s.total_results, "my_price": s.my_price,
         "my_rating": s.my_rating, "median_price": round(statistics.median(prices)) if prices else None,
+        "lux_rank": lux_rank, "lux_total": lux_total,
         "competitors": comps[:5], "error": s.error, "created_at": s.created_at.isoformat(),
     }
 
@@ -442,7 +477,7 @@ def latest(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
         ListingSnapshot.tenant == tenant, ListingSnapshot.run_id == last.run_id
     ).all()
     return {"run_id": last.run_id, "created_at": last.created_at.isoformat(),
-            "snapshots": [_snap_dict(s) for s in snaps]}
+            "snapshots": [_snap_dict(s, float(_load_config(db, tenant).get("luxury_min_nightly") or 0)) for s in snaps]}
 
 
 @router.get("/history")

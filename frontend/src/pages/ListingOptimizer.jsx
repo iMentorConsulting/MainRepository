@@ -22,7 +22,7 @@ const PRIORITY = {
 }
 const CATEGORY = {
   price: 'Τιμή', offer: 'Προσφορά', title: 'Τίτλος', description: 'Περιγραφή', photos: 'Φωτογραφίες',
-  amenities: 'Παροχές', policy: 'Πολιτική', availability: 'Διαθεσιμότητα', other: 'Άλλο',
+  amenities: 'Παροχές', policy: 'Πολιτική', availability: 'Διαθεσιμότητα', reviews: 'Κριτικές', other: 'Άλλο',
 }
 
 const fmtD = (iso) => iso ? new Date(iso).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit' }) : ''
@@ -212,6 +212,11 @@ export default function ListingOptimizer() {
               <input type="number" min={7} max={180} className="input" value={cfg.lookahead_days}
                 onChange={e => setC('lookahead_days', +e.target.value)} />
             </div>
+            <div>
+              <label className="label">Luxury σύγκριση από (€/νύχτα)</label>
+              <input type="number" min={0} step={50} className="input" placeholder="αυτόματα" value={cfg.luxury_min_nightly || ''}
+                onChange={e => setC('luxury_min_nightly', +e.target.value || 0)} />
+            </div>
             <div className="flex items-end">
               <label className="flex items-center gap-2 text-sm pb-2">
                 <input type="checkbox" checked={cfg.enabled} onChange={e => setC('enabled', e.target.checked)} />
@@ -291,8 +296,8 @@ export default function ListingOptimizer() {
                 <th className="text-left px-4 py-3">Πλατφόρμα</th>
                 <th className="text-left px-4 py-3">Κενή περίοδος</th>
                 <th className="text-right px-4 py-3">Θέση</th>
+                <th className="text-right px-4 py-3">Θέση στα luxury</th>
                 <th className="text-right px-4 py-3">Δική σας τιμή</th>
-                <th className="text-right px-4 py-3">Διάμεση αγοράς</th>
                 <th className="text-left px-4 py-3">Πρώτοι στην αναζήτηση</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-50">
@@ -304,15 +309,10 @@ export default function ListingOptimizer() {
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {s.error ? <span className="text-red-500 text-xs" title={s.error}>Σφάλμα</span> : <RankBadge rank={s.rank} total={s.total_results} />}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{eur(s.my_price)}</td>
-                    <td className="px-4 py-3 text-right tabular-nums">
-                      {eur(s.median_price)}
-                      {s.my_price && s.median_price && (
-                        <span className={`block text-[11px] ${s.my_price > s.median_price ? 'text-red-500' : 'text-green-600'}`}>
-                          {s.my_price > s.median_price ? '+' : ''}{Math.round((s.my_price / s.median_price - 1) * 100)}%
-                        </span>
-                      )}
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      {s.lux_rank ? <RankBadge rank={s.lux_rank} total={s.lux_total} /> : <span className="text-gray-400">—</span>}
                     </td>
+                    <td className="px-4 py-3 text-right tabular-nums">{eur(s.my_price)}</td>
                     <td className="px-4 py-3 text-xs text-gray-600 space-y-0.5 min-w-[220px]">
                       {s.competitors.slice(0, 3).map((c, i) => (
                         <a key={i} href={c.url} target="_blank" rel="noreferrer" className="block hover:text-blue-600 truncate max-w-[280px]">
