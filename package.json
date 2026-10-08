@@ -1,0 +1,16 @@
+{
+  "name": "adeies",
+  "version": "1.0.0",
+  "description": "Πρόγραμμα αδειών εργαζομένων της iMentor Consulting",
+  "type": "module",
+  "private": true,
+  "engines": { "node": ">=22.13" },
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test test/*.test.js"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "nodemailer": "6.9.16"
+  }
+}
