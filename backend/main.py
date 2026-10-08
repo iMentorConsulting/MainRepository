@@ -48,6 +48,7 @@ from routes.cm_portal_files import router as cm_portal_files_router
 from routes.cm_revenue import router as cm_revenue_router
 from routes.finance_api import router as finance_api_router
 from routes.backup import router as backup_router
+from routes.listing_optimizer import router as listing_optimizer_router
 
 load_dotenv()
 
@@ -872,6 +873,11 @@ def _run_ical_sync():
         db.close()
 
 
+def _run_weekly_listing_optimizer():
+    from routes.listing_optimizer import run_all_tenants
+    run_all_tenants(SessionLocal)
+
+
 def _run_daily_backup():
     from routes.backup import run_scheduled_backups
     run_scheduled_backups(SessionLocal)
@@ -885,6 +891,7 @@ _scheduler.add_job(_run_owner_reports, "cron", day=1, hour=9, minute=30, id="own
 _scheduler.add_job(_run_ical_sync, "interval", minutes=15, id="ical_sync_15m")
 _scheduler.add_job(_run_auto_emails, "cron", hour=9, minute=30, id="auto_emails_daily")
 _scheduler.add_job(_run_daily_backup, "cron", hour=3, minute=0, id="backup_daily_3am")
+_scheduler.add_job(_run_weekly_listing_optimizer, "cron", day_of_week="mon", hour=4, minute=30, id="listing_optimizer_weekly")
 _scheduler.start()
 
 app = FastAPI(
@@ -925,6 +932,7 @@ app.include_router(beds24_router, prefix="/api")
 app.include_router(email_scan_router, prefix="/api")
 app.include_router(communications_router, prefix="/api")
 app.include_router(backup_router, prefix="/api")
+app.include_router(listing_optimizer_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)

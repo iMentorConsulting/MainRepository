@@ -435,3 +435,43 @@ class InstallationLicense(Base):
     generated_at = Column(DateTime, default=datetime.utcnow)
     software_name = Column(String(200), default='Villa Booking Management System')
     software_version = Column(String(20), default='2.0')
+
+
+class ListingSnapshot(Base):
+    __tablename__ = "listing_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    run_id = Column(String(40), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    platform = Column(String(20), nullable=False)  # airbnb | booking
+    check_in = Column(Date, nullable=False)
+    check_out = Column(Date, nullable=False)
+    search_location = Column(String(200))
+    adults = Column(Integer, default=2)
+    rank = Column(Integer, nullable=True)  # None = not found in results
+    total_results = Column(Integer, default=0)
+    my_price = Column(Float, nullable=True)
+    my_rating = Column(Float, nullable=True)
+    competitors = Column(Text)  # JSON list of normalized listings
+    error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class ListingRecommendation(Base):
+    __tablename__ = "listing_recommendations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    run_id = Column(String(40), nullable=False, index=True)
+    unit_id = Column(Integer, ForeignKey("units.id"), nullable=False)
+    platform = Column(String(20))
+    check_in = Column(Date, nullable=True)
+    check_out = Column(Date, nullable=True)
+    priority = Column(String(10), default="medium")  # high | medium | low
+    category = Column(String(30), default="other")
+    title = Column(String(300), nullable=False)
+    action = Column(Text)
+    suggested_text = Column(Text, nullable=True)
+    status = Column(String(20), default="open")  # open | done | ignored
+    created_at = Column(DateTime, default=datetime.utcnow)

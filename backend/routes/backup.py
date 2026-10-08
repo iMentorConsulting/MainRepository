@@ -16,6 +16,7 @@ from models import (
     ServiceRequest, GuestMessage, GuestPortalSettings, BookingInquiry,
     Expense, Loan, Owner, MaintenanceIssue, GapAlertTemplate, SeasonalRate,
     Discount, ChannelRate, TenantSettings, EmailLog, InstallationLicense,
+    ListingSnapshot, ListingRecommendation,
 )
 
 router = APIRouter(prefix="/backup", tags=["backup"])
@@ -51,6 +52,8 @@ TENANT_MODELS = [
     ("channel_rates", ChannelRate),
     ("email_logs", EmailLog),
     ("installation_licenses", InstallationLicense),
+    ("listing_snapshots", ListingSnapshot),
+    ("listing_recommendations", ListingRecommendation),
 ]
 
 _DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')

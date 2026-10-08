@@ -204,4 +204,14 @@ export const listDriveBackups = () => api.get('/backup/list-drive')
 export const downloadFromDrive = (fileId) => api.get(`/backup/download-drive/${fileId}`)
 export const restoreBackup = (payload) => api.post('/backup/restore', payload)
 
+// Listing optimizer
+export const getListingConfig = () => api.get('/listing-optimizer/config')
+export const saveListingConfig = (data) => api.put('/listing-optimizer/config', data)
+export const runListingOptimizer = () => api.post('/listing-optimizer/run')
+export const getListingRunStatus = () => api.get('/listing-optimizer/status')
+export const getListingLatest = () => api.get('/listing-optimizer/latest')
+export const getListingHistory = () => api.get('/listing-optimizer/history')
+export const getListingRecommendations = (params) => api.get('/listing-optimizer/recommendations', { params })
+export const setListingRecommendationStatus = (id, status) => api.patch(`/listing-optimizer/recommendations/${id}`, { status })
+
 export default api

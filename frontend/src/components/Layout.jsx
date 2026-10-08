@@ -7,7 +7,7 @@ import {
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
   HomeModernIcon, TagIcon, ArrowsRightLeftIcon, CodeBracketIcon, CalendarIcon,
   CreditCardIcon, Bars3Icon, XMarkIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon,
-  CloudArrowUpIcon,
+  CloudArrowUpIcon, ArrowTrendingUpIcon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -21,6 +21,7 @@ const navGroups = [
       { to: '/customers', label: 'Πελάτες', Icon: UsersIcon },
       { to: '/availability', label: 'Availability', Icon: CalendarIcon },
       { to: '/pricing', label: 'Τιμολόγηση', Icon: TagIcon },
+      { to: '/listing-optimizer', label: 'Βελτιστοποίηση Listing', Icon: ArrowTrendingUpIcon },
     ],
   },
   {
