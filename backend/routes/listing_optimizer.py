@@ -162,6 +162,59 @@ def _num(v) -> Optional[float]:
         return None
 
 
+LUX_SIGNALS = {
+    "private pool": ("private pool", "ιδιωτική πισίνα", "piscina privata"),
+    "pool": ("pool", "πισίνα"),
+    "heated pool": ("heated",),
+    "infinity pool": ("infinity",),
+    "sea view": ("sea view", "seaview", "ocean view", "θέα θάλασσα"),
+    "beachfront": ("beachfront", "beach front", "on the beach", "παραλία"),
+    "jacuzzi": ("jacuzzi", "hot tub", "whirlpool"),
+    "chef": ("chef",),
+    "spa/sauna": ("spa", "sauna", "hammam"),
+    "gym": ("gym", "fitness"),
+    "luxury": ("luxury", "luxurious", "πολυτελ"),
+    "villa": ("villa", "βίλα"),
+}
+SIMILAR_MARGIN = 5  # score points within which a listing counts as comparable
+
+
+def _flatten_text(v) -> str:
+    if v is None:
+        return ""
+    if isinstance(v, str):
+        return v
+    if isinstance(v, dict):
+        return " ".join(_flatten_text(x) for x in v.values())
+    if isinstance(v, (list, tuple)):
+        return " ".join(_flatten_text(x) for x in v)
+    return str(v)
+
+
+def _word_match(word: str, text: str) -> bool:
+    # Latin words need whole-word matching ("village" must not count as "villa"); Greek stems match as prefixes
+    if word.isascii():
+        return re.search(rf"\b{re.escape(word)}(s|es)?\b", text) is not None
+    return word in text
+
+
+def _signals(text: str) -> list:
+    t = text.lower()
+    return [k for k, words in LUX_SIGNALS.items() if any(_word_match(w, t) for w in words)]
+
+
+def _quality(l: dict) -> int:
+    """Holistic 0–100 quality score: rating, review volume, luxury features, host/property status."""
+    import math
+    r = l.get("rating")
+    rating_n = (r / 5 if r <= 5 else r / 10) if r else 0.85
+    reviews_n = min(1.0, math.log10((l.get("reviews") or 0) + 1) / 2.3)
+    sig = set(l.get("signals") or [])
+    feature_n = min(1.0, len(sig - {"villa", "luxury"}) / 4 + (0.15 if "villa" in sig else 0) + (0.1 if "luxury" in sig else 0))
+    status_n = 1.0 if l.get("superhost") or (l.get("stars") or 0) >= 4 else 0.0
+    return round(40 * rating_n + 15 * reviews_n + 30 * feature_n + 15 * status_n)
+
+
 def _normalize(item: dict, platform: str) -> dict:
     rating = item.get("rating")
     reviews = item.get("reviews") or item.get("reviewsCount") or item.get("numberOfReviews")
@@ -170,7 +223,12 @@ def _normalize(item: dict, platform: str) -> dict:
         rating = rating.get("guestSatisfaction") or rating.get("value") or rating.get("score")
     if isinstance(reviews, list):
         reviews = len(reviews)
-    return {
+    host = item.get("host") if isinstance(item.get("host"), dict) else {}
+    feature_text = " ".join(_flatten_text(item.get(k)) for k in (
+        "name", "title", "subDescription", "description", "amenities", "facilities",
+        "highlights", "roomType", "propertyType", "type"))
+    photos = item.get("images") or item.get("photos")
+    out = {
         "url": item.get("url") or item.get("link") or "",
         "name": item.get("name") or item.get("title") or "",
         "price": _num(item.get("price") or item.get("pricing")),
@@ -178,7 +236,15 @@ def _normalize(item: dict, platform: str) -> dict:
         "reviews": int(_num(reviews) or 0),
         "type": item.get("type") or item.get("roomType") or item.get("propertyType") or "",
         "description": (item.get("description") or "")[:400] if isinstance(item.get("description"), str) else "",
+        "signals": _signals(feature_text),
+        "superhost": bool(item.get("isSuperHost") or item.get("isSuperhost") or host.get("isSuperHost")
+                          or item.get("isGuestFavorite") or item.get("guestFavorite")),
+        "stars": _num(item.get("stars")),
+        "capacity": _num(item.get("personCapacity") or item.get("maxGuests") or item.get("persons")),
+        "photos": len(photos) if isinstance(photos, list) else None,
     }
+    out["score"] = _quality(out)
+    return out
 
 
 def _listing_key(url: str, platform: str) -> Optional[str]:
@@ -191,9 +257,30 @@ def _listing_key(url: str, platform: str) -> Optional[str]:
     return m.group(1).lower() if m else None
 
 
+def _tier(score: int, mine: int) -> str:
+    if score >= mine + SIMILAR_MARGIN:
+        return "superior"
+    if score >= mine - SIMILAR_MARGIN:
+        return "comparable"
+    return "inferior"
+
+
+def _better_cheaper(comps: list, my_rank: Optional[int]) -> list:
+    """Comparable-or-better listings that rank above us AND are cheaper — the only case a price cut is justified."""
+    me = next((c for c in comps if c.get("mine")), None)
+    if not me:
+        return []
+    my_price = me.get("price") or me.get("est_price")
+    if not my_price:
+        return []
+    return [c for c in comps if not c.get("mine") and c.get("price") and c["price"] < my_price
+            and _tier(c.get("score", 0), me.get("score", 0)) != "inferior"
+            and (my_rank is None or (c.get("position") or 999) < my_rank)]
+
+
 def _segment_rank(comps: list, nights: int, min_nightly: float, my_price: Optional[float]):
     """Rank among comparable luxury listings only (price ≥ floor). Returns (rank, total) or (None, None)."""
-    if not comps or not any(c.get("mine") for c in comps):
+    if not comps or not any(c.get("mine") and c.get("position") for c in comps):
         return None, None
     floor = (min_nightly * nights) if min_nightly else (my_price * 0.6 if my_price else None)
     if not floor:
@@ -219,17 +306,28 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
         rank_txt = f"#{s.rank} από {s.total_results}" if s.rank else f"ΔΕΝ εμφανίζεται στα πρώτα {s.total_results}"
         lux_rank, lux_total = _segment_rank(comps, nights, min_nightly, s.my_price)
         others = [c for c in comps if not c.get("mine")]
-        above = [c for c in others if s.rank and c.get("position", 999) < s.rank][:10] or others[:8]
+        me = next((c for c in comps if c.get("mine")), {})
+        my_score = me.get("score", 0)
+        above = [c for c in others if s.rank and (c.get("position") or 999) < s.rank][:10] or others[:8]
+        bc = _better_cheaper(comps, s.rank)
+        my_total = s.my_price or me.get("est_price")
         blocks.append(
             f"### {s.platform.upper()} · {s.check_in:%d/%m}–{s.check_out:%d/%m/%Y} "
             f"({nights} νύχτες, {s.adults} ενήλικες)\n"
             f"Θέση μας: {rank_txt}"
             + (f" · στα luxury listings: #{lux_rank} από {lux_total}" if lux_rank else "")
-            + f". Δική μας τιμή διαμονής: {s.my_price or 'άγνωστη'} €.\n"
-            f"Listings πάνω από εμάς (με τη σειρά της αναζήτησης):\n"
+            + f". Δική μας τιμή διαμονής: {my_total or 'άγνωστη'} €. Δικό μας quality score: {my_score}/100 "
+            f"(χαρακτηριστικά: {', '.join(me.get('signals') or []) or '—'}).\n"
+            + (f"ΙΣΑΞΙΑ/ΑΝΩΤΕΡΑ ΚΑΙ ΦΘΗΝΟΤΕΡΑ ΠΟΥ ΜΑΣ ΞΕΠΕΡΝΟΥΝ: "
+               + "; ".join(f"#{c.get('position')} {c['name']} {round(c['price'])}€ (score {c.get('score')})" for c in bc)
+               + "\n" if bc else "Κανένα ισάξιο/ανώτερο φθηνότερο listing δεν μας ξεπερνά → ΟΧΙ μείωση τιμής.\n")
+            + f"Listings πάνω από εμάς (με τη σειρά της αναζήτησης):\n"
             + "\n".join(
-                f"- #{c.get('position', '?')} {c['name']} | {c.get('type','')} | τιμή {c.get('price') or '?'}€ | "
-                f"βαθμ. {c.get('rating') or '?'} ({c.get('reviews', 0)} κριτικές)"
+                f"- #{c.get('position', '?')} {c['name']} | {_tier(c.get('score', 0), my_score).upper()} "
+                f"(score {c.get('score')}) | {c.get('type','')} | τιμή {c.get('price') or '?'}€ | "
+                f"βαθμ. {c.get('rating') or '?'} ({c.get('reviews', 0)} κριτικές) | "
+                f"{', '.join(c.get('signals') or []) or '—'}"
+                + (" | Superhost/Guest fav." if c.get("superhost") else "")
                 + (f" | {c['description'][:160]}" if c.get("description") else "")
                 for c in above
             )
@@ -247,10 +345,17 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
 {chr(10).join(blocks)}
 
 ΣΤΟΧΟΣ: να ανέβει η ΘΕΣΗ ΚΑΤΑΤΑΞΗΣ μας (ιδανικά #1) σε αυτές τις αναζητήσεις.
-ΑΠΑΡΑΒΑΤΟΣ ΚΑΝΟΝΑΣ: είμαστε luxury και ΔΕΝ μειώνουμε τιμή. ΜΗΝ προτείνεις έκπτωση, μείωση τιμής ή
-σύγκριση με φθηνότερα καταλύματα. Αγνόησε listings χαμηλότερης κατηγορίας.
+Είμαστε luxury. Κρίνε κάθε ανταγωνιστή ΣΥΝΟΛΙΚΑ (βαθμολογία, κριτικές, παροχές, τύπος, status) — το
+quality score και η ετικέτα SUPERIOR / COMPARABLE / INFERIOR σε βοηθούν, αλλά χρησιμοποίησε και την κρίση σου
+από ονόματα/περιγραφές.
 
-Δούλεψε μόνο με μοχλούς κατάταξης που δεν αγγίζουν την τιμή, π.χ.:
+ΚΑΝΟΝΑΣ ΤΙΜΗΣ:
+- Πρότεινε μείωση τιμής ΜΟΝΟ όταν ισάξιο ή ανώτερο listing είναι φθηνότερο ΚΑΙ μας ξεπερνά στην κατάταξη.
+  Τότε η μείωση να φέρνει την τιμή μας κοντά σε αυτό το listing (όχι χαμηλότερα), με συγκεκριμένο ποσό/% και ημερομηνίες.
+- Φθηνότερα INFERIOR listings (απλά σπίτια, διαμερίσματα χωρίς πισίνα κλπ.) τα ΑΓΝΟΟΥΜΕ για την τιμή.
+- Η τιμή είναι δευτερεύων μοχλός· προτεραιότητα έχουν οι παρακάτω.
+
+Μοχλοί κατάταξης χωρίς αλλαγή τιμής, π.χ.:
 - τίτλος/περιγραφή με τις λέξεις που έχουν οι πρώτοι (pool, sea view, private chef, κλπ.)
 - προσφορές προστιθέμενης αξίας αντί έκπτωσης (welcome hamper, δωρεάν transfer, late check-out, chef night)
 - ρυθμίσεις που ευνοεί ο αλγόριθμος: Instant Book, ευέλικτη πολιτική ακύρωσης, ελάχιστη διαμονή,
@@ -266,7 +371,7 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
 
 Απάντησε ΜΟΝΟ με JSON array, χωρίς άλλο κείμενο:
 [{{"platform":"airbnb|booking|both","check_in":"YYYY-MM-DD ή null","check_out":"YYYY-MM-DD ή null",
-"priority":"high|medium|low","category":"offer|title|description|photos|amenities|policy|availability|reviews|other",
+"priority":"high|medium|low","category":"price|offer|title|description|photos|amenities|policy|availability|reviews|other",
 "title":"σύντομος τίτλος στα Ελληνικά","action":"τι ακριβώς να γίνει και γιατί, στα Ελληνικά",
 "suggested_text":"έτοιμο κείμενο ή null"}}]"""
 
@@ -343,21 +448,34 @@ def run_optimizer(db_factory, tenant: str):
                         if my_key and _listing_key(l["url"], platform) == my_key:
                             rank, mine = idx + 1, l
                             break
+                    # Own entry: enrich with configured highlights so the score reflects the real villa
+                    ucfg = unit_cfgs.get(str(u.id), {})
+                    own_text = " ".join([u.name, u.type or "", ucfg.get("title", ""), ucfg.get("description", ""),
+                                         ucfg.get("highlights", "")])
+                    entries = [{**l, "position": i + 1, "mine": l is mine} for i, l in enumerate(listings)]
+                    own = next((e for e in entries if e["mine"]), None)
+                    if own is None:
+                        own = {"name": u.name, "url": my_url, "price": None, "rating": None, "reviews": 0,
+                               "position": None, "mine": True}
+                        entries.append(own)
+                    own["signals"] = sorted(set(own.get("signals") or []) | set(_signals(own_text)))
+                    own["est_price"] = (u.base_price or 0) * (co - ci).days or None
+                    own["score"] = _quality(own)
                     snap = ListingSnapshot(
                         tenant=tenant, run_id=run_id, unit_id=u.id, platform=platform,
                         check_in=ci, check_out=co, search_location=location,
                         adults=int(cfg.get("adults", 2)), rank=rank, total_results=len(listings),
                         my_price=mine["price"] if mine else None,
                         my_rating=mine["rating"] if mine else None,
-                        competitors=json.dumps(
-                            [{**l, "position": i + 1, "mine": l is mine} for i, l in enumerate(listings)],
-                            ensure_ascii=False),
+                        competitors=json.dumps(entries, ensure_ascii=False),
                         error=err,
                     )
                     db.add(snap)
                     if not err:
                         snaps_by_unit.setdefault(u.id, []).append(snap)
-                    log(f"  {u.name}: " + (f"θέση #{rank}/{len(listings)}" if rank else f"εκτός top {len(listings)}"))
+                    bc = _better_cheaper(entries, rank)
+                    log(f"  {u.name}: " + (f"θέση #{rank}/{len(listings)}" if rank else f"εκτός top {len(listings)}")
+                        + f" · score {own['score']}" + (f" · {len(bc)} ισάξια/καλύτερα & φθηνότερα" if bc else ""))
         db.commit()
 
         for u in units:
@@ -463,6 +581,10 @@ def _snap_dict(s: ListingSnapshot, min_nightly: float = 0) -> dict:
         "rank": s.rank, "total_results": s.total_results, "my_price": s.my_price,
         "my_rating": s.my_rating, "median_price": round(statistics.median(prices)) if prices else None,
         "lux_rank": lux_rank, "lux_total": lux_total,
+        "my_score": next((c.get("score") for c in all_comps if c.get("mine")), None),
+        "better_cheaper": [{"name": c["name"], "url": c.get("url"), "price": c.get("price"),
+                            "score": c.get("score"), "position": c.get("position")}
+                           for c in _better_cheaper(all_comps, s.rank)],
         "competitors": comps[:5], "error": s.error, "created_at": s.created_at.isoformat(),
     }
 

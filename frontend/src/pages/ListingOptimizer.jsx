@@ -25,6 +25,14 @@ const CATEGORY = {
   amenities: 'Παροχές', policy: 'Πολιτική', availability: 'Διαθεσιμότητα', reviews: 'Κριτικές', other: 'Άλλο',
 }
 
+const TIER = {
+  superior: { label: 'Ανώτερο', cls: 'text-violet-700 bg-violet-50 border-violet-200' },
+  comparable: { label: 'Ισάξιο', cls: 'text-blue-700 bg-blue-50 border-blue-200' },
+  inferior: { label: 'Κατώτερο', cls: 'text-gray-500 bg-gray-50 border-gray-200' },
+}
+const tierOf = (score, mine) => mine == null || score == null ? null
+  : score >= mine + 5 ? 'superior' : score >= mine - 5 ? 'comparable' : 'inferior'
+
 const fmtD = (iso) => iso ? new Date(iso).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit' }) : ''
 const eur = (v) => v == null ? '—' : `€${Math.round(v).toLocaleString('el-GR')}`
 
@@ -298,6 +306,7 @@ export default function ListingOptimizer() {
                 <th className="text-right px-4 py-3">Θέση</th>
                 <th className="text-right px-4 py-3">Θέση στα luxury</th>
                 <th className="text-right px-4 py-3">Δική σας τιμή</th>
+                <th className="text-left px-4 py-3">Μείωση τιμής;</th>
                 <th className="text-left px-4 py-3">Πρώτοι στην αναζήτηση</th>
               </tr></thead>
               <tbody className="divide-y divide-gray-50">
@@ -312,11 +321,29 @@ export default function ListingOptimizer() {
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {s.lux_rank ? <RankBadge rank={s.lux_rank} total={s.lux_total} /> : <span className="text-gray-400">—</span>}
                     </td>
-                    <td className="px-4 py-3 text-right tabular-nums">{eur(s.my_price)}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {eur(s.my_price)}
+                      {s.my_score != null && <span className="block text-[11px] text-gray-500">score {s.my_score}/100</span>}
+                    </td>
+                    <td className="px-4 py-3 text-xs min-w-[170px]">
+                      {s.error ? null : s.better_cheaper?.length ? (
+                        <div className="text-amber-700">
+                          <p className="font-semibold">Ναι — {s.better_cheaper.length} ισάξιο/ανώτερο φθηνότερο</p>
+                          {s.better_cheaper.slice(0, 2).map((b, i) => (
+                            <a key={i} href={b.url} target="_blank" rel="noreferrer" className="block hover:underline truncate max-w-[200px]">
+                              #{b.position} {b.name} · {eur(b.price)}
+                            </a>
+                          ))}
+                        </div>
+                      ) : <span className="text-green-700 font-medium">Όχι — κανένα αντίστοιχο φθηνότερο</span>}
+                    </td>
                     <td className="px-4 py-3 text-xs text-gray-600 space-y-0.5 min-w-[220px]">
                       {s.competitors.slice(0, 3).map((c, i) => (
-                        <a key={i} href={c.url} target="_blank" rel="noreferrer" className="block hover:text-blue-600 truncate max-w-[280px]">
-                          {i + 1}. {c.name} · {eur(c.price)}{c.rating ? ` · ★${c.rating}` : ''}
+                        <a key={i} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-blue-600 max-w-[320px]">
+                          {tierOf(c.score, s.my_score) && (
+                            <span className={`shrink-0 px-1.5 rounded border text-[10px] ${TIER[tierOf(c.score, s.my_score)].cls}`}>{TIER[tierOf(c.score, s.my_score)].label}</span>
+                          )}
+                          <span className="truncate">{c.position || i + 1}. {c.name} · {eur(c.price)}{c.rating ? ` · ★${c.rating}` : ''}</span>
                         </a>
                       ))}
                     </td>
