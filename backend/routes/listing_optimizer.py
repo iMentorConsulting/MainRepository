@@ -585,23 +585,65 @@ quality score και η ετικέτα SUPERIOR / COMPARABLE / INFERIOR σε β�
 ΟΧΙ γενικές συμβουλές. Όπου προτείνεις νέο τίτλο ή περιγραφή, γράψε
 το έτοιμο κείμενο (στα Αγγλικά, όπως εμφανίζεται στους ξένους επισκέπτες) στο suggested_text.
 
-Απάντησε ΜΟΝΟ με JSON array, χωρίς άλλο κείμενο:
-[{{"platform":"airbnb|booking|both","check_in":"YYYY-MM-DD ή null","check_out":"YYYY-MM-DD ή null",
-"priority":"high|medium|low","category":"price|offer|title|description|photos|amenities|policy|availability|reviews|other",
-"title":"σύντομος τίτλος στα Ελληνικά","action":"τι ακριβώς να γίνει και γιατί, στα Ελληνικά",
-"suggested_text":"έτοιμο κείμενο ή null"}}]"""
+ΠΑΡΟΧΕΣ: αναφέρσου ΜΟΝΟ σε παροχές που υπάρχουν στα «Δυνατά σημεία / παροχές» ή στην περιγραφή μας.
+Μην προτείνεις να δηλωθεί/διαφημιστεί παροχή που δεν αναφέρεται εκεί, και μην τη μετονομάζεις σε κάτι
+διαφορετικό (π.χ. υδρομασάζ μέσα στην πισίνα ΔΕΝ είναι jacuzzi/hot tub).
+
+Για ημερομηνίες χρησιμοποίησε YYYY-MM-DD· όταν μια πρόταση δεν αφορά συγκεκριμένες ημερομηνίες ή δεν υπάρχει
+έτοιμο κείμενο, άφησε το αντίστοιχο πεδίο κενό ("")."""
+
+    rec_schema = {
+        "type": "object",
+        "properties": {
+            "recommendations": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "platform": {"type": "string", "enum": ["airbnb", "booking", "both"]},
+                        "check_in": {"type": "string"},
+                        "check_out": {"type": "string"},
+                        "priority": {"type": "string", "enum": ["high", "medium", "low"]},
+                        "category": {"type": "string", "enum": [
+                            "price", "offer", "title", "description", "photos", "amenities",
+                            "policy", "availability", "reviews", "other"]},
+                        "title": {"type": "string"},
+                        "action": {"type": "string"},
+                        "suggested_text": {"type": "string"},
+                    },
+                    "required": ["platform", "check_in", "check_out", "priority", "category",
+                                 "title", "action", "suggested_text"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["recommendations"],
+        "additionalProperties": False,
+    }
 
     client = anthropic.Anthropic(api_key=api_key)
-    msg = client.messages.create(
+    # Structured output guarantees schema-valid JSON; the server-side fallback retries on another
+    # model if a safety classifier declines the request
+    msg = client.beta.messages.create(
         model=CLAUDE_MODEL,
-        max_tokens=4000,
+        max_tokens=16000,
+        betas=["server-side-fallback-2026-07-01"],
+        fallbacks="default",
+        output_config={
+            "effort": "medium",
+            "format": {"type": "json_schema", "schema": rec_schema},
+        },
         messages=[{"role": "user", "content": prompt}],
     )
-    text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
-    start, end = text.find("["), text.rfind("]")
-    if start < 0 or end < 0:
-        raise RuntimeError("Η απάντηση του AI δεν ήταν έγκυρο JSON")
-    return json.loads(text[start : end + 1])
+    if msg.stop_reason == "refusal":
+        raise RuntimeError("Το AI αρνήθηκε την ανάλυση")
+    if msg.stop_reason == "max_tokens":
+        raise RuntimeError("Η απάντηση του AI κόπηκε (όριο μεγέθους)")
+    text = next((b.text for b in msg.content if getattr(b, "type", "") == "text"), "")
+    try:
+        return json.loads(text)["recommendations"]
+    except (ValueError, KeyError) as e:
+        raise RuntimeError(f"Η απάντηση του AI δεν ήταν έγκυρη ({msg.stop_reason}): {e}")
 
 
 def _parse_date(v) -> Optional[date]:
@@ -704,9 +746,17 @@ def run_optimizer(db_factory, tenant: str):
         searches = []  # (ci, co, guests, platform, units) — one per distinct guest count, like real guests
         for platform in cfg["platforms"]:
             chosen_p = []
-            for ri in range(len(ranges)):
+            for ri, (ra, rb, label) in enumerate(ranges):
                 # Per range (each analysis period, or the horizon): its earliest bookable windows
                 in_range = sorted(w for w, by_p in windows.items() if platform in by_p and window_range[w] == ri)
+                if label:
+                    span = f"{label} ({ra:%d/%m/%Y}–{rb - timedelta(days=1):%d/%m/%Y})"
+                    if not in_range:
+                        log(f"{platform}: {span} — καμία ημερομηνία που να μπορεί να κλειστεί "
+                            f"(κρατήσεις, stop sales ή ελάχιστη διαμονή)")
+                    elif (in_range[0][0] - ra).days > 7:
+                        log(f"{platform}: {span} — πρώτο διαθέσιμο check-in {in_range[0][0]:%d/%m/%Y}; "
+                            f"οι νωρίτερες ημερομηνίες είναι κλεισμένες ή δεν καλύπτουν την ελάχιστη διαμονή")
                 chosen_p += in_range[: int(cfg.get("max_periods", 1))]
             for (ci, co) in chosen_p:
                 by_guests: dict = {}
