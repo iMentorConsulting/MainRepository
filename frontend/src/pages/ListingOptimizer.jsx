@@ -47,6 +47,24 @@ function RankBadge({ rank, total }) {
   return <span className={`font-bold tabular-nums ${cls}`}>#{rank}<span className="text-gray-400 font-normal"> / {total}</span></span>
 }
 
+const BOOKING_FILTER_LABELS = {
+  'ht_id=213': 'Βίλες', 'ht_id=220': 'Εξοχικές κατοικίες', 'ht_id=201': 'Διαμερίσματα', 'ht_id=204': 'Ξενοδοχεία',
+  'hotelfacility=433': 'Πισίνα', 'hotelfacility=301': 'Πισίνα',
+}
+function bookingFilterTokens(url) {
+  try {
+    const nflt = new URL(url).searchParams.get('nflt')
+    if (!nflt) return []
+    return nflt.split(';').filter(Boolean).map(t => {
+      if (BOOKING_FILTER_LABELS[t]) return BOOKING_FILTER_LABELS[t]
+      const [k, v] = t.split('=')
+      if (k === 'entire_place_bedroom_count') return `${v}+ υπνοδωμάτια`
+      if (k === 'price') return `Τιμή ${v.replace('EUR-', '€').replace(/-max.*/, '+').replace(/-1$/, '')}`
+      return t
+    })
+  } catch { return [] }
+}
+
 const PLATFORM_OPTS = [['both', 'Airbnb + Booking'], ['airbnb', 'Airbnb'], ['booking', 'Booking']]
 
 function MinStayPeriods({ periods, onChange }) {
@@ -354,6 +372,28 @@ export default function ListingOptimizer() {
               Ελάχιστη τιμή ταξιδιού = {cfg.luxury_min_nightly || 0}€ × νύχτες (π.χ. 5 νύχτες → {(cfg.luxury_min_nightly || 0) * 5}€).
               Η ίδια τιμή ορίζει και ποια listings μετράνε ως luxury.
             </p>
+          </div>
+          <div className="border border-blue-100 bg-sky-50/40 rounded-lg p-4 space-y-2">
+            <p className="text-sm font-semibold text-gray-700">Φίλτρα αναζήτησης Booking</p>
+            <p className="text-xs text-gray-500">
+              Κάντε μια αναζήτηση στο Booking, βάλτε τα φίλτρα σας (π.χ. Βίλες, Πισίνα, Υδρομασάζ, Θέα στη θάλασσα,
+              4 υπνοδωμάτια, 4 μπάνια) και επικολλήστε εδώ το link από τη γραμμή διευθύνσεων. Χρησιμοποιούνται μόνο τα
+              φίλτρα — ημερομηνίες και επισκέπτες μπαίνουν αυτόματα σε κάθε αναζήτηση.
+            </p>
+            <textarea rows={2} className="input font-mono text-xs" placeholder="https://www.booking.com/searchresults…&nflt=…"
+              value={cfg.booking_filters_url || ''} onChange={e => setC('booking_filters_url', e.target.value.trim())} />
+            {(() => {
+              const tokens = bookingFilterTokens(cfg.booking_filters_url)
+              if (!cfg.booking_filters_url) return (
+                <p className="text-xs text-amber-700">Χωρίς link: Βίλες, {af.min_bedrooms || 3}+ υπνοδωμάτια, από {cfg.luxury_min_nightly || 0}€/νύχτα. Πισίνα, υδρομασάζ, θέα και μπάνια μόνο με link.</p>
+              )
+              if (!tokens.length) return <p className="text-xs text-red-600">Το link δεν περιέχει φίλτρα (λείπει το «nflt»). Εφαρμόστε τα φίλτρα στο Booking και αντιγράψτε ξανά το link.</p>
+              return (
+                <div className="flex flex-wrap gap-1.5">
+                  {tokens.map(t => <span key={t} className="px-2 py-0.5 rounded-full border border-sky-200 bg-white text-[11px] text-sky-800">{t}</span>)}
+                </div>
+              )
+            })()}
           </div>
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-gray-500">Προχωρημένα: Apify scrapers</summary>

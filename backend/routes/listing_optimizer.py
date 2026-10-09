@@ -46,7 +46,8 @@ DEFAULT_CONFIG = {
         "entire_place": True, "min_bedrooms": 3, "min_beds": 3, "min_bathrooms": 3,
         "pool": True, "house": True,
     },
-    "analysis_periods": [],  # [{from, to, label}] — if set, examined instead of the rolling horizon
+    "analysis_periods": [],
+    "booking_filters_url": "",  # a Booking search link with the host's filters; its `nflt` is reused  # [{from, to, label}] — if set, examined instead of the rolling horizon
     "airbnb_actor": "",    # empty = AIRBNB_ACTOR default
     "booking_actor": "",
     "units": {},           # unit_id -> {airbnb_url, booking_url, guests, title, description, highlights}
@@ -217,11 +218,34 @@ def _search_url(platform: str, location: str, check_in: date, check_out: date, g
         if f.get("house"):
             q.append(("l2_property_type_ids[]", 1))  # Airbnb property type id: House
         return f"https://www.airbnb.com/s/{quote(slug)}/homes?" + urlencode(q)
-    return "https://www.booking.com/searchresults.en-gb.html?" + urlencode({
-        "ss": location, "checkin": check_in.isoformat(), "checkout": check_out.isoformat(),
-        "group_adults": guests, "no_rooms": 1, "group_children": 0,
-        "selected_currency": "EUR", "order": "popularity",
-    })
+    q = [("ss", location), ("checkin", check_in.isoformat()), ("checkout", check_out.isoformat()),
+         ("group_adults", guests), ("no_rooms", 1), ("group_children", 0),
+         ("selected_currency", "EUR"), ("order", "popularity")]
+    nflt = _booking_nflt(cfg)
+    if nflt:
+        q.append(("nflt", nflt))
+    return "https://www.booking.com/searchresults.en-gb.html?" + urlencode(q)
+
+
+def _booking_nflt(cfg: dict) -> str:
+    """
+    Booking filters (the `nflt` URL parameter). Taken verbatim from a filtered search link the host pasted,
+    so pool / hot tub / sea view / bathrooms codes are exactly Booking's own; otherwise safe defaults.
+    """
+    from urllib.parse import parse_qs, urlparse
+    pasted = (cfg.get("booking_filters_url") or "").strip()
+    if pasted:
+        vals = parse_qs(urlparse(pasted).query).get("nflt")
+        if vals and vals[0].strip():
+            return vals[0].strip()
+    parts = ["ht_id=213"]  # property type: Villas
+    bedrooms = (cfg.get("airbnb_filters") or {}).get("min_bedrooms") or DEFAULT_CONFIG["airbnb_filters"]["min_bedrooms"]
+    if bedrooms:
+        parts.append(f"entire_place_bedroom_count={int(bedrooms)}")
+    min_nightly = int(float(cfg.get("luxury_min_nightly") or 0))
+    if min_nightly:
+        parts.append(f"price=EUR-{min_nightly}-max-1")  # per-night price floor
+    return ";".join(parts)
 
 
 def _apify_search(platform: str, location: str, check_in: date, check_out: date,
@@ -253,6 +277,7 @@ def _apify_search(platform: str, location: str, check_in: date, check_out: date,
         actor = actor or BOOKING_ACTOR
         payload = {
             "search": location,
+            "startUrls": [{"url": url}],  # filtered, popularity-ordered search page
             "checkIn": check_in.isoformat(),
             "checkOut": check_out.isoformat(),
             "adults": adults,
@@ -801,6 +826,7 @@ class ConfigIn(BaseModel):
     airbnb_actor: str = ""
     booking_actor: str = ""
     analysis_periods: list = []
+    booking_filters_url: str = ""
     luxury_min_nightly: float = 200
     airbnb_filters: dict = {}
     units: dict = {}
