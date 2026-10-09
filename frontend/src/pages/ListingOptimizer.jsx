@@ -316,6 +316,15 @@ export default function ListingOptimizer() {
                       <input type="number" min={1} max={30} className="input" placeholder={`${u.capacity || ''} (χωρητικότητα)`}
                         value={uc.guests || ''} onChange={e => setU(u.id, 'guests', +e.target.value || undefined)} />
                     </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      {[['airbnb_min_stay', 'Ελάχ. διαμονή Airbnb'], ['booking_min_stay', 'Ελάχ. διαμονή Booking']].map(([k, l]) => (
+                        <div key={k}>
+                          <label className="label">{l}</label>
+                          <input type="number" min={1} max={30} className="input" placeholder="από iStay"
+                            value={uc[k] || ''} onChange={e => setU(u.id, k, +e.target.value || undefined)} />
+                        </div>
+                      ))}
+                    </div>
                     <div>
                       <label className="label">Τρέχων τίτλος listing</label>
                       <input className="input" value={uc.title || ''} onChange={e => setU(u.id, 'title', e.target.value)} />

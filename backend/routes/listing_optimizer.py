@@ -14,7 +14,8 @@ from sqlalchemy.orm import Session
 
 from auth_utils import get_tenant
 from database import get_db
-from models import Booking, ListingRecommendation, ListingSnapshot, TenantSettings, Unit
+from models import (AvailabilityRule, Booking, ChannelRate, ListingRecommendation, ListingSnapshot,
+                    SeasonalRate, TenantSettings, Unit)
 
 router = APIRouter(prefix="/listing-optimizer", tags=["listing-optimizer"])
 
@@ -88,27 +89,79 @@ def _save_config(db: Session, tenant: str, cfg: dict):
 
 # ── Free periods ────────────────────────────────────────────────────────
 
-def _free_periods(db: Session, tenant: str, unit_id: int, lookahead: int) -> list:
-    """Return [(check_in, check_out)] gaps of ≥2 nights in the next `lookahead` days."""
+def _free_gaps(db: Session, tenant: str, unit_id: int, lookahead: int) -> list:
+    """[(start, end)] unbooked stretches in the next `lookahead` days; stop-sales days count as blocked."""
     start = date.today() + timedelta(days=1)
     end = start + timedelta(days=lookahead)
-    bookings = db.query(Booking).filter(
-        Booking.tenant == tenant,
-        Booking.unit_id == unit_id,
-        Booking.status != "cancelled",
-        Booking.check_out > start,
-        Booking.check_in < end,
-    ).order_by(Booking.check_in).all()
-
+    blocked = []
+    for b in db.query(Booking).filter(
+        Booking.tenant == tenant, Booking.unit_id == unit_id, Booking.status != "cancelled",
+        Booking.check_out > start, Booking.check_in < end,
+    ):
+        blocked.append((b.check_in, b.check_out))
+    for r in db.query(AvailabilityRule).filter(
+        AvailabilityRule.tenant == tenant, AvailabilityRule.unit_id == unit_id,
+        AvailabilityRule.status == "stop_sales", AvailabilityRule.date >= start, AvailabilityRule.date < end,
+    ):
+        blocked.append((r.date, r.date + timedelta(days=1)))
     gaps, cur = [], start
-    for b in bookings:
-        if b.check_in > cur and (b.check_in - cur).days >= 2:
-            gaps.append((cur, b.check_in))
-        cur = max(cur, b.check_out)
-    if (end - cur).days >= 2:
+    for a, b in sorted(blocked):
+        if a > cur:
+            gaps.append((cur, a))
+        cur = max(cur, b)
+    if end > cur:
         gaps.append((cur, end))
-    # Search at most a week per gap — that is what guests typically search for
-    return [(a, min(b, a + timedelta(days=7))) for a, b in gaps]
+    return gaps
+
+
+def _stay_rules(db: Session, tenant: str, unit: Unit, platform: str, day: date, ucfg: dict):
+    """(min_stay, checkin_allowed) for a check-in on `day`, as the platform would enforce it."""
+    rule = db.query(AvailabilityRule).filter(
+        AvailabilityRule.tenant == tenant, AvailabilityRule.unit_id == unit.id, AvailabilityRule.date == day
+    ).first()
+    checkin_ok = not (rule and rule.checkin_restriction in ("no_checkin", "no_checkinout"))
+    override = ucfg.get(f"{platform}_min_stay")
+    if override:
+        return int(override), checkin_ok
+    if rule and rule.min_stay:
+        return int(rule.min_stay), checkin_ok
+    vals = [1]
+    for sr in db.query(SeasonalRate).filter(
+        SeasonalRate.tenant == tenant, SeasonalRate.date_from <= day, SeasonalRate.date_to >= day,
+    ):
+        if sr.unit_id == unit.id or (sr.unit_id is None and sr.unit_type in (None, "", unit.type)):
+            vals.append(sr.min_stay or 1)
+    cr = db.query(ChannelRate).filter(
+        ChannelRate.tenant == tenant, ChannelRate.unit_id == unit.id,
+        ChannelRate.channel == platform, ChannelRate.is_active == True,
+    ).first()
+    if cr:
+        vals.append(cr.min_stay or 1)
+    return max(vals), checkin_ok
+
+
+def _bookable_windows(db: Session, tenant: str, unit: Unit, platform: str, lookahead: int, ucfg: dict):
+    """
+    Split free gaps into searchable windows (the villa can really appear for them) and gaps that are
+    invisible because they are shorter than the minimum stay. Returns (windows, too_short).
+    """
+    windows, too_short = [], []
+    for a, b in _free_gaps(db, tenant, unit.id, lookahead):
+        found = None
+        s = a
+        while (b - s).days >= 1:
+            ms, ok = _stay_rules(db, tenant, unit, platform, s, ucfg)
+            if ok and (b - s).days >= ms:
+                # Typical guest search: up to a week, never shorter than the minimum stay
+                n = min((b - s).days, max(ms, 7))
+                found = (s, s + timedelta(days=n))
+                break
+            s += timedelta(days=1)
+        if found:
+            windows.append(found)
+        else:
+            too_short.append((a, b, _stay_rules(db, tenant, unit, platform, a, ucfg)[0]))
+    return windows, too_short
 
 
 # ── Apify ───────────────────────────────────────────────────────────────
@@ -511,32 +564,77 @@ def run_optimizer(db_factory, tenant: str):
         if not units:
             raise RuntimeError("Προσθέστε τουλάχιστον ένα link Airbnb/Booking σε μονάδα")
 
-        # Pick the earliest free periods across units, capped to protect the free tier
-        periods = {}
-        for u in units:
-            for p in _free_periods(db, tenant, u.id, int(cfg.get("lookahead_days", 60))):
-                periods.setdefault(p, []).append(u)
-        chosen = sorted(periods.keys())[: int(cfg.get("max_periods", 2))]
-        if not chosen:
-            log("Καμία κενή περίοδος ≥2 νυχτών — όλα κλεισμένα!")
-            return
-
         run_id = datetime.utcnow().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
         snaps_by_unit: dict = {}
         spent, budget = 0.0, float(cfg.get("max_usd_per_run", 1.0))
+        lookahead = int(cfg.get("lookahead_days", 60))
+
         def guests_for(u):
             g = unit_cfgs.get(str(u.id), {}).get("guests")
             return int(g or u.capacity or cfg.get("adults", 2))
 
-        searches = []  # (ci, co, guests, units) — one search per distinct guest count, like real guests
-        for (ci, co) in chosen:
-            by_guests: dict = {}
-            for u in periods[(ci, co)]:
-                by_guests.setdefault(guests_for(u), []).append(u)
-            searches += [(ci, co, g, us) for g, us in sorted(by_guests.items())]
-
-        for (ci, co, guests, search_units) in searches:
+        # Only dates the villa can really be booked for — otherwise it can never show up in the search
+        windows: dict = {}   # (ci, co) -> {platform: [units]}
+        too_short: dict = {}  # (unit_id, a, b) -> {unit, nights, min_stay, platforms}
+        for u in units:
+            ucfg = unit_cfgs.get(str(u.id), {})
             for platform in cfg["platforms"]:
+                if not ucfg.get(f"{platform}_url"):
+                    continue
+                ok, short = _bookable_windows(db, tenant, u, platform, lookahead, ucfg)
+                for w in ok:
+                    windows.setdefault(w, {}).setdefault(platform, []).append(u)
+                for a, b, ms in short:
+                    t = too_short.setdefault((u.id, a, b), {"unit": u, "min_stay": ms, "platforms": set()})
+                    t["min_stay"] = max(t["min_stay"], ms)
+                    t["platforms"].add(platform)
+
+        # Short gaps: deterministic advice, no Apify/AI cost; skip if the same advice is still open
+        added = 0
+        for (uid, a, b), t in sorted(too_short.items(), key=lambda kv: kv[0][1]):
+            exists = db.query(ListingRecommendation).filter(
+                ListingRecommendation.tenant == tenant, ListingRecommendation.unit_id == uid,
+                ListingRecommendation.category == "availability", ListingRecommendation.status == "open",
+                ListingRecommendation.check_in == a, ListingRecommendation.check_out == b,
+            ).first()
+            if exists:
+                continue
+            n = (b - a).days
+            plats = t["platforms"]
+            db.add(ListingRecommendation(
+                tenant=tenant, run_id=run_id, unit_id=uid,
+                platform="both" if len(plats) > 1 else next(iter(plats)),
+                check_in=a, check_out=b, priority="high", category="availability",
+                title=f"Κενό {a:%d/%m}–{b:%d/%m} ({n} {'νύχτα' if n == 1 else 'νύχτες'}) δεν εμφανίζεται "
+                      + ("σε καμία αναζήτηση" if len(plats) > 1 else f"στο {'Airbnb' if 'airbnb' in plats else 'Booking'}"),
+                action=(f"Η ελάχιστη διαμονή για check-in {a:%d/%m} είναι {t['min_stay']} νύχτες, ενώ το κενό είναι {n}. "
+                        f"Όσο ισχύει αυτό, η {t['unit'].name} δεν εμφανίζεται σε κανέναν επισκέπτη για αυτές τις ημερομηνίες. "
+                        f"Μειώστε την ελάχιστη διαμονή σε {n} {'νύχτα' if n == 1 else 'νύχτες'} για {a:%d/%m}–{b:%d/%m} "
+                        f"(Availability) και στις πλατφόρμες." if len(plats) > 1 else
+                        f"(ρυθμίσεις {'Airbnb' if 'airbnb' in plats else 'Booking'} / Channel Rates)."),
+            ))
+            added += 1
+        if too_short:
+            log(f"{len(too_short)} κενά μικρότερα από την ελάχιστη διαμονή — παραλείπονται από τις αναζητήσεις"
+                + (f" ({added} νέες προτάσεις)" if added else ""))
+        db.commit()
+
+        # Each platform gets its own earliest bookable windows (min stays can differ per platform)
+        searches = []  # (ci, co, guests, platform, units) — one per distinct guest count, like real guests
+        for platform in cfg["platforms"]:
+            plat_windows = sorted(w for w, by_p in windows.items() if platform in by_p)
+            for (ci, co) in plat_windows[: int(cfg.get("max_periods", 1))]:
+                by_guests: dict = {}
+                for u in windows[(ci, co)][platform]:
+                    by_guests.setdefault(guests_for(u), []).append(u)
+                searches += [(ci, co, g, platform, gu) for g, gu in sorted(by_guests.items())]
+        searches.sort(key=lambda x: (x[0], x[3]))
+        if not searches:
+            log("Καμία κενή περίοδος που να καλύπτει την ελάχιστη διαμονή — τίποτα για αναζήτηση")
+            return
+
+        for (ci, co, guests, platform, search_units) in searches:
+            if True:
                 if spent >= budget:
                     log(f"Όριο κόστους ${budget:.2f} ανά ανάλυση — παράλειψη υπόλοιπων αναζητήσεων")
                     break
