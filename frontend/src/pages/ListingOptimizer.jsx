@@ -47,6 +47,54 @@ function RankBadge({ rank, total }) {
   return <span className={`font-bold tabular-nums ${cls}`}>#{rank}<span className="text-gray-400 font-normal"> / {total}</span></span>
 }
 
+const PLATFORM_OPTS = [['both', 'Airbnb + Booking'], ['airbnb', 'Airbnb'], ['booking', 'Booking']]
+
+function MinStayPeriods({ periods, onChange }) {
+  const upd = (i, k, v) => onChange(periods.map((p, j) => j === i ? { ...p, [k]: v } : p))
+  return (
+    <div className="sm:col-span-2 space-y-2">
+      <div className="flex items-baseline justify-between gap-2">
+        <label className="label mb-0">Ελάχιστη διαμονή ανά περίοδο (όπως στις πλατφόρμες)</label>
+        <button type="button" className="text-xs text-blue-600 hover:underline shrink-0"
+          onClick={() => onChange([...periods, { from: '', to: '', platform: 'both', nights: 3 }])}>+ Προσθήκη περιόδου</button>
+      </div>
+      {periods.length === 0 ? (
+        <p className="text-xs text-gray-400">Καμία περίοδος — ισχύουν οι κανόνες του iStay (Availability / Τιμολόγηση).</p>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead><tr className="text-gray-500 text-left">
+              <th className="py-1 pr-2 font-medium">Check-in από</th><th className="py-1 pr-2 font-medium">έως</th>
+              <th className="py-1 pr-2 font-medium">Πλατφόρμα</th><th className="py-1 pr-2 font-medium">Νύχτες</th><th />
+            </tr></thead>
+            <tbody>
+              {periods.map((p, i) => (
+                <tr key={i} className="align-top">
+                  <td className="py-1 pr-2"><input type="date" className="input py-1 text-xs" value={p.from || ''} onChange={e => upd(i, 'from', e.target.value)} /></td>
+                  <td className="py-1 pr-2"><input type="date" className="input py-1 text-xs" value={p.to || ''} onChange={e => upd(i, 'to', e.target.value)} /></td>
+                  <td className="py-1 pr-2">
+                    <select className="input py-1 text-xs" value={p.platform || 'both'} onChange={e => upd(i, 'platform', e.target.value)}>
+                      {PLATFORM_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </td>
+                  <td className="py-1 pr-2 w-20"><input type="number" min={1} max={60} className="input py-1 text-xs" value={p.nights || ''} onChange={e => upd(i, 'nights', +e.target.value || '')} /></td>
+                  <td className="py-1 whitespace-nowrap">
+                    {p.rec_id && <span className="mr-1 px-1.5 py-0.5 rounded bg-green-50 text-green-700 border border-green-200 text-[10px]" title={p.note}>από πρόταση</span>}
+                    <button type="button" title="Διαγραφή" className="p-1 text-gray-400 hover:text-red-600" onClick={() => onChange(periods.filter((_, j) => j !== i))}>
+                      <XMarkIcon className="w-4 h-4" />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="text-[11px] text-gray-400">Π.χ. καλοκαίρι 7 νύχτες, χειμώνας 3, και εξαιρέσεις. Όταν επικαλύπτονται, ισχύει η μικρότερη περίοδος (η εξαίρεση).</p>
+    </div>
+  )
+}
+
 export default function ListingOptimizer() {
   const [units, setUnits] = useState([])
   const [cfg, setCfg] = useState(null)
@@ -122,8 +170,13 @@ export default function ListingOptimizer() {
   }
 
   async function mark(id, st) {
-    await setListingRecommendationStatus(id, st)
-    setRecs(rs => rs.map(r => r.id === id ? { ...r, status: st } : r))
+    const r = await setListingRecommendationStatus(id, st)
+    setRecs(rs => rs.map(x => x.id === id ? { ...x, status: st } : x))
+    if (recs.find(x => x.id === id)?.category === 'availability') {
+      // The backend records/removes a min-stay exception — reload so a later save doesn't overwrite it
+      getListingConfig().then(c => setCfg(c.data)).catch(() => {})
+      if (r.data?.message) toast.success(r.data.message)
+    }
   }
 
   // Rank history → one line per unit+platform; Y axis reversed so #1 is on top
@@ -317,7 +370,7 @@ export default function ListingOptimizer() {
                         value={uc.guests || ''} onChange={e => setU(u.id, 'guests', +e.target.value || undefined)} />
                     </div>
                     <div className="grid grid-cols-2 gap-3">
-                      {[['airbnb_min_stay', 'Ελάχ. διαμονή Airbnb'], ['booking_min_stay', 'Ελάχ. διαμονή Booking']].map(([k, l]) => (
+                      {[['airbnb_min_stay', 'Ελάχ. διαμονή Airbnb (υπόλοιπες ημ/νίες)'], ['booking_min_stay', 'Ελάχ. διαμονή Booking (υπόλοιπες ημ/νίες)']].map(([k, l]) => (
                         <div key={k}>
                           <label className="label">{l}</label>
                           <input type="number" min={1} max={30} className="input" placeholder="από iStay"
@@ -325,6 +378,8 @@ export default function ListingOptimizer() {
                         </div>
                       ))}
                     </div>
+                    <MinStayPeriods periods={uc.min_stay_periods || []}
+                      onChange={ps => setU(u.id, 'min_stay_periods', ps)} />
                     <div>
                       <label className="label">Τρέχων τίτλος listing</label>
                       <input className="input" value={uc.title || ''} onChange={e => setU(u.id, 'title', e.target.value)} />
@@ -465,7 +520,7 @@ export default function ListingOptimizer() {
                 )}
                 <div className="flex gap-2 pt-1">
                   {r.status === 'open' ? (<>
-                    <button onClick={() => mark(r.id, 'done')} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700"><CheckIcon className="w-3.5 h-3.5" /> Έγινε</button>
+                    <button onClick={() => mark(r.id, 'done')} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg bg-green-600 text-white hover:bg-green-700"><CheckIcon className="w-3.5 h-3.5" /> {r.category === 'availability' ? 'Έγινε — το άλλαξα στην πλατφόρμα' : 'Έγινε'}</button>
                     <button onClick={() => mark(r.id, 'ignored')} className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50"><XMarkIcon className="w-3.5 h-3.5" /> Αγνόηση</button>
                   </>) : (
                     <button onClick={() => mark(r.id, 'open')} className="text-xs text-blue-600 hover:underline">Επαναφορά σε ανοιχτή</button>

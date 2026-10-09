@@ -114,13 +114,31 @@ def _free_gaps(db: Session, tenant: str, unit_id: int, lookahead: int) -> list:
     return gaps
 
 
+def _period_min_stay(ucfg: dict, platform: str, day: date) -> Optional[int]:
+    """Min stay from the villa's own platform periods: the shortest matching period wins
+    (an exception beats its season); on equal length the later row wins."""
+    best = None
+    for idx, p in enumerate(ucfg.get("min_stay_periods") or []):
+        if p.get("platform", "both") not in ("both", platform) or not p.get("nights"):
+            continue
+        try:
+            start, end = date.fromisoformat(p["from"]), date.fromisoformat(p["to"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        if start <= day <= end:
+            key = ((end - start).days, -idx)
+            if best is None or key < best[0]:
+                best = (key, int(p["nights"]))
+    return best[1] if best else None
+
+
 def _stay_rules(db: Session, tenant: str, unit: Unit, platform: str, day: date, ucfg: dict):
     """(min_stay, checkin_allowed) for a check-in on `day`, as the platform would enforce it."""
     rule = db.query(AvailabilityRule).filter(
         AvailabilityRule.tenant == tenant, AvailabilityRule.unit_id == unit.id, AvailabilityRule.date == day
     ).first()
     checkin_ok = not (rule and rule.checkin_restriction in ("no_checkin", "no_checkinout"))
-    override = ucfg.get(f"{platform}_min_stay")
+    override = _period_min_stay(ucfg, platform, day) or ucfg.get(f"{platform}_min_stay")
     if override:
         return int(override), checkin_ok
     if rule and rule.min_stay:
@@ -873,6 +891,24 @@ def set_rec_status(rec_id: int, data: StatusIn, db: Session = Depends(get_db),
     ).first()
     if not r:
         raise HTTPException(status_code=404, detail="Δεν βρέθηκε")
+    period_msg = None
+    if r.category == "availability" and r.check_in and r.check_out:
+        # "Done" on a min-stay advice = the host lowered it on the platform → record it as an exception
+        cfg = _load_config(db, tenant)
+        ucfg = cfg.setdefault("units", {}).setdefault(str(r.unit_id), {})
+        periods = [p for p in (ucfg.get("min_stay_periods") or []) if p.get("rec_id") != r.id]
+        if data.status == "done":
+            nights = (r.check_out - r.check_in).days
+            periods.append({
+                "from": r.check_in.isoformat(),
+                "to": (r.check_out - timedelta(days=1)).isoformat(),  # last possible check-in
+                "platform": r.platform if r.platform in ("airbnb", "booking") else "both",
+                "nights": nights, "rec_id": r.id,
+                "note": f"Από πρόταση {r.check_in:%d/%m}–{r.check_out:%d/%m}",
+            })
+            period_msg = f"Καταχωρήθηκε ελάχιστη διαμονή {nights} {'νύχτα' if nights == 1 else 'νύχτες'} για {r.check_in:%d/%m}–{r.check_out:%d/%m}"
+        ucfg["min_stay_periods"] = periods
+        _save_config(db, tenant, cfg)
     r.status = data.status
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "message": period_msg}
