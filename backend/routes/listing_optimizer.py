@@ -46,6 +46,7 @@ DEFAULT_CONFIG = {
         "entire_place": True, "min_bedrooms": 3, "min_beds": 3, "min_bathrooms": 3,
         "pool": True, "house": True,
     },
+    "analysis_periods": [],  # [{from, to, label}] — if set, examined instead of the rolling horizon
     "airbnb_actor": "",    # empty = AIRBNB_ACTOR default
     "booking_actor": "",
     "units": {},           # unit_id -> {airbnb_url, booking_url, guests, title, description, highlights}
@@ -89,10 +90,8 @@ def _save_config(db: Session, tenant: str, cfg: dict):
 
 # ── Free periods ────────────────────────────────────────────────────────
 
-def _free_gaps(db: Session, tenant: str, unit_id: int, lookahead: int) -> list:
+def _free_gaps(db: Session, tenant: str, unit_id: int, start: date, end: date) -> list:
     """[(start, end)] unbooked stretches in the next `lookahead` days; stop-sales days count as blocked."""
-    start = date.today() + timedelta(days=1)
-    end = start + timedelta(days=lookahead)
     blocked = []
     for b in db.query(Booking).filter(
         Booking.tenant == tenant, Booking.unit_id == unit_id, Booking.status != "cancelled",
@@ -158,27 +157,35 @@ def _stay_rules(db: Session, tenant: str, unit: Unit, platform: str, day: date, 
     return max(vals), checkin_ok
 
 
-def _bookable_windows(db: Session, tenant: str, unit: Unit, platform: str, lookahead: int, ucfg: dict):
+def _bookable_windows(db: Session, tenant: str, unit: Unit, platform: str, start: date, end: date,
+                      ucfg: dict):
     """
-    Split free gaps into searchable windows (the villa can really appear for them) and gaps that are
-    invisible because they are shorter than the minimum stay. Returns (windows, too_short).
+    Searchable windows whose CHECK-IN falls in [start, end) — the stay may run past `end`, as a real
+    guest's would — plus gaps invisible because they are shorter than the minimum stay.
+    Gaps are measured in full (not clipped to the range) so their length is real.
+    Returns (windows, too_short).
     """
+    tomorrow = date.today() + timedelta(days=1)
+    horizon = end + timedelta(days=60)  # room for stays that start near the end of the range
     windows, too_short = [], []
-    for a, b in _free_gaps(db, tenant, unit.id, lookahead):
-        found = None
-        s = a
-        while (b - s).days >= 1:
+    for a, b in _free_gaps(db, tenant, unit.id, tomorrow, horizon):
+        if b <= start or a >= end:
+            continue
+        found, s = None, max(a, start)
+        while s < min(b, end):
             ms, ok = _stay_rules(db, tenant, unit, platform, s, ucfg)
             if ok and (b - s).days >= ms:
                 # Typical guest search: up to a week, never shorter than the minimum stay
-                n = min((b - s).days, max(ms, 7))
-                found = (s, s + timedelta(days=n))
+                found = (s, s + timedelta(days=min((b - s).days, max(ms, 7))))
                 break
             s += timedelta(days=1)
         if found:
             windows.append(found)
-        else:
-            too_short.append((a, b, _stay_rules(db, tenant, unit, platform, a, ucfg)[0]))
+            continue
+        # Only a true min-stay problem earns advice: the whole gap is shorter than its first night's minimum
+        ms_a = _stay_rules(db, tenant, unit, platform, a, ucfg)[0]
+        if (b - a).days < ms_a and b < horizon:
+            too_short.append((a, b, ms_a))
     return windows, too_short
 
 
@@ -585,7 +592,19 @@ def run_optimizer(db_factory, tenant: str):
         run_id = datetime.utcnow().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
         snaps_by_unit: dict = {}
         spent, budget = 0.0, float(cfg.get("max_usd_per_run", 1.0))
-        lookahead = int(cfg.get("lookahead_days", 60))
+        tomorrow = date.today() + timedelta(days=1)
+        # Ranges to examine: the host's own periods (e.g. Easter, August) or the rolling horizon
+        ranges = []
+        for p in cfg.get("analysis_periods") or []:
+            try:
+                a, b = date.fromisoformat(p["from"]), date.fromisoformat(p["to"]) + timedelta(days=1)
+            except (KeyError, TypeError, ValueError):
+                continue
+            a = max(a, tomorrow)
+            if b - a >= timedelta(days=1):
+                ranges.append((a, b, (p.get("label") or "").strip() or f"{a:%d/%m}–{b - timedelta(days=1):%d/%m}"))
+        if not ranges:
+            ranges = [(tomorrow, tomorrow + timedelta(days=int(cfg.get("lookahead_days", 60))), None)]
 
         def guests_for(u):
             g = unit_cfgs.get(str(u.id), {}).get("guests")
@@ -593,19 +612,22 @@ def run_optimizer(db_factory, tenant: str):
 
         # Only dates the villa can really be booked for — otherwise it can never show up in the search
         windows: dict = {}   # (ci, co) -> {platform: [units]}
+        window_range: dict = {}  # (ci, co) -> index of the range it belongs to
         too_short: dict = {}  # (unit_id, a, b) -> {unit, nights, min_stay, platforms}
         for u in units:
             ucfg = unit_cfgs.get(str(u.id), {})
             for platform in cfg["platforms"]:
                 if not ucfg.get(f"{platform}_url"):
                     continue
-                ok, short = _bookable_windows(db, tenant, u, platform, lookahead, ucfg)
-                for w in ok:
-                    windows.setdefault(w, {}).setdefault(platform, []).append(u)
-                for a, b, ms in short:
-                    t = too_short.setdefault((u.id, a, b), {"unit": u, "min_stay": ms, "platforms": set()})
-                    t["min_stay"] = max(t["min_stay"], ms)
-                    t["platforms"].add(platform)
+                for ri, (ra, rb, _label) in enumerate(ranges):
+                    ok, short = _bookable_windows(db, tenant, u, platform, ra, rb, ucfg)
+                    for w in ok:
+                        windows.setdefault(w, {}).setdefault(platform, []).append(u)
+                        window_range.setdefault(w, ri)
+                    for a, b, ms in short:
+                        t = too_short.setdefault((u.id, a, b), {"unit": u, "min_stay": ms, "platforms": set()})
+                        t["min_stay"] = max(t["min_stay"], ms)
+                        t["platforms"].add(platform)
 
         # Short gaps: deterministic advice, no Apify/AI cost; skip if the same advice is still open
         added = 0
@@ -640,8 +662,12 @@ def run_optimizer(db_factory, tenant: str):
         # Each platform gets its own earliest bookable windows (min stays can differ per platform)
         searches = []  # (ci, co, guests, platform, units) — one per distinct guest count, like real guests
         for platform in cfg["platforms"]:
-            plat_windows = sorted(w for w, by_p in windows.items() if platform in by_p)
-            for (ci, co) in plat_windows[: int(cfg.get("max_periods", 1))]:
+            chosen_p = []
+            for ri in range(len(ranges)):
+                # Per range (each analysis period, or the horizon): its earliest bookable windows
+                in_range = sorted(w for w, by_p in windows.items() if platform in by_p and window_range[w] == ri)
+                chosen_p += in_range[: int(cfg.get("max_periods", 1))]
+            for (ci, co) in chosen_p:
                 by_guests: dict = {}
                 for u in windows[(ci, co)][platform]:
                     by_guests.setdefault(guests_for(u), []).append(u)
@@ -656,7 +682,9 @@ def run_optimizer(db_factory, tenant: str):
                 if spent >= budget:
                     log(f"Όριο κόστους ${budget:.2f} ανά ανάλυση — παράλειψη υπόλοιπων αναζητήσεων")
                     break
-                log(f"Αναζήτηση {platform} {ci:%d/%m}–{co:%d/%m} · {guests} επισκέπτες…")
+                label = ranges[window_range[(ci, co)]][2]
+                log(f"Αναζήτηση {platform} {ci:%d/%m}–{co:%d/%m} · {guests} επισκέπτες"
+                    + (f" · {label}" if label else "") + "…")
                 try:
                     raw, cost = _apify_search(
                         platform, location, ci, co, guests,
@@ -772,6 +800,7 @@ class ConfigIn(BaseModel):
     lookahead_days: int = 60
     airbnb_actor: str = ""
     booking_actor: str = ""
+    analysis_periods: list = []
     luxury_min_nightly: float = 200
     airbnb_filters: dict = {}
     units: dict = {}

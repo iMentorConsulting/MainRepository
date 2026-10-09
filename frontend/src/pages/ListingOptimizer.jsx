@@ -198,7 +198,10 @@ export default function ListingOptimizer() {
 
   const guestGroups = cfg ? new Set(units.filter(u => cfg.units?.[u.id]?.airbnb_url || cfg.units?.[u.id]?.booking_url)
     .map(u => cfg.units[u.id].guests || u.capacity || cfg.adults)).size || 1 : 1
-  const searchesPerRun = cfg ? cfg.max_periods * cfg.platforms.length * guestGroups : 0
+  const periodCount = (cfg?.analysis_periods || []).filter(p => p.from && p.to).length
+  const searchesPerRun = cfg ? (periodCount || 1) * cfg.max_periods * cfg.platforms.length * guestGroups : 0
+  const setPeriods = (ps) => setC('analysis_periods', ps)
+  const updPeriod = (i, k, v) => setPeriods((cfg.analysis_periods || []).map((p, j) => j === i ? { ...p, [k]: v } : p))
 
   if (!cfg) return <div className="p-6 text-gray-400 text-sm">Φόρτωση…</div>
 
@@ -265,7 +268,7 @@ export default function ListingOptimizer() {
               </div>
             </div>
             <div>
-              <label className="label">Κενές περίοδοι ανά ανάλυση</label>
+              <label className="label">Ελεύθερα διαστήματα ανά περίοδο</label>
               <input type="number" min={1} max={6} className="input" value={cfg.max_periods}
                 onChange={e => setC('max_periods', +e.target.value)} />
             </div>
@@ -276,8 +279,10 @@ export default function ListingOptimizer() {
             </div>
             <div>
               <label className="label">Ορίζοντας (ημέρες)</label>
-              <input type="number" min={7} max={180} className="input" value={cfg.lookahead_days}
+              <input type="number" min={7} max={365} className="input disabled:bg-gray-100 disabled:text-gray-400" value={cfg.lookahead_days}
+                disabled={periodCount > 0} title={periodCount ? 'Δεν χρησιμοποιείται — εξετάζονται οι περίοδοι ανάλυσης' : ''}
                 onChange={e => setC('lookahead_days', +e.target.value)} />
+              {periodCount > 0 && <p className="text-[11px] text-gray-400 mt-1">Αντικαθίσταται από τις περιόδους ανάλυσης</p>}
             </div>
             <div>
               <label className="label">Μέγ. κόστος ανά αναζήτηση ($)</label>
@@ -300,6 +305,32 @@ export default function ListingOptimizer() {
                 Αυτόματα κάθε Δευτέρα
               </label>
             </div>
+          </div>
+          <div className="border border-blue-100 bg-blue-50/40 rounded-lg p-4 space-y-3">
+            <div className="flex items-baseline justify-between gap-2">
+              <p className="text-sm font-semibold text-gray-700">Περίοδοι ανάλυσης</p>
+              <button type="button" className="text-xs text-blue-600 hover:underline"
+                onClick={() => setPeriods([...(cfg.analysis_periods || []), { from: '', to: '', label: '' }])}>+ Προσθήκη περιόδου</button>
+            </div>
+            {!(cfg.analysis_periods || []).length ? (
+              <p className="text-xs text-gray-500">Καμία περίοδος — εξετάζονται οι επόμενες {cfg.lookahead_days} ημέρες (ορίζοντας).</p>
+            ) : (
+              <div className="space-y-2">
+                {(cfg.analysis_periods || []).map((p, i) => (
+                  <div key={i} className="flex flex-wrap items-end gap-2">
+                    <div><label className="label">Από</label><input type="date" className="input py-1 text-sm" value={p.from || ''} onChange={e => updPeriod(i, 'from', e.target.value)} /></div>
+                    <div><label className="label">Έως (τελευταία νύχτα)</label><input type="date" className="input py-1 text-sm" value={p.to || ''} onChange={e => updPeriod(i, 'to', e.target.value)} /></div>
+                    <div className="flex-1 min-w-[140px]"><label className="label">Όνομα</label><input className="input py-1 text-sm" placeholder="π.χ. Πάσχα 2027" value={p.label || ''} onChange={e => updPeriod(i, 'label', e.target.value)} /></div>
+                    <button type="button" title="Διαγραφή" className="p-2 text-gray-400 hover:text-red-600"
+                      onClick={() => setPeriods(cfg.analysis_periods.filter((_, j) => j !== i))}><XMarkIcon className="w-4 h-4" /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-gray-500">
+              Σε κάθε περίοδο αναζητείται το πρώτο ελεύθερο διάστημα που καλύπτει την ελάχιστη διαμονή (οι κλεισμένες μέρες
+              δεν μπορούν να εμφανιστούν σε αναζήτηση). Το check-in είναι μέσα στην περίοδο· η διαμονή μπορεί να συνεχίζει μετά.
+            </p>
           </div>
           <div className="border border-rose-100 bg-rose-50/40 rounded-lg p-4 space-y-3">
             <p className="text-sm font-semibold text-gray-700">Φίλτρα αναζήτησης Airbnb</p>
