@@ -12,6 +12,7 @@ class UnitBase(BaseModel):
     description: Optional[str] = None
     base_price: float = 0.0
     is_active: bool = True
+    ical_url: Optional[str] = None
 
 
 class UnitCreate(UnitBase):
@@ -25,6 +26,7 @@ class UnitUpdate(BaseModel):
     description: Optional[str] = None
     base_price: Optional[float] = None
     is_active: Optional[bool] = None
+    ical_url: Optional[str] = None
 
 
 class UnitResponse(UnitBase):

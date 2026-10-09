@@ -2,12 +2,27 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from database import get_db
-from models import Booking, Unit
+from models import Booking, Unit, Expense, Loan
 from auth_utils import get_tenant
 from typing import Optional
-from datetime import date
+from datetime import date, timedelta
+from calendar import monthrange
 
 router = APIRouter(prefix="/reports", tags=["reports"])
+
+
+def _loan_installment_sum(loans, from_date, to_date):
+    """Return total loan installments active during the date range."""
+    total = 0.0
+    d = from_date.replace(day=1)
+    while d <= to_date:
+        _, last = monthrange(d.year, d.month)
+        month_end = date(d.year, d.month, last)
+        for loan in loans:
+            if loan.start_date <= month_end and (loan.end_date is None or loan.end_date >= d):
+                total += loan.monthly_installment
+        d = date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
+    return round(total, 2)
 
 
 @router.get("/dashboard")
@@ -71,6 +86,7 @@ def occupancy_report(
     from_date: date = Query(...),
     to_date: date = Query(...),
     unit_id: Optional[int] = None,
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
@@ -79,7 +95,11 @@ def occupancy_report(
         return {"error": "Μη έγκυρο εύρος ημερομηνιών"}
 
     units_q = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True)
-    if unit_id:
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            units_q = units_q.filter(Unit.id.in_(ids))
+    elif unit_id:
         units_q = units_q.filter(Unit.id == unit_id)
     units = units_q.order_by(Unit.name).all()
 
@@ -116,6 +136,60 @@ def occupancy_report(
             "bookings_count": len(bkgs),
         })
 
+    # --- Per-unit expense and loan attribution ---
+    all_expenses = db.query(Expense).filter(
+        Expense.tenant == tenant,
+        Expense.date >= from_date,
+        Expense.date <= to_date,
+    ).all()
+    exp_by_unit: dict = {}
+    exp_by_type: dict = {}
+    exp_unassigned = 0.0
+    for e in all_expenses:
+        if e.unit_id:
+            exp_by_unit[e.unit_id] = exp_by_unit.get(e.unit_id, 0.0) + e.amount
+        elif e.unit_type:
+            exp_by_type[e.unit_type] = exp_by_type.get(e.unit_type, 0.0) + e.amount
+        else:
+            exp_unassigned += e.amount
+
+    all_loans = db.query(Loan).filter(Loan.tenant == tenant).all()
+    loans_by_unit: dict = {}
+    loans_by_type: dict = {}
+    for loan in all_loans:
+        if loan.unit_id:
+            loans_by_unit.setdefault(loan.unit_id, []).append(loan)
+        elif loan.unit_type:
+            loans_by_type.setdefault(loan.unit_type, []).append(loan)
+
+    # Count active units per type so type costs are split equally
+    units_per_type: dict = {}
+    for r in results:
+        t = r["unit_type"]
+        if t:
+            units_per_type[t] = units_per_type.get(t, 0) + 1
+
+    for r in results:
+        uid = r["unit_id"]
+        utype = r["unit_type"]
+        n = units_per_type.get(utype, 1) or 1
+        # Direct unit costs
+        ue = round(exp_by_unit.get(uid, 0.0), 2)
+        ul = _loan_installment_sum(loans_by_unit.get(uid, []), from_date, to_date)
+        # Prorated type costs (equal share per unit of that type)
+        tes = round(exp_by_type.get(utype, 0.0) / n, 2) if utype else 0.0
+        tls = round(_loan_installment_sum(loans_by_type.get(utype, []), from_date, to_date) / n, 2) if utype else 0.0
+        r["unit_expenses"] = round(ue + tes, 2)
+        r["unit_loan_payments"] = round(ul + tls, 2)
+        r["unit_profit"] = round(r["net_revenue"] - r["unit_expenses"] - r["unit_loan_payments"], 2)
+        r["direct_expenses"] = ue
+        r["shared_expense_share"] = tes
+        r["direct_loans"] = ul
+        r["shared_loan_share"] = tls
+
+    total_expenses_all = round(sum(e.amount for e in all_expenses), 2)
+    total_loans_all = _loan_installment_sum(all_loans, from_date, to_date)
+
     avg_occ = round(sum(r["occupancy_rate"] for r in results) / len(results), 1) if results else 0
     return {
         "from_date": from_date.isoformat(),
@@ -126,6 +200,9 @@ def occupancy_report(
             "avg_occupancy_rate": avg_occ,
             "total_revenue": round(sum(r["total_revenue"] for r in results), 2),
             "total_net_revenue": round(sum(r["net_revenue"] for r in results), 2),
+            "total_expenses": total_expenses_all,
+            "total_loan_payments": total_loans_all,
+            "unassigned_expenses": round(exp_unassigned, 2),
         },
     }
 
@@ -134,15 +211,21 @@ def occupancy_report(
 def by_channel(
     from_date: date = Query(...),
     to_date: date = Query(...),
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    bookings = db.query(Booking).filter(
+    bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
-    ).all()
+    )
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            bkgs_q = bkgs_q.filter(Booking.unit_id.in_(ids))
+    bookings = bkgs_q.all()
 
     channels: dict = {}
     for b in bookings:
@@ -178,36 +261,81 @@ def financial_report(
     from_date: date = Query(...),
     to_date: date = Query(...),
     group_by: str = Query("month"),
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    bookings = db.query(Booking).filter(
+    bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
-    ).all()
+    )
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            bkgs_q = bkgs_q.filter(Booking.unit_id.in_(ids))
+    bookings = bkgs_q.all()
 
     groups: dict = {}
-    for b in bookings:
-        if group_by == "month":
-            key = b.check_in.strftime("%Y-%m")
-            label = b.check_in.strftime("%m/%Y")
-        elif group_by == "week":
-            key = b.check_in.strftime("%Y-W%W")
-            label = f"Εβδ. {b.check_in.strftime('%W')}/{b.check_in.year}"
-        else:
-            key = b.channel
-            label = b.channel
 
+    def _add_to_group(key, label, nights_n, revenue, commission, count_booking):
         if key not in groups:
             groups[key] = {"key": key, "label": label, "bookings_count": 0, "nights": 0, "total_revenue": 0.0, "total_commission": 0.0, "net_revenue": 0.0}
-        nights = (b.check_out - b.check_in).days
-        groups[key]["bookings_count"] += 1
-        groups[key]["nights"] += nights
-        groups[key]["total_revenue"] += b.total_price
-        groups[key]["total_commission"] += b.commission
-        groups[key]["net_revenue"] += b.total_price - b.commission
+        if count_booking:
+            groups[key]["bookings_count"] += 1
+        groups[key]["nights"] += nights_n
+        groups[key]["total_revenue"] += revenue
+        groups[key]["total_commission"] += commission
+        groups[key]["net_revenue"] += revenue - commission
+
+    for b in bookings:
+        total_nights = (b.check_out - b.check_in).days
+        if total_nights <= 0:
+            continue
+
+        if group_by == "month":
+            # Split booking nights (and prorated revenue) across calendar months
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                yr, mo = cur.year, cur.month
+                next_month = date(yr + 1, 1, 1) if mo == 12 else date(yr, mo + 1, 1)
+                seg_end = min(b.check_out, next_month)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_to_group(
+                    cur.strftime("%Y-%m"), cur.strftime("%m/%Y"),
+                    nights_here, b.total_price * frac, b.commission * frac,
+                    count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        elif group_by == "week":
+            # Split booking nights across ISO calendar weeks
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                # advance to end of this Mon-Sun week
+                days_to_monday = (7 - cur.weekday()) % 7 or 7
+                next_week = cur + timedelta(days=days_to_monday)
+                seg_end = min(b.check_out, next_week)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_to_group(
+                    cur.strftime("%Y-W%W"), f"Εβδ. {cur.strftime('%W')}/{cur.year}",
+                    nights_here, b.total_price * frac, b.commission * frac,
+                    count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        else:
+            # Channel grouping — no time split
+            _add_to_group(
+                b.channel, b.channel,
+                total_nights, b.total_price, b.commission,
+                count_booking=True,
+            )
 
     data = []
     for g in sorted(groups.values(), key=lambda x: x["key"]):
@@ -217,7 +345,48 @@ def financial_report(
         g["net_revenue"] = round(g["net_revenue"], 2)
         data.append(g)
 
-    return {"from_date": from_date.isoformat(), "to_date": to_date.isoformat(), "group_by": group_by, "data": data}
+    # Include expense totals per period
+    expenses = db.query(Expense).filter(
+        Expense.tenant == tenant,
+        Expense.date >= from_date,
+        Expense.date < to_date,
+    ).all()
+    exp_groups: dict = {}
+    for e in expenses:
+        if group_by == "month":
+            key = e.date.strftime("%Y-%m")
+        elif group_by == "week":
+            key = e.date.strftime("%Y-W%W")
+        else:
+            key = "all"
+        exp_groups[key] = round(exp_groups.get(key, 0.0) + e.amount, 2)
+
+    for g in data:
+        g["total_expenses"] = exp_groups.get(g["key"], 0.0)
+        g["profit"] = round(g["net_revenue"] - g["total_expenses"], 2)
+
+    total_expenses = round(sum(e.amount for e in expenses), 2)
+    total_net = round(sum(g["net_revenue"] for g in data), 2)
+    units_q = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True)
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            units_q = units_q.filter(Unit.id.in_(ids))
+    total_units = units_q.count()
+
+    return {
+        "from_date": from_date.isoformat(),
+        "to_date": to_date.isoformat(),
+        "group_by": group_by,
+        "total_units": total_units,
+        "data": data,
+        "totals": {
+            "total_revenue": round(sum(g["total_revenue"] for g in data), 2),
+            "total_net_revenue": total_net,
+            "total_expenses": total_expenses,
+            "total_profit": round(total_net - total_expenses, 2),
+        },
+    }
 
 
 @router.get("/price-analytics")
@@ -225,41 +394,77 @@ def price_analytics(
     from_date: date = Query(...),
     to_date: date = Query(...),
     group_by: str = Query("month"),
+    unit_ids: Optional[str] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
-    bookings = db.query(Booking).filter(
+    bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
         Booking.check_in >= from_date,
         Booking.check_in < to_date,
-    ).all()
+    )
+    if unit_ids:
+        ids = [int(i) for i in unit_ids.split(',') if i.strip()]
+        if ids:
+            bkgs_q = bkgs_q.filter(Booking.unit_id.in_(ids))
+    bookings = bkgs_q.all()
 
     CHANNEL_LABELS = {
         'booking': 'Booking.com', 'airbnb': 'Airbnb', 'direct': 'Απευθείας',
         'oga': 'ΟΓΑ', 'social_tourism': 'Κοιν.Τουρισμός', 'other': 'Άλλο',
     }
 
-    groups: dict = {}
-    for b in bookings:
-        nights = (b.check_out - b.check_in).days
-        if nights <= 0:
-            continue
-        if group_by == "month":
-            key = b.check_in.strftime("%Y-%m")
-            label = b.check_in.strftime("%m/%Y")
-        elif group_by == "week":
-            key = b.check_in.strftime("%Y-W%W")
-            label = f"Εβδ.{b.check_in.strftime('%W')}/{b.check_in.year}"
-        else:
-            key = b.channel
-            label = CHANNEL_LABELS.get(b.channel, b.channel)
-
+    def _add_price_group(key, label, nights_n, revenue, count_booking):
         if key not in groups:
             groups[key] = {"key": key, "label": label, "bookings_count": 0, "total_nights": 0, "total_revenue": 0.0}
-        groups[key]["bookings_count"] += 1
-        groups[key]["total_nights"] += nights
-        groups[key]["total_revenue"] += b.total_price
+        if count_booking:
+            groups[key]["bookings_count"] += 1
+        groups[key]["total_nights"] += nights_n
+        groups[key]["total_revenue"] += revenue
+
+    groups: dict = {}
+    for b in bookings:
+        total_nights = (b.check_out - b.check_in).days
+        if total_nights <= 0:
+            continue
+
+        if group_by == "month":
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                yr, mo = cur.year, cur.month
+                next_month = date(yr + 1, 1, 1) if mo == 12 else date(yr, mo + 1, 1)
+                seg_end = min(b.check_out, next_month)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_price_group(
+                    cur.strftime("%Y-%m"), cur.strftime("%m/%Y"),
+                    nights_here, b.total_price * frac, count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        elif group_by == "week":
+            cur = b.check_in
+            first = True
+            while cur < b.check_out:
+                days_to_monday = (7 - cur.weekday()) % 7 or 7
+                next_week = cur + timedelta(days=days_to_monday)
+                seg_end = min(b.check_out, next_week)
+                nights_here = (seg_end - cur).days
+                frac = nights_here / total_nights
+                _add_price_group(
+                    cur.strftime("%Y-W%W"), f"Εβδ.{cur.strftime('%W')}/{cur.year}",
+                    nights_here, b.total_price * frac, count_booking=first,
+                )
+                first = False
+                cur = seg_end
+        else:
+            key = b.channel
+            _add_price_group(
+                key, CHANNEL_LABELS.get(key, key),
+                total_nights, b.total_price, count_booking=True,
+            )
 
     data = []
     for g in sorted(groups.values(), key=lambda x: x["key"]):

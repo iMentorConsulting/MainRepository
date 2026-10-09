@@ -1,25 +1,289 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import axios from 'axios'
 import {
   getBookings, getUnits, getCustomers, createBooking, updateBooking, deleteBooking,
   createCustomer, recommendUnit, exportBookings, downloadTemplate, importBookings,
+  getPortalLink, sendPortalEmail, getBookingChannels, saveBookingChannels, bulkMarkBilled,
 } from '../api'
+import api from '../api'
 import toast from 'react-hot-toast'
 import { format } from 'date-fns'
 import {
   PlusIcon, XMarkIcon, TrashIcon, PencilSquareIcon,
   SparklesIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon,
+  LinkIcon, EnvelopeIcon, Cog6ToothIcon,
 } from '@heroicons/react/24/outline'
 
-const CHANNELS = [
-  { value: 'booking', label: 'Booking.com', color: 'bg-blue-100 text-blue-800' },
+const DEFAULT_CHANNELS = [
   { value: 'airbnb', label: 'Airbnb', color: 'bg-red-100 text-red-800' },
+  { value: 'booking', label: 'Booking.com', color: 'bg-blue-100 text-blue-800' },
+  { value: 'vrbo', label: 'VRBO', color: 'bg-indigo-100 text-indigo-800' },
   { value: 'direct', label: 'Απευθείας', color: 'bg-green-100 text-green-800' },
-  { value: 'oga', label: 'ΟΓΑ', color: 'bg-purple-100 text-purple-800' },
-  { value: 'social_tourism', label: 'Κοιν.Τουρισμός', color: 'bg-teal-100 text-teal-800' },
   { value: 'other', label: 'Άλλο', color: 'bg-gray-100 text-gray-700' },
 ]
-const CH = Object.fromEntries(CHANNELS.map((c) => [c.value, c]))
+
+const COLOR_OPTIONS = [
+  { value: 'bg-blue-100 text-blue-800', label: 'Μπλε' },
+  { value: 'bg-red-100 text-red-800', label: 'Κόκκινο' },
+  { value: 'bg-green-100 text-green-800', label: 'Πράσινο' },
+  { value: 'bg-purple-100 text-purple-800', label: 'Μωβ' },
+  { value: 'bg-teal-100 text-teal-800', label: 'Τιρκουάζ' },
+  { value: 'bg-orange-100 text-orange-800', label: 'Πορτοκαλί' },
+  { value: 'bg-yellow-100 text-yellow-800', label: 'Κίτρινο' },
+  { value: 'bg-pink-100 text-pink-800', label: 'Ροζ' },
+  { value: 'bg-indigo-100 text-indigo-800', label: 'Ινδιγκό' },
+  { value: 'bg-gray-100 text-gray-700', label: 'Γκρι' },
+]
+
+const MONTH_NAMES = ['Ιανουάριος','Φεβρουάριος','Μάρτιος','Απρίλιος','Μάιος','Ιούνιος',
+  'Ιούλιος','Αύγουστος','Σεπτέμβριος','Οκτώβριος','Νοέμβριος','Δεκέμβριος']
+
+function slugify(str) {
+  return str.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') || 'channel_' + Date.now()
+}
+
+function GuestRegistrationLink({ bookingId }) {
+  const [copying, setCopying] = useState(false)
+
+  const handleCopy = async () => {
+    setCopying(true)
+    try {
+      const r = await api.get(`/bookings/${bookingId}/portal-link`)
+      const url = `${window.location.origin}/register/${r.data.token}`
+      await navigator.clipboard.writeText(url)
+      toast.success('Σύνδεσμος αντιγράφηκε! Στείλτε τον στον επισκέπτη.')
+    } catch {
+      toast.error('Σφάλμα αντιγραφής')
+    } finally {
+      setCopying(false)
+    }
+  }
+
+  return (
+    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 flex items-center justify-between gap-3">
+      <div>
+        <p className="text-xs font-semibold text-amber-800">Δεν υπάρχουν στοιχεία επικοινωνίας</p>
+        <p className="text-xs text-amber-700 mt-0.5">Στείλτε αυτόν τον σύνδεσμο στον επισκέπτη για να συμπληρώσει email & τηλέφωνο.</p>
+      </div>
+      <button onClick={handleCopy} disabled={copying}
+        className="flex-shrink-0 text-xs bg-amber-600 text-white px-3 py-1.5 rounded-lg hover:bg-amber-700 disabled:opacity-50 font-medium transition-colors whitespace-nowrap">
+        {copying ? '…' : '📋 Αντιγραφή'}
+      </button>
+    </div>
+  )
+}
+
+function AirbnbReplyBox({ bookingId, onSent }) {
+  const [open, setOpen] = useState(false)
+  const [message, setMessage] = useState('')
+  const [sending, setSending] = useState(false)
+
+  const handleSend = async () => {
+    if (!message.trim()) return
+    setSending(true)
+    try {
+      await api.post(`/bookings/${bookingId}/reply-airbnb`, { message })
+      toast.success('Μήνυμα στάλθηκε μέσω Airbnb!')
+      setMessage('')
+      setOpen(false)
+      onSent?.()
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Αποτυχία αποστολής')
+    } finally {
+      setSending(false)
+    }
+  }
+
+  return (
+    <div className="bg-red-50 border border-red-200 rounded-xl p-3 space-y-2">
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-xs font-semibold text-red-800">💬 Απάντηση μέσω Airbnb</p>
+          <p className="text-xs text-red-600 mt-0.5">Το μήνυμα θα εμφανιστεί στη συνομιλία Airbnb.</p>
+        </div>
+        <button onClick={() => setOpen(o => !o)}
+          className="text-xs bg-red-600 text-white px-3 py-1.5 rounded-lg hover:bg-red-700 font-medium transition-colors whitespace-nowrap">
+          {open ? 'Άκυρο' : 'Γράψε μήνυμα'}
+        </button>
+      </div>
+      {open && (
+        <div className="space-y-2">
+          <textarea
+            value={message}
+            onChange={e => setMessage(e.target.value)}
+            rows={3}
+            placeholder="Γράψε το μήνυμά σου εδώ..."
+            className="w-full border border-red-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-400 resize-none"
+          />
+          <button onClick={handleSend} disabled={sending || !message.trim()}
+            className="w-full bg-red-600 text-white py-2 rounded-lg text-sm font-semibold hover:bg-red-700 disabled:opacity-50 transition-colors">
+            {sending ? 'Αποστολή…' : 'Αποστολή'}
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function CommunicationsLog({ bookingId }) {
+  const [comms, setComms] = useState(null)
+  const [open, setOpen] = useState(false)
+  const [error, setError] = useState(null)
+
+  const load = async () => {
+    try {
+      const r = await api.get(`/bookings/${bookingId}/communications`)
+      setComms(r.data)
+      setError(null)
+    } catch (err) {
+      setComms([])
+      setError(err.response?.data?.detail || err.message || 'Σφάλμα φόρτωσης')
+    }
+  }
+
+  useEffect(() => { if (bookingId) load() }, [bookingId])
+
+  const toggle = () => setOpen(o => !o)
+
+  const channelIcon = (ch) => ch === 'airbnb' ? '🏠' : ch === 'booking' ? '🔵' : '📧'
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button type="button" onClick={toggle}
+        className="w-full flex items-center justify-between px-4 py-2.5 bg-gray-50 hover:bg-gray-100 text-sm font-medium text-gray-700 transition-colors">
+        <span>📨 Επικοινωνία {comms !== null && `(${comms.length})`}</span>
+        <span className="text-gray-400">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+          {comms === null && <p className="text-xs text-gray-400 p-3">Φόρτωση…</p>}
+          {error && <p className="text-xs text-red-500 p-3">⚠️ {error}</p>}
+          {!error && comms?.length === 0 && <p className="text-xs text-gray-400 p-3">Δεν υπάρχουν μηνύματα ακόμα.</p>}
+          {comms?.map(c => (
+            <div key={c.id} className={`px-4 py-2.5 text-xs ${c.direction === 'out' ? 'bg-blue-50' : 'bg-white'}`}>
+              <div className="flex items-center justify-between gap-2 mb-0.5">
+                <span className="font-medium text-gray-700">
+                  {channelIcon(c.channel)} {c.direction === 'out' ? '→ Εσείς' : '← Επισκέπτης'}
+                </span>
+                <span className="text-gray-400 shrink-0">{c.sent_at ? new Date(c.sent_at).toLocaleDateString('el-GR') : ''}</span>
+              </div>
+              <p className="text-gray-500 truncate">{c.subject}</p>
+              {c.body_preview && <p className="text-gray-400 mt-0.5 line-clamp-2">{c.body_preview}</p>}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function ChannelManagerModal({ channels, onClose, onSaved }) {
+  const [list, setList] = useState(channels.map((c) => ({ ...c })))
+  const [newLabel, setNewLabel] = useState('')
+  const [newColor, setNewColor] = useState('bg-blue-100 text-blue-800')
+  const [saving, setSaving] = useState(false)
+
+  const updateItem = (idx, field, val) =>
+    setList((l) => l.map((c, i) => i === idx ? { ...c, [field]: val } : c))
+
+  const removeItem = (idx) => setList((l) => l.filter((_, i) => i !== idx))
+
+  const addChannel = () => {
+    if (!newLabel.trim()) return
+    const value = slugify(newLabel)
+    if (list.find((c) => c.value === value)) {
+      toast.error('Υπάρχει ήδη κανάλι με αυτό το κλειδί')
+      return
+    }
+    setList((l) => [...l, { value, label: newLabel.trim(), color: newColor }])
+    setNewLabel('')
+  }
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      await saveBookingChannels(list)
+      toast.success('Τα κανάλια αποθηκεύτηκαν')
+      onSaved(list)
+    } catch {
+      toast.error('Σφάλμα αποθήκευσης')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/40 flex items-end md:items-center justify-center p-0 md:p-4">
+      <div className="bg-white w-full md:max-w-lg rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
+          <h3 className="font-bold text-gray-800">Διαχείριση Καναλιών</h3>
+          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+        </div>
+        <div className="p-5 space-y-3">
+          {list.map((ch, idx) => (
+            <div key={ch.value} className="flex items-center gap-2">
+              <span className={`text-xs px-2 py-0.5 rounded-full font-medium whitespace-nowrap ${ch.color}`}>
+                {ch.label}
+              </span>
+              <input
+                className="input flex-1 text-sm"
+                value={ch.label}
+                onChange={(e) => updateItem(idx, 'label', e.target.value)}
+                placeholder="Όνομα καναλιού"
+              />
+              <select
+                className="input text-xs w-32"
+                value={ch.color}
+                onChange={(e) => updateItem(idx, 'color', e.target.value)}
+              >
+                {COLOR_OPTIONS.map((co) => (
+                  <option key={co.value} value={co.value}>{co.label}</option>
+                ))}
+              </select>
+              <button
+                onClick={() => removeItem(idx)}
+                className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 shrink-0"
+              >
+                <TrashIcon className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+
+          <div className="border-t border-gray-100 pt-3">
+            <p className="text-xs text-gray-500 mb-2 font-medium">Προσθήκη νέου καναλιού</p>
+            <div className="flex gap-2">
+              <input
+                className="input flex-1 text-sm"
+                placeholder="π.χ. Expedia"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && addChannel()}
+              />
+              <select
+                className="input text-xs w-32"
+                value={newColor}
+                onChange={(e) => setNewColor(e.target.value)}
+              >
+                {COLOR_OPTIONS.map((co) => (
+                  <option key={co.value} value={co.value}>{co.label}</option>
+                ))}
+              </select>
+              <button onClick={addChannel} className="btn-primary text-sm px-3 shrink-0">+</button>
+            </div>
+          </div>
+
+          <div className="flex gap-2 pt-2">
+            <button onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
+            <button onClick={handleSave} disabled={saving} className="btn-primary flex-1">
+              {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 const STATUSES = [
   { value: 'confirmed', label: 'Επιβεβαιωμένη', color: 'bg-green-100 text-green-700' },
@@ -36,7 +300,7 @@ const emptyBooking = {
 }
 const emptyCustomer = { first_name: '', last_name: '', email: '', phone: '', nationality: '', id_number: '' }
 
-function BookingModal({ booking, units, customers: initCustomers, onClose, onSaved }) {
+function BookingModal({ booking, units, customers: initCustomers, channels: modalChannels, onClose, onSaved }) {
   const [form, setForm] = useState(booking ? { ...booking } : { ...emptyBooking })
   const [saving, setSaving] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
@@ -46,8 +310,43 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
   const [showNewCust, setShowNewCust] = useState(false)
   const [newCust, setNewCust] = useState({ fullName: '', email: '', phone: '', nationality: '', id_number: '' })
   const [savingCust, setSavingCust] = useState(false)
+  const [portalLink, setPortalLink] = useState(null)
+  const [portalLinkError, setPortalLinkError] = useState(false)
+  const [sendingEmail, setSendingEmail] = useState(false)
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    if (booking?.id) {
+      setPortalLink(null)
+      setPortalLinkError(false)
+      getPortalLink(booking.id)
+        .then((r) => setPortalLink(r.data))
+        .catch(() => setPortalLinkError(true))
+    }
+  }, [booking?.id])
+
+  const portalFullUrl = portalLink?.portal_url
+    ? `${window.location.origin}${portalLink.portal_url}`
+    : null
+
+  const handleCopyLink = () => {
+    if (!portalFullUrl) return
+    navigator.clipboard.writeText(portalFullUrl)
+    toast.success('Ο σύνδεσμος αντιγράφηκε!')
+  }
+
+  const handleSendEmail = async () => {
+    setSendingEmail(true)
+    try {
+      await sendPortalEmail(booking.id, {})
+      toast.success('Email στάλθηκε στον πελάτη!')
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα αποστολής email')
+    } finally {
+      setSendingEmail(false)
+    }
+  }
 
   const handleCustSearch = async (e) => {
     const v = e.target.value
@@ -219,7 +518,7 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
               </div>
             ) : (
               <div className="space-y-1">
-                <input className="input" placeholder="Αναζήτηση ονόματος..." value={custSearch} onChange={handleCustSearch} />
+                <input className="input" aria-label="Αναζήτηση πελάτη" placeholder="Αναζήτηση ονόματος..." value={custSearch} onChange={handleCustSearch} />
                 <select
                   className="input"
                   value={form.customer_id}
@@ -231,20 +530,57 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
                   required
                 >
                   <option value="">-- Επιλέξτε πελάτη --</option>
-                  {customers.slice(0, 50).map((c) => (
-                    <option key={c.id} value={c.id}>{c.last_name} {c.first_name} {c.phone ? `(${c.phone})` : ''}</option>
-                  ))}
+                  {(() => {
+                    const top50 = customers.slice(0, 50)
+                    const current = booking?.customer_id && !top50.find(c => c.id === booking.customer_id)
+                      ? customers.find(c => c.id === booking.customer_id)
+                      : null
+                    return (current ? [current, ...top50] : top50).map((c) => (
+                      <option key={c.id} value={c.id}>{c.last_name} {c.first_name} {c.phone ? `(${c.phone})` : ''}</option>
+                    ))
+                  })()}
                 </select>
               </div>
             )}
           </div>
+
+          {/* Guest info panel for existing bookings */}
+          {booking?.id && (() => {
+            const cust = customers.find(c => c.id === form.customer_id) || booking.customer
+            const hasInfo = cust?.phone || cust?.email || form.notes
+            const missingContact = !cust?.phone && !cust?.email
+            return (
+              <>
+                {(hasInfo || booking.reply_email) && (
+                  <div className="bg-sky-50 border border-sky-100 rounded-xl p-3 text-sm space-y-1">
+                    <p className="text-xs font-semibold text-sky-700 mb-1.5">Στοιχεία Επισκέπτη</p>
+                    {cust?.phone && <p className="text-gray-700">📞 {cust.phone}</p>}
+                    {cust?.email && <p className="text-gray-700">✉️ {cust.email}</p>}
+                    {booking.reply_email && (
+                      <p className="text-gray-500 text-xs break-all">
+                        🔁 <span className="font-medium text-red-700">Airbnb relay:</span> {booking.reply_email}
+                      </p>
+                    )}
+                    {form.notes && <p className="text-gray-600 text-xs">🗒 {form.notes}</p>}
+                  </div>
+                )}
+                {missingContact && (
+                  <GuestRegistrationLink bookingId={booking.id} />
+                )}
+                {booking.reply_email && (
+                  <AirbnbReplyBox bookingId={booking.id} />
+                )}
+                <CommunicationsLog bookingId={booking.id} />
+              </>
+            )
+          })()}
 
           {/* Channel + Status */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="label">Κανάλι</label>
               <select className="input" value={form.channel} onChange={(e) => set('channel', e.target.value)}>
-                {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+                {(modalChannels || DEFAULT_CHANNELS).map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
               </select>
             </div>
             <div>
@@ -295,6 +631,59 @@ function BookingModal({ booking, units, customers: initCustomers, onClose, onSav
             <textarea className="input" rows={2} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} />
           </div>
 
+          {/* Guest Portal Link — only for saved bookings */}
+          {booking?.id && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold text-indigo-800 flex items-center gap-1.5">
+                  <LinkIcon className="h-4 w-4" /> Guest Portal
+                </span>
+                {portalLink && (
+                  portalLink.is_verified
+                    ? <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">✓ Επαληθευμένος</span>
+                    : <span className="text-xs bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">Αναμένει επαλήθευση</span>
+                )}
+              </div>
+
+              {portalLinkError && (
+                <p className="text-xs text-red-500">Σφάλμα φόρτωσης συνδέσμου — ελέγξτε αν οι πίνακες guest portal έχουν δημιουργηθεί.</p>
+              )}
+
+              {!portalLink && !portalLinkError && (
+                <p className="text-xs text-indigo-400 animate-pulse">Φόρτωση συνδέσμου...</p>
+              )}
+
+              {portalLink && (
+                <>
+                  <div className="flex gap-2">
+                    <input
+                      readOnly
+                      value={portalFullUrl || ''}
+                      className="input text-xs flex-1 bg-white font-mono select-all cursor-pointer"
+                      onClick={(e) => e.target.select()}
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyLink}
+                      className="btn-secondary text-xs whitespace-nowrap px-3"
+                    >
+                      Αντιγραφή
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={handleSendEmail}
+                    disabled={sendingEmail}
+                    className="w-full flex items-center justify-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm font-medium py-2 rounded-lg transition disabled:opacity-60"
+                  >
+                    <EnvelopeIcon className="h-4 w-4" />
+                    {sendingEmail ? 'Αποστολή...' : 'Αποστολή email στον πελάτη'}
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Αποθήκευση...' : 'Αποθήκευση'}</button>
@@ -313,29 +702,81 @@ export default function Bookings() {
   const [bookings, setBookings] = useState([])
   const [units, setUnits] = useState([])
   const [customers, setCustomers] = useState([])
+  const [channels, setChannels] = useState(DEFAULT_CHANNELS)
   const [modal, setModal] = useState(null)
+  const [showChannelMgr, setShowChannelMgr] = useState(false)
+  const [selected, setSelected] = useState(new Set())
   const [filters, setFilters] = useState({ channel: '', status: '', unit_id: '', is_billed: '' })
   const [sort, setSort] = useState({ sort_by: 'check_in', sort_dir: 'desc' })
   const [showFilters, setShowFilters] = useState(false)
   const [importing, setImporting] = useState(false)
 
+  // Date filter state
+  const now = new Date()
+  const [dateMode, setDateMode] = useState('')          // '' | 'month' | 'year' | 'period'
+  const [dateMonth, setDateMonth] = useState(now.getMonth() + 1)
+  const [dateYear, setDateYear] = useState(now.getFullYear())
+  const [periodFrom, setPeriodFrom] = useState('')
+  const [periodTo, setPeriodTo] = useState('')
+
+  const YEARS = Array.from({ length: now.getFullYear() - 2019 + 3 }, (_, i) => 2020 + i)
+
+  const getDateRange = useCallback(() => {
+    if (dateMode === 'month') {
+      const lastDay = new Date(dateYear, dateMonth, 0).getDate()
+      return {
+        from_date: `${dateYear}-${String(dateMonth).padStart(2, '0')}-01`,
+        to_date: `${dateYear}-${String(dateMonth).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`,
+      }
+    }
+    if (dateMode === 'year') return { from_date: `${dateYear}-01-01`, to_date: `${dateYear}-12-31` }
+    if (dateMode === 'period' && periodFrom && periodTo) return { from_date: periodFrom, to_date: periodTo }
+    return {}
+  }, [dateMode, dateMonth, dateYear, periodFrom, periodTo])
+
   const load = useCallback(() => {
-    const params = { ...sort, limit: 500 }
+    const params = { ...sort, limit: 500, ...getDateRange() }
     if (filters.channel) params.channel = filters.channel
     if (filters.status) params.status = filters.status
     if (filters.unit_id) params.unit_id = filters.unit_id
     if (filters.is_billed !== '') params.is_billed = filters.is_billed === 'true'
-    getBookings(params).then((r) => setBookings(r.data))
-  }, [filters, sort])
+    getBookings(params).then((r) => { setBookings(r.data); setSelected(new Set()) })
+  }, [filters, sort, getDateRange])
+
+  const toggleSelect = (id) => setSelected((s) => {
+    const next = new Set(s)
+    next.has(id) ? next.delete(id) : next.add(id)
+    return next
+  })
+
+  const toggleAll = () => {
+    if (selected.size === bookings.length) {
+      setSelected(new Set())
+    } else {
+      setSelected(new Set(bookings.map((b) => b.id)))
+    }
+  }
+
+  const handleBulkBill = async () => {
+    if (!selected.size) return
+    if (!confirm(`Σήμανση ${selected.size} κρατήσεων ως τιμολογήθηκαν;`)) return
+    try {
+      await bulkMarkBilled([...selected])
+      toast.success(`${selected.size} κρατήσεις σημάνθηκαν ως τιμολογήθηκαν`)
+      load()
+    } catch {
+      toast.error('Σφάλμα κατά την ενημέρωση')
+    }
+  }
 
   useEffect(() => {
     getUnits().then((r) => setUnits(r.data))
     getCustomers({ limit: 500 }).then((r) => setCustomers(r.data))
+    getBookingChannels().then((r) => setChannels(r.data)).catch(() => {})
   }, [])
 
   useEffect(() => { load() }, [load])
 
-  // Open edit modal from URL param ?edit=ID or from calendar navigation
   useEffect(() => {
     const params = new URLSearchParams(location.search)
     const editId = params.get('edit')
@@ -419,11 +860,17 @@ export default function Bookings() {
     </button>
   )
 
+  const CH = Object.fromEntries(channels.map((c) => [c.value, c]))
+
   return (
     <div className="p-4 md:p-6 space-y-4">
       <div className="flex items-center justify-between flex-wrap gap-2">
         <h2 className="text-xl font-bold text-gray-800">Κρατήσεις</h2>
         <div className="flex gap-2 flex-wrap">
+          <button onClick={() => setShowChannelMgr(true)} className="btn-secondary flex items-center gap-1" title="Διαχείριση καναλιών">
+            <Cog6ToothIcon className="h-4 w-4" />
+            <span className="hidden sm:inline">Κανάλια</span>
+          </button>
           <button onClick={() => setShowFilters(!showFilters)} className="btn-secondary flex items-center gap-1">
             <FunnelIcon className="h-4 w-4" />
             <span className="hidden sm:inline">Φίλτρα</span>
@@ -456,37 +903,97 @@ export default function Bookings() {
         <SortBtn field="created_at" label="Δημιουργία" />
       </div>
 
+      {/* Bulk action bar */}
+      {selected.size > 0 && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-blue-50 border border-blue-200 rounded-xl">
+          <span className="text-sm font-medium text-blue-700">{selected.size} επιλεγμένες</span>
+          <button
+            onClick={handleBulkBill}
+            className="ml-auto text-sm px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
+          >
+            Τιμολογήθηκαν ✓
+          </button>
+          <button onClick={() => setSelected(new Set())} className="text-sm text-blue-500 hover:text-blue-700">
+            Ακύρωση
+          </button>
+        </div>
+      )}
+
       {/* Filters */}
       {showFilters && (
-        <div className="bg-white rounded-xl border border-gray-200 p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div>
-            <label className="label">Κανάλι</label>
-            <select className="input" value={filters.channel} onChange={(e) => setFilters((f) => ({ ...f, channel: e.target.value }))}>
-              <option value="">Όλα</option>
-              {CHANNELS.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-            </select>
+        <div className="bg-white rounded-xl border border-gray-200 p-4 space-y-3">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div>
+              <label className="label">Κανάλι</label>
+              <select className="input" value={filters.channel} onChange={(e) => setFilters((f) => ({ ...f, channel: e.target.value }))}>
+                <option value="">Όλα</option>
+                {channels.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Κατάσταση</label>
+              <select className="input" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
+                <option value="">Όλες</option>
+                {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Μονάδα</label>
+              <select className="input" value={filters.unit_id} onChange={(e) => setFilters((f) => ({ ...f, unit_id: e.target.value }))}>
+                <option value="">Όλες</option>
+                {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="label">Τιμολόγηση</label>
+              <select className="input" value={filters.is_billed} onChange={(e) => setFilters((f) => ({ ...f, is_billed: e.target.value }))}>
+                <option value="">Όλες</option>
+                <option value="true">Τιμολογήθηκαν</option>
+                <option value="false">Δεν τιμολογήθηκαν</option>
+              </select>
+            </div>
           </div>
-          <div>
-            <label className="label">Κατάσταση</label>
-            <select className="input" value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}>
-              <option value="">Όλες</option>
-              {STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Μονάδα</label>
-            <select className="input" value={filters.unit_id} onChange={(e) => setFilters((f) => ({ ...f, unit_id: e.target.value }))}>
-              <option value="">Όλες</option>
-              {units.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
-            </select>
-          </div>
-          <div>
-            <label className="label">Τιμολόγηση</label>
-            <select className="input" value={filters.is_billed} onChange={(e) => setFilters((f) => ({ ...f, is_billed: e.target.value }))}>
-              <option value="">Όλες</option>
-              <option value="true">Τιμολογήθηκαν</option>
-              <option value="false">Δεν τιμολογήθηκαν</option>
-            </select>
+
+          {/* Date period filter */}
+          <div className="border-t border-gray-100 pt-3">
+            <label className="label mb-2">Περίοδος</label>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {[['', 'Όλες'], ['month', 'Μήνας'], ['year', 'Χρονιά'], ['period', 'Συγκεκριμένη']].map(([mode, lbl]) => (
+                <button
+                  key={mode}
+                  type="button"
+                  onClick={() => setDateMode(mode)}
+                  className={`text-xs px-3 py-1.5 rounded-full border transition ${dateMode === mode ? 'bg-blue-600 text-white border-blue-600' : 'border-gray-200 text-gray-600 hover:bg-gray-50'}`}
+                >
+                  {lbl}
+                </button>
+              ))}
+            </div>
+
+            {dateMode === 'month' && (
+              <div className="flex gap-2">
+                <select className="input flex-1" value={dateMonth} onChange={(e) => setDateMonth(+e.target.value)}>
+                  {MONTH_NAMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+                </select>
+                <select className="input w-28" value={dateYear} onChange={(e) => setDateYear(+e.target.value)}>
+                  {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+                </select>
+              </div>
+            )}
+
+            {dateMode === 'year' && (
+              <select className="input w-32" value={dateYear} onChange={(e) => setDateYear(+e.target.value)}>
+                {YEARS.map((y) => <option key={y} value={y}>{y}</option>)}
+              </select>
+            )}
+
+            {dateMode === 'period' && (
+              <div className="flex gap-2 items-center">
+                <input type="date" className="input flex-1" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+                <span className="text-gray-400 text-sm">→</span>
+                <input type="date" className="input flex-1" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -496,7 +1003,15 @@ export default function Bookings() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase tracking-wide">
+                <th className="px-3 py-3 w-8">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300"
+                    checked={bookings.length > 0 && selected.size === bookings.length}
+                    onChange={toggleAll}
+                  />
+                </th>
                 <th className="text-left px-4 py-3">#</th>
                 <th className="text-left px-4 py-3">Πελάτης</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Μονάδα</th>
@@ -510,7 +1025,15 @@ export default function Bookings() {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {bookings.map((b) => (
-                <tr key={b.id} className={`hover:bg-gray-50 ${b.status === 'cancelled' ? 'opacity-50' : ''}`}>
+                <tr key={b.id} className={`hover:bg-gray-50 ${b.status === 'cancelled' ? 'opacity-50' : ''} ${selected.has(b.id) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-3 py-3">
+                    <input
+                      type="checkbox"
+                      className="rounded border-gray-300"
+                      checked={selected.has(b.id)}
+                      onChange={() => toggleSelect(b.id)}
+                    />
+                  </td>
                   <td className="px-4 py-3 text-gray-400 text-xs">{b.id}</td>
                   <td className="px-4 py-3">
                     <p className="font-medium text-gray-800">{b.customer.first_name} {b.customer.last_name}</p>
@@ -527,8 +1050,8 @@ export default function Bookings() {
                     </span>
                   </td>
                   <td className="px-4 py-3 text-right hidden lg:table-cell">
-                    <p className="font-medium text-gray-800">€{b.total_price.toLocaleString('el-GR')}</p>
-                    {b.commission > 0 && <p className="text-xs text-gray-400">-€{b.commission.toFixed(2)} προμ.</p>}
+                    <p className="font-medium text-gray-800">€{(b.total_price ?? 0).toLocaleString('el-GR')}</p>
+                    {b.commission > 0 && <p className="text-xs text-gray-400">-€{(b.commission ?? 0).toFixed(2)} προμ.</p>}
                   </td>
                   <td className="px-4 py-3 hidden lg:table-cell">
                     <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${ST[b.status]?.color}`}>
@@ -566,8 +1089,17 @@ export default function Bookings() {
           booking={modal === 'new' ? null : modal}
           units={units}
           customers={customers}
+          channels={channels}
           onClose={() => setModal(null)}
           onSaved={() => { setModal(null); load() }}
+        />
+      )}
+
+      {showChannelMgr && (
+        <ChannelManagerModal
+          channels={channels}
+          onClose={() => setShowChannelMgr(false)}
+          onSaved={(updated) => { setChannels(updated); setShowChannelMgr(false) }}
         />
       )}
     </div>
