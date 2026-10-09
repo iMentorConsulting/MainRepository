@@ -11,6 +11,7 @@ import ClientPreview from './pages/ClientPreview'
 import Login from './pages/Login'
 import QuickQuote from './pages/QuickQuote'
 import FinancialDashboard from './pages/FinancialDashboard'
+import Winback from './pages/Winback'
 import Leads from './pages/Leads'
 import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
@@ -99,6 +100,7 @@ export default function App() {
             <Route path="/quick-quote" element={<QuickQuote />} />
             <Route path="/statistics" element={<Statistics currentEmployee={auth.employee} />} />
             <Route path="/finances" element={<FinancialDashboard currentEmployee={auth.employee} />} />
+            <Route path="/winback" element={<Winback currentEmployee={auth.employee} />} />
             <Route path="/leads" element={<Leads currentEmployee={auth.employee} />} />
             <Route path="/lead-lists" element={<LeadLists currentEmployee={auth.employee} />} />
             <Route path="/payments" element={<IrisPayments currentEmployee={auth.employee} />} />

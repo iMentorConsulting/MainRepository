@@ -432,6 +432,7 @@ class WinbackRequest(BaseModel):
     winback_app: Optional[float] = None  # agent-suggested amounts for the admin to review
     winback_suc: Optional[float] = None
     note: str = ""
+    message: str = ""  # message text drafted by the consultant, pre-filled for the admin on sending
 
 
 @router.post("/{id}/request-winback", response_model=CaseResponse)
@@ -451,6 +452,36 @@ def request_winback(id: int, data: WinbackRequest, db: Session = Depends(get_db)
         offer["winback_app_suggested"] = data.winback_app
     if data.winback_suc is not None:
         offer["winback_suc_suggested"] = data.winback_suc
+    if data.message.strip():
+        offer["winback_draft_message"] = data.message
+    else:
+        offer.pop("winback_draft_message", None)
+    case.commercial_offer = offer
+    case.updated_at = _now()
+    db.commit()
+    db.refresh(case)
+    try:
+        create_notification(
+            db, ADMIN_RECIPIENT, "winback_request",
+            "Win-back προς αποστολή",
+            f"{data.employee}: έτοιμο μήνυμα win-back για {case.client_name or 'πελάτη'}",
+            link="/finances", case_id=case.id,
+        )
+    except Exception:
+        pass
+    return case
+
+
+@router.post("/{id}/cancel-winback-request", response_model=CaseResponse)
+def cancel_winback_request(id: int, db: Session = Depends(get_db)):
+    """Consultant withdraws a win-back request that the admin has not processed yet."""
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    offer = dict(case.commercial_offer or {})
+    for k in ("winback_requested", "winback_requested_by", "winback_requested_at", "winback_request_note",
+              "winback_app_suggested", "winback_suc_suggested", "winback_draft_message"):
+        offer.pop(k, None)
     case.commercial_offer = offer
     case.updated_at = _now()
     db.commit()
@@ -464,6 +495,11 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     offer = dict(case.commercial_offer or {})
+    prepared_by = offer.get("winback_requested_by")
+    draft_message = offer.get("winback_draft_message")
+    sugg_app = offer.get("winback_app_suggested")
+    sugg_suc = offer.get("winback_suc_suggested")
+    offer.pop("winback_draft_message", None)
     if data.approve:
         orig_app = float(offer.get("application_fee") or offer.get("system_app") or 0)
         orig_suc = float(offer.get("success_fee") or offer.get("system_suc") or 0)
@@ -480,6 +516,13 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
         offer["winback_status"] = "approved"
         offer["winback_saving"] = round((orig_app - offer["winback_app"]) + (orig_suc - offer["winback_suc"]))
         offer["winback_offer_valid_until"] = (_now() + timedelta(days=WINBACK_VALIDITY_DAYS)).date().isoformat()
+        if prepared_by:
+            offer["winback_prepared_by"] = prepared_by
+        # keep the consultant's drafted message only if the admin approved the same amounts it quotes
+        if draft_message and sugg_app is not None and sugg_suc is not None \
+                and round(float(sugg_app) / 10) * 10 == offer["winback_app"] \
+                and round(float(sugg_suc) / 10) * 10 == offer["winback_suc"]:
+            offer["winback_draft_message"] = draft_message
     else:
         offer["winback_status"] = "dismissed"
     offer.pop("winback_requested", None)
@@ -622,6 +665,7 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
         raise HTTPException(status_code=503, detail=" | ".join(errors))
 
     offer["winback_status"] = "sent"
+    offer.pop("winback_draft_message", None)
     case.commercial_offer = offer
     case.last_contacted_at = _now()
     case.updated_at = _now()

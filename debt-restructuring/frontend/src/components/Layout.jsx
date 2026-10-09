@@ -15,6 +15,7 @@ import {
   ScaleIcon,
   ChatBubbleLeftEllipsisIcon,
   BuildingOfficeIcon,
+  SparklesIcon,
 } from '@heroicons/react/24/outline'
 import { toast } from 'react-hot-toast'
 import { hangupCall, getPayrollTargets } from '../api'
@@ -34,6 +35,7 @@ const nav = [
   { to: '/cases/new', label: 'Νέα Υπόθεση', Icon: PlusCircleIcon },
   { to: '/quick-quote', label: 'Γρήγορη Ανάλυση', Icon: BoltIcon },
   { to: '/pipeline', label: 'Sales Pipeline', Icon: RocketLaunchIcon },
+  { to: '/winback', label: 'Win-back Πελατών', Icon: SparklesIcon },
   { to: '/statistics', label: 'Στατιστικά', Icon: ChartBarIcon },
   { to: '/lead-lists', label: 'Λίστες', Icon: ListBulletIcon },
   { to: '/themis-conversations', label: 'Συζητήσεις με Θέμις', Icon: ChatBubbleLeftEllipsisIcon },

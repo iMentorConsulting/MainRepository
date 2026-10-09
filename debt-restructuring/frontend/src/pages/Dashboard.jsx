@@ -7,6 +7,7 @@ import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIco
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt } from '../utils/calculations'
+import { WINBACK_DAYS } from '../utils/winbackTemplates'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
@@ -111,6 +112,12 @@ export default function Dashboard({ currentEmployee }) {
   }, {})
 
   const attentionCases = cases.filter(needsAttention)
+  const winbackOpen = cases.filter(c => {
+    const o = c.commercial_offer || {}
+    if (c.employee !== currentEmployee || o.winback_requested || ['approved', 'sent', 'dismissed'].includes(o.winback_status)) return false
+    const ref = c.stage_changed_at || c.updated_at
+    return c.contact_stage === 'Δεν Ενδιαφέρεται' && ref && (Date.now() - new Date(ref)) / 86400000 >= WINBACK_DAYS
+  })
   const logistisCases = cases.filter(c => c.external_source === 'logistis')
   const visibleCases = (filterLogistis ? logistisCases : cases)
     .filter(c => !filterStage || (c.contact_stage || 'Νέα Ανάλυση') === filterStage)
@@ -159,6 +166,15 @@ export default function Dashboard({ currentEmployee }) {
           <span className="ml-auto text-xs text-amber-600 group-hover:underline flex items-center gap-1">
             Άνοιγμα Pipeline <RocketLaunchIcon className="w-3.5 h-3.5" />
           </span>
+        </Link>
+      )}
+
+      {/* Win-back opportunities waiting for the consultant's decision */}
+      {winbackOpen.length > 0 && currentEmployee !== 'HARIS' && (
+        <Link to="/winback" className="flex items-center gap-3 rounded-2xl px-4 py-3 mb-4 border-2 border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-800 transition-colors">
+          <span className="text-xl">💎</span>
+          <span className="font-bold text-sm">{winbackOpen.length} ευκαιρίες win-back περιμένουν την απόφασή σας</span>
+          <span className="ml-auto text-xs font-semibold">Άνοιγμα →</span>
         </Link>
       )}
 

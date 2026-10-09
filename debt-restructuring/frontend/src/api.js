@@ -49,6 +49,7 @@ export const patchOffer = (id, commercial_offer) => api.patch(`/cases/${id}/offe
 export const notifyPricingApproval = (id, data) => api.post(`/cases/${id}/notify-pricing-approval`, data)
 export const approveWinback = (id, approve, overrides = {}) => api.post(`/cases/${id}/approve-winback`, { approve, ...overrides })
 export const requestWinback = (id, data) => api.post(`/cases/${id}/request-winback`, data)
+export const cancelWinbackRequest = (id) => api.post(`/cases/${id}/cancel-winback-request`)
 export const sendWinback = (id, channel, message, subject) => api.post(`/cases/${id}/send-winback`, { channel, message, subject })
 export const sendViber = (id, data) => api.post(`/cases/${id}/send-viber`, data)
 export const sendEmail = (id, data) => api.post(`/cases/${id}/send-email`, data)
