@@ -141,6 +141,10 @@ export default function ListingOptimizer() {
   const openCount = recs.filter(r => r.status === 'open').length
   const ready = cfg?.apify_configured && cfg?.ai_configured && cfg?.search_location
 
+  const guestGroups = cfg ? new Set(units.filter(u => cfg.units?.[u.id]?.airbnb_url || cfg.units?.[u.id]?.booking_url)
+    .map(u => cfg.units[u.id].guests || u.capacity || cfg.adults)).size || 1 : 1
+  const searchesPerRun = cfg ? cfg.max_periods * cfg.platforms.length * guestGroups : 0
+
   if (!cfg) return <div className="p-6 text-gray-400 text-sm">Φόρτωση…</div>
 
   return (
@@ -189,7 +193,7 @@ export default function ListingOptimizer() {
                 onChange={e => setC('search_location', e.target.value)} />
             </div>
             <div>
-              <label className="label">Ενήλικες</label>
+              <label className="label">Επισκέπτες (αν λείπει χωρητικότητα)</label>
               <input type="number" min={1} max={16} className="input" value={cfg.adults}
                 onChange={e => setC('adults', +e.target.value)} />
             </div>
@@ -242,10 +246,25 @@ export default function ListingOptimizer() {
               </label>
             </div>
           </div>
+          <details className="text-sm">
+            <summary className="cursor-pointer text-xs text-gray-500">Προχωρημένα: Apify scrapers</summary>
+            <div className="grid sm:grid-cols-2 gap-4 mt-3">
+              <div>
+                <label className="label">Airbnb actor</label>
+                <input className="input font-mono text-xs" placeholder="cirkit/airbnb-search-scraper" value={cfg.airbnb_actor || ''}
+                  onChange={e => setC('airbnb_actor', e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Booking actor</label>
+                <input className="input font-mono text-xs" placeholder="voyager/booking-scraper" value={cfg.booking_actor || ''}
+                  onChange={e => setC('booking_actor', e.target.value)} />
+              </div>
+            </div>
+          </details>
           <p className="text-xs text-gray-500">
-            Κάθε ανάλυση κάνει <strong>{cfg.max_periods * cfg.platforms.length}</strong> αναζητήσεις των {cfg.max_results} αποτελεσμάτων.
-            Μέγιστο κόστος: <strong>${Math.min((cfg.max_usd_per_search ?? 0.3) * cfg.max_periods * cfg.platforms.length, cfg.max_usd_per_run ?? 1).toFixed(2)}</strong> ανά ανάλυση
-            {cfg.enabled && <> · ~${(Math.min((cfg.max_usd_per_search ?? 0.3) * cfg.max_periods * cfg.platforms.length, cfg.max_usd_per_run ?? 1) * 4.3).toFixed(2)}/μήνα με την εβδομαδιαία εκτέλεση</>}.
+            Κάθε ανάλυση κάνει <strong>{searchesPerRun}</strong> αναζητήσεις των {cfg.max_results} αποτελεσμάτων.
+            Μέγιστο κόστος: <strong>${Math.min((cfg.max_usd_per_search ?? 0.3) * searchesPerRun, cfg.max_usd_per_run ?? 1).toFixed(2)}</strong> ανά ανάλυση
+            {cfg.enabled && <> · ~${(Math.min((cfg.max_usd_per_search ?? 0.3) * searchesPerRun, cfg.max_usd_per_run ?? 1) * 4.3).toFixed(2)}/μήνα με την εβδομαδιαία εκτέλεση</>}.
             Το Apify σταματά κάθε αναζήτηση μόλις φτάσει το όριο.
           </p>
 
@@ -267,7 +286,12 @@ export default function ListingOptimizer() {
                       <input className="input" placeholder="https://www.booking.com/hotel/gr/…" value={uc.booking_url || ''}
                         onChange={e => setU(u.id, 'booking_url', e.target.value)} />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div>
+                      <label className="label">Επισκέπτες στην αναζήτηση</label>
+                      <input type="number" min={1} max={30} className="input" placeholder={`${u.capacity || ''} (χωρητικότητα)`}
+                        value={uc.guests || ''} onChange={e => setU(u.id, 'guests', +e.target.value || undefined)} />
+                    </div>
+                    <div>
                       <label className="label">Τρέχων τίτλος listing</label>
                       <input className="input" value={uc.title || ''} onChange={e => setU(u.id, 'title', e.target.value)} />
                     </div>
@@ -326,7 +350,11 @@ export default function ListingOptimizer() {
                   <tr key={s.id} className="align-top">
                     <td className="px-4 py-3 font-medium">{unitName(s.unit_id)}</td>
                     <td className="px-4 py-3"><Chip cls={PLATFORM[s.platform]?.cls}>{PLATFORM[s.platform]?.label}</Chip></td>
-                    <td className="px-4 py-3 tabular-nums whitespace-nowrap">{fmtD(s.check_in)} – {fmtD(s.check_out)}</td>
+                    <td className="px-4 py-3 tabular-nums whitespace-nowrap">
+                      {fmtD(s.check_in)} – {fmtD(s.check_out)}
+                      <span className="block text-[11px] text-gray-500">{s.adults} επισκέπτες</span>
+                      {s.search_url && <a href={s.search_url} target="_blank" rel="noreferrer" className="text-[11px] text-blue-600 hover:underline">Άνοιγμα αναζήτησης ↗</a>}
+                    </td>
                     <td className="px-4 py-3 text-right whitespace-nowrap">
                       {s.error ? <span className="text-red-500 text-xs" title={s.error}>Σφάλμα</span> : <RankBadge rank={s.rank} total={s.total_results} />}
                     </td>
