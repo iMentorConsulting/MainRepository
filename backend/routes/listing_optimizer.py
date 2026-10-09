@@ -218,13 +218,29 @@ def _search_url(platform: str, location: str, check_in: date, check_out: date, g
         if f.get("house"):
             q.append(("l2_property_type_ids[]", 1))  # Airbnb property type id: House
         return f"https://www.airbnb.com/s/{quote(slug)}/homes?" + urlencode(q)
-    q = [("ss", location), ("checkin", check_in.isoformat()), ("checkout", check_out.isoformat()),
-         ("group_adults", guests), ("no_rooms", 1), ("group_children", 0),
-         ("selected_currency", "EUR"), ("order", "popularity")]
+    dest = _booking_destination(cfg)
+    q = [("ss", dest.get("ss") or location)]
+    if dest.get("dest_id"):
+        q += [("dest_id", dest["dest_id"]), ("dest_type", dest.get("dest_type") or "city")]
+    q += [("checkin", check_in.isoformat()), ("checkout", check_out.isoformat()),
+          ("group_adults", guests), ("no_rooms", 1), ("group_children", 0),
+          ("selected_currency", "EUR"), ("order", "popularity")]
     nflt = _booking_nflt(cfg)
     if nflt:
         q.append(("nflt", nflt))
     return "https://www.booking.com/searchresults.en-gb.html?" + urlencode(q)
+
+
+def _booking_destination(cfg: dict) -> dict:
+    """Booking destination from the pasted link: its exact place (dest_id) beats free-text matching,
+    which matters because Booking files properties under specific destinations."""
+    from urllib.parse import parse_qs, urlparse
+    pasted = (cfg.get("booking_filters_url") or "").strip()
+    if not pasted:
+        return {}
+    qs = parse_qs(urlparse(pasted).query)
+    pick = lambda k: (qs.get(k) or [""])[0].strip()
+    return {"ss": pick("ss"), "dest_id": pick("dest_id"), "dest_type": pick("dest_type")}
 
 
 def _booking_nflt(cfg: dict) -> str:
@@ -276,7 +292,7 @@ def _apify_search(platform: str, location: str, check_in: date, check_out: date,
     else:
         actor = actor or BOOKING_ACTOR
         payload = {
-            "search": location,
+            "search": _booking_destination(cfg or {}).get("ss") or location,
             "startUrls": [{"url": url}],  # filtered, popularity-ordered search page
             "checkIn": check_in.isoformat(),
             "checkOut": check_out.isoformat(),

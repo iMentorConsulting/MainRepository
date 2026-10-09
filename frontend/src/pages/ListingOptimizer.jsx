@@ -376,9 +376,9 @@ export default function ListingOptimizer() {
           <div className="border border-blue-100 bg-sky-50/40 rounded-lg p-4 space-y-2">
             <p className="text-sm font-semibold text-gray-700">Φίλτρα αναζήτησης Booking</p>
             <p className="text-xs text-gray-500">
-              Κάντε μια αναζήτηση στο Booking, βάλτε τα φίλτρα σας (π.χ. Βίλες, Πισίνα, Υδρομασάζ, Θέα στη θάλασσα,
-              4 υπνοδωμάτια, 4 μπάνια) και επικολλήστε εδώ το link από τη γραμμή διευθύνσεων. Χρησιμοποιούνται μόνο τα
-              φίλτρα — ημερομηνίες και επισκέπτες μπαίνουν αυτόματα σε κάθε αναζήτηση.
+              Κάντε στο Booking την αναζήτηση που κάνουν οι επισκέπτες σας — τον προορισμό που πληκτρολογούν (π.χ.
+              Ηράκλειο, όχι το χωριό σας) και τα φίλτρα (Βίλες, Πισίνα, Θέα στη θάλασσα, υπνοδωμάτια…) — και επικολλήστε
+              εδώ το link. Κρατιούνται προορισμός και φίλτρα· ημερομηνίες και επισκέπτες μπαίνουν αυτόματα.
             </p>
             <textarea rows={2} className="input font-mono text-xs" placeholder="https://www.booking.com/searchresults…&nflt=…"
               value={cfg.booking_filters_url || ''} onChange={e => setC('booking_filters_url', e.target.value.trim())} />
@@ -387,10 +387,18 @@ export default function ListingOptimizer() {
               if (!cfg.booking_filters_url) return (
                 <p className="text-xs text-amber-700">Χωρίς link: Βίλες, {af.min_bedrooms || 3}+ υπνοδωμάτια, από {cfg.luxury_min_nightly || 0}€/νύχτα. Πισίνα, υδρομασάζ, θέα και μπάνια μόνο με link.</p>
               )
-              if (!tokens.length) return <p className="text-xs text-red-600">Το link δεν περιέχει φίλτρα (λείπει το «nflt»). Εφαρμόστε τα φίλτρα στο Booking και αντιγράψτε ξανά το link.</p>
+              let dest = ''
+              try { dest = new URL(cfg.booking_filters_url).searchParams.get('ss') || '' } catch {}
               return (
-                <div className="flex flex-wrap gap-1.5">
-                  {tokens.map(t => <span key={t} className="px-2 py-0.5 rounded-full border border-sky-200 bg-white text-[11px] text-sky-800">{t}</span>)}
+                <div className="space-y-1.5">
+                  {dest && <p className="text-xs text-gray-700">Προορισμός αναζήτησης: <strong>{dest}</strong></p>}
+                  {tokens.length ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {tokens.map(t => <span key={t} className="px-2 py-0.5 rounded-full border border-sky-200 bg-white text-[11px] text-sky-800">{t}</span>)}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-amber-700">Το link δεν έχει φίλτρα — χρησιμοποιούνται: Βίλες, {af.min_bedrooms || 3}+ υπνοδωμάτια, από {cfg.luxury_min_nightly || 0}€/νύχτα.</p>
+                  )}
                 </div>
               )
             })()}
