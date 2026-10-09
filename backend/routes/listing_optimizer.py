@@ -40,7 +40,11 @@ DEFAULT_CONFIG = {
     "max_usd_per_run": 1.00,     # stop launching searches once a run has spent this much
     "run_timeout_sec": 180,      # Apify kills the scraper after this, keeping what it found
     "lookahead_days": 60,
-    "luxury_min_nightly": 0,  # €/night floor for the luxury-segment rank; 0 = 60% of own price
+    "luxury_min_nightly": 200,  # €/night: Airbnb min-price filter (× nights) and luxury-segment floor
+    "airbnb_filters": {         # mirrors the Airbnb search filters a luxury guest would apply
+        "entire_place": True, "min_bedrooms": 3, "min_beds": 3, "min_bathrooms": 3,
+        "pool": True, "house": True,
+    },
     "airbnb_actor": "",    # empty = AIRBNB_ACTOR default
     "booking_actor": "",
     "units": {},           # unit_id -> {airbnb_url, booking_url, guests, title, description, highlights}
@@ -63,6 +67,8 @@ def _load_config(db: Session, tenant: str) -> dict:
                 # Configs saved before cost caps existed: drop to the safer search volume
                 stored.pop("max_periods", None)
                 stored.pop("max_results", None)
+            if not stored.get("luxury_min_nightly"):
+                stored.pop("luxury_min_nightly", None)  # empty/0 from older configs → €200/night default
             cfg.update(stored)
         except ValueError:
             pass
@@ -107,15 +113,32 @@ def _free_periods(db: Session, tenant: str, unit_id: int, lookahead: int) -> lis
 
 # ── Apify ───────────────────────────────────────────────────────────────
 
-def _search_url(platform: str, location: str, check_in: date, check_out: date, guests: int) -> str:
+def _search_url(platform: str, location: str, check_in: date, check_out: date, guests: int,
+                cfg: Optional[dict] = None) -> str:
     """The exact search a guest would run — sent to the scraper and shown for manual checking."""
     from urllib.parse import quote, urlencode
+    cfg = cfg or {}
     if platform == "airbnb":
         slug = "--".join(part.strip().replace(" ", "-") for part in location.split(","))
-        return f"https://www.airbnb.com/s/{quote(slug)}/homes?" + urlencode({
-            "checkin": check_in.isoformat(), "checkout": check_out.isoformat(),
-            "adults": guests, "query": location, "currency": "EUR", "locale": "en",
-        })
+        nights = (check_out - check_in).days
+        f = {**DEFAULT_CONFIG["airbnb_filters"], **(cfg.get("airbnb_filters") or {})}
+        q = [("checkin", check_in.isoformat()), ("checkout", check_out.isoformat()),
+             ("adults", guests), ("query", location), ("currency", "EUR"), ("locale", "en")]
+        if f.get("entire_place"):
+            q.append(("room_types[]", "Entire home/apt"))
+        min_nightly = float(cfg.get("luxury_min_nightly") or 0)
+        if min_nightly:
+            # Airbnb's price filter is the total trip price, so the floor scales with the stay length
+            q += [("price_min", int(min_nightly * nights)), ("price_filter_input_type", 2),
+                  ("price_filter_num_nights", nights)]
+        for key in ("min_bedrooms", "min_beds", "min_bathrooms"):
+            if f.get(key):
+                q.append((key, int(f[key])))
+        if f.get("pool"):
+            q.append(("amenities[]", 7))            # Airbnb amenity id: Pool
+        if f.get("house"):
+            q.append(("l2_property_type_ids[]", 1))  # Airbnb property type id: House
+        return f"https://www.airbnb.com/s/{quote(slug)}/homes?" + urlencode(q)
     return "https://www.booking.com/searchresults.en-gb.html?" + urlencode({
         "ss": location, "checkin": check_in.isoformat(), "checkout": check_out.isoformat(),
         "group_adults": guests, "no_rooms": 1, "group_children": 0,
@@ -124,13 +147,14 @@ def _search_url(platform: str, location: str, check_in: date, check_out: date, g
 
 
 def _apify_search(platform: str, location: str, check_in: date, check_out: date,
-                  adults: int, max_results: int, max_usd: float, timeout_sec: int, actor: str = ""):
+                  adults: int, max_results: int, max_usd: float, timeout_sec: int, actor: str = "",
+                  cfg: Optional[dict] = None):
     """Run an Apify actor with hard time/memory/spend caps. Returns (items, cost_usd)."""
     import time
     token = os.getenv("APIFY_TOKEN", "")
     if not token:
         raise RuntimeError("APIFY_TOKEN δεν έχει οριστεί")
-    url = _search_url(platform, location, check_in, check_out, adults)
+    url = _search_url(platform, location, check_in, check_out, adults, cfg)
     if platform == "airbnb":
         actor = actor or AIRBNB_ACTOR
         # Search-URL scrapers name this field differently; unknown keys are ignored by Apify actors
@@ -523,7 +547,7 @@ def run_optimizer(db_factory, tenant: str):
                         int(cfg.get("max_results", 30)),
                         min(float(cfg.get("max_usd_per_search", 0.3)), budget - spent),
                         int(cfg.get("run_timeout_sec", 180)),
-                        (cfg.get(f"{platform}_actor") or "").strip().replace("/", "~"))
+                        (cfg.get(f"{platform}_actor") or "").strip().replace("/", "~"), cfg)
                     spent += cost
                     log(f"  {len(raw)} αποτελέσματα · κόστος ${cost:.2f} (σύνολο ${spent:.2f})")
                     listings = _order_listings([_normalize(i, platform) for i in raw], platform)
@@ -632,7 +656,8 @@ class ConfigIn(BaseModel):
     lookahead_days: int = 60
     airbnb_actor: str = ""
     booking_actor: str = ""
-    luxury_min_nightly: float = 0
+    luxury_min_nightly: float = 200
+    airbnb_filters: dict = {}
     units: dict = {}
 
 
@@ -672,7 +697,8 @@ def run_status(tenant: str = Depends(get_tenant)):
     return _run_state.get(tenant, {"running": False})
 
 
-def _snap_dict(s: ListingSnapshot, min_nightly: float = 0) -> dict:
+def _snap_dict(s: ListingSnapshot, cfg: dict) -> dict:
+    min_nightly = float(cfg.get("luxury_min_nightly") or 0)
     all_comps = json.loads(s.competitors or "[]")
     comps = [c for c in all_comps if not c.get("mine")]
     prices = [c["price"] for c in comps if c.get("price")]
@@ -683,7 +709,7 @@ def _snap_dict(s: ListingSnapshot, min_nightly: float = 0) -> dict:
         "rank": s.rank, "total_results": s.total_results, "my_price": s.my_price,
         "my_rating": s.my_rating, "median_price": round(statistics.median(prices)) if prices else None,
         "lux_rank": lux_rank, "lux_total": lux_total, "adults": s.adults,
-        "search_url": _search_url(s.platform, s.search_location or "", s.check_in, s.check_out, s.adults or 2),
+        "search_url": _search_url(s.platform, s.search_location or "", s.check_in, s.check_out, s.adults or 2, cfg),
         "my_score": next((c.get("score") for c in all_comps if c.get("mine")), None),
         "better_cheaper": [{"name": c["name"], "url": c.get("url"), "price": c.get("price"),
                             "score": c.get("score"), "position": c.get("position")}
@@ -701,8 +727,9 @@ def latest(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     snaps = db.query(ListingSnapshot).filter(
         ListingSnapshot.tenant == tenant, ListingSnapshot.run_id == last.run_id
     ).all()
+    cfg = _load_config(db, tenant)
     return {"run_id": last.run_id, "created_at": last.created_at.isoformat(),
-            "snapshots": [_snap_dict(s, float(_load_config(db, tenant).get("luxury_min_nightly") or 0)) for s in snaps]}
+            "snapshots": [_snap_dict(s, cfg) for s in snaps]}
 
 
 @router.get("/history")

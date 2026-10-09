@@ -96,6 +96,8 @@ export default function ListingOptimizer() {
   }, [])
 
   const setC = (k, v) => setCfg(c => ({ ...c, [k]: v }))
+  const af = cfg?.airbnb_filters || {}
+  const setAF = (k, v) => setCfg(c => ({ ...c, airbnb_filters: { ...(c.airbnb_filters || {}), [k]: v } }))
   const setU = (uid, k, v) => setCfg(c => ({ ...c, units: { ...c.units, [uid]: { ...(c.units?.[uid] || {}), [k]: v } } }))
 
   async function save() {
@@ -235,8 +237,8 @@ export default function ListingOptimizer() {
                 onChange={e => setC('max_usd_per_run', +e.target.value)} />
             </div>
             <div>
-              <label className="label">Luxury σύγκριση από (€/νύχτα)</label>
-              <input type="number" min={0} step={50} className="input" placeholder="αυτόματα" value={cfg.luxury_min_nightly || ''}
+              <label className="label">Ελάχιστη τιμή (€/νύχτα)</label>
+              <input type="number" min={0} step={10} className="input" value={cfg.luxury_min_nightly ?? 200}
                 onChange={e => setC('luxury_min_nightly', +e.target.value || 0)} />
             </div>
             <div className="flex items-end">
@@ -245,6 +247,29 @@ export default function ListingOptimizer() {
                 Αυτόματα κάθε Δευτέρα
               </label>
             </div>
+          </div>
+          <div className="border border-rose-100 bg-rose-50/40 rounded-lg p-4 space-y-3">
+            <p className="text-sm font-semibold text-gray-700">Φίλτρα αναζήτησης Airbnb</p>
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
+              {[['entire_place', 'Ολόκληρο κατάλυμα'], ['pool', 'Πισίνα'], ['house', 'Τύπος: Σπίτι']].map(([k, l]) => (
+                <label key={k} className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={!!af[k]} onChange={e => setAF(k, e.target.checked)} /> {l}
+                </label>
+              ))}
+            </div>
+            <div className="grid grid-cols-3 gap-3 max-w-md">
+              {[['min_bedrooms', 'Υπνοδωμάτια'], ['min_beds', 'Κρεβάτια'], ['min_bathrooms', 'Μπάνια']].map(([k, l]) => (
+                <div key={k}>
+                  <label className="label">{l} (από)</label>
+                  <input type="number" min={0} max={20} className="input" value={af[k] ?? ''}
+                    onChange={e => setAF(k, +e.target.value || 0)} />
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-gray-500">
+              Ελάχιστη τιμή ταξιδιού = {cfg.luxury_min_nightly || 0}€ × νύχτες (π.χ. 5 νύχτες → {(cfg.luxury_min_nightly || 0) * 5}€).
+              Η ίδια τιμή ορίζει και ποια listings μετράνε ως luxury.
+            </p>
           </div>
           <details className="text-sm">
             <summary className="cursor-pointer text-xs text-gray-500">Προχωρημένα: Apify scrapers</summary>
