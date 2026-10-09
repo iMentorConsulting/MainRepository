@@ -24,14 +24,20 @@ APIFY_BASE = "https://api.apify.com/v2/acts"
 AIRBNB_ACTOR = os.getenv("APIFY_AIRBNB_ACTOR", "tri_angle~airbnb-scraper")
 BOOKING_ACTOR = os.getenv("APIFY_BOOKING_ACTOR", "voyager~booking-scraper")
 CLAUDE_MODEL = os.getenv("LISTING_OPTIMIZER_MODEL", "claude-opus-5-5")
+APIFY_API = "https://api.apify.com/v2"
+APIFY_MEMORY_MB = int(os.getenv("APIFY_MEMORY_MB", "1024"))
+APIFY_TERMINAL = {"SUCCEEDED", "FAILED", "TIMED-OUT", "ABORTED"}
 
 DEFAULT_CONFIG = {
     "enabled": True,
     "search_location": "",
     "adults": 2,
     "platforms": ["airbnb", "booking"],
-    "max_periods": 2,      # free periods searched per run — keeps Apify free-tier usage low
-    "max_results": 40,     # listings fetched per search
+    "max_periods": 1,      # free periods searched per run — keeps Apify usage low
+    "max_results": 30,     # listings fetched per search
+    "max_usd_per_search": 0.30,  # hard Apify spend cap per search
+    "max_usd_per_run": 1.00,     # stop launching searches once a run has spent this much
+    "run_timeout_sec": 180,      # Apify kills the scraper after this, keeping what it found
     "lookahead_days": 60,
     "luxury_min_nightly": 0,  # €/night floor for the luxury-segment rank; 0 = 60% of own price
     "units": {},           # unit_id -> {airbnb_url, booking_url, title, description, highlights}
@@ -49,7 +55,12 @@ def _load_config(db: Session, tenant: str) -> dict:
     cfg = dict(DEFAULT_CONFIG)
     if row and row.value:
         try:
-            cfg.update(json.loads(row.value))
+            stored = json.loads(row.value)
+            if "max_usd_per_search" not in stored:
+                # Configs saved before cost caps existed: drop to the safer search volume
+                stored.pop("max_periods", None)
+                stored.pop("max_results", None)
+            cfg.update(stored)
         except ValueError:
             pass
     return cfg
@@ -94,7 +105,9 @@ def _free_periods(db: Session, tenant: str, unit_id: int, lookahead: int) -> lis
 # ── Apify ───────────────────────────────────────────────────────────────
 
 def _apify_search(platform: str, location: str, check_in: date, check_out: date,
-                  adults: int, max_results: int) -> list:
+                  adults: int, max_results: int, max_usd: float, timeout_sec: int):
+    """Run an Apify actor with hard time/memory/spend caps. Returns (items, cost_usd)."""
+    import time
     token = os.getenv("APIFY_TOKEN", "")
     if not token:
         raise RuntimeError("APIFY_TOKEN δεν έχει οριστεί")
@@ -108,6 +121,7 @@ def _apify_search(platform: str, location: str, check_in: date, check_out: date,
             "currency": "EUR",
             "locale": "en-US",
             "maxListings": max_results,
+            "maxItems": max_results,
         }
     else:
         actor = BOOKING_ACTOR
@@ -121,16 +135,35 @@ def _apify_search(platform: str, location: str, check_in: date, check_out: date,
             "language": "en-gb",
             "maxItems": max_results,
         }
-    resp = requests.post(
-        f"{APIFY_BASE}/{actor}/run-sync-get-dataset-items",
-        params={"token": token, "timeout": 280},
-        json=payload,
-        timeout=300,
-    )
+    # Caps enforced by Apify itself, regardless of what the actor's own input honours
+    params = {
+        "token": token,
+        "timeout": timeout_sec,
+        "memory": APIFY_MEMORY_MB,
+        "maxItems": max_results,
+        "maxTotalChargeUsd": max_usd,
+        "waitForFinish": 60,
+    }
+    resp = requests.post(f"{APIFY_API}/acts/{actor}/runs", params=params, json=payload, timeout=90)
     if resp.status_code >= 400:
         raise RuntimeError(f"Apify {platform} {resp.status_code}: {resp.text[:300]}")
-    items = resp.json()
-    return items[:max_results] if isinstance(items, list) else []
+    run = resp.json()["data"]
+    deadline = time.time() + timeout_sec + 120
+    while run.get("status") not in APIFY_TERMINAL and time.time() < deadline:
+        r = requests.get(f"{APIFY_API}/actor-runs/{run['id']}",
+                         params={"token": token, "waitForFinish": 60}, timeout=90)
+        r.raise_for_status()
+        run = r.json()["data"]
+    if run.get("status") not in APIFY_TERMINAL:
+        # Safety net: never leave a scraper running on the account
+        requests.post(f"{APIFY_API}/actor-runs/{run['id']}/abort", params={"token": token}, timeout=30)
+    items = requests.get(f"{APIFY_API}/datasets/{run['defaultDatasetId']}/items",
+                         params={"token": token, "clean": "true", "limit": max_results, "format": "json"},
+                         timeout=90).json()
+    cost = float(run.get("usageTotalUsd") or 0)
+    if not isinstance(items, list) or (not items and run.get("status") != "SUCCEEDED"):
+        raise RuntimeError(f"Apify {platform}: {run.get('status')} χωρίς αποτελέσματα (κόστος ${cost:.2f})")
+    return items[:max_results], cost
 
 
 def _num(v) -> Optional[float]:
@@ -426,12 +459,21 @@ def run_optimizer(db_factory, tenant: str):
 
         run_id = datetime.utcnow().strftime("%Y%m%d%H%M%S") + "-" + uuid.uuid4().hex[:6]
         snaps_by_unit: dict = {}
+        spent, budget = 0.0, float(cfg.get("max_usd_per_run", 1.0))
         for (ci, co) in chosen:
             for platform in cfg["platforms"]:
+                if spent >= budget:
+                    log(f"Όριο κόστους ${budget:.2f} ανά ανάλυση — παράλειψη υπόλοιπων αναζητήσεων")
+                    break
                 log(f"Αναζήτηση {platform} {ci:%d/%m}–{co:%d/%m}…")
                 try:
-                    raw = _apify_search(platform, location, ci, co, int(cfg.get("adults", 2)),
-                                        int(cfg.get("max_results", 40)))
+                    raw, cost = _apify_search(
+                        platform, location, ci, co, int(cfg.get("adults", 2)),
+                        int(cfg.get("max_results", 30)),
+                        min(float(cfg.get("max_usd_per_search", 0.3)), budget - spent),
+                        int(cfg.get("run_timeout_sec", 180)))
+                    spent += cost
+                    log(f"  {len(raw)} αποτελέσματα · κόστος ${cost:.2f} (σύνολο ${spent:.2f})")
                     listings = [_normalize(i, platform) for i in raw]
                     err = None
                 except Exception as e:
@@ -531,7 +573,10 @@ class ConfigIn(BaseModel):
     adults: int = 2
     platforms: list = ["airbnb", "booking"]
     max_periods: int = 2
-    max_results: int = 40
+    max_results: int = 30
+    max_usd_per_search: float = 0.30
+    max_usd_per_run: float = 1.00
+    run_timeout_sec: int = 180
     lookahead_days: int = 60
     luxury_min_nightly: float = 0
     units: dict = {}
@@ -551,6 +596,9 @@ def put_config(data: ConfigIn, db: Session = Depends(get_db), tenant: str = Depe
     cfg = data.model_dump()
     cfg["max_periods"] = max(1, min(cfg["max_periods"], 6))
     cfg["max_results"] = max(10, min(cfg["max_results"], 100))
+    cfg["max_usd_per_search"] = max(0.05, min(cfg["max_usd_per_search"], 5))
+    cfg["max_usd_per_run"] = max(0.05, min(cfg["max_usd_per_run"], 20))
+    cfg["run_timeout_sec"] = max(60, min(cfg["run_timeout_sec"], 900))
     cfg["platforms"] = [p for p in cfg["platforms"] if p in ("airbnb", "booking")]
     _save_config(db, tenant, cfg)
     return {"ok": True}

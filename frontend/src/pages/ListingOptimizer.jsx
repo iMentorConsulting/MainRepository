@@ -221,6 +221,16 @@ export default function ListingOptimizer() {
                 onChange={e => setC('lookahead_days', +e.target.value)} />
             </div>
             <div>
+              <label className="label">Μέγ. κόστος ανά αναζήτηση ($)</label>
+              <input type="number" min={0.05} max={5} step={0.05} className="input" value={cfg.max_usd_per_search ?? 0.3}
+                onChange={e => setC('max_usd_per_search', +e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Μέγ. κόστος ανά ανάλυση ($)</label>
+              <input type="number" min={0.05} max={20} step={0.05} className="input" value={cfg.max_usd_per_run ?? 1}
+                onChange={e => setC('max_usd_per_run', +e.target.value)} />
+            </div>
+            <div>
               <label className="label">Luxury σύγκριση από (€/νύχτα)</label>
               <input type="number" min={0} step={50} className="input" placeholder="αυτόματα" value={cfg.luxury_min_nightly || ''}
                 onChange={e => setC('luxury_min_nightly', +e.target.value || 0)} />
@@ -233,8 +243,10 @@ export default function ListingOptimizer() {
             </div>
           </div>
           <p className="text-xs text-gray-500">
-            Free tier Apify: κάθε ανάλυση κάνει <strong>{cfg.max_periods * cfg.platforms.length}</strong> αναζητήσεις
-            των {cfg.max_results} αποτελεσμάτων. Με τις προεπιλογές χωράει άνετα μία ανάλυση την εβδομάδα.
+            Κάθε ανάλυση κάνει <strong>{cfg.max_periods * cfg.platforms.length}</strong> αναζητήσεις των {cfg.max_results} αποτελεσμάτων.
+            Μέγιστο κόστος: <strong>${Math.min((cfg.max_usd_per_search ?? 0.3) * cfg.max_periods * cfg.platforms.length, cfg.max_usd_per_run ?? 1).toFixed(2)}</strong> ανά ανάλυση
+            {cfg.enabled && <> · ~${(Math.min((cfg.max_usd_per_search ?? 0.3) * cfg.max_periods * cfg.platforms.length, cfg.max_usd_per_run ?? 1) * 4.3).toFixed(2)}/μήνα με την εβδομαδιαία εκτέλεση</>}.
+            Το Apify σταματά κάθε αναζήτηση μόλις φτάσει το όριο.
           </p>
 
           <div className="space-y-4">
