@@ -419,7 +419,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
   const [f, setF] = useState({
     invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
     amount_collected: '',
-    organization: 'ΑΠΟΣΤΟΛΑΚΗΣ',
+    organization: 'I-MENTOR',
     service_type: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ',
     targeting_category: 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ',
     work_status: 'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
