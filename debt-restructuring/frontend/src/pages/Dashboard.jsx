@@ -106,7 +106,10 @@ export default function Dashboard({ currentEmployee }) {
   }
 
 
-  const statusSummary = cases.reduce((acc, c) => {
+  // Top cards: count per status among the cases matching the employee/search/Pipeline filters,
+  // so they follow the multi-select (selected statuses stay highlighted)
+  const matchesStage = (c) => filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση')
+  const statusSummary = cases.filter(matchesStage).reduce((acc, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1
     return acc
   }, {})
@@ -139,7 +142,7 @@ export default function Dashboard({ currentEmployee }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black text-blue-800">Υποθέσεις Οφειλών</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{cases.length} υποθέσεις συνολικά</p>
+          <p className="text-gray-500 text-sm mt-0.5">{visibleCases.length} υποθέσεις{visibleCases.length !== cases.length ? ` (από ${cases.length})` : ' συνολικά'}</p>
         </div>
         <div className="flex gap-2">
           <Link
