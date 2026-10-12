@@ -261,11 +261,9 @@ def get_pipeline_stats_by_employee(
         if not emp:
             continue
 
-        # Get stats for this employee (exclude draft cases)
-        query = db.query(Case).filter(
-            Case.employee == emp,
-            Case.contact_stage != 'Νέα Ανάλυση'
-        )
+        # All cases of this employee (incl. «Νέα Ανάλυση») — used for Εν Εξελίξει / Pipeline Υποθέσεων
+        base_query = db.query(Case).filter(Case.employee == emp)
+        query = base_query
 
         # Apply date filtering if provided (YYYY-MM-DD format)
         if date_from:
@@ -283,9 +281,12 @@ def get_pipeline_stats_by_employee(
             except ValueError:
                 logger.warning(f"Invalid date_to format: {date_to}")
 
+        # Stats below (Σύνολο, closure, settlement, revenue) exclude «Νέα Ανάλυση» cases
+        base_query = query
+        query = query.filter(Case.contact_stage != 'Νέα Ανάλυση')
         total = query.count()
 
-        if total == 0:
+        if total == 0 and base_query.count() == 0:
             result[emp] = {
                 "total_cases": 0,
                 "closure_percentage": 0,
@@ -299,7 +300,8 @@ def get_pipeline_stats_by_employee(
 
         # Active cases (Εν Εξελίξει): status = draft, submitted, in_review
         # BUT exclude if contact_stage = 'Δεν Ενδιαφέρεται' (lost even though still in process)
-        active_cases = query.filter(
+        # Includes «Νέα Ανάλυση» cases (base_query)
+        active_cases = base_query.filter(
             Case.status.in_(['draft', 'submitted', 'in_review']),
             Case.contact_stage != 'Δεν Ενδιαφέρεται'
         ).count()
@@ -327,7 +329,7 @@ def get_pipeline_stats_by_employee(
         earliest = None
         latest = None
 
-        # Pipeline Υποθέσεων: per-status counts and pending fees (active only, excl. Δεν Ενδιαφέρεται)
+        # Pipeline Υποθέσεων: per-status counts and pending fees (filled below)
         pipeline = {
             'draft':     {'count': 0, 'app_fees': 0.0, 'suc_fees': 0.0},  # Άντληση Στοιχείων
             'submitted': {'count': 0, 'app_fees': 0.0, 'suc_fees': 0.0},  # Οριστικοποίηση Αίτησης
@@ -354,11 +356,14 @@ def get_pipeline_stats_by_employee(
                 second_payment += suc_fee
                 completed_count += 1
 
-            # Pipeline Υποθέσεων: accumulate fees for active cases (excl. Δεν Ενδιαφέρεται)
+
+        # Pipeline Υποθέσεων: active cases incl. «Νέα Ανάλυση» (excl. Δεν Ενδιαφέρεται) — matches Εν Εξελίξει
+        for case in base_query:
             if case.status in pipeline and case.contact_stage != 'Δεν Ενδιαφέρεται':
+                offer = case.commercial_offer or {}
                 pipeline[case.status]['count'] += 1
-                pipeline[case.status]['app_fees'] += app_fee
-                pipeline[case.status]['suc_fees'] += suc_fee
+                pipeline[case.status]['app_fees'] += float(offer.get('application_fee') or 0)
+                pipeline[case.status]['suc_fees'] += float(offer.get('success_fee') or 0)
 
         # Build expected revenue using real percentages
         cp = closure_pct / 100
