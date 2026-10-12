@@ -10,6 +10,7 @@ import {
   BoltIcon,
   ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
+import MultiSelect from '../components/MultiSelect'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
@@ -218,8 +219,8 @@ export default function SalesPipeline() {
   const [allCases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
   const [filterEmployee, setFilterEmployee] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterStage, setFilterStage] = useState('')
+  const [filterStatus, setFilterStatus] = useState([])
+  const [filterStage, setFilterStage] = useState([])
   const [updatingId, setUpdatingId] = useState(null)
   const [viberModal, setViberModal] = useState(null) // caseItem object
   const [viberSending, setViberSending] = useState(false)
@@ -241,8 +242,8 @@ export default function SalesPipeline() {
   useEffect(() => { load() }, [filterEmployee])
 
   const cases = useMemo(() => allCases.filter(c =>
-    (!filterStatus || c.status === filterStatus) &&
-    (!filterStage || (c.contact_stage || 'Νέα Ανάλυση') === filterStage)
+    (filterStatus.length === 0 || filterStatus.includes(c.status)) &&
+    (filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση'))
   ), [allCases, filterStatus, filterStage])
 
   const handleViberSend = async (caseId, message, msgType, doEmail, clientEmail, clientName) => {
@@ -360,16 +361,12 @@ export default function SalesPipeline() {
             <option value="">Όλοι οι σύμβουλοι</option>
             {EMPLOYEES.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
-          <select className="input w-auto text-sm" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-            <option value="">Όλες οι καταστάσεις</option>
-            {Object.entries(CASE_STATUS_LABELS).map(([k, label]) => <option key={k} value={k}>{label}</option>)}
-          </select>
-          <select className="input w-auto text-sm" value={filterStage} onChange={e => setFilterStage(e.target.value)}>
-            <option value="">Όλα τα Pipeline</option>
-            {STAGE_CONFIG.map(s => <option key={s.key} value={s.key}>{s.icon} {s.key}</option>)}
-          </select>
-          {(filterStatus || filterStage) && (
-            <button className="btn-secondary text-xs" onClick={() => { setFilterStatus(''); setFilterStage('') }}>Καθαρισμός</button>
+          <MultiSelect value={filterStatus} onChange={setFilterStatus} placeholder="Όλες οι καταστάσεις"
+            options={Object.entries(CASE_STATUS_LABELS).map(([k, label]) => ({ value: k, label }))} />
+          <MultiSelect value={filterStage} onChange={setFilterStage} placeholder="Όλα τα Pipeline"
+            options={STAGE_CONFIG.map(s => ({ value: s.key, label: `${s.icon} ${s.key}` }))} />
+          {(filterStatus.length > 0 || filterStage.length > 0) && (
+            <button className="btn-secondary text-xs" onClick={() => { setFilterStatus([]); setFilterStage([]) }}>Καθαρισμός</button>
           )}
           <button onClick={load} className="btn-secondary p-2" title="Ανανέωση">
             <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />

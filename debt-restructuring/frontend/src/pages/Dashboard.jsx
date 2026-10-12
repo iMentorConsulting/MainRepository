@@ -4,6 +4,7 @@ import { toast } from 'react-hot-toast'
 import { format, differenceInDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
+import MultiSelect from '../components/MultiSelect'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt } from '../utils/calculations'
@@ -53,8 +54,8 @@ export default function Dashboard({ currentEmployee }) {
   const [apiError, setApiError] = useState(null)
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
-  const [filterStage, setFilterStage] = useState('')
+  const [filterStatus, setFilterStatus] = useState([])  // multi-select (case status)
+  const [filterStage, setFilterStage] = useState([])    // multi-select (pipeline stage)
   const [filterLogistis, setFilterLogistis] = useState(false)
 
   const load = async () => {
@@ -63,7 +64,6 @@ export default function Dashboard({ currentEmployee }) {
     try {
       const params = {}
       if (filterEmployee) params.employee = filterEmployee
-      if (filterStatus) params.status = filterStatus
       if (search) params.search = search
       const res = await api.listCases(params)
       setCases(res.data)
@@ -81,7 +81,7 @@ export default function Dashboard({ currentEmployee }) {
     }
   }
 
-  useEffect(() => { load() }, [filterEmployee, filterStatus, search])
+  useEffect(() => { load() }, [filterEmployee, search])
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Διαγραφή υπόθεσης "${name}";`)) return
@@ -120,7 +120,8 @@ export default function Dashboard({ currentEmployee }) {
   })
   const logistisCases = cases.filter(c => c.external_source === 'logistis')
   const visibleCases = (filterLogistis ? logistisCases : cases)
-    .filter(c => !filterStage || (c.contact_stage || 'Νέα Ανάλυση') === filterStage)
+    .filter(c => filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση'))
+    .filter(c => filterStatus.length === 0 || filterStatus.includes(c.status))
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -199,8 +200,8 @@ export default function Dashboard({ currentEmployee }) {
         {Object.entries(STATUS_LABELS).map(([key, { label, cls }]) => (
           <button
             key={key}
-            onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
-            className={`card text-center cursor-pointer hover:shadow-md transition-shadow ${filterStatus === key ? 'ring-2 ring-blue-500' : ''}`}
+            onClick={() => setFilterStatus(filterStatus.includes(key) ? filterStatus.filter(x => x !== key) : [...filterStatus, key])}
+            className={`card text-center cursor-pointer hover:shadow-md transition-shadow ${filterStatus.includes(key) ? 'ring-2 ring-blue-500' : ''}`}
           >
             <div className="text-2xl font-black text-blue-800">{statusSummary[key] || 0}</div>
             <div className={`text-xs font-semibold mt-1 px-2 py-0.5 rounded-full ${cls} inline-block`}>{label}</div>
@@ -218,16 +219,12 @@ export default function Dashboard({ currentEmployee }) {
           <option value="">Όλοι οι υπάλληλοι</option>
           {EMPLOYEES.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
-        <select className="input w-auto min-w-[140px]" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="">Όλες οι καταστάσεις</option>
-          {Object.entries(STATUS_LABELS).map(([k, { label }]) => <option key={k} value={k}>{label}</option>)}
-        </select>
-        <select className="input w-auto min-w-[140px]" value={filterStage} onChange={(e) => setFilterStage(e.target.value)}>
-          <option value="">Όλα τα Pipeline</option>
-          {Object.keys(CONTACT_STAGE_CONFIG).map((k) => <option key={k} value={k}>{CONTACT_STAGE_CONFIG[k].icon} {k}</option>)}
-        </select>
-        {(filterEmployee || filterStatus || filterStage || search) && (
-          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus(''); setFilterStage(''); setSearch('') }}>
+        <MultiSelect value={filterStatus} onChange={setFilterStatus} placeholder="Όλες οι καταστάσεις"
+          options={Object.entries(STATUS_LABELS).map(([k, { label }]) => ({ value: k, label }))} />
+        <MultiSelect value={filterStage} onChange={setFilterStage} placeholder="Όλα τα Pipeline"
+          options={Object.keys(CONTACT_STAGE_CONFIG).map((k) => ({ value: k, label: `${CONTACT_STAGE_CONFIG[k].icon} ${k}` }))} />
+        {(filterEmployee || filterStatus.length > 0 || filterStage.length > 0 || search) && (
+          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus([]); setFilterStage([]); setSearch('') }}>
             Καθαρισμός
           </button>
         )}
