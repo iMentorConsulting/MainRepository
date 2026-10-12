@@ -132,14 +132,18 @@ async function findOrCreateContact(orgKey, income) {
 
 const reducedVatCache = {};
 
-// Returns the reduced-VAT tax ID (islands: 17% or 13% depending on account setup).
-// Primary:  ELORUS_REDUCED_VAT_TAX_ID env var — set it to the ID from the Elorus URL
-//           imentor.elorus.com/taxes/<ID>/ (Φόροι → ΦΠΑ Μειωμένος).
-// Fallback: auto-discover by scanning the taxes endpoint for a tax marked "μειωμένος"
-//           or with a percentage between 1 and 22 (anything below standard 24%).
+// Returns the reduced-VAT tax ID (islands 17%) per Elorus org.
+// IMENTOR_IKE → ELORUS_REDUCED_VAT_TAX_ID_IMENTOR (3647372621760168990)
+// DEFAULT     → ELORUS_REDUCED_VAT_TAX_ID         (3548882149455168584)
+const REDUCED_VAT_DEFAULTS = {
+  IMENTOR_IKE: '3647372621760168990',
+  DEFAULT:     '3548882149455168584',
+};
 async function getReducedVatTaxRateId(orgKey) {
-  const envId = process.env.ELORUS_REDUCED_VAT_TAX_ID;
-  if (envId) { console.log('[reducedVat] using env id:', envId); return envId; }
+  const envId = orgKey === 'IMENTOR_IKE'
+    ? (process.env.ELORUS_REDUCED_VAT_TAX_ID_IMENTOR || REDUCED_VAT_DEFAULTS.IMENTOR_IKE)
+    : (process.env.ELORUS_REDUCED_VAT_TAX_ID         || REDUCED_VAT_DEFAULTS.DEFAULT);
+  if (envId) { console.log('[reducedVat] using id for', orgKey, ':', envId); return envId; }
 
   if (reducedVatCache[orgKey]) return reducedVatCache[orgKey];
 
