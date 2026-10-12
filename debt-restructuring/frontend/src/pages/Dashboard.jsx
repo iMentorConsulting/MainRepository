@@ -200,16 +200,20 @@ export default function Dashboard({ currentEmployee }) {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        {Object.entries(STATUS_LABELS).map(([key, { label, cls }]) => (
+        {Object.entries(STATUS_LABELS).map(([key, { label, cls }]) => {
+          // With a status filter active, cards of statuses that are not selected show no value
+          const dimmed = filterStatus.length > 0 && !filterStatus.includes(key)
+          return (
           <button
             key={key}
             onClick={() => setFilterStatus(filterStatus.includes(key) ? filterStatus.filter(x => x !== key) : [...filterStatus, key])}
-            className={`card text-center cursor-pointer hover:shadow-md transition-shadow ${filterStatus.includes(key) ? 'ring-2 ring-blue-500' : ''}`}
+            className={`card text-center cursor-pointer hover:shadow-md transition-shadow ${filterStatus.includes(key) ? 'ring-2 ring-blue-500' : ''} ${dimmed ? 'opacity-60' : ''}`}
           >
-            <div className="text-2xl font-black text-blue-800">{statusSummary[key] || 0}</div>
+            <div className="text-2xl font-black text-blue-800">{dimmed ? '—' : (statusSummary[key] || 0)}</div>
             <div className={`text-xs font-semibold mt-1 px-2 py-0.5 rounded-full ${cls} inline-block`}>{label}</div>
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {/* Filters */}
