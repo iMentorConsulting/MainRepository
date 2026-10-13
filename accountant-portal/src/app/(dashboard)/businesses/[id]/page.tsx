@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Database } from 'lucide-react'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -25,6 +25,7 @@ const SOURCE_LABELS: Record<string, { label: string; color: string }> = {
   'website-form':    { label: 'Φόρμα Ιστοσελίδας', color: 'bg-green-100 text-green-800' },
   'lead-form':       { label: 'Lead Form', color: 'bg-teal-100 text-teal-800' },
   'exodikastikos':   { label: 'Εξωδικαστικός', color: 'bg-rose-100 text-rose-800' },
+  'ptoxeusi':        { label: 'Πτώχευση', color: 'bg-orange-100 text-orange-800' },
 }
 function SourceBadge({ source }: { source?: string }) {
   if (!source) return null
@@ -52,6 +53,14 @@ const EXODIKASTIKOS_STATUS_LABELS: Record<string, string> = {
   OFFER_SENT: 'Στάλθηκε Προσφορά', ACCEPTED: 'Αποδεκτό', DECLINED: 'Απορρίφθηκε', COMPLETED: 'Ολοκληρωμένο',
 }
 const EXODIKASTIKOS_STATUS_VARIANT: Record<string, any> = {
+  SUBMITTED: 'info', IN_ASSESSMENT: 'warning', REPORT_READY: 'purple',
+  OFFER_SENT: 'purple', ACCEPTED: 'success', DECLINED: 'danger', COMPLETED: 'success',
+}
+const PTOXEUSI_STATUS_LABELS: Record<string, string> = {
+  SUBMITTED: 'Υποβλήθηκε', IN_ASSESSMENT: 'Σε Εκτίμηση', REPORT_READY: 'Έτοιμη Αναφορά',
+  OFFER_SENT: 'Στάλθηκε Προσφορά', ACCEPTED: 'Αποδεκτό', DECLINED: 'Απορρίφθηκε', COMPLETED: 'Ολοκληρωμένο',
+}
+const PTOXEUSI_STATUS_VARIANT: Record<string, any> = {
   SUBMITTED: 'info', IN_ASSESSMENT: 'warning', REPORT_READY: 'purple',
   OFFER_SENT: 'purple', ACCEPTED: 'success', DECLINED: 'danger', COMPLETED: 'success',
 }
@@ -222,6 +231,12 @@ export default function BusinessDetailPage() {
           <Button variant="outline">
             <Scale size={16} className="mr-2" />
             Ανάθεση Εξωδικαστικού
+          </Button>
+        </Link>
+        <Link href={`/ptoxeusi/new?businessId=${business.id}`}>
+          <Button variant="outline">
+            <Gavel size={16} className="mr-2" />
+            Ανάθεση Πτώχευσης
           </Button>
         </Link>
         <Link href={`/businesses/${id}/edit`}>
@@ -490,6 +505,29 @@ export default function BusinessDetailPage() {
                     </div>
                     <Badge variant={EXODIKASTIKOS_STATUS_VARIANT[c.status] || 'secondary'} className="text-xs shrink-0">
                       {EXODIKASTIKOS_STATUS_LABELS[c.status] || c.status}
+                    </Badge>
+                  </Link>
+                ))}
+              </CardContent>
+            </Card>
+          )}
+
+          {business.ptoxeusiCases && business.ptoxeusiCases.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>Πτώχευση ({business.ptoxeusiCases.length})</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                {business.ptoxeusiCases.map((c: any) => (
+                  <Link
+                    key={c.id}
+                    href={`/ptoxeusi/${c.id}`}
+                    className="flex items-center justify-between gap-2 text-sm border border-gray-100 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium truncate">Αίτηση #{c.caseNumber}</div>
+                      <div className="text-xs text-gray-400">{formatDate(c.createdAt)}</div>
+                    </div>
+                    <Badge variant={PTOXEUSI_STATUS_VARIANT[c.status] || 'secondary'} className="text-xs shrink-0">
+                      {PTOXEUSI_STATUS_LABELS[c.status] || c.status}
                     </Badge>
                   </Link>
                 ))}

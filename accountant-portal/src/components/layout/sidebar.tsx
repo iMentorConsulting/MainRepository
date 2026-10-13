@@ -4,7 +4,7 @@ import { usePathname } from 'next/navigation'
 import { useSession, signOut } from 'next-auth/react'
 import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
-import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Megaphone, Webhook, Search } from 'lucide-react'
+import { LayoutDashboard, Users, Building2, Zap, Target, Send, CreditCard, Percent, Inbox, BarChart3, Settings, LogOut, Globe, Mail, Phone, TrendingUp, X, MessageSquare, ListChecks, FileText, BellRing, History, ClipboardList, Scale, Gavel, Megaphone, Webhook, Search } from 'lucide-react'
 
 const navItems = [
   { href: '/', label: 'Dashboard', icon: LayoutDashboard, adminOnly: false },
@@ -16,6 +16,7 @@ const navItems = [
   { href: '/ermis-transcripts', label: 'Συζητήσεις με τον Ερμή', icon: MessageSquare, adminOnly: true, consultantOk: true },
   { href: '/cases', label: 'Αναθέσεις Προγραμμάτων', icon: ClipboardList, adminOnly: false },
   { href: '/exodikastikos', label: 'Αναθέσεις Εξωδικαστικού', icon: Scale, adminOnly: false },
+  { href: '/ptoxeusi', label: 'Αναθέσεις Πτώχευσης', icon: Gavel, adminOnly: false },
   { href: '/chat', label: 'Επικοινωνία με i-Mentor', icon: MessageSquare, adminOnly: false },
   { href: '/notify-matches', label: 'Custom Ειδοποιήσεις', icon: BellRing, adminOnly: true },
   { href: '/campaigns', label: 'Ενημερώσεις προς Πελάτες', icon: Send, adminOnly: false, hideFor: ['CONSULTANT'] },

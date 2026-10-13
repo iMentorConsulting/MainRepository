@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/businesses/category-badge'
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale, Plus, Trash2, Zap } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale, Gavel, Plus, Trash2, Zap } from 'lucide-react'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 
@@ -171,6 +171,13 @@ export default function GemiBusinessDetailPage() {
     if (bizId) router.push(`/exodikastikos/new?businessId=${bizId}`)
   }
 
+  async function handleAssignPtoxeusi() {
+    setClaiming(true)
+    const bizId = await ensureBusinessId()
+    setClaiming(false)
+    if (bizId) router.push(`/ptoxeusi/new?businessId=${bizId}`)
+  }
+
   async function handleClaim() {
     if (!window.confirm('Ανάκτηση αυτής της επιχείρησης; Θα δημιουργηθεί ή θα συνδεθεί με πραγματική εγγραφή Business.')) return
     setClaiming(true)
@@ -242,6 +249,9 @@ export default function GemiBusinessDetailPage() {
           </Button>
           <Button variant="outline" onClick={handleAssignExodikastikos} loading={claiming}>
             <Scale size={14} className="mr-1" />Ανάθεση Εξωδικαστικού
+          </Button>
+          <Button variant="outline" onClick={handleAssignPtoxeusi} loading={claiming}>
+            <Gavel size={14} className="mr-1" />Ανάθεση Πτώχευσης
           </Button>
           <Button variant="outline" onClick={handleRematch} loading={rematching} className="border-indigo-300 text-indigo-700 hover:bg-indigo-50">
             <Zap size={14} className="mr-1" />Ταίριασμα

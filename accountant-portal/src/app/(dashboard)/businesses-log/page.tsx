@@ -11,6 +11,7 @@ import { MultiSelect } from '@/components/ui/multi-select'
 const SOURCE_LABELS: Record<string, string> = {
   'accountant':      'Λογιστής (Portal)',
   'exodikastikos':   'Εξωδικαστικός',
+  'ptoxeusi':        'Πτώχευση',
   'ermis-lead':      'Ερμής / Case Mgmt',
   'finance-import':  'Finance Import',
   'lead-form':       'Lead Form (Ιστοσελίδα)',
@@ -21,6 +22,7 @@ const SOURCE_LABELS: Record<string, string> = {
 const SOURCE_COLORS: Record<string, string> = {
   'accountant':      'bg-indigo-100 text-indigo-700',
   'exodikastikos':   'bg-purple-100 text-purple-700',
+  'ptoxeusi':        'bg-orange-100 text-orange-700',
   'ermis-lead':      'bg-violet-100 text-violet-700',
   'finance-import':  'bg-orange-100 text-orange-700',
   'lead-form':       'bg-emerald-100 text-emerald-700',

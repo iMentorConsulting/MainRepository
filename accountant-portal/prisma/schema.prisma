@@ -129,6 +129,7 @@ model Accountant {
   chatConversations   ChatConversation[]
   clientCases         ClientCase[]
   exodikastikosCases  ExodikastikosCase[]
+  ptoxeusiCases       PtoxeusiCase[]
   matchActionTokens   MatchActionToken[]
   onboardingEmails    OnboardingEmail[]
 }
@@ -174,6 +175,7 @@ model Business {
   chatConversations     ChatConversation[]
   clientCases           ClientCase[]
   exodikastikosCases    ExodikastikosCase[]
+  ptoxeusiCases         PtoxeusiCase[]
   financePayments       FinancePayment[]
   leadInterests         BusinessLeadInterest[]
 }
@@ -1090,6 +1092,73 @@ model ExodikastikosActivity {
   authorId   String
   authorName String
   createdAt  DateTime          @default(now())
+}
+
+// Admin-configurable basic eligibility questions shown on the Πτώχευση
+// referral form (Ναι/Όχι/Δεν είμαι σίγουρος). Answers are stored as a
+// snapshot (id + label + answer) in PtoxeusiCase.questionnaire.
+model PtoxeusiQuestionOption {
+  id        String   @id @default(cuid())
+  label     String
+  active    Boolean  @default(true)
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+}
+
+// Πτώχευση — referral of a client (business or individual) to I-MENTOR's
+// dedicated team for a free bankruptcy-filing assessment. Same flow as
+// ExodikastikosCase (see above): referral → assessment → result → status
+// pipeline, kept as a separate model so the two services' case lists,
+// statuses and commission policies stay fully independent.
+model PtoxeusiCase {
+  id                        String              @id @default(cuid())
+  caseNumber                Int                 @unique @default(autoincrement())
+  accountantId              String?
+  accountant                Accountant?         @relation(fields: [accountantId], references: [id])
+  businessId                String
+  business                  Business            @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  status                    PtoxeusiStatus      @default(SUBMITTED)
+  // Free-form answers to the basic eligibility questionnaire, e.g.
+  // { hasOverdueDebt, isMarried, ... }
+  questionnaire             Json?
+  notes                     String?
+  hasSpouse                 Boolean             @default(false)
+  // Taxisnet credentials — stored AES-256-GCM encrypted at rest (see src/lib/crypto.ts),
+  // never returned to the client after creation.
+  taxisnetUsernameEnc       String?
+  taxisnetPasswordEnc       String?
+  spouseTaxisnetUsernameEnc String?
+  spouseTaxisnetPasswordEnc String?
+  // Sync with the inhouse πτώχευση case-management system
+  externalRef               String?             @unique
+  externalStatus            String?
+  externalSyncedAt          DateTime?
+  resultLink                String?
+  createdById               String
+  createdAt                 DateTime            @default(now())
+  updatedAt                 DateTime            @updatedAt
+  activities                PtoxeusiActivity[]
+}
+
+enum PtoxeusiStatus {
+  SUBMITTED
+  IN_ASSESSMENT
+  REPORT_READY
+  OFFER_SENT
+  ACCEPTED
+  DECLINED
+  COMPLETED
+}
+
+model PtoxeusiActivity {
+  id         String       @id @default(cuid())
+  caseId     String
+  case       PtoxeusiCase @relation(fields: [caseId], references: [id], onDelete: Cascade)
+  type       String
+  body       String
+  authorId   String
+  authorName String
+  createdAt  DateTime     @default(now())
 }
 
 // ─── ΓΕΜΗ Prospect Pool ──────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ const PAGE_SIZE = 50
 const SOURCE_LABELS: Record<string, string> = {
   'accountant':       'Λογιστής (Portal)',
   'exodikastikos':    'Εξωδικαστικός',
+  'ptoxeusi':         'Πτώχευση',
   'ermis-lead':       'Ερμής / Case Mgmt',
   'finance-import':   'Finance Import',
   'lead-form':        'Lead Form (Ιστοσελίδα)',
