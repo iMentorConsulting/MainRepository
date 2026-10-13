@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { useRouter } from 'next/navigation'
-import { MessageCircle, Scale, LayoutDashboard, Bell, Smartphone, FileCheck, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
+import { MessageCircle, Scale, Gavel, LayoutDashboard, Bell, Smartphone, FileCheck, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
 
 function ServiceCard({ icon, title, subtitle, features, badge, accentColor, onContact }: {
   icon: React.ReactNode
@@ -112,6 +112,28 @@ export default function ServicesPage() {
           onContact={() => openChat(
             'Αίτημα για Εξωδικαστικό Μηχανισμό',
             'Θα ήθελα να συζητήσουμε για πελάτη μου που ενδιαφέρεται για εξωδικαστικό μηχανισμό ρύθμισης οφειλών.'
+          )}
+        />
+
+        {/* Bankruptcy */}
+        <ServiceCard
+          accentColor="border-orange-200"
+          icon={
+            <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center flex-shrink-0">
+              <Gavel size={22} className="text-orange-600" />
+            </div>
+          }
+          title="Πτώχευση"
+          subtitle="Αξιολόγηση & υποστήριξη πτωχευτικής διαδικασίας"
+          features={[
+            'Δωρεάν εκτίμηση της οικονομικής κατάστασης του πελάτη',
+            'Αξιολόγηση καταλληλότητας για αίτηση πτώχευσης',
+            'Προετοιμασία φακέλου & παρακολούθηση της διαδικασίας',
+            'Συνεργασία με το δικό σας λογιστικό γραφείο',
+          ]}
+          onContact={() => openChat(
+            'Αίτημα για Πτώχευση',
+            'Θα ήθελα να συζητήσουμε για πελάτη μου που ενδιαφέρεται για αξιολόγηση πτωχευτικής διαδικασίας.'
           )}
         />
 
