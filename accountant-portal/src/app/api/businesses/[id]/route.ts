@@ -44,6 +44,16 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
         },
         orderBy: { createdAt: 'desc' },
       },
+      ptoxeusiCases: {
+        select: {
+          id: true,
+          caseNumber: true,
+          createdAt: true,
+          status: true,
+          resultLink: true,
+        },
+        orderBy: { createdAt: 'desc' },
+      },
       campaignRecipients: {
         include: { campaign: { select: { id: true, title: true, channel: true } } },
         orderBy: { sentAt: 'desc' },

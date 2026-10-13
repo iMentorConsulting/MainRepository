@@ -381,6 +381,12 @@ export default function CriteriaPage() {
         apiBase="/api/admin/exodikastikos-questions"
       />
 
+      <Section
+        title="Ερωτήσεις Ελέγχου Επιλεξιμότητας Πτώχευσης"
+        description="Επιπλέον ερωτήσεις Ναι/Όχι/Δεν είμαι σίγουρος που εμφανίζονται στη φόρμα νέας αίτησης Πτώχευσης"
+        apiBase="/api/admin/ptoxeusi-questions"
+      />
+
       <BulkTagSection />
     </div>
   )
