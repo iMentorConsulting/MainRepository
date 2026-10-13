@@ -23,6 +23,7 @@ def get_pipeline_stats(
     employee: Optional[str] = Query(None),
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -44,6 +45,8 @@ def get_pipeline_stats(
 
     if employee:
         query = query.filter(Case.employee == employee)
+    if service:
+        query = query.filter(Case.service_type == service)
 
     # Apply date filtering if provided (YYYY-MM-DD format)
     if date_from:
@@ -238,6 +241,7 @@ def get_pipeline_stats_details(
 def get_pipeline_stats_by_employee(
     date_from: Optional[str] = Query(None),
     date_to: Optional[str] = Query(None),
+    service: Optional[str] = Query(None),
     db: Session = Depends(get_db)
 ):
     """
@@ -263,6 +267,8 @@ def get_pipeline_stats_by_employee(
 
         # All cases of this employee (incl. «Νέα Ανάλυση») — used for Εν Εξελίξει / Pipeline Υποθέσεων
         base_query = db.query(Case).filter(Case.employee == emp)
+        if service:
+            base_query = base_query.filter(Case.service_type == service)
         query = base_query
 
         # Apply date filtering if provided (YYYY-MM-DD format)

@@ -187,6 +187,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       })
   }
 
+  const [serviceFilter, setServiceFilter] = useState('')  // '' = all services | ΕΞΩΔΙΚΑΣΤΙΚΟΣ | ΠΤΩΧΕΥΣΗ
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
 
@@ -265,7 +266,7 @@ export default function FinancialDashboard({ currentEmployee }) {
 
     // Fetch both employee stats and leads count
     // Send dates in YYYY-MM-DD format (backend expects this format, not ISO with timestamps)
-    api.getAnalyticsPipelineStatsByEmployee(dateFrom || null, dateTo || null)
+    api.getAnalyticsPipelineStatsByEmployee(dateFrom || null, dateTo || null, serviceFilter || null)
       .then(r => {
         console.log('Employee stats:', r.data)
         setAllEmployeeStats(r.data)
@@ -286,7 +287,7 @@ export default function FinancialDashboard({ currentEmployee }) {
         console.error('Status:', err?.response?.status)
         console.error('Data:', err?.response?.data)
       })
-  }, [selectedMonth, dateFromFilter, dateToFilter])
+  }, [selectedMonth, dateFromFilter, dateToFilter, serviceFilter])
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
@@ -593,7 +594,15 @@ export default function FinancialDashboard({ currentEmployee }) {
         {/* Per-Employee Breakdown — EXCLUDING HARIS */}
         {allEmployeeStats && Object.keys(allEmployeeStats).filter(e => e !== 'HARIS').length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-            <h3 className="text-sm font-black text-gray-700 mb-4">Ανάλυση ανά Σύμβουλο</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <h3 className="text-sm font-black text-gray-700">Ανάλυση ανά Σύμβουλο</h3>
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-bold">
+                {[['', 'Όλες'], ['ΕΞΩΔΙΚΑΣΤΙΚΟΣ', 'Εξωδικαστικός'], ['ΠΤΩΧΕΥΣΗ', '⚖️ Πτώχευση']].map(([v, label]) => (
+                  <button key={v} onClick={() => setServiceFilter(v)}
+                    className={`px-3 py-1.5 ${serviceFilter === v ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {Object.entries(allEmployeeStats).filter(([emp]) => emp !== 'HARIS').map(([emp, stats]) => {
                 const revenue = stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 }

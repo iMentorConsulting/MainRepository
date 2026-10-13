@@ -18,6 +18,28 @@ router = APIRouter(prefix="/public", tags=["public"])
 EXCLUDED_IPS = {"5.59.243.16", "2001:4860:7:1511::fe"}
 
 
+def _public_bankruptcy(case: Case) -> dict:
+    """Client-safe view of the bankruptcy data: ONE total fee (the office/lawyer split stays internal)."""
+    from bankruptcy_utils import BANKRUPTCY_STAGES, success_fee_schedule, three_year_end
+    b = case.bankruptcy or {}
+    fee_total = float(b.get("fee_office") or 0) + float(b.get("fee_lawyer") or 0)
+    return {
+        "stages": BANKRUPTCY_STAGES,
+        "stage": b.get("stage") or BANKRUPTCY_STAGES[0],
+        "court": b.get("court") or "",
+        "filing_number": b.get("filing_number") or "",
+        "filing_date": b.get("filing_date"),
+        "hearing_dates": b.get("hearing_dates") or [],
+        "decision_date": b.get("decision_date"),
+        "decision_type": b.get("decision_type") or "",
+        "three_year_end": three_year_end(b.get("decision_date")),
+        "documents": [{"label": d.get("label"), "done": bool(d.get("done"))} for d in (b.get("documents") or [])],
+        "application_fee": fee_total,
+        "success_fee": float(b.get("success_fee") or 0),
+        "success_fee_schedule": success_fee_schedule(b.get("success_fee"), b.get("filing_date")),
+    }
+
+
 @router.get("/case/{token}")
 def get_public_case(token: str, request: Request, vat: str = Query(default=None), notrack: bool = Query(default=False), db: Session = Depends(get_db)):
     case = db.query(Case).filter(Case.share_token == token).first()
@@ -62,6 +84,8 @@ def get_public_case(token: str, request: Request, vat: str = Query(default=None)
         "notes": case.notes or "",
         "has_vat": bool(case.client_vat),
         "commercial_offer": case.commercial_offer or {},
+        "service_type": case.service_type or "ΕΞΩΔΙΚΑΣΤΙΚΟΣ",
+        "bankruptcy": _public_bankruptcy(case) if (case.service_type == "ΠΤΩΧΕΥΣΗ") else None,
         "portal_visit_count": case.portal_visit_count or 0,
         "created_at": case.created_at.isoformat() if case.created_at else None,
         "completed_at": case.completed_at.isoformat() if case.completed_at else None,

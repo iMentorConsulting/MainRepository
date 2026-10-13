@@ -5,6 +5,7 @@ import { format, differenceInDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
 import MultiSelect from '../components/MultiSelect'
+import { SERVICE_LABELS, SERVICE_BANKRUPTCY } from '../utils/bankruptcy'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt } from '../utils/calculations'
@@ -55,7 +56,8 @@ export default function Dashboard({ currentEmployee }) {
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState([])  // multi-select (case status)
-  const [filterStage, setFilterStage] = useState([])    // multi-select (pipeline stage)
+  const [filterStage, setFilterStage] = useState([])
+  const [filterService, setFilterService] = useState([])  // Υπηρεσία: Εξωδικαστικός / Πτώχευση    // multi-select (pipeline stage)
   const [filterLogistis, setFilterLogistis] = useState(false)
 
   const load = async () => {
@@ -109,7 +111,10 @@ export default function Dashboard({ currentEmployee }) {
   // Top cards: count per status among the cases matching the employee/search/Pipeline filters,
   // so they follow the multi-select (selected statuses stay highlighted)
   const matchesStage = (c) => filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση')
-  const statusSummary = cases.filter(matchesStage).reduce((acc, c) => {
+  const isBk = (c) => c.service_type === SERVICE_BANKRUPTCY
+  const matchesService = (c) => filterService.length === 0 || filterService.includes(c.service_type || 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')
+  // Status cards describe the Εξωδικαστικός process; bankruptcy cases have their own stages
+  const statusSummary = cases.filter(c => matchesStage(c) && matchesService(c) && !isBk(c)).reduce((acc, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1
     return acc
   }, {})
@@ -124,7 +129,8 @@ export default function Dashboard({ currentEmployee }) {
   const logistisCases = cases.filter(c => c.external_source === 'logistis')
   const visibleCases = (filterLogistis ? logistisCases : cases)
     .filter(c => filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση'))
-    .filter(c => filterStatus.length === 0 || filterStatus.includes(c.status))
+    .filter(c => filterStatus.length === 0 || (!isBk(c) && filterStatus.includes(c.status)))
+    .filter(matchesService)
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -151,6 +157,9 @@ export default function Dashboard({ currentEmployee }) {
           >
             <RocketLaunchIcon className="w-4 h-4" /> Pipeline
           </Link>
+          <button className="btn-secondary gap-2 text-sm" onClick={() => navigate('/cases/new?service=ΠΤΩΧΕΥΣΗ')}>
+            ⚖️ Νέα Πτώχευση
+          </button>
           <button className="btn-primary gap-2" onClick={() => navigate('/cases/new')}>
             <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
           </button>
@@ -226,12 +235,14 @@ export default function Dashboard({ currentEmployee }) {
           <option value="">Όλοι οι υπάλληλοι</option>
           {EMPLOYEES.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
+        <MultiSelect value={filterService} onChange={setFilterService} placeholder="Όλες οι υπηρεσίες"
+          options={Object.entries(SERVICE_LABELS).map(([value, label]) => ({ value, label }))} />
         <MultiSelect value={filterStatus} onChange={setFilterStatus} placeholder="Όλες οι καταστάσεις"
           options={Object.entries(STATUS_LABELS).map(([k, { label }]) => ({ value: k, label }))} />
         <MultiSelect value={filterStage} onChange={setFilterStage} placeholder="Όλα τα Pipeline"
           options={Object.keys(CONTACT_STAGE_CONFIG).map((k) => ({ value: k, label: `${CONTACT_STAGE_CONFIG[k].icon} ${k}` }))} />
-        {(filterEmployee || filterStatus.length > 0 || filterStage.length > 0 || search) && (
-          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus([]); setFilterStage([]); setSearch('') }}>
+        {(filterEmployee || filterStatus.length > 0 || filterStage.length > 0 || filterService.length > 0 || search) && (
+          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus([]); setFilterStage([]); setFilterService([]); setSearch('') }}>
             Καθαρισμός
           </button>
         )}
@@ -253,6 +264,7 @@ export default function Dashboard({ currentEmployee }) {
               <tr>
                 <th className="th text-left pl-4">Πελάτης</th>
                 <th className="th">Υπάλληλος</th>
+                <th className="th">Υπηρεσία</th>
                 <th className="th">Κατάσταση</th>
                 <th className="th">Pipeline</th>
                 <th className="th">Εκτ. Οφειλή</th>
@@ -288,7 +300,14 @@ export default function Dashboard({ currentEmployee }) {
                       <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">{c.employee}</span>
                     </td>
                     <td className="td">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isBk(c) ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {isBk(c) ? '⚖️ Πτώχευση' : 'Εξωδικαστικός'}
+                      </span>
+                    </td>
+                    <td className="td">
+                      {isBk(c)
+                        ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{c.bankruptcy?.stage || '—'}</span>
+                        : <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>}
                     </td>
                     <td className="td">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageCfg.cls}`}>

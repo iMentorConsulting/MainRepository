@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { format, formatDistanceToNow } from 'date-fns'
 import { el } from 'date-fns/locale'
@@ -13,6 +13,7 @@ import { PORTAL_BASE } from '../api'
 import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
 import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
 import FinanceIntakePanel from '../components/FinanceIntakePanel'
+import BankruptcyCase from './BankruptcyCase'
 
 const STATUS_LABELS = {
   draft:     { label: 'Άντληση Στοιχείων',      cls: 'bg-gray-100 text-gray-700' },
@@ -635,6 +636,8 @@ export default function CaseDetail({ currentEmployee }) {
   if (loading) return <div className="p-10 text-center text-gray-400">Φόρτωση…</div>
   if (!caseData) return <div className="p-10 text-center text-red-500">Η υπόθεση δεν βρέθηκε</div>
 
+  if (caseData.service_type === 'ΠΤΩΧΕΥΣΗ') return <BankruptcyCase caseData={caseData} onChange={setCaseData} />
+
   const est = caseData.estimates || {}
   const act = caseData.actual_results
   const st = STATUS_LABELS[caseData.status] || STATUS_LABELS.draft
@@ -671,6 +674,24 @@ export default function CaseDetail({ currentEmployee }) {
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
+          {/* Bankruptcy service — create from this case, or jump to the linked one */}
+          {caseData.bankruptcy?.linked_case_id ? (
+            <Link to={`/cases/${caseData.bankruptcy.linked_case_id}`} className="btn-secondary gap-2 text-sm" title="Υπάρχει υπόθεση πτώχευσης">⚖️ Πτώχευση #{caseData.bankruptcy.linked_case_id}</Link>
+          ) : (
+            <button
+              onClick={async () => {
+                if (!confirm('Δημιουργία υπόθεσης ΠΤΩΧΕΥΣΗΣ με αντιγραφή των στοιχείων πελάτη, οφειλών, εισοδημάτων και περιουσίας;')) return
+                try {
+                  const res = await api.createBankruptcyCase(id)
+                  toast.success('Δημιουργήθηκε υπόθεση πτώχευσης')
+                  navigate(`/cases/${res.data.id}`)
+                } catch (e) { toast.error(e?.response?.data?.detail || 'Σφάλμα δημιουργίας') }
+              }}
+              className="btn-secondary gap-2 text-sm"
+              title="Δημιουργία υπόθεσης πτώχευσης από αυτή την υπόθεση"
+            >⚖️ Δημιουργία Πτώχευσης</button>
+          )}
+
           {/* Portal toggle */}
           <button
             onClick={handlePortalToggle}

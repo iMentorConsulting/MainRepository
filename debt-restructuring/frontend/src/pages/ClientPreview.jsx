@@ -3,6 +3,7 @@ import { useParams, useSearchParams } from 'react-router-dom'
 import { format } from 'date-fns'
 import { el } from 'date-fns/locale'
 import * as api from '../api'
+import BankruptcyPortal from './BankruptcyPortal'
 import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding } from '../utils/calculations'
 import {
   PhoneIcon,
@@ -335,6 +336,8 @@ export default function ClientPreview() {
   )
 
   if (vatRequired) return <VatGate onSubmit={handleVat} error={vatError} loading={vatLoading} />
+
+  if (data.service_type === 'ΠΤΩΧΕΥΣΗ' && data.bankruptcy) return <BankruptcyPortal data={data} token={token} />
 
   const est = data.estimates || {}
   const act = data.actual_results

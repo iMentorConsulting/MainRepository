@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon, BanknotesIcon, ClipboardDocumentListIcon, CalculatorIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import { computeOffer, loadPricingConfig, scoreBreakdown, DEFAULT_PRICING_CONFIG } from '../utils/pricing'
@@ -162,6 +162,9 @@ export default function CaseForm({ currentEmployee }) {
   const [employee, setEmployee] = useState(currentEmployee || '')
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState('draft')
+  const [searchParams] = useSearchParams()
+  const [service, setService] = useState(searchParams.get('service') === 'ΠΤΩΧΕΥΣΗ' ? 'ΠΤΩΧΕΥΣΗ' : 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')  // ΕΞΩΔΙΚΑΣΤΙΚΟΣ | ΠΤΩΧΕΥΣΗ (chosen when creating the case)
+  const isBk = service === 'ΠΤΩΧΕΥΣΗ'
   const [commercialOffer, setCommercialOffer] = useState({ application_fee: 0, success_fee: 0 })
   const [calc, setCalc] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -179,6 +182,7 @@ export default function CaseForm({ currentEmployee }) {
       setEmployee(c.employee)
       setNotes(c.notes || '')
       setStatus(c.status)
+      setService(c.service_type || 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')
       if (c.commercial_offer) setCommercialOffer(c.commercial_offer)
     }).catch(() => toast.error('Σφάλμα φόρτωσης υπόθεσης'))
   }, [id])
@@ -186,13 +190,14 @@ export default function CaseForm({ currentEmployee }) {
   // Recalculate on every input change
   useEffect(() => {
     const validDebts = debts.filter((d) => d.amount > 0)
-    if (validDebts.length > 0) {
+    // Bankruptcy cases have no restructuring calculation
+    if (validDebts.length > 0 && !isBk) {
       const cfg = loadPricingConfig()
       setCalc(calculateAll(debts, assets, income, { ...PARAMS_B, writeoffCapPct: cfg.writeoffCapPct ?? 70 }))
     } else {
       setCalc(null)
     }
-  }, [debts, assets, income])
+  }, [debts, assets, income, isBk])
 
   const handleSave = async () => {
     if (!client.name.trim()) return toast.error('Εισάγετε όνομα πελάτη')
@@ -241,6 +246,7 @@ export default function CaseForm({ currentEmployee }) {
         })() : {},
         notes,
         commercial_offer: commercialOffer,
+        ...(isEditing ? {} : { service_type: service }),
       }
       if (isEditing) {
         await api.updateCase(id, payload)
@@ -285,9 +291,9 @@ export default function CaseForm({ currentEmployee }) {
           </button>
           <div>
             <h1 className="text-2xl font-black text-blue-800">
-              {isEditing ? 'Επεξεργασία Υπόθεσης' : 'Νέα Υπόθεση Οφειλών'}
+              {isEditing ? 'Επεξεργασία Υπόθεσης' : (isBk ? 'Νέα Υπόθεση Πτώχευσης' : 'Νέα Υπόθεση Οφειλών')}
             </h1>
-            <p className="text-gray-500 text-sm">🧮 Εισαγωγή Οφειλών & Θεωρητική Προσομοίωση</p>
+            <p className="text-gray-500 text-sm">{isBk ? '⚖️ Εισαγωγή στοιχείων οφειλετών (επαγγελματίες / νομικά πρόσωπα)' : '🧮 Εισαγωγή Οφειλών & Θεωρητική Προσομοίωση'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -338,11 +344,20 @@ export default function CaseForm({ currentEmployee }) {
             </select>
           </div>
           <div>
+            <label className="label">Υπηρεσία</label>
+            <select className="input" value={service} disabled={isEditing} onChange={(e) => setService(e.target.value)}>
+              <option value="ΕΞΩΔΙΚΑΣΤΙΚΟΣ">Εξωδικαστικός</option>
+              <option value="ΠΤΩΧΕΥΣΗ">Πτώχευση</option>
+            </select>
+          </div>
+          {!isBk && (
+          <div>
             <label className="label">Κατάσταση Υπόθεσης</label>
             <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
+          )}
           <div className="md:col-span-3">
             <label className="label">Σημειώσεις</label>
             <input className="input" placeholder="Εσωτερικές σημειώσεις…" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -350,13 +365,20 @@ export default function CaseForm({ currentEmployee }) {
         </div>
       </div>
 
-      {/* Commercial Offer */}
+      {/* Commercial Offer (Εξωδικαστικός only — bankruptcy fees are set in the case page) */}
+      {!isBk && (<>
       <h2 className="section-title flex items-center gap-2"><BanknotesIcon className="w-5 h-5 text-blue-600 shrink-0" /> Οικονομική Προσφορά</h2>
       <OfferSection
         debts={debts} assets={assets} income={income} setIncome={setIncome}
         commercialOffer={commercialOffer} setCommercialOffer={setCommercialOffer}
         caseId={isEditing ? id : null} employee={employee} calc={calc}
       />
+      </>)}
+      {isBk && (
+        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+          ⚖️ Υπηρεσία <b>Πτώχευσης</b>: μετά την αποθήκευση ορίζετε αμοιβές, στάδια, δικηγόρο, δικαστήριο, ημερομηνίες και δικαιολογητικά στη σελίδα της υπόθεσης.
+        </div>
+      )}
 
       {/* Debts */}
       <h2 className="section-title flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5 text-blue-600 shrink-0" /> Οφειλές</h2>
@@ -371,7 +393,7 @@ export default function CaseForm({ currentEmployee }) {
       </div>
 
       {/* Income analysis block — FP only, shows ratio + 3-phase caps */}
-      {income.debtorType !== 'Νομικό Πρόσωπο' && (() => {
+      {!isBk && income.debtorType !== 'Νομικό Πρόσωπο' && (() => {
         const previewAnnualIncome = computeIncomeFromData(income)
         const hasIncomeData = previewAnnualIncome > 0
         const showFullAnalysis = calc && calc.monthlyDisp1 !== undefined

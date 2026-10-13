@@ -26,6 +26,11 @@ class Case(Base):
     # Employee who created/owns the case
     employee = Column(String, nullable=False)  # STELLA / VALLIA / SOFIA / HARIS
 
+    # Service this case belongs to: ΕΞΩΔΙΚΑΣΤΙΚΟΣ (default) or ΠΤΩΧΕΥΣΗ (bankruptcy, ν. 4738/2020)
+    service_type = Column(String, default="ΕΞΩΔΙΚΑΣΤΙΚΟΣ", index=True)
+    # Bankruptcy service data (stage, lawyer, court, dates, fees, documents) or links between cases
+    bankruptcy = Column(JSON, default=dict)
+
     # Lifecycle status
     status = Column(String, default="draft")  # draft / submitted / in_review / completed / cancelled
 

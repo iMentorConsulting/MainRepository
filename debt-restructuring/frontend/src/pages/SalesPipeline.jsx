@@ -11,6 +11,7 @@ import {
   ChatBubbleLeftEllipsisIcon,
 } from '@heroicons/react/24/outline'
 import MultiSelect from '../components/MultiSelect'
+import { SERVICE_LABELS } from '../utils/bankruptcy'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
@@ -221,6 +222,7 @@ export default function SalesPipeline() {
   const [filterEmployee, setFilterEmployee] = useState('')
   const [filterStatus, setFilterStatus] = useState([])
   const [filterStage, setFilterStage] = useState([])
+  const [filterService, setFilterService] = useState([])
   const [updatingId, setUpdatingId] = useState(null)
   const [viberModal, setViberModal] = useState(null) // caseItem object
   const [viberSending, setViberSending] = useState(false)
@@ -242,9 +244,10 @@ export default function SalesPipeline() {
   useEffect(() => { load() }, [filterEmployee])
 
   const cases = useMemo(() => allCases.filter(c =>
+    (filterService.length === 0 || filterService.includes(c.service_type || 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')) &&
     (filterStatus.length === 0 || filterStatus.includes(c.status)) &&
     (filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση'))
-  ), [allCases, filterStatus, filterStage])
+  ), [allCases, filterStatus, filterStage, filterService])
 
   const handleViberSend = async (caseId, message, msgType, doEmail, clientEmail, clientName) => {
     setViberSending(true)
@@ -361,12 +364,14 @@ export default function SalesPipeline() {
             <option value="">Όλοι οι σύμβουλοι</option>
             {EMPLOYEES.map(e => <option key={e} value={e}>{e}</option>)}
           </select>
+          <MultiSelect value={filterService} onChange={setFilterService} placeholder="Όλες οι υπηρεσίες"
+            options={Object.entries(SERVICE_LABELS).map(([value, label]) => ({ value, label }))} />
           <MultiSelect value={filterStatus} onChange={setFilterStatus} placeholder="Όλες οι καταστάσεις"
             options={Object.entries(CASE_STATUS_LABELS).map(([k, label]) => ({ value: k, label }))} />
           <MultiSelect value={filterStage} onChange={setFilterStage} placeholder="Όλα τα Pipeline"
             options={STAGE_CONFIG.map(s => ({ value: s.key, label: `${s.icon} ${s.key}` }))} />
-          {(filterStatus.length > 0 || filterStage.length > 0) && (
-            <button className="btn-secondary text-xs" onClick={() => { setFilterStatus([]); setFilterStage([]) }}>Καθαρισμός</button>
+          {(filterStatus.length > 0 || filterStage.length > 0 || filterService.length > 0) && (
+            <button className="btn-secondary text-xs" onClick={() => { setFilterStatus([]); setFilterStage([]); setFilterService([]) }}>Καθαρισμός</button>
           )}
           <button onClick={load} className="btn-secondary p-2" title="Ανανέωση">
             <ArrowPathIcon className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />

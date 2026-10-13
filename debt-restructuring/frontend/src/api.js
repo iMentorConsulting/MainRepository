@@ -40,6 +40,7 @@ export const loginUser = (employee, password) => api.post('/auth/login', { emplo
 export const listCases = (params) => api.get('/cases/', { params })
 export const getCase = (id) => api.get(`/cases/${id}`)
 export const createCase = (data) => api.post('/cases/', data)
+export const createBankruptcyCase = (id) => api.post(`/cases/${id}/create-bankruptcy`)
 export const updateCase = (id, data) => api.put(`/cases/${id}`, data)
 export const deleteCase = (id) => api.delete(`/cases/${id}`)
 export const saveActualResults = (id, data) => api.patch(`/cases/${id}/actual`, data)
@@ -99,10 +100,11 @@ export const getAnalyticsPipelineStats = (employee, dateFrom, dateTo) => {
   if (dateTo) params.date_to = dateTo
   return api.get('/analytics/pipeline-stats', { params })
 }
-export const getAnalyticsPipelineStatsByEmployee = (dateFrom, dateTo) => {
+export const getAnalyticsPipelineStatsByEmployee = (dateFrom, dateTo, service) => {
   const params = {}
   if (dateFrom) params.date_from = dateFrom
   if (dateTo) params.date_to = dateTo
+  if (service) params.service = service
   return api.get('/analytics/pipeline-stats-by-employee', { params })
 }
 

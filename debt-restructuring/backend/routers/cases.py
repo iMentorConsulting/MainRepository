@@ -330,9 +330,12 @@ def list_cases(
     employee: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    service: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     q = db.query(Case)
+    if service:
+        q = q.filter(Case.service_type == service)
     if employee:
         q = q.filter(Case.employee == employee)
     if status:
@@ -348,11 +351,47 @@ def list_cases(
 def create_case(data: CaseCreate, db: Session = Depends(get_db)):
     if data.employee not in EMPLOYEES:
         raise HTTPException(status_code=400, detail="Μη έγκυρος υπάλληλος")
-    case = Case(**data.model_dump())
+    payload = data.model_dump()
+    if payload.get("service_type") == "ΠΤΩΧΕΥΣΗ" and not payload.get("bankruptcy"):
+        from bankruptcy_utils import default_bankruptcy_data
+        payload["bankruptcy"] = default_bankruptcy_data()
+    case = Case(**payload)
     db.add(case)
     db.commit()
     db.refresh(case)
     return case
+
+
+@router.post("/{id}/create-bankruptcy", response_model=CaseResponse, status_code=201)
+def create_bankruptcy_case(id: int, db: Session = Depends(get_db)):
+    """Create a ΠΤΩΧΕΥΣΗ case from an existing Εξωδικαστικός case, copying client data,
+    debts, assets and income. The two cases are linked to each other."""
+    from bankruptcy_utils import default_bankruptcy_data, SERVICE_BANKRUPTCY
+    src = db.query(Case).filter(Case.id == id).first()
+    if not src:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    existing_id = (src.bankruptcy or {}).get("linked_case_id")
+    if existing_id and db.query(Case).filter(Case.id == existing_id).first():
+        raise HTTPException(status_code=409, detail=f"Υπάρχει ήδη υπόθεση πτώχευσης (#{existing_id})")
+
+    new = Case(
+        client_name=src.client_name, client_phone=src.client_phone, client_email=src.client_email,
+        client_vat=src.client_vat, employee=src.employee, status="draft",
+        debtor_type=src.debtor_type, debts=src.debts, assets=src.assets, income_data=src.income_data,
+        estimates={}, notes=src.notes or "", contact_stage="Νέα Ανάλυση",
+        commercial_offer={}, service_type=SERVICE_BANKRUPTCY,
+        bankruptcy=default_bankruptcy_data(source_case_id=src.id),
+    )
+    db.add(new)
+    db.commit()
+    db.refresh(new)
+
+    src_data = dict(src.bankruptcy or {})
+    src_data["linked_case_id"] = new.id
+    src.bankruptcy = src_data
+    src.updated_at = _now()
+    db.commit()
+    return new
 
 
 @router.get("/{id}", response_model=CaseResponse)
@@ -379,6 +418,9 @@ def update_case(id: int, data: CaseUpdate, db: Session = Depends(get_db)):
             case.submitted_at = _now()
         if updates["status"] == "completed" and case.status != "completed":
             case.completed_at = _now()
+
+    if "bankruptcy" in updates and (case.bankruptcy or {}).get("stage") != updates["bankruptcy"].get("stage"):
+        updates["bankruptcy"] = {**updates["bankruptcy"], "stage_changed_at": _now().isoformat()}
 
     for k, v in updates.items():
         setattr(case, k, v)

@@ -139,6 +139,16 @@ def run_migrations():
         except Exception:
             pass
 
+        for col_ddl in [
+            "ALTER TABLE cases ADD COLUMN service_type VARCHAR DEFAULT 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ'",
+            "ALTER TABLE cases ADD COLUMN bankruptcy TEXT DEFAULT '{}'",
+        ]:
+            try:
+                conn.execute(text(col_ddl))
+                conn.commit()
+            except Exception:
+                pass
+
         # Leads table columns (safe adds for existing deployments)
         for col_ddl in [
             "ALTER TABLE leads ADD COLUMN app_comments TEXT DEFAULT '[]'",

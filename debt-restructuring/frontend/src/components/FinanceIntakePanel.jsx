@@ -86,7 +86,7 @@ const DEFAULT_FORM = {
 // Address is needed for ΑΠΟΔΕΙΞΗ and ΑΝΕΥ (ΤΙΜΟΛΟΓΙΟ fetches it automatically from Finance)
 const needsAddress = (invoiceType) => invoiceType === 'ΑΠΟΔΕΙΞΗ' || invoiceType === 'ΑΝΕΥ'
 
-export default function FinanceIntakePanel({ caseData }) {
+export default function FinanceIntakePanel({ caseData, serviceType, feeOverrides }) {
   const [payments, setPayments] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(false)
   const [showModal, setShowModal] = useState(false)
@@ -95,8 +95,10 @@ export default function FinanceIntakePanel({ caseData }) {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const appFee = caseData?.commercial_offer?.application_fee ?? 450
-  const successFee = caseData?.commercial_offer?.success_fee ?? 450
+  const appFee = feeOverrides ? feeOverrides.appFee : (caseData?.commercial_offer?.application_fee ?? 450)
+  const successFee = feeOverrides ? feeOverrides.successFee : (caseData?.commercial_offer?.success_fee ?? 450)
+  // Bankruptcy: the success fee is paid in 4 installments, so the quick button records one installment
+  const successQuick = feeOverrides?.successInstallment ?? successFee
 
   const loadPayments = useCallback(async () => {
     if (!caseData?.id) return
@@ -116,7 +118,7 @@ export default function FinanceIntakePanel({ caseData }) {
   }, [loadPayments])
 
   function openModal(preset = {}) {
-    setForm({ ...DEFAULT_FORM, ...preset })
+    setForm({ ...DEFAULT_FORM, ...(serviceType ? { service_type: serviceType } : {}), ...preset })
     setError('')
     setSuccess('')
     setShowModal(true)
@@ -127,7 +129,7 @@ export default function FinanceIntakePanel({ caseData }) {
   }
 
   function openSuccessFee() {
-    openModal({ payment_type: 'Success Fee', amount_collected: String(successFee), targeting_category: 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ' })
+    openModal({ payment_type: feeOverrides ? 'Success Fee (δόση)' : 'Success Fee', amount_collected: String(successQuick), targeting_category: 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ' })
   }
 
   function openCustom() {
@@ -205,7 +207,7 @@ export default function FinanceIntakePanel({ caseData }) {
           onClick={openSuccessFee}
           className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 font-medium"
         >
-          🏆 Success Fee ({fmt(successFee)})
+          🏆 Success Fee{feeOverrides ? ' δόση' : ''} ({fmt(successQuick)})
         </button>
         <button
           onClick={openCustom}
