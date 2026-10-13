@@ -79,6 +79,43 @@ async function main() {
     console.log(`  Backfilled websiteUrl from wpPageUrl on ${websiteUrls} Program rows`)
   } catch (e) { console.log('  Program websiteUrl backfill skip:', e.message) }
 
+  // Ensures the ΠΤΩΧΕΥΣΗ Service + 5% CommissionPolicy exist, same as
+  // /api/admin/setup-exodikastikos-commission did for ΕΞΩΔΙΚΑΣΤΙΚΟΣ (that one
+  // was triggered manually once via the API route — this runs automatically
+  // on every deploy instead, so the new Πτώχευση service doesn't need a
+  // separate manual step). Idempotent: safe to run every deploy.
+  try {
+    const SERVICE_NAME = 'ΠΤΩΧΕΥΣΗ'
+    const stem = SERVICE_NAME.substring(0, 6)
+
+    let service = await prisma.service.findFirst({ where: { name: { equals: SERVICE_NAME, mode: 'insensitive' } } })
+    if (!service) {
+      service = await prisma.service.create({ data: { name: SERVICE_NAME, price: 0, currency: 'eur', active: true } })
+      console.log(`  Created Service "${SERVICE_NAME}"`)
+    }
+
+    const existingPolicy = await prisma.commissionPolicy.findFirst({ where: { active: true, serviceId: service.id } })
+    if (!existingPolicy) {
+      await prisma.commissionPolicy.updateMany({
+        where: { active: true, OR: [{ serviceId: service.id }, { name: { contains: stem, mode: 'insensitive' } }] },
+        data: { active: false },
+      })
+      await prisma.commissionPolicy.create({
+        data: {
+          name: `${SERVICE_NAME} 5%`,
+          description: 'Σταθερή προμήθεια 5% — αίτηση & υλοποίηση',
+          commissionType: 'PERCENTAGE',
+          percentage: 5,
+          appliesToApplication: true,
+          appliesToImplementation: true,
+          serviceId: service.id,
+          active: true,
+        },
+      })
+      console.log(`  Created 5% commission policy for "${SERVICE_NAME}"`)
+    }
+  } catch (e) { console.log('  Ptoxeusi commission setup skip:', e.message) }
+
   console.log('>>> Pre-migration done.')
 }
 
