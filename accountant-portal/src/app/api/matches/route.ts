@@ -163,6 +163,21 @@ export async function GET(request: NextRequest) {
       baseWhere.OR = sentPairs.length > 0 ? sentPairs : [{ id: '__none__' }]
     } else {
       baseWhere.AND = [...(baseWhere.AND || []), { NOT: { OR: sentPairs.length > 0 ? sentPairs : [{ id: '__none__' }] } }]
+      // A business with neither email nor phone can never actually receive a
+      // notification (see the same email-or-phone check in
+      // /api/programs/[id]/notify) — without this, those rows sit in "Δεν
+      // έχει σταλεί ενημέρωση" forever, looking like a pending action when
+      // there's really just no way to reach them. Excluded here rather than
+      // auto-marked as notified, since that would be a false audit trail.
+      baseWhere.business = {
+        ...(baseWhere.business || {}),
+        NOT: {
+          AND: [
+            { OR: [{ email: null }, { email: '' }] },
+            { OR: [{ phone: null }, { phone: '' }] },
+          ],
+        },
+      }
     }
   }
 
