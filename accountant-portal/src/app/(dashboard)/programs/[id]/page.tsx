@@ -589,12 +589,26 @@ export default function ProgramDetailPage() {
               <CardContent>
                 <ul className="space-y-2">
                   {program.attachmentUrls.map((url: string, i: number) => (
-                    <li key={url}>
-                      <a href={url} target="_blank" rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline">
-                        <Paperclip size={13} />
-                        {program.attachmentNames?.[i] || `Σχετικό αρχείο ${i + 1}`}
-                      </a>
+                    <li key={i}>
+                      {/* Uploaded PDFs are stored as base64 data: URLs — browsers
+                          block navigating a new tab/window (target="_blank") to a
+                          data: URL as a security measure (data: URL phishing), so
+                          that click silently does nothing. A plain download link
+                          (no target) isn't a top-level navigation to a new
+                          browsing context, so it isn't blocked the same way. */}
+                      {url.startsWith('data:') ? (
+                        <a href={url} download={program.attachmentNames?.[i] || `document-${i + 1}.pdf`}
+                          className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline">
+                          <Paperclip size={13} />
+                          {program.attachmentNames?.[i] || `Σχετικό αρχείο ${i + 1}`}
+                        </a>
+                      ) : (
+                        <a href={url} target="_blank" rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1.5 text-sm text-blue-700 hover:underline">
+                          <Paperclip size={13} />
+                          {program.attachmentNames?.[i] || `Σχετικό αρχείο ${i + 1}`}
+                        </a>
+                      )}
                     </li>
                   ))}
                 </ul>
