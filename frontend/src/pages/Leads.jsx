@@ -33,7 +33,6 @@ const EMAIL_DOMAIN_FIXES = {
   'gmal.com': 'gmail.com',
   'gnail.com': 'gmail.com',
   'gmaill.com': 'gmail.com',
-  'yahoo.gr': 'yahoo.com',
   'yahoo.com.gr': 'yahoo.com',
   'yahooo.com': 'yahoo.com',
   'yaho.com': 'yahoo.com',
