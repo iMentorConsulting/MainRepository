@@ -240,6 +240,58 @@ export function computeIncomeFromData(incomeData) {
 // ============================================================
 // Main calculation
 // ============================================================
+// ------------------------------------------------------------
+// Νομικό Πρόσωπο — διαθέσιμο εισόδημα για ΑΑΔΕ / ΕΦΚΑ (Δημόσιο)
+// ΚΥΑ 77129 ΕΞ 2025 (ΦΕΚ Β' 2331/13.05.2025): τροποποιεί την παρ. 7 του άρθρου 8Α της
+// ΚΥΑ 67360 ΕΞ 2021, σε συνδυασμό με τις παρ. 2 και 5 του ίδιου άρθρου.
+// Εύλογο ποσοστό κέρδους: 10% × ΚΕ, ανά έτος. Δεν αφορά τράπεζες/servicers ούτε Φυσικά Πρόσωπα.
+// Όλα τα ποσά είναι ετήσια, εκτός αν αναφέρεται αλλιώς. T1 = πιο πρόσφατο έτος (ke_t1/kerdh_t1).
+// ------------------------------------------------------------
+export function computeLePublicDisposable(incomeData = {}, params = PARAMS_B) {
+  const keRaw = [incomeData.ke_t1, incomeData.ke_t2, incomeData.ke_t3]
+  const kRaw = [incomeData.kerdh_t1, incomeData.kerdh_t2, incomeData.kerdh_t3]
+  const isBlank = (v) => v === null || v === undefined || v === ''
+  const ke = keRaw.map((v) => (isBlank(v) ? 0 : Number(v) || 0))
+  const k = kRaw.map((v) => (isBlank(v) ? 0 : Number(v) || 0))
+  const enfia = Number(incomeData.leEnfia) || 0
+  const warnings = []
+
+  // Βήμα 1 — επιλεξιμότητα: και τα τρία ΚΕ παρόντα και < 2.500.000
+  const keMissing = ke.map((v) => !(v > 0))
+  keMissing.forEach((m, i) => { if (m) warnings.push(`Λείπει ΚΕ έτους Τ-${i + 1}`) })
+  const eligible10 = !keMissing.some(Boolean) && ke.every((v) => v < params.leTurnoverThreshold)
+
+  // Ελλιπή κέρδη: υπάρχει ΚΕ_t αλλά το Κ_t είναι κενό → Κ_t = 0 + προειδοποίηση
+  kRaw.forEach((v, i) => {
+    if (isBlank(v) && ke[i] > 0) warnings.push(`Συμπληρώστε Κέρδη/Ζημιές έτους Τ-${i + 1} (έντυπο Ν) — επηρεάζει τον υπολογισμό.`)
+  })
+
+  // Βήμα 2 — ποσό ανά έτος
+  const xBefore = k.map((kv) => Math.max(kv - enfia, 0))
+  const floors = ke.map((v) => params.leIncomeFloorPct * v)
+  const floorApplied = xBefore.map((x, i) => eligible10 && x < floors[i])
+  const X = xBefore.map((x, i) => (floorApplied[i] ? floors[i] : x))
+
+  // Βήμα 3 — κλιμάκωση (παρ. 5 άρθρου 8Α): M2 = μέσος όρος των δύο ΥΨΗΛΟΤΕΡΩΝ τιμών
+  const sorted = [...X].sort((a, b) => b - a)
+  const M2 = (sorted[0] + sorted[1]) / 2
+  const year1 = X[0]
+  const years24 = Math.max(0.65 * M2, X[0])
+  const years5 = Math.max(M2, X[0])
+
+  // Βήμα 4 — ο κανόνας καθορίζει το αποτέλεσμα μόνο όταν εφαρμόζεται στο Τ-1
+  const ruleTriggered = floorApplied[0]
+
+  return {
+    eligible10, X, xBefore, floors, floorApplied, M2,
+    annual: { year1, years24, years5 },
+    monthly: { year1: year1 / 12, years24: years24 / 12, years5: years5 / 12 },
+    ruleTriggered,
+    maxMonths: params.maxMonths.publicMax, // Βήμα 5 — 240 μήνες σε ΑΑΔΕ/ΕΦΚΑ όταν ενεργοποιείται
+    warnings,
+  }
+}
+
 export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const isLE = incomeData.debtorType === 'Νομικό Πρόσωπο'
   const youngestAge = isLE ? 0 : (incomeData.debtorAge || 0)
@@ -389,6 +441,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   let dispAnnual = 0, totalExpenses = 0, annualIncome = 0
   let dispYear1 = 0, dispYear24 = 0, dispYear5 = 0
   let flagMaxDoses = false, isFPEpit = false, leMoDispMonthly = 0, leFloorMonthly = 0
+  let lePub = null  // ΑΑΔΕ/ΕΦΚΑ disposable income for Νομικό Πρόσωπο (ΚΥΑ 77129 ΕΞ 2025)
   let fpRatio = 1, fpFamilyIncome = 0, fpSpouseIncome = 0
   let fpDispFromAvg = 0, fpAvg2Income = 0
   let fpEulogoMarginPct = null, fpEulogoPresumedIncome = 0, fpEulogoNote = null
@@ -405,14 +458,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       const leEnfia = incomeData.leEnfia || 0
       const deposits = incomeData.deposits || 0
 
-      // Classification: ΜΙΚΡΗ if all 3 KE < 2.5M AND bank debt < 5M (ΚΥΑ 7712925/2025)
+      // Classification: ΜΙΚΡΗ if all 3 KE < 2.5M AND bank debt < 5M (ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025))
       const bankDebt = rows.filter((r) => r.type === 'Τράπεζα').reduce((s, r) => s + r.amount, 0)
       const isMikri = ke_t1 < params.leTurnoverThreshold
                    && ke_t2 < params.leTurnoverThreshold
                    && ke_t3 < params.leTurnoverThreshold
                    && bankDebt < 5_000_000
 
-      // Per-year disposable = MAX(0, Κέρδη_x − ΕΝΦΙΑ); no interest added (ΚΥΑ 7712925/2025)
+      // Per-year disposable = MAX(0, Κέρδη_x − ΕΝΦΙΑ); no interest added (ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025))
       const diathArr = [
         Math.max(0, kerdh_t1 - leEnfia),
         Math.max(0, kerdh_t2 - leEnfia),
@@ -422,19 +475,21 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       // Average of top 2 years (exclude lowest)
       const mo_diath = (diathArr[0] + diathArr[1]) / 2
 
-      // 10% floor check for small category
+      // Bank/servicer disposable (unchanged): 10% floor on the top-2 average
       let finalDiath = mo_diath
       if (isMikri && ke_t1 > 0) {
         const floor10 = ke_t1 * params.leIncomeFloorPct
-        leMoDispMonthly = mo_diath / 12
-        leFloorMonthly = floor10 / 12
-        if (mo_diath < floor10) {
-          finalDiath = floor10
-          flagMaxDoses = true
-        }
+        if (mo_diath < floor10) finalDiath = floor10
       }
 
-      // ΚΥΑ 7712925/2025: no statutory working capital % — deposits counted at 95% over 20 years
+      // ΑΑΔΕ/ΕΦΚΑ: separate disposable (per-year 10% rule, ΚΥΑ 77129 ΕΞ 2025); the 240-installment
+      // cap applies to public creditors only when the rule is triggered for year Τ-1
+      lePub = computeLePublicDisposable(incomeData, params)
+      flagMaxDoses = lePub.ruleTriggered
+      leMoDispMonthly = lePub.xBefore[0] / 12
+      leFloorMonthly = lePub.floors[0] / 12
+
+      // ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025): no statutory working capital % — deposits counted at 95% over 20 years
       const freeDeposits = deposits
       // 95% of deposits spread over 20-year typical duration
       const annualDeposit = (freeDeposits * params.leDepositRate) / 20
@@ -581,6 +636,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const monthlyDisp1  = Math.max(0, dispYear1  / 12)
   const monthlyDisp24 = Math.max(0, dispYear24 / 12)
   const monthlyDisp5  = Math.max(0, dispYear5  / 12)
+  // Public creditors (ΑΑΔΕ/ΕΦΚΑ) of a Νομικό Πρόσωπο use their own disposable phases; everyone else shares the main ones
+  const pubDisp1  = lePub ? Math.max(0, lePub.monthly.year1)   : monthlyDisp1
+  const pubDisp24 = lePub ? Math.max(0, lePub.monthly.years24) : monthlyDisp24
 
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
@@ -600,31 +658,44 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   // --- Plan A: greedy month extension — dual constraint (c1 ≤ cap1 year-1, c2 ≤ cap24 years-2-4) ---
   // ΚΥΑ 67360 άρθρο 8Α §5: promo payment (c1) must fit year-1 income; post-promo (c2) fits years-2-4
-  const planA = planBase.map((p) => ({ ...p }))
-  const sumFn = (plan, fn) => plan.reduce((s, p) => s + fn(p.newAmt, p.months, p.type, p.isSecured, params), 0)
-  let sc1 = sumFn(planA, debtC1)
-  let sc2 = sumFn(planA, debtC2)
+  // Income groups: for Νομικό Πρόσωπο with 3-year data the public creditors (ΑΑΔΕ/ΕΦΚΑ) form their own group
+  // with their own disposable; in every other case there is a single group (unchanged behaviour).
+  const allIdx = analysisRows.map((_, i) => i)
+  const incomeGroups = lePub
+    ? [
+        { idxs: allIdx.filter((i) => isPublicDebt(analysisRows[i].type)), d1: pubDisp1, d24: pubDisp24 },
+        { idxs: allIdx.filter((i) => !isPublicDebt(analysisRows[i].type)), d1: monthlyDisp1, d24: monthlyDisp24 },
+      ].filter((g) => g.idxs.length > 0)
+    : [{ idxs: allIdx, d1: monthlyDisp1, d24: monthlyDisp24 }]
 
-  while (true) {
-    const c1ok = monthlyDisp1 <= 0 || sc1 <= monthlyDisp1
-    const c2ok = monthlyDisp24 <= 0 || sc2 <= monthlyDisp24
-    if (c1ok && c2ok) break
-    // Extend the debt that most reduces the more-violated constraint
-    const useC1 = !c1ok && (c2ok || (sc1 - monthlyDisp1) >= (sc2 - monthlyDisp24))
-    const fn = useC1 ? debtC1 : debtC2
-    let bestI = -1, bestGain = 0
-    planA.forEach((p, i) => {
-      const nextM = p.months + 1
-      if (nextM > p.maxMonths) return
-      const gain = fn(p.newAmt, p.months, p.type, p.isSecured, params)
-                 - fn(p.newAmt, nextM,   p.type, p.isSecured, params)
-      if (gain > bestGain) { bestGain = gain; bestI = i }
-    })
-    if (bestI === -1) break
-    planA[bestI].months++
-    sc1 = sumFn(planA, debtC1)
-    sc2 = sumFn(planA, debtC2)
-  }
+  const planA = planBase.map((p) => ({ ...p }))
+  const sumFn = (plan, fn, idxs = allIdx) => idxs.reduce((s, i) => s + fn(plan[i].newAmt, plan[i].months, plan[i].type, plan[i].isSecured, params), 0)
+
+  incomeGroups.forEach((g) => {
+    let sc1 = sumFn(planA, debtC1, g.idxs)
+    let sc2 = sumFn(planA, debtC2, g.idxs)
+    while (true) {
+      const c1ok = g.d1 <= 0 || sc1 <= g.d1
+      const c2ok = g.d24 <= 0 || sc2 <= g.d24
+      if (c1ok && c2ok) break
+      // Extend the debt that most reduces the more-violated constraint
+      const useC1 = !c1ok && (c2ok || (sc1 - g.d1) >= (sc2 - g.d24))
+      const fn = useC1 ? debtC1 : debtC2
+      let bestI = -1, bestGain = 0
+      g.idxs.forEach((i) => {
+        const p = planA[i]
+        const nextM = p.months + 1
+        if (nextM > p.maxMonths) return
+        const gain = fn(p.newAmt, p.months, p.type, p.isSecured, params)
+                   - fn(p.newAmt, nextM,   p.type, p.isSecured, params)
+        if (gain > bestGain) { bestGain = gain; bestI = i }
+      })
+      if (bestI === -1) break
+      planA[bestI].months++
+      sc1 = sumFn(planA, debtC1, g.idxs)
+      sc2 = sumFn(planA, debtC2, g.idxs)
+    }
+  })
 
   // --- 3-step waterfall (ΚΥΑ 67360/2021 Art. 7.13-7.14) ---
   // Distributes monthly disposable income in 3 layers; replaces the binary search.
@@ -680,31 +751,31 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     return _pmt(_wfRate(r.type, r.isSecured), n, r.amount)
   })
 
-  const _wfTotalMin  = _wfMinInst.reduce((s, v) => s + v, 0)
-  const _wfTotalFull = _wfFullInst.reduce((s, v) => s + v, 0)
-
-  // Βήμα 3: 3-layer (Στρώμα Α/Β/Γ) income distribution.
+  // Βήμα 3: 3-layer (Στρώμα Α/Β/Γ) income distribution, per income group.
   // Use year-1 disposable as the binding monthly income constraint.
-  const _wfIncome = monthlyDisp1
-
-  let _wfFinalInst
-  if (_wfTotalFull <= 0 || _wfIncome >= _wfTotalFull) {
-    // Income covers all debts fully — no write-off needed
-    _wfFinalInst = [..._wfFullInst]
-  } else if (_wfIncome <= 0 || _wfTotalMin <= 0) {
-    // Zero income — each creditor receives 0 (max write-offs applied below via artFloor)
-    _wfFinalInst = _wfMinInst.map(() => 0)
-  } else if (_wfIncome <= _wfTotalMin) {
-    // Στρώμα Α only: income below all min-installment floors → pro-rata by floor
-    _wfFinalInst = _wfMinInst.map((mi) => mi * _wfIncome / _wfTotalMin)
-  } else {
-    // Στρώμα Α satisfied; Στρώματα Β+Γ distribute remainder up to full installment
-    const _rem = _wfIncome - _wfTotalMin
-    const _cap = _wfFullInst.map((fi, i) => Math.max(0, fi - _wfMinInst[i]))
-    const _totalCap = _cap.reduce((s, v) => s + v, 0)
-    const _scale = _totalCap > 0 ? Math.min(1, _rem / _totalCap) : 0
-    _wfFinalInst = _wfMinInst.map((mi, i) => mi + _cap[i] * _scale)
-  }
+  const _wfFinalInst = new Array(analysisRows.length).fill(0)
+  incomeGroups.forEach((g) => {
+    const _wfIncome = g.d1
+    const _totalMin = g.idxs.reduce((s, i) => s + _wfMinInst[i], 0)
+    const _totalFull = g.idxs.reduce((s, i) => s + _wfFullInst[i], 0)
+    if (_totalFull <= 0 || _wfIncome >= _totalFull) {
+      // Income covers all debts fully — no write-off needed
+      g.idxs.forEach((i) => { _wfFinalInst[i] = _wfFullInst[i] })
+    } else if (_wfIncome <= 0 || _totalMin <= 0) {
+      // Zero income — each creditor receives 0 (max write-offs applied below via artFloor)
+      g.idxs.forEach((i) => { _wfFinalInst[i] = 0 })
+    } else if (_wfIncome <= _totalMin) {
+      // Στρώμα Α only: income below all min-installment floors → pro-rata by floor
+      g.idxs.forEach((i) => { _wfFinalInst[i] = _wfMinInst[i] * _wfIncome / _totalMin })
+    } else {
+      // Στρώμα Α satisfied; Στρώματα Β+Γ distribute remainder up to full installment
+      const _rem = _wfIncome - _totalMin
+      const _cap = g.idxs.map((i) => Math.max(0, _wfFullInst[i] - _wfMinInst[i]))
+      const _totalCap = _cap.reduce((s, v) => s + v, 0)
+      const _scale = _totalCap > 0 ? Math.min(1, _rem / _totalCap) : 0
+      g.idxs.forEach((i, j) => { _wfFinalInst[i] = _wfMinInst[i] + _cap[j] * _scale })
+    }
+  })
 
   // Βήμα 4: recovery = NPV of final installments at SETTLEMENT rates (promo + post-promo).
   // write-off = debt − recovery, capped at legal maximum (analysisRows[i].calc).
@@ -739,20 +810,16 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     })
   }
 
-  // If planA (greedy month extension, zero write-offs) already fits within income,
-  // use it directly — no write-offs needed, shorter term is correct.
-  const _planAc1 = sumFn(planA, debtC1)
-  const _planAc2 = sumFn(planA, debtC2)
-  const _planAFeasible = monthlyDisp1 > 0
-                      && _planAc1 <= monthlyDisp1
-                      && (monthlyDisp24 <= 0 || _planAc2 <= monthlyDisp24)
-
-  let best
-  if (_planAFeasible) {
-    best = { plan: planA }
-  } else {
-    best = { plan: waterfallPlan.length ? waterfallPlan : planA }
-  }
+  // If planA (greedy month extension, zero write-offs) already fits within an income group's capacity,
+  // use it directly for that group — no write-offs needed, shorter term is correct.
+  const bestPlan = planBase.map((_, i) => (waterfallPlan.length ? waterfallPlan[i] : planA[i]))
+  incomeGroups.forEach((g) => {
+    const _c1 = sumFn(planA, debtC1, g.idxs)
+    const _c2 = sumFn(planA, debtC2, g.idxs)
+    const feasible = g.d1 > 0 && _c1 <= g.d1 && (g.d24 <= 0 || _c2 <= g.d24)
+    if (feasible) g.idxs.forEach((i) => { bestPlan[i] = planA[i] })
+  })
+  const best = { plan: bestPlan }
 
   // --- post-process: enforce rules, compute c1/c2 ---
   const finalPlan = best.plan.map((p) => {
@@ -796,7 +863,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       c1: Math.max(0, Math.floor(c1)),
       c2: Math.max(0, Math.floor(c2)),
       payShown,
-      incomePct: monthlyIncome > 0 ? Math.round(payShown / monthlyIncome * 100) : 0,
+      incomePct: (() => { const base = (lePub && isPublicDebt(p.type)) ? pubDisp1 : monthlyIncome; return base > 0 ? Math.round(payShown / base * 100) : 0 })(),
       // Conservative scenario fields
       factorC, writeoffC,
       writeoffPctC: p.amount ? Math.round(writeoffC * 100 / p.amount) : 0,
@@ -810,14 +877,16 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const totalMonthlyPay = finalPlan.reduce((s, p) => s + (p.payShown || 0), 0)
   const totalC1 = finalPlan.reduce((s, p) => s + p.c1, 0)
   // ratio vs year1 (display); ratio5 vs years5+ (scenario logic — uses long-term income)
-  const ratio  = monthlyIncome  > 0 ? Math.round(totalMonthlyPay / monthlyIncome  * 100) : 0
+  // Νομικό Πρόσωπο with a separate ΑΑΔΕ/ΕΦΚΑ disposable: capacity = bank disposable + public disposable (year 1)
+  const capacityY1 = monthlyIncome + (lePub ? pubDisp1 : 0)
+  const ratio  = capacityY1  > 0 ? Math.round(totalMonthlyPay / capacityY1  * 100) : 0
   const ratio5 = monthlyDisp5   > 0 ? Math.round(totalMonthlyPay / monthlyDisp5   * 100) : 0
   // Conservative scenario aggregates
   const sumWrC = finalPlan.reduce((s, p) => s + p.writeoffC, 0)
   const totalRemainingC = finalPlan.reduce((s, p) => s + p.newAmtC, 0)
   const totalMonthlyPayC = finalPlan.reduce((s, p) => s + p.payShownC, 0)
   const totalC1C = finalPlan.reduce((s, p) => s + p.c1C, 0)
-  const ratioC = monthlyIncome > 0 ? Math.round(totalMonthlyPayC / monthlyIncome * 100) : 0
+  const ratioC = capacityY1 > 0 ? Math.round(totalMonthlyPayC / capacityY1 * 100) : 0
 
   const isFullCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp >= sumDebt
   const isPartialCoveredByAssets = sumDebt > 0 && sumAssetsAfterExp > 0 && sumAssetsAfterExp < sumDebt
@@ -848,7 +917,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     sumWrC, sumWrPctC: sumDebt ? Math.round(sumWrC * 100 / sumDebt) : 0,
     totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
-    flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly,
+    flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly, lePub,
     fpDispFromAvg, fpAvg2Income,
     fpEulogoMarginPct, fpEulogoPresumedIncome, fpEulogoNote,
   }

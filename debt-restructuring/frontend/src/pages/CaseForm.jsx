@@ -45,7 +45,7 @@ function defaultIncome() {
     savings: 0,
     // legacy single-year field (backward compat)
     annualIncome: 0,
-    // LE fields — 3-year data (ΚΥΑ 7712925/2025)
+    // LE fields — 3-year data (ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025))
     ke_t1: 0, ke_t2: 0, ke_t3: 0,
     kerdh_t1: null, kerdh_t2: null, kerdh_t3: null,
     leEnfia: 0,
@@ -502,38 +502,49 @@ export default function CaseForm({ currentEmployee }) {
         ) : null
       })()}
 
-      {/* flag_MAX_DOSES warning banner — ΦΕΚ Β' 2896/2021 §7.1/4 + ΚΥΑ 7712925/2025 */}
-      {calc?.flagMaxDoses && (() => {
-        const isFpSE = income.debtorType !== 'Νομικό Πρόσωπο' && income.fpSubType === 'Επιτηδευματίας'
-        if (isFpSE && calc.fpEulogoNote) {
-          return (
-            <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
-              <span className="text-xl shrink-0">⚡</span>
-              <div>
-                <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ ΚΕΡΔΟΥΣ — ΚΥΑ 77697/2021 §7.1.4</p>
-                <p className="text-sm text-amber-700">{calc.fpEulogoNote}</p>
-              </div>
-            </div>
-          )
-        }
-        const lawRef = 'ΚΥΑ 7712925/2025'
+      {/* Νομικό Πρόσωπο — κανόνας εύλογου ποσοστού κέρδους (10% × ΚΕ) για ΑΑΔΕ/ΕΦΚΑ — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025) */}
+      {income.debtorType === 'Νομικό Πρόσωπο' && calc?.lePub && (() => {
+        const lp = calc.lePub
         return (
-          <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
-            <span className="text-xl shrink-0">⚡</span>
-            <div>
-              <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ — {lawRef}</p>
-              <p className="text-sm text-amber-700 mb-1">
-                Το υπολογισθέν διαθέσιμο ({fmt(calc.leMoDispMonthly)}/μήνα) &lt; 10% × ΚΕ ({fmt(calc.leFloorMonthly)}/μήνα).
-              </p>
-              <ul className="text-sm text-amber-700 space-y-0.5">
-                <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>
-                <li>→ Εφαρμόζεται <b>μέγιστος</b> αριθμός δόσεων (<b>240 μήνες</b>) σε ΑΑΔΕ και ΕΦΚΑ — οι υπόλοιποι πιστωτές δεν επηρεάζονται</li>
-                <li>→ Η δόση ΑΑΔΕ/ΕΦΚΑ υπολογίζεται τοκοχρεωλυτικά για 240 μήνες</li>
-              </ul>
-            </div>
-          </div>
+          <>
+            {lp.warnings.length > 0 && (
+              <div className="mb-3 rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+                {lp.warnings.map((w, i) => <p key={i}>⚠️ {w}</p>)}
+              </div>
+            )}
+            {lp.ruleTriggered ? (
+              <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+                <span className="text-xl shrink-0">⚡</span>
+                <div>
+                  <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΥΛΟΓΟΥ ΠΟΣΟΣΤΟΥ — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025)</p>
+                  <p className="text-sm text-amber-700 mb-1">
+                    Κέρδη Τ-1 μετά ΕΝΦΙΑ ({fmt(lp.xBefore[0])}/έτος) &lt; 10% × ΚΕ Τ-1 ({fmt(lp.floors[0])}/έτος).
+                  </p>
+                  <ul className="text-sm text-amber-700 space-y-0.5">
+                    <li>→ Διαθέσιμο έτους 1: <b>{fmt(lp.monthly.year1)}/μήνα</b> · ετών 2–4: <b>{fmt(lp.monthly.years24)}/μήνα</b> · από έτος 5: <b>{fmt(lp.monthly.years5)}/μήνα</b></li>
+                    <li>→ Μέγιστος αριθμός δόσεων (<b>{lp.maxMonths} μήνες</b>) σε ΑΑΔΕ και ΕΦΚΑ</li>
+                  </ul>
+                </div>
+              </div>
+            ) : lp.eligible10 ? (
+              <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                Κανόνας 10% ΚΕ (Δημόσιο): δεν ενεργοποιείται — Κέρδη Τ-1 ({fmt(lp.xBefore[0])}) ≥ 10% ΚΕ Τ-1 ({fmt(lp.floors[0])}).
+              </div>
+            ) : null}
+          </>
         )
       })()}
+
+      {/* Επιτηδευματίας — εύλογο ποσοστό κέρδους (ΚΥΑ 77697/2021 §7.1.4) */}
+      {income.debtorType !== 'Νομικό Πρόσωπο' && calc?.flagMaxDoses && calc.fpEulogoNote && (
+        <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+          <span className="text-xl shrink-0">⚡</span>
+          <div>
+            <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ ΚΕΡΔΟΥΣ — ΚΥΑ 77697/2021 §7.1.4</p>
+            <p className="text-sm text-amber-700">{calc.fpEulogoNote}</p>
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {calc && calc.sumDebt > 0 && (
