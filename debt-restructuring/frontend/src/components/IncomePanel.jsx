@@ -14,6 +14,9 @@ const HOUSEHOLD_OPTIONS = [
 ]
 
 // Household size implied by each ΕΛΣΤΑΤ household type (drives rent cap + protected deposits)
+// Νομικό Πρόσωπο: Τ-1 = τελευταία κλεισμένη χρήση (τρέχον έτος − 1), ώστε να μην γίνεται ανάποδη καταχώρηση
+const LE_FISCAL_YEAR = new Date().getFullYear() - 1
+
 const HOUSEHOLD_SIZE = { 6448: 1, 10866: 2, 9096: 2, 13514: 3, 16162: 4, 18659: 5, 18810: 5, 21307: 6, 21458: 6 }
 
 function MoneyField({ label, id, value, onChange, placeholder = '', hint = '' }) {
@@ -217,18 +220,18 @@ export default function IncomePanel({ income, onChange, assets, onAssetsChange }
             <div>
               <p className="text-xs font-semibold text-blue-600 mb-1.5">Κύκλος Εργασιών — Ε3/500 (€)</p>
               <div className="grid grid-cols-3 gap-2">
-                <MoneyField label="Έτος Τ-1" value={income.ke_t1} onChange={(v) => set('ke_t1', v)} placeholder="π.χ. 500.000" />
-                <MoneyField label="Έτος Τ-2" value={income.ke_t2} onChange={(v) => set('ke_t2', v)} placeholder="π.χ. 480.000" />
-                <MoneyField label="Έτος Τ-3" value={income.ke_t3} onChange={(v) => set('ke_t3', v)} placeholder="π.χ. 460.000" />
+                <MoneyField label={`Έτος Τ-1 (χρήση ${LE_FISCAL_YEAR - 0})`} value={income.ke_t1} onChange={(v) => set('ke_t1', v)} placeholder="π.χ. 500.000" />
+                <MoneyField label={`Έτος Τ-2 (χρήση ${LE_FISCAL_YEAR - 1})`} value={income.ke_t2} onChange={(v) => set('ke_t2', v)} placeholder="π.χ. 480.000" />
+                <MoneyField label={`Έτος Τ-3 (χρήση ${LE_FISCAL_YEAR - 2})`} value={income.ke_t3} onChange={(v) => set('ke_t3', v)} placeholder="π.χ. 460.000" />
               </div>
             </div>
 
             <div>
               <p className="text-xs font-semibold text-blue-600 mb-1.5">Κέρδη / Ζημιές — Έντυπο Ν (€)</p>
               <div className="grid grid-cols-3 gap-2">
-                <SignedMoneyField label="Έτος Τ-1" value={income.kerdh_t1} onChange={(v) => set('kerdh_t1', v)} placeholder="π.χ. 30.000" />
-                <SignedMoneyField label="Έτος Τ-2" value={income.kerdh_t2} onChange={(v) => set('kerdh_t2', v)} placeholder="π.χ. 25.000" />
-                <SignedMoneyField label="Έτος Τ-3" value={income.kerdh_t3} onChange={(v) => set('kerdh_t3', v)} placeholder="π.χ. 20.000" />
+                <SignedMoneyField label={`Έτος Τ-1 (χρήση ${LE_FISCAL_YEAR - 0})`} value={income.kerdh_t1} onChange={(v) => set('kerdh_t1', v)} placeholder="π.χ. 30.000" />
+                <SignedMoneyField label={`Έτος Τ-2 (χρήση ${LE_FISCAL_YEAR - 1})`} value={income.kerdh_t2} onChange={(v) => set('kerdh_t2', v)} placeholder="π.χ. 25.000" />
+                <SignedMoneyField label={`Έτος Τ-3 (χρήση ${LE_FISCAL_YEAR - 2})`} value={income.kerdh_t3} onChange={(v) => set('kerdh_t3', v)} placeholder="π.χ. 20.000" />
               </div>
             </div>
 

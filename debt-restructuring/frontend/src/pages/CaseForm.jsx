@@ -505,8 +505,18 @@ export default function CaseForm({ currentEmployee }) {
       {/* Νομικό Πρόσωπο — κανόνας εύλογου ποσοστού κέρδους (10% × ΚΕ) για ΑΑΔΕ/ΕΦΚΑ — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025) */}
       {income.debtorType === 'Νομικό Πρόσωπο' && calc?.lePub && (() => {
         const lp = calc.lePub
+        const dur = calc.lePubDuration
         return (
           <>
+            {dur && (
+              <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                <p className="font-semibold">Διάρκεια ΑΑΔΕ / ΕΦΚΑ — ΚΥΑ 77697 ΕΞ 2021, όρος 7.14γ: <b>{dur.months} μήνες</b>{dur.covered ? '' : ' (μέγιστη — προκύπτει διαγραφή)'}</p>
+                <p className="text-xs mt-0.5">
+                  ΚΠΑ διαθέσιμου ({dur.months} μήνες, 3%): <b>{fmt(dur.kpa)}</b> {dur.covered ? '≥' : '<'} οφειλή ΑΑΔΕ + ΕΦΚΑ <b>{fmt(dur.debt)}</b>
+                  {dur.covered && dur.kpaPrev != null && <> · στους {dur.months - 12} μήνες η ΚΠΑ είναι {fmt(dur.kpaPrev)} (δεν καλύπτει)</>}
+                </p>
+              </div>
+            )}
             {lp.warnings.length > 0 && (
               <div className="mb-3 rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
                 {lp.warnings.map((w, i) => <p key={i}>⚠️ {w}</p>)}
@@ -522,7 +532,6 @@ export default function CaseForm({ currentEmployee }) {
                   </p>
                   <ul className="text-sm text-amber-700 space-y-0.5">
                     <li>→ Διαθέσιμο έτους 1: <b>{fmt(lp.monthly.year1)}/μήνα</b> · ετών 2–4: <b>{fmt(lp.monthly.years24)}/μήνα</b> · από έτος 5: <b>{fmt(lp.monthly.years5)}/μήνα</b></li>
-                    <li>→ Μέγιστος αριθμός δόσεων (<b>{lp.maxMonths} μήνες</b>) σε ΑΑΔΕ και ΕΦΚΑ</li>
                   </ul>
                 </div>
               </div>

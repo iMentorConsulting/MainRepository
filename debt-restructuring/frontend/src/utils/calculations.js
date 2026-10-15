@@ -287,8 +287,43 @@ export function computeLePublicDisposable(incomeData = {}, params = PARAMS_B) {
     annual: { year1, years24, years5 },
     monthly: { year1: year1 / 12, years24: years24 / 12, years5: years5 / 12 },
     ruleTriggered,
-    maxMonths: params.maxMonths.publicMax, // Βήμα 5 — 240 μήνες σε ΑΑΔΕ/ΕΦΚΑ όταν ενεργοποιείται
     warnings,
+  }
+}
+
+// ΚΠΑ (καθαρή παρούσα αξία) του κλιμακωτού διαθέσιμου εισοδήματος για n μήνες, με επιτόκιο 3% σε μηνιαία βάση.
+// Μήνες 1–12: έτος 1 · μήνες 13–48: έτη 2–4 · μήνες 49+: έτος 5 και μετά. Προεξόφληση τέλους μήνα.
+export function lePublicKpa(lePub, months, annualRate = PARAMS_B.publicRate) {
+  const r = annualRate / 12
+  let pv = 0
+  for (let m = 1; m <= months; m++) {
+    const monthly = m <= 12 ? lePub.monthly.year1 : m <= 48 ? lePub.monthly.years24 : lePub.monthly.years5
+    pv += monthly / Math.pow(1 + r, m)
+  }
+  return pv
+}
+
+// Διάρκεια ΑΑΔΕ/ΕΦΚΑ (ΚΥΑ 77697 ΕΞ 2021, όρος 7.14γ) — ΔΕΝ είναι «οφειλή ÷ διαθέσιμο».
+// Ξεκινά από 240 μήνες και μειώνεται κατά 12 όσο η ΚΠΑ για τη διάρκεια αυτή είναι ≥ της οφειλής
+// (δηλαδή δεν προκύπτει διαγραφή). Σταματά στην τελευταία διάρκεια που καλύπτει. Πάντα πολλαπλάσιο του 12.
+// Δεν ελέγχεται ότι η δόση είναι μικρότερη από το μηνιαίο εισόδημα κάθε έτους.
+// `debt` = συνολική οφειλή προς ΑΑΔΕ + ΕΦΚΑ· η ίδια διάρκεια εφαρμόζεται σε κάθε φορέα.
+export function lePublicDuration(lePub, debt, params = PARAMS_B) {
+  const maxN = params.maxMonths.publicMax
+  if (!lePub || !(debt > 0)) return null
+  if (lePublicKpa(lePub, maxN, params.publicRate) < debt) {
+    // Ούτε οι 240 μήνες καλύπτουν την οφειλή → προκύπτει διαγραφή
+    return { months: maxN, covered: false, debt, kpa: lePublicKpa(lePub, maxN, params.publicRate), kpaPrev: null }
+  }
+  let n = maxN
+  while (n > 12 && lePublicKpa(lePub, n - 12, params.publicRate) >= debt) n -= 12
+  return {
+    months: n,
+    covered: true,
+    debt,
+    kpa: lePublicKpa(lePub, n, params.publicRate),
+    // ΚΠΑ στη διάρκεια που δεν καλύπτει (για εμφάνιση/έλεγχο)
+    kpaPrev: n > 12 ? lePublicKpa(lePub, n - 12, params.publicRate) : null,
   }
 }
 
@@ -482,10 +517,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
         if (mo_diath < floor10) finalDiath = floor10
       }
 
-      // ΑΑΔΕ/ΕΦΚΑ: separate disposable (per-year 10% rule, ΚΥΑ 77129 ΕΞ 2025); the 240-installment
-      // cap applies to public creditors only when the rule is triggered for year Τ-1
+      // ΑΑΔΕ/ΕΦΚΑ: separate disposable (per-year 10% rule, ΚΥΑ 77129 ΕΞ 2025). The duration of public
+      // creditors comes from the ΚΠΑ rule (lePublicDuration), not from a forced 240 — flagMaxDoses stays false.
       lePub = computeLePublicDisposable(incomeData, params)
-      flagMaxDoses = lePub.ruleTriggered
       leMoDispMonthly = lePub.xBefore[0] / 12
       leFloorMonthly = lePub.floors[0] / 12
 
@@ -640,6 +674,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const pubDisp1  = lePub ? Math.max(0, lePub.monthly.year1)   : monthlyDisp1
   const pubDisp24 = lePub ? Math.max(0, lePub.monthly.years24) : monthlyDisp24
 
+  // ΑΑΔΕ/ΕΦΚΑ duration of a Νομικό Πρόσωπο (3-year data): ΚΠΑ rule on the total public debt
+  const lePubDuration = lePub
+    ? lePublicDuration(lePub, analysisRows.filter((r) => isPublicDebt(r.type)).reduce((a, r) => a + r.amount, 0), params)
+    : null
+
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
     const theoretical = getMaxMonths(r.type, isLE, r.isSecured, params)
@@ -648,6 +687,14 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     // (public debts) are forced to the maximum 240 installments — banks/other creditors are unaffected
     // and keep their own normal max-months & greedy-extension behaviour (ΚΥΑ 77697/2021 §7.1.4)
     const isForcedMax = flagMaxDoses && isPublicDebt(r.type)
+    if (lePubDuration && isPublicDebt(r.type)) {
+      // fixed duration from the ΚΠΑ rule (multiple of 12)
+      return {
+        idx: r.idx, type: r.type, isSecured: r.isSecured,
+        amount: r.amount, months: lePubDuration.months, maxMonths: lePubDuration.months,
+        legalMax: r.legalMax, calc: r.calc, writeoff: 0, newAmt: r.amount,
+      }
+    }
     const initMonths = isForcedMax ? maxM : Math.min(12, maxM)
     return {
       idx: r.idx, type: r.type, isSecured: r.isSecured,
@@ -663,7 +710,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const allIdx = analysisRows.map((_, i) => i)
   const incomeGroups = lePub
     ? [
-        { idxs: allIdx.filter((i) => isPublicDebt(analysisRows[i].type)), d1: pubDisp1, d24: pubDisp24 },
+        { pub: true, idxs: allIdx.filter((i) => isPublicDebt(analysisRows[i].type)), d1: pubDisp1, d24: pubDisp24 },
         { idxs: allIdx.filter((i) => !isPublicDebt(analysisRows[i].type)), d1: monthlyDisp1, d24: monthlyDisp24 },
       ].filter((g) => g.idxs.length > 0)
     : [{ idxs: allIdx, d1: monthlyDisp1, d24: monthlyDisp24 }]
@@ -816,7 +863,11 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   incomeGroups.forEach((g) => {
     const _c1 = sumFn(planA, debtC1, g.idxs)
     const _c2 = sumFn(planA, debtC2, g.idxs)
-    const feasible = g.d1 > 0 && _c1 <= g.d1 && (g.d24 <= 0 || _c2 <= g.d24)
+    // Public creditors of a Νομικό Πρόσωπο: covered by the ΚΠΑ rule → no write-off, fixed duration;
+    // the per-year "installment < monthly income" check is not applied to them.
+    const feasible = g.pub && lePubDuration
+      ? lePubDuration.covered
+      : g.d1 > 0 && _c1 <= g.d1 && (g.d24 <= 0 || _c2 <= g.d24)
     if (feasible) g.idxs.forEach((i) => { bestPlan[i] = planA[i] })
   })
   const best = { plan: bestPlan }
@@ -862,6 +913,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       newAmt, months,
       c1: Math.max(0, Math.floor(c1)),
       c2: Math.max(0, Math.floor(c2)),
+      c1Exact: Math.max(0, c1), c2Exact: Math.max(0, c2),  // unrounded installments (cents)
       payShown,
       incomePct: (() => { const base = (lePub && isPublicDebt(p.type)) ? pubDisp1 : monthlyIncome; return base > 0 ? Math.round(payShown / base * 100) : 0 })(),
       // Conservative scenario fields
@@ -917,7 +969,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     sumWrC, sumWrPctC: sumDebt ? Math.round(sumWrC * 100 / sumDebt) : 0,
     totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
-    flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly, lePub,
+    flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly, lePub, lePubDuration,
     fpDispFromAvg, fpAvg2Income,
     fpEulogoMarginPct, fpEulogoPresumedIncome, fpEulogoNote,
   }
