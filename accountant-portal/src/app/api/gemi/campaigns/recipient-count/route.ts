@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const programId = searchParams.get('programId') || null
   const requireProgramId2 = searchParams.get('requireProgramId2') || null
   const importBatch = searchParams.get('importBatch') || null
-  const region = searchParams.get('region') || null
+  const regions = searchParams.getAll('region').filter(Boolean)
   const category = searchParams.get('category') || null
   const hasReceivedCampaign = searchParams.get('hasReceivedCampaign') || null
   const tags = searchParams.getAll('tags').filter(Boolean)
@@ -38,8 +38,8 @@ export async function GET(req: NextRequest) {
   }
 
   if (importBatch) baseWhere.importBatch = importBatch
-  if (region) {
-    baseWhere.AND = [...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []), regionWhereClause(region)]
+  if (regions.length > 0) {
+    baseWhere.AND = [...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []), { OR: regions.map(regionWhereClause) }]
   }
   if (category) baseWhere.category = category
   if (tags.length > 0) baseWhere.tags = { hasSome: tags }
