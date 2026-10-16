@@ -101,6 +101,14 @@ export default function ResultsPanel({ calc, incomeData }) {
         </div>
       )}
 
+      {/* Installments above the disposable income — only when legal limits / fixed installments prevent a lower plan */}
+      {!calc.lePub && calc.monthlyDisp1 > 0 && (calc.capacityShortfall > 1 || calc.totalC1 > calc.monthlyDisp1 + 1 || calc.totalMonthlyPay > calc.monthlyDisp24 + 1) && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-800">
+          ⚠️ Οι δόσεις ({fmt(calc.totalC1)} / {fmt(calc.totalMonthlyPay)}) υπερβαίνουν το μηνιαίο διαθέσιμο ({fmt(calc.monthlyDisp1)}):
+          οι οφειλές «Ενήμερη», οι ελάχιστες δόσεις Δημοσίου και τα νομικά όρια διαγραφής δεν επιτρέπουν χαμηλότερο πλάνο.
+        </div>
+      )}
+
       {/* Income summary */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
         <p className="font-bold text-blue-800 mb-2">💶 Περίληψη Διαθέσιμου Εισοδήματος</p>

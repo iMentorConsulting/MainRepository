@@ -174,14 +174,17 @@ function debtC2(amount, months, type, isSecured, params) {
   if (!amount || amount <= 0 || !months || months <= 0) return 0
   const r1 = getPromoRate(type, isSecured, params)
   const r2 = getPostPromoRate(type, isSecured, params)
-  return stepUpPMT(amount, months, r1, r2, params.promoMonths).c2
+  const c2 = stepUpPMT(amount, months, r1, r2, params.promoMonths).c2
+  // public creditors pay at least the minimum installment (the duration is shortened accordingly later on)
+  return isPublicDebt(type) ? Math.max(c2, Math.min(params.minInstallment.publicTotal, amount)) : c2
 }
 
 function debtC1(amount, months, type, isSecured, params) {
   if (!amount || amount <= 0 || !months || months <= 0) return 0
   const r1 = getPromoRate(type, isSecured, params)
   const r2 = getPostPromoRate(type, isSecured, params)
-  return stepUpPMT(amount, months, r1, r2, params.promoMonths).c1
+  const c1 = stepUpPMT(amount, months, r1, r2, params.promoMonths).c1
+  return isPublicDebt(type) ? Math.max(c1, Math.min(params.minInstallment.publicTotal, amount)) : c1
 }
 
 // backward-compatible export (still used by DebtTable display)
@@ -800,27 +803,48 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
 
   // Βήμα 3: 3-layer (Στρώμα Α/Β/Γ) income distribution, per income group.
   // Use year-1 disposable as the binding monthly income constraint.
+  //  • Creditors with status «Ενήμερη» cannot receive a write-off: their installment is reserved FIRST
+  //    (full payment at settlement terms) and only the remaining income is distributed to the others.
+  //  • Public creditors (ΑΑΔΕ/ΕΦΚΑ) have a minimum installment (params.minInstallment.publicTotal) that is
+  //    part of Στρώμα Α (minimum installments).
+  //  • When no creditor has a minimum (no assets) Στρώμα Α is simply 0 — it is NOT zero income:
+  //    all income then goes to Στρώματα Β+Γ.
   const _wfFinalInst = new Array(analysisRows.length).fill(0)
+  const _isFixed = (i) => analysisRows[i].status === 'Ενήμερη'
+  const _fixedInst = (i) => {
+    const p = planBase[i]
+    return stepUpPMT(p.amount, p.maxMonths, getPromoRate(p.type, p.isSecured, params), getPostPromoRate(p.type, p.isSecured, params), params.promoMonths).c1
+  }
+  const _minAdj = analysisRows.map((r, i) => (
+    isPublicDebt(r.type) && r.amount > 0 ? Math.max(_wfMinInst[i], params.minInstallment.publicTotal) : _wfMinInst[i]
+  ))
+  let capacityShortfall = 0
   incomeGroups.forEach((g) => {
-    const _wfIncome = g.d1
-    const _totalMin = g.idxs.reduce((s, i) => s + _wfMinInst[i], 0)
-    const _totalFull = g.idxs.reduce((s, i) => s + _wfFullInst[i], 0)
-    if (_totalFull <= 0 || _wfIncome >= _totalFull) {
+    const fixedIdx = g.idxs.filter(_isFixed)
+    const flexIdx = g.idxs.filter((i) => !_isFixed(i))
+    const reserved = fixedIdx.reduce((sum, i) => sum + _fixedInst(i), 0)
+    fixedIdx.forEach((i) => { _wfFinalInst[i] = _fixedInst(i) })
+    const _wfIncome = Math.max(0, g.d1 - reserved)
+    const _totalMin = flexIdx.reduce((sum, i) => sum + _minAdj[i], 0)
+    const _totalFull = flexIdx.reduce((sum, i) => sum + _wfFullInst[i], 0)
+    if (g.d1 > 0) capacityShortfall = Math.max(capacityShortfall, reserved + _totalMin - g.d1)
+    if (flexIdx.length === 0) return
+    if (_totalFull <= 0 || _wfIncome >= Math.max(_totalFull, _totalMin)) {
       // Income covers all debts fully — no write-off needed
-      g.idxs.forEach((i) => { _wfFinalInst[i] = _wfFullInst[i] })
-    } else if (_wfIncome <= 0 || _totalMin <= 0) {
-      // Zero income — each creditor receives 0 (max write-offs applied below via artFloor)
-      g.idxs.forEach((i) => { _wfFinalInst[i] = 0 })
+      flexIdx.forEach((i) => { _wfFinalInst[i] = Math.max(_wfFullInst[i], _minAdj[i]) })
+    } else if (_wfIncome <= 0) {
+      // No income left — each creditor receives 0 (max write-offs applied below via artFloor)
+      flexIdx.forEach((i) => { _wfFinalInst[i] = 0 })
     } else if (_wfIncome <= _totalMin) {
       // Στρώμα Α only: income below all min-installment floors → pro-rata by floor
-      g.idxs.forEach((i) => { _wfFinalInst[i] = _wfMinInst[i] * _wfIncome / _totalMin })
+      flexIdx.forEach((i) => { _wfFinalInst[i] = _minAdj[i] * _wfIncome / _totalMin })
     } else {
       // Στρώμα Α satisfied; Στρώματα Β+Γ distribute remainder up to full installment
       const _rem = _wfIncome - _totalMin
-      const _cap = g.idxs.map((i) => Math.max(0, _wfFullInst[i] - _wfMinInst[i]))
-      const _totalCap = _cap.reduce((s, v) => s + v, 0)
+      const _cap = flexIdx.map((i) => Math.max(0, _wfFullInst[i] - _minAdj[i]))
+      const _totalCap = _cap.reduce((sum, v) => sum + v, 0)
       const _scale = _totalCap > 0 ? Math.min(1, _rem / _totalCap) : 0
-      g.idxs.forEach((i, j) => { _wfFinalInst[i] = _wfMinInst[i] + _cap[j] * _scale })
+      flexIdx.forEach((i, j) => { _wfFinalInst[i] = _minAdj[i] + _cap[j] * _scale })
     }
   })
 
@@ -837,7 +861,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     const artFloor = (r.mort && r.prop > 0) ? Math.min(r.amount, r.prop * params.collateralFactor) : 0
     const recovery = Math.max(Math.min(npvRec, r.amount), artFloor)
     const writeoff_raw = Math.max(0, r.amount - recovery)
-    const wr = Math.min(writeoff_raw, r.calc || 0)
+    const wr = r.status === 'Ενήμερη' ? 0 : Math.min(writeoff_raw, r.calc || 0)
     return { ...p, writeoff: wr, newAmt: Math.max(0, p.amount - wr), months: n }
   })
 
@@ -856,6 +880,55 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
       p.newAmt = Math.max(0, p.amount - p.writeoff)
     })
   }
+
+  // --- Capacity guard ---
+  // The layered distribution works at reference rates; actual installments use the settlement rates (promo
+  // c1, post-promo c2). Make sure the plan never asks for more than the disposable income (year 1 for c1,
+  // years 2–4 for c2): if it does, raise the write-offs of the creditors that can still take one
+  // (not «Ενήμερη», below their legal maximum, not already at the public minimum installment).
+  incomeGroups.forEach((g) => {
+    // Same rule as the post-processing below: a public creditor whose installment would fall under the
+    // minimum gets a shorter duration, so it actually pays at least the minimum installment.
+    const payOf = (i) => {
+      const p = waterfallPlan[i]
+      const r1 = getPromoRate(p.type, p.isSecured, params), r2 = getPostPromoRate(p.type, p.isSecured, params)
+      let months = p.months
+      let pay = stepUpPMT(p.newAmt, months, r1, r2, params.promoMonths)
+      let shortened = false
+      if (isPublicDebt(p.type) && p.newAmt > 0 && pay.c2 < params.minInstallment.publicTotal) {
+        while (months > 1 && pay.c2 < params.minInstallment.publicTotal) {
+          months--
+          pay = stepUpPMT(p.newAmt, months, r1, r2, params.promoMonths)
+          shortened = true
+        }
+      }
+      return { ...pay, shortened }
+    }
+    for (let iter = 0; iter < 25; iter++) {
+      let fixed1 = 0, fixed2 = 0, flex1 = 0, flex2 = 0
+      const flexIdx = []
+      g.idxs.forEach((i) => {
+        const r = analysisRows[i]
+        const { c1, c2, shortened } = payOf(i)
+        const atMin = isPublicDebt(r.type) && (shortened || c2 <= params.minInstallment.publicTotal + 0.01)
+        const atLegalMax = waterfallPlan[i].newAmt <= r.amount - (r.calc || 0) + 0.01
+        if (r.status === 'Ενήμερη' || atMin || atLegalMax || waterfallPlan[i].newAmt <= 0) { fixed1 += c1; fixed2 += c2 }
+        else { flex1 += c1; flex2 += c2; flexIdx.push(i) }
+      })
+      if (flexIdx.length === 0) break
+      const f1 = g.d1 > 0 && flex1 > 0 ? (g.d1 - fixed1) / flex1 : Infinity
+      const f2 = g.d24 > 0 && flex2 > 0 ? (g.d24 - fixed2) / flex2 : Infinity
+      const f = Math.min(f1, f2)
+      if (!(f < 0.9999)) break
+      const factor = Math.max(0, f)
+      flexIdx.forEach((i) => {
+        const r = analysisRows[i]
+        const newAmt = Math.max(r.amount - (r.calc || 0), waterfallPlan[i].newAmt * factor)
+        waterfallPlan[i].newAmt = newAmt
+        waterfallPlan[i].writeoff = Math.max(0, r.amount - newAmt)
+      })
+    }
+  })
 
   // If planA (greedy month extension, zero write-offs) already fits within an income group's capacity,
   // use it directly for that group — no write-offs needed, shorter term is correct.
@@ -969,7 +1042,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     sumWrC, sumWrPctC: sumDebt ? Math.round(sumWrC * 100 / sumDebt) : 0,
     totalRemainingC, totalMonthlyPayC, totalC1C, ratioC,
     scenario, lowIncome, isFullCoveredByAssets, isPartialCoveredByAssets,
-    flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly, lePub, lePubDuration,
+    flagMaxDoses, isFPEpit, leMoDispMonthly, leFloorMonthly, lePub, lePubDuration, capacityShortfall,
     fpDispFromAvg, fpAvg2Income,
     fpEulogoMarginPct, fpEulogoPresumedIncome, fpEulogoNote,
   }
