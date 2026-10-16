@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { regionWhereClause } from '@/lib/greek-regions'
 
 export async function GET(req: NextRequest) {
   const session = await auth()
@@ -37,7 +38,9 @@ export async function GET(req: NextRequest) {
   }
 
   if (importBatch) baseWhere.importBatch = importBatch
-  if (region) baseWhere.postalAreaDescription = region
+  if (region) {
+    baseWhere.AND = [...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []), regionWhereClause(region)]
+  }
   if (category) baseWhere.category = category
   if (tags.length > 0) baseWhere.tags = { hasSome: tags }
   if (excludeTags.length > 0) baseWhere.NOT = { tags: { hasSome: excludeTags } }
