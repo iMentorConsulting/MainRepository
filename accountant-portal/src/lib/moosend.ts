@@ -67,11 +67,18 @@ export async function sendMoosendBulkPersonalized(opts: {
   }
 
   // 3. Add all subscribers with their personalized variable values,
-  // truncated to Moosend's 365-char custom field limit.
+  // truncated to Moosend's 365-char custom field limit. Moosend's subscribe
+  // API rejects a CustomFields value outright if it contains any of
+  // < > " ' % & + ? (likely because these conflict with its own "Name=Value"
+  // string parsing / merge-tag engine) — strip them rather than let one bad
+  // character (e.g. an "&" in a business name, or a "?" in a per-recipient
+  // link) fail that subscriber's personalization, or in the worst case —
+  // when every recipient shares the same offending variable — the entire send.
   const truncate = (v: string) => (v.length > MAX_FIELD_LEN ? v.slice(0, MAX_FIELD_LEN - 1) + '…' : v)
+  const sanitizeFieldValue = (v: string) => v.replace(/[<>"'%&+?]/g, '')
   const subscribers = opts.recipients.map(r => ({
     Email: r.email,
-    CustomFields: perRecipientVars.map(v => `${v}=${truncate(r.variables[v] ?? '')}`),
+    CustomFields: perRecipientVars.map(v => `${v}=${sanitizeFieldValue(truncate(r.variables[v] ?? ''))}`),
   }))
   const addedCount = await addSubscribersToList(listId, subscribers)
   if (addedCount === 0) {

@@ -137,7 +137,12 @@ export async function buildRecipientVariables(gemiId: string, programId: string,
   const onomasia = gemi.onomasia ?? afm
   const unsubscribeLink = gemi.unsubscribeToken ? `${APP_URL}/api/gemi/unsubscribe/${gemi.unsubscribeToken}` : ''
   const ermisLink = programVars['ermis_link'] ?? ''
-  const exodikastikosLink = ermisLink ? `${ermisLink}?type=themis` : '#'
+  // exodikastikos_link becomes a per-recipient Moosend custom field value
+  // (see sendMoosendBulkPersonalized) — Moosend's subscribe API rejects field
+  // values containing "?" (and &, %, +, <, >, ", ', among others), so this
+  // must stay query-string-free. /ge/[token]/themis is the path-based
+  // equivalent of /ge/[token]?type=themis (see that route for why).
+  const exodikastikosLink = ermisLink ? `${ermisLink}/themis` : '#'
 
   // Cross-selling: other matched programs beyond the primary
   const otherPrograms = allMatches.filter(m => m.programId !== resolvedProgramId)
