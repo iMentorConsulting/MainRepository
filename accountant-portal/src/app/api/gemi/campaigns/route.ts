@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
   }
 
   const data = await request.json()
-  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, programId3, requireBothPrograms, targetGemiIds, region, category, importBatch, hasReceivedCampaign, tags, excludeTags } = data
+  const { title, channel, subject, previewText, htmlContent, messageTemplate, programId, programId2, programId3, requireBothPrograms, targetGemiIds, regions, category, importBatch, hasReceivedCampaign, tags, excludeTags } = data
 
   if (!title || !channel) {
     return NextResponse.json({ error: 'title and channel are required' }, { status: 400 })
@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
       }
     }
     if (importBatch) baseWhere.importBatch = importBatch
-    if (region) {
-      baseWhere.AND = [...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []), regionWhereClause(region)]
+    if (Array.isArray(regions) && regions.length > 0) {
+      baseWhere.AND = [...(Array.isArray(baseWhere.AND) ? baseWhere.AND : []), { OR: regions.map(regionWhereClause) }]
     }
     if (category) baseWhere.category = category
     if (Array.isArray(tags) && tags.length > 0) baseWhere.tags = { hasSome: tags }

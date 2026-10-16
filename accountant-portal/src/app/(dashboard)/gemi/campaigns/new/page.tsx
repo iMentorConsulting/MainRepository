@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Select } from '@/components/ui/select'
+import { MultiSelect } from '@/components/ui/multi-select'
 import { ArrowLeft, Send, Users, Mail, MessageCircle, FlaskConical, FileText, Tag } from 'lucide-react'
 import { Suspense } from 'react'
 
@@ -94,7 +95,7 @@ function NewGemiCampaignPageInner() {
   const [viberMessage, setViberMessage] = useState('')
 
   // Filters
-  const [region, setRegion] = useState('')
+  const [regions, setRegions] = useState<string[]>([])
   const [category, setCategory] = useState('')
   const [importBatch, setImportBatch] = useState('')
   const [hasReceivedCampaign, setHasReceivedCampaign] = useState<'' | 'true' | 'false'>('')
@@ -141,7 +142,7 @@ function NewGemiCampaignPageInner() {
     const params = new URLSearchParams({ channel })
     if (programId) params.set('programId', programId)
     if (requireBothPrograms && programId && programId2) params.set('requireProgramId2', programId2)
-    if (region) params.set('region', region)
+    regions.forEach(r => params.append('region', r))
     if (category) params.set('category', category)
     if (importBatch) params.set('importBatch', importBatch)
     if (hasReceivedCampaign) params.set('hasReceivedCampaign', hasReceivedCampaign)
@@ -150,7 +151,7 @@ function NewGemiCampaignPageInner() {
     const res = await fetch(`/api/gemi/campaigns/recipient-count?${params}`)
     if (res.ok) setRecipientCount(await res.json())
     setCountLoading(false)
-  }, [channel, programId, programId2, requireBothPrograms, region, category, importBatch, hasReceivedCampaign, selectedTags, excludeTags])
+  }, [channel, programId, programId2, requireBothPrograms, regions, category, importBatch, hasReceivedCampaign, selectedTags, excludeTags])
 
   useEffect(() => { fetchCount() }, [fetchCount])
 
@@ -207,7 +208,7 @@ function NewGemiCampaignPageInner() {
         ...(testRecipients.length > 0
           ? { targetGemiIds: testRecipients.map(r => r.id) }
           : {
-              region: region || undefined,
+              regions: regions.length > 0 ? regions : undefined,
               category: category || undefined,
               importBatch: importBatch || undefined,
               hasReceivedCampaign: hasReceivedCampaign || undefined,
@@ -441,16 +442,13 @@ function NewGemiCampaignPageInner() {
         <div className="space-y-3">
           <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Φίλτρα</p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Select
+            <MultiSelect
               label="Περιφέρεια"
-              value={region}
-              onChange={e => setRegion(e.target.value)}
-            >
-              <option value="">— Όλες —</option>
-              {filterOptions.regions.map(r => (
-                <option key={r} value={r}>{r}</option>
-              ))}
-            </Select>
+              placeholder="— Όλες —"
+              options={filterOptions.regions.map(r => ({ value: r, label: r }))}
+              selected={regions}
+              onChange={setRegions}
+            />
             <Select
               label="Κλάδος"
               value={category}
