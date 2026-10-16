@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
   }
 
   const body = await req.json().catch(() => ({}))
-  const to: string = typeof body.to === 'string' && body.to.trim() ? body.to.trim() : '6973315365'
+  const to: string = typeof body.to === 'string' && body.to.trim() ? body.to.trim() : '6952101541'
   const text: string = typeof body.text === 'string' && body.text.trim()
     ? body.text.trim()
     : `[TEST] Logistis Viber test — ${new Date().toLocaleString('el-GR')}`

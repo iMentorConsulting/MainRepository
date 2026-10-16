@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs'
 import crypto from 'crypto'
 import { z } from 'zod'
 
-const ADMIN_VIBER_NUMBER = '6973315365'
+const ADMIN_VIBER_NUMBER = '6952101541'
 
 const schema = z.object({
   officeName: z.string().min(2),
