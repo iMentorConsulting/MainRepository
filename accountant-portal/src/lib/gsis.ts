@@ -201,10 +201,21 @@ function parseGsisResponse(text: string, afm: string): GsisBusinessData | null {
   const rawLegalStatusDescr = extractTag(text, 'legal_status_descr')
   const legalStatusDescr = rawLegalStatusDescr || (activities.length > 0 ? 'ΑΤΟΜΙΚΗ' : rawLegalStatusDescr)
 
+  // AADE returns a sole proprietor's name as ΕΠΩΝΥΜΟ ΟΝΟΜΑ ΠΑΤΡΩΝΥΜΟ (surname,
+  // first name, father's name as a single trailing word) — e.g. "ΠΑΠΑΘΑΝΑΣΙΟΥ
+  // ΒΑΣΙΛΙΚΗ ΑΘΑΝΑΣΙΟΣ". Logistis only wants ΕΠΩΝΥΜΟ ΟΝΟΜΑ displayed/stored,
+  // so drop the last token for ΑΤΟΜΙΚΗ businesses — safe even for multi-word
+  // surnames, since the πατρώνυμο is always exactly one trailing word.
+  const displayOnomasia = (() => {
+    if (!legalStatusDescr?.includes('ΑΤΟΜΙΚΗ')) return onomasia
+    const parts = onomasia.trim().split(/\s+/)
+    return parts.length > 2 ? parts.slice(0, -1).join(' ') : onomasia
+  })()
+
   return {
     afm,
-    onomasia,
-    commercialTitle: extractTag(text, 'commer_title') || extractTag(text, 'commercial_title') || onomasia,
+    onomasia: displayOnomasia,
+    commercialTitle: extractTag(text, 'commer_title') || extractTag(text, 'commercial_title') || displayOnomasia,
     legalStatusDescr,
     firmFlagDescr: extractTag(text, 'firm_flag_descr'),
     iNiFlagDescr: extractTag(text, 'i_ni_flag_descr'),

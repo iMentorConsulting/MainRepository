@@ -116,6 +116,33 @@ async function main() {
     }
   } catch (e) { console.log('  Ptoxeusi commission setup skip:', e.message) }
 
+  // AADE returns a sole proprietor's name as ΕΠΩΝΥΜΟ ΟΝΟΜΑ ΠΑΤΡΩΝΥΜΟ (e.g.
+  // "ΠΑΠΑΘΑΝΑΣΙΟΥ ΒΑΣΙΛΙΚΗ ΑΘΑΝΑΣΙΟΣ") — gsis.ts now drops the trailing
+  // father's-name word for new ΑΤΟΜΙΚΗ lookups, but existing Business rows
+  // added before that fix still carry it. Backfill: only touches rows whose
+  // legalStatusDescr contains ΑΤΟΜΙΚΗ and whose onomasia has more than 2
+  // words (so a 2-word name, already correct, is left alone). commercialTitle
+  // is updated first, only where it still matches the untrimmed onomasia, so
+  // a deliberately different value an admin set is never overwritten.
+  try {
+    const titles = await prisma.$executeRawUnsafe(`
+      UPDATE "Business"
+      SET "commercialTitle" = regexp_replace(onomasia, '\\s+\\S+$', '')
+      WHERE "legalStatusDescr" ILIKE '%ΑΤΟΜΙΚΗ%'
+        AND "commercialTitle" = onomasia
+        AND array_length(regexp_split_to_array(trim(onomasia), '\\s+'), 1) > 2
+    `)
+    console.log(`  Backfilled commercialTitle (dropped father's name) on ${titles} Business rows`)
+
+    const names = await prisma.$executeRawUnsafe(`
+      UPDATE "Business"
+      SET onomasia = regexp_replace(onomasia, '\\s+\\S+$', '')
+      WHERE "legalStatusDescr" ILIKE '%ΑΤΟΜΙΚΗ%'
+        AND array_length(regexp_split_to_array(trim(onomasia), '\\s+'), 1) > 2
+    `)
+    console.log(`  Backfilled onomasia (dropped father's name) on ${names} Business rows`)
+  } catch (e) { console.log('  ΑΤΟΜΙΚΗ father-name backfill skip:', e.message) }
+
   console.log('>>> Pre-migration done.')
 }
 
