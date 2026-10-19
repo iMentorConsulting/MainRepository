@@ -98,6 +98,14 @@ router.post('/', async (req, res) => {
     res.status(201).json({ ok: true, id: inserted.id, created: true });
   } catch (e) {
     console.error('[lead-intake] error:', e.message);
+    // Log field lengths to help diagnose varchar overflow
+    try {
+      const b = req.body;
+      const lengths = Object.fromEntries(
+        Object.entries(b).filter(([,v]) => typeof v === 'string').map(([k,v]) => [k, v.length])
+      );
+      console.error('[lead-intake] field lengths:', JSON.stringify(lengths));
+    } catch (_) {}
     res.status(500).json({ error: e.message });
   }
 });
