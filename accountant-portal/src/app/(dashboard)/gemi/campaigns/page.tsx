@@ -98,8 +98,19 @@ export default function GemiCampaignsPage() {
     loadCampaigns()
   }
 
-  async function deleteCampaign(id: string, title: string) {
-    if (!confirm(`Διαγραφή καμπάνιας «${title}»; Η ενέργεια δεν αναιρείται.`)) return
+  async function deleteCampaign(id: string, title: string, status: string) {
+    // Email sending runs asynchronously via a background cron after "Αποστολή"
+    // is clicked (status flips to SENDING immediately, Moosend's actual send
+    // happens on the next cron pass) — once Moosend's send call has fired,
+    // there is no "cancel send" on their side. Deleting the Logistis record
+    // at that point only removes it from this list; it does NOT stop or
+    // un-send anything already dispatched. Make that explicit so a DRAFT
+    // deletion (a real, effective cancel) isn't confused with one that's too
+    // late to matter.
+    const confirmMsg = status === 'DRAFT'
+      ? `Διαγραφή καμπάνιας «${title}»; Η ενέργεια δεν αναιρείται.`
+      : `Η καμπάνια «${title}» έχει κατάσταση "${statusLabel[status] || status}" — η αποστολή μπορεί να έχει ήδη ξεκινήσει ή ολοκληρωθεί μέσω Moosend.\n\nΗ ΔΙΑΓΡΑΦΗ ΔΕΝ ΑΚΥΡΩΝΕΙ ΚΑΙ ΔΕΝ ΣΤΑΜΑΤΑΕΙ ΤΗΝ ΑΠΟΣΤΟΛΗ — αφαιρεί μόνο την εγγραφή από το Logistis. Συνέχεια;`
+    if (!confirm(confirmMsg)) return
     setDeleting(id)
     try {
       const res = await fetch(`/api/gemi/campaigns/${id}`, { method: 'DELETE' })
@@ -318,7 +329,7 @@ export default function GemiCampaignsPage() {
                           size="sm"
                           variant="ghost"
                           loading={deleting === c.id}
-                          onClick={() => deleteCampaign(c.id, c.title)}
+                          onClick={() => deleteCampaign(c.id, c.title, c.status)}
                           className="text-red-500 hover:text-red-700 hover:bg-red-50"
                         >
                           <Trash2 size={13} />
