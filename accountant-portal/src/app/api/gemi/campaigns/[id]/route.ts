@@ -72,8 +72,10 @@ export async function DELETE(_req: NextRequest, { params }: { params: Promise<{ 
   const campaign = await prisma.gemiCampaign.findUnique({ where: { id }, select: { id: true } })
   if (!campaign) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  await prisma.gemiCampaignRecipient.deleteMany({ where: { campaignId: id } })
-  await prisma.gemiCampaign.delete({ where: { id } })
+  // Soft delete: a campaign row (and its moosendCampaignId) is the only way
+  // to pull stats back from Moosend for a send that already went out, so
+  // this must stay recoverable rather than destroying that pointer outright.
+  await prisma.gemiCampaign.update({ where: { id }, data: { archivedAt: new Date() } })
 
   return NextResponse.json({ ok: true })
 }

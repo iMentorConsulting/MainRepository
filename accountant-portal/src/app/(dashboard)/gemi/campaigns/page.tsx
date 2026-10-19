@@ -56,6 +56,8 @@ export default function GemiCampaignsPage() {
   const [syncing, setSyncing] = useState<string | null>(null)
   const [syncingAll, setSyncingAll] = useState(false)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [restoring, setRestoring] = useState<string | null>(null)
+  const [showArchived, setShowArchived] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
   // Extra Moosend ID inputs keyed by campaign id
   const [extraIds, setExtraIds] = useState<Record<string, string>>({})
@@ -67,16 +69,16 @@ export default function GemiCampaignsPage() {
     setTimeout(() => setToast(null), 5000)
   }
 
-  function loadCampaigns() {
+  function loadCampaigns(archived = showArchived) {
     setLoading(true)
-    fetch('/api/gemi/campaigns')
+    fetch(`/api/gemi/campaigns${archived ? '?includeArchived=1' : ''}`)
       .then(r => r.json())
       .then(d => setCampaigns(d.campaigns || d || []))
       .catch(() => setCampaigns([]))
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { loadCampaigns() }, [])
+  useEffect(() => { loadCampaigns() }, [showArchived])
 
   async function syncAllStats() {
     const syncable = campaigns.filter((c: any) => c.moosendCampaignId)
@@ -102,29 +104,48 @@ export default function GemiCampaignsPage() {
     // Email sending runs asynchronously via a background cron after "Αποστολή"
     // is clicked (status flips to SENDING immediately, Moosend's actual send
     // happens on the next cron pass) — once Moosend's send call has fired,
-    // there is no "cancel send" on their side. Deleting the Logistis record
-    // at that point only removes it from this list; it does NOT stop or
-    // un-send anything already dispatched. Make that explicit so a DRAFT
-    // deletion (a real, effective cancel) isn't confused with one that's too
-    // late to matter.
+    // there is no "cancel send" on their side. This action only archives
+    // (hides) the campaign — it does NOT stop or un-send anything already
+    // dispatched. The campaign row (and its moosendCampaignId, needed to
+    // pull stats back from Moosend) is kept and can be restored from the
+    // "Αρχειοθετημένες" view, specifically so this can't destroy the only
+    // record of a send the way an outright delete used to.
     const confirmMsg = status === 'DRAFT'
-      ? `Διαγραφή καμπάνιας «${title}»; Η ενέργεια δεν αναιρείται.`
-      : `Η καμπάνια «${title}» έχει κατάσταση "${statusLabel[status] || status}" — η αποστολή μπορεί να έχει ήδη ξεκινήσει ή ολοκληρωθεί μέσω Moosend.\n\nΗ ΔΙΑΓΡΑΦΗ ΔΕΝ ΑΚΥΡΩΝΕΙ ΚΑΙ ΔΕΝ ΣΤΑΜΑΤΑΕΙ ΤΗΝ ΑΠΟΣΤΟΛΗ — αφαιρεί μόνο την εγγραφή από το Logistis. Συνέχεια;`
+      ? `Αρχειοθέτηση καμπάνιας «${title}»;`
+      : `Η καμπάνια «${title}» έχει κατάσταση "${statusLabel[status] || status}" — η αποστολή μπορεί να έχει ήδη ξεκινήσει ή ολοκληρωθεί μέσω Moosend.\n\nΗ ΑΡΧΕΙΟΘΕΤΗΣΗ ΔΕΝ ΑΚΥΡΩΝΕΙ ΚΑΙ ΔΕΝ ΣΤΑΜΑΤΑΕΙ ΤΗΝ ΑΠΟΣΤΟΛΗ — απλώς κρύβει την εγγραφή από αυτή τη λίστα (μπορείτε να την επαναφέρετε από τις "Αρχειοθετημένες"). Συνέχεια;`
     if (!confirm(confirmMsg)) return
     setDeleting(id)
     try {
       const res = await fetch(`/api/gemi/campaigns/${id}`, { method: 'DELETE' })
       if (res.ok) {
-        showToast('Η καμπάνια διαγράφηκε.', true)
+        showToast('Η καμπάνια αρχειοθετήθηκε.', true)
         loadCampaigns()
       } else {
         const data = await res.json().catch(() => ({}))
-        showToast(data.error || 'Σφάλμα διαγραφής.', false)
+        showToast(data.error || 'Σφάλμα αρχειοθέτησης.', false)
       }
     } catch {
       showToast('Σφάλμα δικτύου.', false)
     } finally {
       setDeleting(null)
+    }
+  }
+
+  async function restoreCampaign(id: string) {
+    setRestoring(id)
+    try {
+      const res = await fetch(`/api/gemi/campaigns/${id}/restore`, { method: 'POST' })
+      if (res.ok) {
+        showToast('Η καμπάνια επαναφέρθηκε.', true)
+        loadCampaigns()
+      } else {
+        const data = await res.json().catch(() => ({}))
+        showToast(data.error || 'Σφάλμα επαναφοράς.', false)
+      }
+    } catch {
+      showToast('Σφάλμα δικτύου.', false)
+    } finally {
+      setRestoring(null)
     }
   }
 
@@ -219,12 +240,17 @@ export default function GemiCampaignsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">ΓΕΜΗ — Καμπάνιες</h1>
-          <p className="text-gray-500 mt-1">{campaigns.length} καμπάνιες</p>
+          <p className="text-gray-500 mt-1">{campaigns.length} {showArchived ? 'αρχειοθετημένες καμπάνιες' : 'καμπάνιες'}</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={syncAllStats} loading={syncingAll}>
-            <RefreshCw size={14} className="mr-1.5" />Sync Όλων
+          <Button variant={showArchived ? 'default' : 'outline'} size="sm" onClick={() => setShowArchived(v => !v)}>
+            {showArchived ? 'Ενεργές' : 'Αρχειοθετημένες'}
           </Button>
+          {!showArchived && (
+            <Button variant="outline" size="sm" onClick={syncAllStats} loading={syncingAll}>
+              <RefreshCw size={14} className="mr-1.5" />Sync Όλων
+            </Button>
+          )}
           <Link href="/gemi/campaigns/new">
             <Button><Plus size={16} className="mr-2" />Νέα Καμπάνια</Button>
           </Link>
@@ -325,15 +351,27 @@ export default function GemiCampaignsPage() {
                         <Link href={`/gemi/campaigns/${c.id}`}>
                           <Button size="sm" variant="ghost">Λεπτομέρειες</Button>
                         </Link>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          loading={deleting === c.id}
-                          onClick={() => deleteCampaign(c.id, c.title, c.status)}
-                          className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                        >
-                          <Trash2 size={13} />
-                        </Button>
+                        {showArchived ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            loading={restoring === c.id}
+                            onClick={() => restoreCampaign(c.id)}
+                          >
+                            Επαναφορά
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            loading={deleting === c.id}
+                            onClick={() => deleteCampaign(c.id, c.title, c.status)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            title="Αρχειοθέτηση"
+                          >
+                            <Trash2 size={13} />
+                          </Button>
+                        )}
                       </div>
                     </Td>
                   </TableRow>
