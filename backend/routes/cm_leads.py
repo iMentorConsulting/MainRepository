@@ -2387,7 +2387,7 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
         "service_type": body.service_type,
         "targeting_category": body.targeting_category,
         "work_status": body.work_status,
-        "description": _trim(body.description, 500),
+        "description": _trim(body.description),
     }
     if body.address:
         payload["address"] = _trim(body.address)
