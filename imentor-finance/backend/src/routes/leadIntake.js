@@ -22,6 +22,8 @@ async function ensureColumns() {
   _migrated = true;
 }
 
+const _s = (v, n = 255) => (v == null ? '' : String(v)).slice(0, n);
+
 // POST /api/lead-intake
 // Idempotent: if external_id already exists, returns the existing record.
 router.post('/', async (req, res) => {
@@ -68,24 +70,24 @@ router.post('/', async (req, res) => {
       ) RETURNING id`,
       {
         replacements: {
-          external_id,
-          customer_name: customer_name || '',
-          vat_number: vat_number || '',
-          phone: phone || '',
-          email: email || '',
-          sales_agent: sales_agent || '',
+          external_id: _s(external_id, 200),
+          customer_name: _s(customer_name),
+          vat_number: _s(vat_number),
+          phone: _s(phone),
+          email: _s(email),
+          sales_agent: _s(sales_agent),
           sale_date: sale_date || null,
-          source_referral: source_referral || '',
-          invoice_type: invoice_type || '',
+          source_referral: _s(source_referral),
+          invoice_type: _s(invoice_type, 50),
           amount_collected: amount_collected != null ? parseFloat(amount_collected) : null,
           vat_amount: vat_amount != null ? parseFloat(vat_amount) : null,
-          organization: organization || '',
-          service_type: service_type || '',
-          targeting_category: targeting_category || '',
-          work_status: work_status || '',
-          description: description || '',
-          address: address || '',
-          city: city || '',
+          organization: _s(organization, 100),
+          service_type: _s(service_type),
+          targeting_category: _s(targeting_category),
+          work_status: _s(work_status),
+          description: _s(description),
+          address: _s(address),
+          city: _s(city),
           amount_application: amount_application != null ? parseFloat(amount_application) : null,
           amount_implementation: amount_implementation != null ? parseFloat(amount_implementation) : null,
         },
