@@ -2371,7 +2371,7 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
         return (s or "")[:n]
 
     payload = {
-        "external_id": external_id,
+        "external_id": _trim(external_id, 200),
         "source": "case_management",
         "customer_name": _trim(lead.name),
         "vat_number": _trim(lead.afm),
@@ -2380,15 +2380,18 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
         "sales_agent": _trim(lead.assigned_name or current_user.username),
         "sale_date": sale_date,
         "source_referral": _trim(body.source_referral or lead.source or ""),
-        "invoice_type": body.invoice_type,
+        "invoice_type": _trim(body.invoice_type, 50),
         "amount_collected": body.amount_collected,
         "vat_amount": body.vat_amount,
-        "organization": body.organization,
-        "service_type": body.service_type,
-        "targeting_category": body.targeting_category,
-        "work_status": body.work_status,
+        "organization": _trim(body.organization, 100),
+        "service_type": _trim(body.service_type),
+        "targeting_category": _trim(body.targeting_category),
+        "work_status": _trim(body.work_status),
         "description": _trim(body.description),
     }
+    # Log all string field lengths to help diagnose any future overflow
+    _str_lens = {k: len(v) for k, v in payload.items() if isinstance(v, str)}
+    _logger.info("send-to-finance payload lengths for lead %s: %s", lead_id, _str_lens)
     if body.address:
         payload["address"] = _trim(body.address)
     if body.city:
