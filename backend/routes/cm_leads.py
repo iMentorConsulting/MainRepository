@@ -2367,16 +2367,19 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
     sale_date = body.sale_date or date.today().isoformat()
     external_id = f"cm-{lead_id}-{sale_date.replace('-', '')}-{body.invoice_type}"
 
+    def _trim(s, n=255):
+        return (s or "")[:n]
+
     payload = {
         "external_id": external_id,
         "source": "case_management",
-        "customer_name": lead.name or "",
-        "vat_number": lead.afm or "",
-        "phone": lead.phone or "",
-        "email": lead.email or "",
-        "sales_agent": lead.assigned_name or current_user.username,
+        "customer_name": _trim(lead.name),
+        "vat_number": _trim(lead.afm),
+        "phone": _trim(lead.phone),
+        "email": _trim(lead.email),
+        "sales_agent": _trim(lead.assigned_name or current_user.username),
         "sale_date": sale_date,
-        "source_referral": body.source_referral or lead.source or "",
+        "source_referral": _trim(body.source_referral or lead.source or ""),
         "invoice_type": body.invoice_type,
         "amount_collected": body.amount_collected,
         "vat_amount": body.vat_amount,
@@ -2384,12 +2387,12 @@ def _send_to_finance_inner(lead_id, body, db, current_user, _os, _req, _logger):
         "service_type": body.service_type,
         "targeting_category": body.targeting_category,
         "work_status": body.work_status,
-        "description": body.description,
+        "description": _trim(body.description, 500),
     }
     if body.address:
-        payload["address"] = body.address
+        payload["address"] = _trim(body.address)
     if body.city:
-        payload["city"] = body.city
+        payload["city"] = _trim(body.city)
     if body.amount_application is not None:
         payload["amount_application"] = body.amount_application
     if body.amount_implementation is not None:
