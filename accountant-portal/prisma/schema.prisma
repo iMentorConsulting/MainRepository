@@ -1249,6 +1249,12 @@ model GemiCampaign {
   totalBounced        Int                     @default(0)
   totalUnsubscribed   Int                     @default(0)
   statsLastFetchedAt  DateTime?
+  // Soft-delete: the campaigns list's "delete" action sets this instead of
+  // hard-deleting. A campaign row is the only record Logistis keeps of a
+  // send — including moosendCampaignId, needed to pull stats back from
+  // Moosend — so an irreversible delete meant losing visibility into a
+  // campaign that had already gone out, with no way to recover it.
+  archivedAt          DateTime?
   createdBy           String
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt

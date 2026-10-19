@@ -9,7 +9,10 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  const includeArchived = request.nextUrl.searchParams.get('includeArchived') === '1'
+
   const campaigns = await prisma.gemiCampaign.findMany({
+    where: includeArchived ? { archivedAt: { not: null } } : { archivedAt: null },
     include: {
       program: { select: { id: true, title: true } },
       _count: { select: { recipients: true } },
