@@ -8,6 +8,7 @@ import {
 } from '../api'
 import api from '../api'
 import toast from 'react-hot-toast'
+import { useSuggestedPrice, PriceHint } from '../components/PriceSuggestion'
 import { format } from 'date-fns'
 import {
   PlusIcon, XMarkIcon, TrashIcon, PencilSquareIcon,
@@ -316,6 +317,16 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
 
+  // New bookings get the default price for the stay until the user types their own amount
+  const priceTouched = useRef(!!booking?.id || (booking?.total_price > 0))
+  const quote = useSuggestedPrice(form.unit_id, form.check_in, form.check_out)
+  const applyPrice = (price) => setForm((f) => ({
+    ...f, total_price: price, commission: +(price * (f.commission_percent || 0) / 100).toFixed(2),
+  }))
+  useEffect(() => {
+    if (quote && !priceTouched.current) applyPrice(quote.suggested_price)
+  }, [quote])
+
   useEffect(() => {
     if (booking?.id) {
       setPortalLink(null)
@@ -403,6 +414,7 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
     set('commission', +(form.total_price * pct / 100).toFixed(2))
   }
   const handlePrice = (price) => {
+    priceTouched.current = true
     set('total_price', +price)
     set('commission', +(price * form.commission_percent / 100).toFixed(2))
   }
@@ -596,6 +608,7 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
             <div>
               <label className="label">Σύνολο (€)</label>
               <input className="input" type="number" min={0} step={0.01} value={form.total_price} onChange={(e) => handlePrice(+e.target.value)} />
+              <PriceHint quote={quote} currentPrice={form.total_price} onApply={applyPrice} />
             </div>
             <div>
               <label className="label">Προμήθεια (%)</label>

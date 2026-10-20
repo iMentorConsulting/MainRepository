@@ -28,6 +28,29 @@ def _best_rate(unit_id: int, unit: Unit, check_in: date, tenant: str, db) -> Opt
     return matched[0] if matched else None
 
 
+def _stay_subtotal(unit_id: int, unit: Unit, check_in: date, check_out: date, tenant: str, db):
+    """Price every night with the seasonal rate covering it (unit > unit type > general), else base price.
+    Returns (subtotal, [{date, price, rate}])."""
+    from datetime import timedelta
+    rates = db.query(SeasonalRate).filter(
+        SeasonalRate.tenant == tenant,
+        SeasonalRate.date_from < check_out,
+        SeasonalRate.date_to >= check_in,
+    ).all()
+    nights = []
+    d = check_in
+    while d < check_out:
+        covering = [r for r in rates if r.date_from <= d <= r.date_to]
+        matched = ([r for r in covering if r.unit_id == unit_id]
+                   or [r for r in covering if not r.unit_id and r.unit_type == unit.type]
+                   or [r for r in covering if not r.unit_id and not r.unit_type])
+        r = matched[0] if matched else None
+        nights.append({"date": d.isoformat(), "price": r.price_per_night if r else (unit.base_price or 0),
+                       "rate": r.name if r else None})
+        d += timedelta(days=1)
+    return round(sum(n["price"] for n in nights), 2), nights
+
+
 def get_applicable_discounts(unit_id: int, unit_type: str, check_in: date, check_out: date,
                               booking_date: date, tenant: str, db, subtotal: float) -> list:
     """Return list of applicable discount dicts with savings, picking the best per-discount."""
@@ -68,10 +91,9 @@ def get_suggested_price(unit_id: int, check_in: date, check_out: date, tenant: s
     unit = db.query(Unit).filter(Unit.id == unit_id, Unit.tenant == tenant).first()
     if not unit:
         return 0.0
-    matched = _best_rate(unit_id, unit, check_in, tenant, db)
-    nights = max((check_out - check_in).days, 1)
-    price_per_night = matched.price_per_night if matched else unit.base_price
-    subtotal = round(price_per_night * nights, 2)
+    if check_out <= check_in:
+        return 0.0
+    subtotal, _ = _stay_subtotal(unit_id, unit, check_in, check_out, tenant, db)
     discounts = get_applicable_discounts(unit_id, unit.type, check_in, check_out, date.today(), tenant, db, subtotal)
     total_savings = sum(d["savings"] for d in discounts)
     return round(max(0, subtotal - total_savings), 2)
@@ -169,10 +191,12 @@ def check_price(
     if not unit:
         raise HTTPException(404)
 
+    if check_out <= check_in:
+        raise HTTPException(400, "Η αναχώρηση πρέπει να είναι μετά την άφιξη")
     matched = _best_rate(unit_id, unit, check_in, tenant, db)
     nights = (check_out - check_in).days
-    price_per_night = matched.price_per_night if matched else unit.base_price
-    subtotal = round(price_per_night * nights, 2)
+    subtotal, nightly = _stay_subtotal(unit_id, unit, check_in, check_out, tenant, db)
+    rate_names = sorted({n["rate"] for n in nightly if n["rate"]})
 
     bd = booking_date or date.today()
     discounts = get_applicable_discounts(unit_id, unit.type, check_in, check_out, bd, tenant, db, subtotal)
@@ -186,4 +210,7 @@ def check_price(
         "total_savings": round(total_savings, 2),
         "suggested_price": final_price,
         "nights": nights,
+        "avg_per_night": round(subtotal / nights, 2) if nights else 0,
+        "rate_names": rate_names,
+        "uses_base_price": any(not n["rate"] for n in nightly),
     }

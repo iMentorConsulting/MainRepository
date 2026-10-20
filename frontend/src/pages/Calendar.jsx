@@ -1,6 +1,7 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
+import { useSuggestedPrice, PriceHint } from '../components/PriceSuggestion'
 import { getUnits, getBookings, getPricingRates, getAvailabilityCalendar, getBookingChannels, createCustomer, createBooking, blockDates } from '../api'
 import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, addDays } from 'date-fns'
 import { el } from 'date-fns/locale'
@@ -440,6 +441,12 @@ function QuickModal({ modal, units, channels, onClose, onSaved }) {
     unit_id: modal.unitId, check_in: modal.checkIn, check_out: modal.checkOut,
   })
   const [saving, setSaving] = useState(false)
+  // Pre-fill the default price for the selected stay until the user types their own amount
+  const priceTouched = useRef(false)
+  const quote = useSuggestedPrice(form.unit_id, form.check_in, form.check_out)
+  useEffect(() => {
+    if (quote && !priceTouched.current) setForm(f => ({ ...f, total_price: String(quote.suggested_price) }))
+  }, [quote])
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 
   const nightCount = (() => {
@@ -541,7 +548,9 @@ function QuickModal({ modal, units, channels, onClose, onSaved }) {
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1">Σύνολο (€)</label>
                   <input type="number" step="0.01" className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-blue-400"
-                    placeholder="0.00" value={form.total_price} onChange={e => set('total_price', e.target.value)} />
+                    placeholder="0.00" value={form.total_price} onChange={e => { priceTouched.current = true; set('total_price', e.target.value) }} />
+                  <PriceHint quote={quote} currentPrice={form.total_price}
+                    onApply={v => setForm(f => ({ ...f, total_price: String(v) }))} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-gray-600 block mb-1">Άτομα</label>
