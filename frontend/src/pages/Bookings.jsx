@@ -324,7 +324,7 @@ function BookingModal({ booking, units, customers: initCustomers, channels: moda
     ...f, total_price: price, commission: +(price * (f.commission_percent || 0) / 100).toFixed(2),
   }))
   useEffect(() => {
-    if (quote && !priceTouched.current) applyPrice(quote.suggested_price)
+    if (quote?.suggested_price != null && !priceTouched.current) applyPrice(quote.suggested_price)
   }, [quote])
 
   useEffect(() => {

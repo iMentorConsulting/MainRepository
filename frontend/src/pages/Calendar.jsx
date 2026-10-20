@@ -445,7 +445,7 @@ function QuickModal({ modal, units, channels, onClose, onSaved }) {
   const priceTouched = useRef(false)
   const quote = useSuggestedPrice(form.unit_id, form.check_in, form.check_out)
   useEffect(() => {
-    if (quote && !priceTouched.current) setForm(f => ({ ...f, total_price: String(quote.suggested_price) }))
+    if (quote?.suggested_price != null && !priceTouched.current) setForm(f => ({ ...f, total_price: String(quote.suggested_price) }))
   }, [quote])
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
 

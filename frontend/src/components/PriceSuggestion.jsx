@@ -8,10 +8,13 @@ export function useSuggestedPrice(unitId, checkIn, checkOut) {
     setQuote(null)
     if (!unitId || !checkIn || !checkOut || checkOut <= checkIn) return
     let cancelled = false
+    setQuote({ loading: true })
     const t = setTimeout(() => {
       checkPrice({ unit_id: unitId, check_in: checkIn, check_out: checkOut })
         .then(r => { if (!cancelled) setQuote(r.data) })
-        .catch(() => {})
+        .catch(e => {
+          if (!cancelled) setQuote({ error: e.response?.data?.detail || e.response?.status || e.message || 'σφάλμα' })
+        })
     }, 250)
     return () => { cancelled = true; clearTimeout(t) }
   }, [unitId, checkIn, checkOut])
@@ -22,6 +25,8 @@ const eur = (v) => `€${Number(v || 0).toLocaleString('el-GR', { maximumFractio
 
 export function PriceHint({ quote, currentPrice, onApply }) {
   if (!quote) return null
+  if (quote.loading) return <p className="text-[11px] text-gray-400 mt-1">Υπολογισμός τιμής…</p>
+  if (quote.error) return <p className="text-[11px] text-red-500 mt-1">Δεν υπολογίστηκε τιμή ({String(quote.error)})</p>
   const differs = Math.abs((Number(currentPrice) || 0) - quote.suggested_price) >= 0.01
   const basis = [
     `${quote.nights} ${quote.nights === 1 ? 'νύχτα' : 'νύχτες'} × ~${eur(quote.avg_per_night)}`,
