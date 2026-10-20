@@ -1021,6 +1021,8 @@ export default function ClientPreview() {
               {offer.success_fee > 0 && (
                 <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
                   ℹ️ Η αποδοχή της ρύθμισης θα γίνεται μόνο μετά την αποπληρωμή του success fee.
+                  <br />
+                  ⏳ <b>Προσοχή:</b> μόλις εκδοθεί η πρόταση ρύθμισης, υπάρχει περιθώριο <b>5 ημερών</b> για να αποφασίσετε· διαφορετικά η πρόταση χάνεται.
                 </p>
               )}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
