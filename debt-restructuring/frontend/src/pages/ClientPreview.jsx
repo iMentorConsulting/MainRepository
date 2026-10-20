@@ -1018,6 +1018,11 @@ export default function ClientPreview() {
                   )
                 })()}
               </div>
+              {offer.success_fee > 0 && (
+                <p className="text-sm text-amber-800 bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 mb-4">
+                  ℹ️ Η αποδοχή της ρύθμισης θα γίνεται μόνο μετά την αποπληρωμή του success fee.
+                </p>
+              )}
               <div className="bg-gray-50 border border-gray-200 rounded-xl p-4">
                 <div className="text-sm font-bold text-gray-700 mb-2 flex items-center gap-1.5"><BuildingLibraryIcon className="w-4 h-4 text-gray-600" />Τραπεζικοί Λογαριασμοί Πληρωμής</div>
                 <div className="space-y-1 text-sm font-mono">
