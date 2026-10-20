@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
   }
 
   let accountantId: string | null
-  if (session.user.role === 'ADMIN') {
+  if (session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT') {
     accountantId = business.accountantId || null
   } else {
     if (!session.user.accountantId || business.accountantId !== session.user.accountantId) {
