@@ -1,0 +1,407 @@
+import io
+import json
+import os
+import re
+from datetime import datetime, date
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from sqlalchemy.orm import Session
+
+from database import get_db
+from auth_utils import get_tenant
+from models import (
+    AvailabilityRule, Unit, Customer, Booking, GuestCommunication,
+    CleaningSettings, WelcomeGuideItem, LocalRecommendation, MarketplaceItem,
+    ServiceRequest, GuestMessage, GuestPortalSettings, BookingInquiry,
+    Expense, Loan, Owner, MaintenanceIssue, GapAlertTemplate, SeasonalRate,
+    Discount, ChannelRate, TenantSettings, EmailLog, InstallationLicense,
+    ListingSnapshot, ListingRecommendation,
+)
+
+router = APIRouter(prefix="/backup", tags=["backup"])
+
+BACKUP_VERSION = "1.0"
+
+# Tracks the most recent scheduled backup result per tenant
+_schedule_log: dict = {}  # tenant_id -> {status, filename, timestamp, error?}
+
+# Ordered so dependencies come first (foreign key safety on restore)
+TENANT_MODELS = [
+    ("tenant_settings", TenantSettings),
+    ("owners", Owner),
+    ("units", Unit),
+    ("customers", Customer),
+    ("bookings", Booking),
+    ("availability_rules", AvailabilityRule),
+    ("guest_communications", GuestCommunication),
+    ("cleaning_settings", CleaningSettings),
+    ("welcome_guide_items", WelcomeGuideItem),
+    ("local_recommendations", LocalRecommendation),
+    ("marketplace_items", MarketplaceItem),
+    ("service_requests", ServiceRequest),
+    ("guest_messages", GuestMessage),
+    ("guest_portal_settings", GuestPortalSettings),
+    ("booking_inquiries", BookingInquiry),
+    ("expenses", Expense),
+    ("loans", Loan),
+    ("maintenance_issues", MaintenanceIssue),
+    ("gap_alert_templates", GapAlertTemplate),
+    ("seasonal_rates", SeasonalRate),
+    ("discounts", Discount),
+    ("channel_rates", ChannelRate),
+    ("email_logs", EmailLog),
+    ("installation_licenses", InstallationLicense),
+    ("listing_snapshots", ListingSnapshot),
+    ("listing_recommendations", ListingRecommendation),
+]
+
+_DATE_RE = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+_DT_RE = re.compile(r'^\d{4}-\d{2}-\d{2}T')
+
+
+def _row_to_dict(row):
+    d = {}
+    for col in row.__table__.columns:
+        val = getattr(row, col.name)
+        if hasattr(val, 'isoformat'):
+            val = val.isoformat()
+        d[col.name] = val
+    return d
+
+
+def _coerce_dates(row_dict, Model):
+    for col in Model.__table__.columns:
+        val = row_dict.get(col.name)
+        if not isinstance(val, str):
+            continue
+        if _DATE_RE.match(val):
+            try:
+                row_dict[col.name] = date.fromisoformat(val)
+            except ValueError:
+                pass
+        elif _DT_RE.match(val):
+            try:
+                row_dict[col.name] = datetime.fromisoformat(val)
+            except ValueError:
+                pass
+
+
+def _export_tenant(db: Session, tenant: str) -> dict:
+    tables = {}
+    for key, Model in TENANT_MODELS:
+        rows = db.query(Model).filter(Model.tenant == tenant).all()
+        tables[key] = [_row_to_dict(r) for r in rows]
+    return {
+        "version": BACKUP_VERSION,
+        "tenant": tenant,
+        "exported_at": datetime.utcnow().isoformat(),
+        "tables": tables,
+    }
+
+
+def _get_drive_service():
+    try:
+        from googleapiclient.discovery import build
+        from google.oauth2 import service_account
+    except ImportError:
+        return None
+
+    creds_env = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+    try:
+        # Cloud deployments (e.g. Railway) store the raw JSON content as the env var value
+        info = json.loads(creds_env)
+        creds = service_account.Credentials.from_service_account_info(
+            info, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return build("drive", "v3", credentials=creds)
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Fall back to treating env var as a file path
+    creds_path = creds_env or "service_account.json"
+    if not os.path.exists(creds_path):
+        return None
+    try:
+        creds = service_account.Credentials.from_service_account_file(
+            creds_path, scopes=["https://www.googleapis.com/auth/drive"]
+        )
+        return build("drive", "v3", credentials=creds)
+    except Exception:
+        return None
+
+
+def _get_or_create_subfolder(svc, parent_id: str, name: str) -> str:
+    """Return the Drive folder ID for `name` under `parent_id`, creating it if absent."""
+    safe = name.replace("'", "\\'")
+    q = (
+        f"'{parent_id}' in parents and name='{safe}' "
+        "and mimeType='application/vnd.google-apps.folder' and trashed=false"
+    )
+    res = svc.files().list(
+        q=q, fields="files(id)",
+        supportsAllDrives=True, includeItemsFromAllDrives=True,
+    ).execute()
+    files = res.get("files", [])
+    if files:
+        return files[0]["id"]
+    meta = {
+        "name": name,
+        "mimeType": "application/vnd.google-apps.folder",
+        "parents": [parent_id],
+    }
+    folder = svc.files().create(body=meta, fields="id", supportsAllDrives=True).execute()
+    return folder["id"]
+
+
+def run_scheduled_backups(db_session_factory) -> None:
+    """
+    Called by the APScheduler daily job.
+    Exports every active tenant and uploads to its own subfolder in Drive.
+    """
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    if not folder_id:
+        print("[backup] Skipping scheduled backup — GOOGLE_DRIVE_FOLDER_ID not set")
+        return
+
+    svc = _get_drive_service()
+    if svc is None:
+        print("[backup] Skipping scheduled backup — Drive service not available")
+        return
+
+    from models import TenantRecord
+    db = db_session_factory()
+    try:
+        tenants = db.query(TenantRecord).filter_by(is_active=True).all()
+    finally:
+        db.close()
+
+    print(f"[backup] Starting scheduled backup for {len(tenants)} tenant(s)")
+    for tr in tenants:
+        db = db_session_factory()
+        try:
+            from googleapiclient.http import MediaIoBaseUpload
+            data = _export_tenant(db, tr.id)
+            filename = f"backup_{tr.id}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+            body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+            subfolder_id = _get_or_create_subfolder(svc, folder_id, tr.id.upper())
+
+            meta = {"name": filename, "parents": [subfolder_id], "mimeType": "application/json"}
+            media = MediaIoBaseUpload(io.BytesIO(body), mimetype="application/json")
+            svc.files().create(
+                body=meta, media_body=media, fields="id,name",
+                supportsAllDrives=True,
+            ).execute()
+
+            _schedule_log[tr.id] = {
+                "status": "ok",
+                "filename": filename,
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            print(f"[backup] ✓ {tr.id} → {filename}")
+        except Exception as e:
+            _schedule_log[tr.id] = {
+                "status": "error",
+                "error": str(e),
+                "timestamp": datetime.utcnow().isoformat(),
+            }
+            print(f"[backup] ✗ {tr.id}: {e}")
+        finally:
+            db.close()
+
+
+@router.get("/schedule-status")
+def schedule_status(tenant: str = Depends(get_tenant)):
+    """Last scheduled backup result for this tenant."""
+    return _schedule_log.get(tenant, {"status": "never_run"})
+
+
+@router.get("/drive-diagnostics")
+def drive_diagnostics(tenant: str = Depends(get_tenant)):
+    """Check what the service account can actually reach."""
+    svc = _get_drive_service()
+    if svc is None:
+        return {"error": "Drive service not available — check credentials"}
+
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    result: dict = {"folder_id": folder_id, "checks": {}}
+
+    # Try treating it as a Shared Drive root
+    if folder_id:
+        try:
+            drive = svc.drives().get(driveId=folder_id, fields="id,name").execute()
+            result["checks"]["is_shared_drive_root"] = True
+            result["checks"]["drive_name"] = drive.get("name")
+        except Exception as e:
+            result["checks"]["is_shared_drive_root"] = False
+            result["checks"]["shared_drive_error"] = str(e)
+
+        # Try as a file/folder (regular or inside shared drive)
+        try:
+            f = svc.files().get(
+                fileId=folder_id, supportsAllDrives=True, fields="id,name,mimeType,driveId"
+            ).execute()
+            result["checks"]["folder_accessible"] = True
+            result["checks"]["folder_name"] = f.get("name")
+            result["checks"]["folder_mime"] = f.get("mimeType")
+        except Exception as e:
+            result["checks"]["folder_accessible"] = False
+            result["checks"]["folder_error"] = str(e)
+
+    # List all drives the service account can see
+    try:
+        drives = svc.drives().list(pageSize=20, fields="drives(id,name)").execute()
+        result["accessible_drives"] = [
+            {"id": d["id"], "name": d["name"]} for d in drives.get("drives", [])
+        ]
+    except Exception as e:
+        result["accessible_drives"] = []
+        result["drives_list_error"] = str(e)
+
+    return result
+
+
+@router.get("/drive-status")
+def drive_status(tenant: str = Depends(get_tenant)):
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    creds_env = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON", "")
+
+    # Check whether the env var holds JSON content or a valid file path
+    has_creds = False
+    try:
+        json.loads(creds_env)
+        has_creds = True  # raw JSON content (Railway-style)
+    except (json.JSONDecodeError, ValueError):
+        has_creds = os.path.exists(creds_env) if creds_env else False
+
+    svc = _get_drive_service()
+    return {
+        "drive_configured": bool(folder_id and svc),
+        "has_folder_id": bool(folder_id),
+        "has_credentials": has_creds,
+    }
+
+
+@router.get("/export")
+def export_backup(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Download tenant backup as JSON file."""
+    data = _export_tenant(db, tenant)
+    filename = f"backup_{tenant}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+    body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+    return StreamingResponse(
+        io.BytesIO(body),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post("/upload-drive")
+def upload_to_drive(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Export tenant data and upload to Google Drive."""
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    if not folder_id:
+        raise HTTPException(status_code=400, detail="GOOGLE_DRIVE_FOLDER_ID δεν έχει οριστεί στο .env")
+    svc = _get_drive_service()
+    if svc is None:
+        raise HTTPException(status_code=503, detail="Google Drive credentials δεν βρέθηκαν")
+
+    data = _export_tenant(db, tenant)
+    filename = f"backup_{tenant}_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.json"
+    body = json.dumps(data, ensure_ascii=False, indent=2).encode("utf-8")
+
+    try:
+        from googleapiclient.http import MediaIoBaseUpload
+        meta = {"name": filename, "parents": [folder_id], "mimeType": "application/json"}
+        media = MediaIoBaseUpload(io.BytesIO(body), mimetype="application/json")
+        f = svc.files().create(
+            body=meta, media_body=media, fields="id,name,size,createdTime",
+            supportsAllDrives=True,
+        ).execute()
+        return {"ok": True, "file": f, "filename": filename}
+    except Exception as e:
+        err = str(e)
+        if "404" in err:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Ο φάκελος/drive δεν βρέθηκε ({folder_id}). "
+                    "Προσθέστε το service account email ως μέλος του Shared Drive "
+                    "με ρόλο 'Content manager' (Shared Drive → Manage members)."
+                ),
+            )
+        raise HTTPException(status_code=500, detail=f"Σφάλμα ανεβάσματος: {e}")
+
+
+@router.get("/list-drive")
+def list_drive_backups(tenant: str = Depends(get_tenant)):
+    """List existing backups for this tenant from Google Drive."""
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    if not folder_id:
+        return {"files": [], "drive_configured": False}
+    svc = _get_drive_service()
+    if svc is None:
+        return {"files": [], "drive_configured": False}
+    try:
+        q = f"'{folder_id}' in parents and name contains 'backup_{tenant}_' and trashed=false"
+        result = svc.files().list(
+            q=q,
+            fields="files(id,name,size,createdTime)",
+            orderBy="createdTime desc",
+            pageSize=30,
+            supportsAllDrives=True,
+            includeItemsFromAllDrives=True,
+        ).execute()
+        return {"files": result.get("files", []), "drive_configured": True}
+    except Exception as e:
+        return {"files": [], "drive_configured": True, "error": str(e)}
+
+
+@router.get("/download-drive/{file_id}")
+def download_from_drive(file_id: str, tenant: str = Depends(get_tenant)):
+    """Fetch backup JSON from Drive (used before restore)."""
+    svc = _get_drive_service()
+    if svc is None:
+        raise HTTPException(status_code=503, detail="Google Drive δεν είναι διαθέσιμο")
+    try:
+        from googleapiclient.http import MediaIoBaseDownload
+        req = svc.files().get_media(fileId=file_id, supportsAllDrives=True)
+        buf = io.BytesIO()
+        dl = MediaIoBaseDownload(buf, req)
+        done = False
+        while not done:
+            _, done = dl.next_chunk()
+        buf.seek(0)
+        data = json.loads(buf.read())
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Σφάλμα λήψης: {e}")
+
+    if data.get("tenant") != tenant:
+        raise HTTPException(status_code=403, detail="Αυτό το backup ανήκει σε άλλο tenant")
+    return data
+
+
+@router.post("/restore")
+def restore_backup(payload: dict, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Restore tenant from backup JSON. Clears existing data first."""
+    if payload.get("tenant") != tenant:
+        raise HTTPException(status_code=400, detail="Το backup ανήκει σε διαφορετικό tenant")
+
+    tables = payload.get("tables", {})
+
+    # Delete in reverse order to avoid FK issues
+    for _, Model in reversed(TENANT_MODELS):
+        db.query(Model).filter(Model.tenant == tenant).delete(synchronize_session=False)
+    db.flush()
+
+    # Re-insert in dependency order
+    for key, Model in TENANT_MODELS:
+        for row_data in tables.get(key, []):
+            row_data = dict(row_data)  # copy
+            _coerce_dates(row_data, Model)
+            db.add(Model(**row_data))
+
+    db.commit()
+    counts = {key: len(tables.get(key, [])) for key, _ in TENANT_MODELS}
+    return {"ok": True, "restored_at": datetime.utcnow().isoformat(), "counts": counts}

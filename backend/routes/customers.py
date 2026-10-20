@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from database import get_db
-from models import Customer
+from models import Customer, Booking, Unit
 from schemas import CustomerCreate, CustomerUpdate, CustomerResponse
 from auth_utils import get_tenant
 from typing import List, Optional
@@ -58,6 +58,36 @@ def update_customer(customer_id: int, data: CustomerUpdate, db: Session = Depend
     db.commit()
     db.refresh(c)
     return c
+
+
+@router.get("/{customer_id}/bookings")
+def get_customer_bookings(customer_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    c = db.query(Customer).filter(Customer.id == customer_id, Customer.tenant == tenant).first()
+    if not c:
+        raise HTTPException(status_code=404)
+    bookings = (
+        db.query(Booking)
+        .filter(Booking.customer_id == customer_id, Booking.tenant == tenant)
+        .order_by(Booking.check_in.desc())
+        .limit(10)
+        .all()
+    )
+    unit_names = {u.id: u.name for u in db.query(Unit).filter(Unit.tenant == tenant).all()}
+    return [
+        {
+            "id": b.id,
+            "unit_name": unit_names.get(b.unit_id, ""),
+            "channel": b.channel,
+            "check_in": b.check_in.isoformat(),
+            "check_out": b.check_out.isoformat(),
+            "nights": (b.check_out - b.check_in).days,
+            "guests": b.guests or 1,
+            "total_price": round(b.total_price or 0, 2),
+            "notes": b.notes or "",
+            "status": b.status,
+        }
+        for b in bookings
+    ]
 
 
 @router.delete("/{customer_id}")
