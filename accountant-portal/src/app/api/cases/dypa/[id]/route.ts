@@ -38,7 +38,8 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   if (!assignment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isAdmin = session.user.role === 'ADMIN'
-  if (!isAdmin && assignment.clientCase.accountantId !== session.user.accountantId) {
+  const isStaff = isAdmin || session.user.role === 'CONSULTANT'
+  if (!isStaff && assignment.clientCase.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
@@ -64,7 +65,8 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   if (!assignment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
   const isAdmin = session.user.role === 'ADMIN'
-  if (!isAdmin && assignment.clientCase.accountantId !== session.user.accountantId) {
+  const isStaff = isAdmin || session.user.role === 'CONSULTANT'
+  if (!isStaff && assignment.clientCase.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 

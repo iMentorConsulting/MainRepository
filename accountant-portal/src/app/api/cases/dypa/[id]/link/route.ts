@@ -24,8 +24,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!assignment) return NextResponse.json({ error: 'Not found' }, { status: 404 })
 
-  const isAdmin = session.user.role === 'ADMIN'
-  if (!isAdmin && assignment.clientCase.accountantId !== session.user.accountantId) {
+  const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
+  if (!isStaff && assignment.clientCase.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
