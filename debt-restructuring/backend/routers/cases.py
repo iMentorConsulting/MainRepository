@@ -19,6 +19,7 @@ from database import get_db
 from models import Case, Lead
 from schemas import CaseCreate, CaseUpdate, CaseResponse, CaseListItem, ActualResultsUpdate, ContactUpdate
 from auth_utils import get_current_user
+from phone_utils import normalize_greek_phone as _normalize_greek_phone
 from routers.notifications import create_notification, ADMIN_RECIPIENT
 
 router = APIRouter(prefix="/cases", tags=["cases"], dependencies=[Depends(get_current_user)])
@@ -108,27 +109,36 @@ def _markup_strip(text: str) -> str:
 
 
 def _send_gmail(to: str, subject: str, body: str) -> tuple[bool, str]:
-    """Send email via Gmail API using Google Service Account (Domain-Wide Delegation).
+    """Send email via Gmail API using OAuth2 user credentials (refresh token).
+    Emails appear in help@'s Sent folder automatically.
     Returns (True, "") on success, (False, reason) on failure."""
-    sa_json = os.getenv("GOOGLE_SERVICE_ACCOUNT_JSON", "").strip()
     sender = os.getenv("SMTP_USER", "").strip()
-    if not sa_json or not sender:
-        return False, "GOOGLE_SERVICE_ACCOUNT_JSON ή SMTP_USER δεν έχουν οριστεί"
+    client_id = os.getenv("GMAIL_CLIENT_ID", "").strip()
+    client_secret = os.getenv("GMAIL_CLIENT_SECRET", "").strip()
+    refresh_token = os.getenv("GMAIL_REFRESH_TOKEN", "").strip()
+    if not all([sender, client_id, client_secret, refresh_token]):
+        return False, "SMTP_USER, GMAIL_CLIENT_ID, GMAIL_CLIENT_SECRET ή GMAIL_REFRESH_TOKEN δεν έχουν οριστεί"
     try:
-        from google.oauth2.service_account import Credentials
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
         from googleapiclient.discovery import build
 
-        creds = Credentials.from_service_account_info(
-            json.loads(sa_json),
+        creds = Credentials(
+            token=None,
+            refresh_token=refresh_token,
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=client_id,
+            client_secret=client_secret,
             scopes=["https://www.googleapis.com/auth/gmail.send"],
-        ).with_subject(sender)
-
+        )
+        creds.refresh(Request())
         svc = build("gmail", "v1", credentials=creds, cache_discovery=False)
 
         msg = MIMEMultipart("alternative")
         msg["Subject"] = subject
-        msg["From"] = sender
+        msg["From"] = "i-Mentor Συμβουλευτική <" + sender + ">"
         msg["To"] = to
+        msg["Reply-To"] = sender
         msg.attach(MIMEText(_markup_strip(body), "plain", "utf-8"))
         msg.attach(MIMEText(_markup_to_html(body), "html", "utf-8"))
 
@@ -154,26 +164,37 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
 
     headers = {"api_access_token": cw_token, "Content-Type": "application/json"}
     base = f"{cw_url}/api/v1/accounts/{cw_account}"
+
+    # Normalize phone to +30XXXXXXXXXX (also fixes doubled country codes, e.g. +3030…)
+    import re as _re
+    from phone_utils import normalize_greek_phone
+    phone = normalize_greek_phone(phone)
     print(f"[Chatwoot] base={base} inbox={cw_inbox} phone={phone}")
 
-    # 1. Search for existing contact by phone
+    # Build search variants: full number + local digits only (catches malformed existing contacts)
+    digits_only = _re.sub(r'^\+30', '', phone)  # e.g. "6947659866"
+    search_variants = [phone, digits_only] if digits_only != phone else [phone]
+
+    # 1. Search for existing contact by phone (try each variant)
     contact_id = None
-    try:
-        r = http_requests.get(
-            f"{base}/contacts/search",
-            params={"q": phone, "include_contacts": "true"},
-            headers=headers, timeout=8,
-        )
-        print(f"[Chatwoot] search status={r.status_code} body={r.text[:300]}")
-        if r.status_code == 200:
-            # payload is a list of contacts directly (not a dict with "contacts" key)
-            payload = r.json().get("payload", [])
-            contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
-            if contacts:
-                contact_id = contacts[0]["id"]
-                print(f"[Chatwoot] found existing contact id={contact_id}")
-    except Exception as e:
-        print(f"[Chatwoot] search exception: {e}")
+    for variant in search_variants:
+        if contact_id:
+            break
+        try:
+            r = http_requests.get(
+                f"{base}/contacts/search",
+                params={"q": variant, "include_contacts": "true"},
+                headers=headers, timeout=8,
+            )
+            print(f"[Chatwoot] search q={variant} status={r.status_code} body={r.text[:300]}")
+            if r.status_code == 200:
+                payload = r.json().get("payload", [])
+                contacts = payload if isinstance(payload, list) else payload.get("contacts", [])
+                if contacts:
+                    contact_id = contacts[0]["id"]
+                    print(f"[Chatwoot] found existing contact id={contact_id} via q={variant}")
+        except Exception as e:
+            print(f"[Chatwoot] search exception (q={variant}): {e}")
 
     # 2. Create contact if not found
     if not contact_id:
@@ -239,20 +260,52 @@ def _chatwoot_send(client_name: str, phone: str, message: str) -> tuple[bool, st
     if not contact_id:
         return False, f"Αδυναμία δημιουργίας/εύρεσης contact για αριθμό {phone}"
 
-    # 3. Create new conversation
+    # 3. Find existing conversation for this contact on this inbox, or create one
     conv_id = None
     try:
-        conv_url = f"{base}/conversations"
-        conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
-        print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
-        r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
-        print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
-        if r.status_code in (200, 201):
-            conv_id = r.json().get("id")
-        else:
-            return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+        r = http_requests.get(
+            f"{base}/contacts/{contact_id}/conversations",
+            headers=headers, timeout=8,
+        )
+        print(f"[Chatwoot] contact_convs status={r.status_code} body={r.text[:400]}")
+        if r.status_code == 200:
+            payload = r.json().get("payload", [])
+            inbox_id_int = int(cw_inbox)
+            # Pick the most recent conversation on this inbox
+            inbox_convs = [
+                c for c in payload
+                if c.get("inbox_id") == inbox_id_int
+            ]
+            if inbox_convs:
+                inbox_convs.sort(key=lambda c: c.get("id", 0), reverse=True)
+                existing = inbox_convs[0]
+                conv_id = existing["id"]
+                print(f"[Chatwoot] reusing conversation id={conv_id} status={existing.get('status')}")
+                # Reopen if resolved/pending so the message surfaces to agents
+                if existing.get("status") in ("resolved", "pending"):
+                    r2 = http_requests.patch(
+                        f"{base}/conversations/{conv_id}/toggle_status",
+                        json={"status": "open"},
+                        headers=headers, timeout=8,
+                    )
+                    print(f"[Chatwoot] reopen_conv status={r2.status_code} body={r2.text[:200]}")
     except Exception as e:
-        return False, f"create_conv exception: {e}"
+        print(f"[Chatwoot] contact_convs exception: {e}")
+
+    # Create new conversation only if none exists
+    if not conv_id:
+        try:
+            conv_url = f"{base}/conversations"
+            conv_body = {"inbox_id": int(cw_inbox), "contact_id": contact_id}
+            print(f"[Chatwoot] create_conv POST {conv_url} body={conv_body}")
+            r = http_requests.post(conv_url, json=conv_body, headers=headers, timeout=8)
+            print(f"[Chatwoot] create_conv status={r.status_code} body={r.text[:300]}")
+            if r.status_code in (200, 201):
+                conv_id = r.json().get("id")
+            else:
+                return False, f"create_conv HTTP {r.status_code}: {r.text[:200]}"
+        except Exception as e:
+            return False, f"create_conv exception: {e}"
 
     if not conv_id:
         return False, "Αδυναμία δημιουργίας conversation"
@@ -277,9 +330,12 @@ def list_cases(
     employee: Optional[str] = None,
     status: Optional[str] = None,
     search: Optional[str] = None,
+    service: Optional[str] = None,
     db: Session = Depends(get_db),
 ):
     q = db.query(Case)
+    if service:
+        q = q.filter(Case.service_type == service)
     if employee:
         q = q.filter(Case.employee == employee)
     if status:
@@ -295,11 +351,47 @@ def list_cases(
 def create_case(data: CaseCreate, db: Session = Depends(get_db)):
     if data.employee not in EMPLOYEES:
         raise HTTPException(status_code=400, detail="Μη έγκυρος υπάλληλος")
-    case = Case(**data.model_dump())
+    payload = data.model_dump()
+    if payload.get("service_type") == "ΠΤΩΧΕΥΣΗ" and not payload.get("bankruptcy"):
+        from bankruptcy_utils import default_bankruptcy_data
+        payload["bankruptcy"] = default_bankruptcy_data()
+    case = Case(**payload)
     db.add(case)
     db.commit()
     db.refresh(case)
     return case
+
+
+@router.post("/{id}/create-bankruptcy", response_model=CaseResponse, status_code=201)
+def create_bankruptcy_case(id: int, db: Session = Depends(get_db)):
+    """Create a ΠΤΩΧΕΥΣΗ case from an existing Εξωδικαστικός case, copying client data,
+    debts, assets and income. The two cases are linked to each other."""
+    from bankruptcy_utils import default_bankruptcy_data, SERVICE_BANKRUPTCY
+    src = db.query(Case).filter(Case.id == id).first()
+    if not src:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    existing_id = (src.bankruptcy or {}).get("linked_case_id")
+    if existing_id and db.query(Case).filter(Case.id == existing_id).first():
+        raise HTTPException(status_code=409, detail=f"Υπάρχει ήδη υπόθεση πτώχευσης (#{existing_id})")
+
+    new = Case(
+        client_name=src.client_name, client_phone=src.client_phone, client_email=src.client_email,
+        client_vat=src.client_vat, employee=src.employee, status="draft",
+        debtor_type=src.debtor_type, debts=src.debts, assets=src.assets, income_data=src.income_data,
+        estimates={}, notes=src.notes or "", contact_stage="Νέα Ανάλυση",
+        commercial_offer={}, service_type=SERVICE_BANKRUPTCY,
+        bankruptcy=default_bankruptcy_data(source_case_id=src.id),
+    )
+    db.add(new)
+    db.commit()
+    db.refresh(new)
+
+    src_data = dict(src.bankruptcy or {})
+    src_data["linked_case_id"] = new.id
+    src.bankruptcy = src_data
+    src.updated_at = _now()
+    db.commit()
+    return new
 
 
 @router.get("/{id}", response_model=CaseResponse)
@@ -327,6 +419,9 @@ def update_case(id: int, data: CaseUpdate, db: Session = Depends(get_db)):
         if updates["status"] == "completed" and case.status != "completed":
             case.completed_at = _now()
 
+    if "bankruptcy" in updates and (case.bankruptcy or {}).get("stage") != updates["bankruptcy"].get("stage"):
+        updates["bankruptcy"] = {**updates["bankruptcy"], "stage_changed_at": _now().isoformat()}
+
     for k, v in updates.items():
         setattr(case, k, v)
 
@@ -343,9 +438,6 @@ def save_actual_results(id: int, data: ActualResultsUpdate, db: Session = Depend
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     case.actual_results = data.actual_results
     case.updated_at = _now()
-    if case.status not in ("completed", "cancelled"):
-        case.status = "completed"
-        case.completed_at = _now()
     db.commit()
     db.refresh(case)
     return case
@@ -382,6 +474,7 @@ class WinbackRequest(BaseModel):
     winback_app: Optional[float] = None  # agent-suggested amounts for the admin to review
     winback_suc: Optional[float] = None
     note: str = ""
+    message: str = ""  # message text drafted by the consultant, pre-filled for the admin on sending
 
 
 @router.post("/{id}/request-winback", response_model=CaseResponse)
@@ -401,6 +494,36 @@ def request_winback(id: int, data: WinbackRequest, db: Session = Depends(get_db)
         offer["winback_app_suggested"] = data.winback_app
     if data.winback_suc is not None:
         offer["winback_suc_suggested"] = data.winback_suc
+    if data.message.strip():
+        offer["winback_draft_message"] = data.message
+    else:
+        offer.pop("winback_draft_message", None)
+    case.commercial_offer = offer
+    case.updated_at = _now()
+    db.commit()
+    db.refresh(case)
+    try:
+        create_notification(
+            db, ADMIN_RECIPIENT, "winback_request",
+            "Win-back προς αποστολή",
+            f"{data.employee}: έτοιμο μήνυμα win-back για {case.client_name or 'πελάτη'}",
+            link="/finances", case_id=case.id,
+        )
+    except Exception:
+        pass
+    return case
+
+
+@router.post("/{id}/cancel-winback-request", response_model=CaseResponse)
+def cancel_winback_request(id: int, db: Session = Depends(get_db)):
+    """Consultant withdraws a win-back request that the admin has not processed yet."""
+    case = db.query(Case).filter(Case.id == id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
+    offer = dict(case.commercial_offer or {})
+    for k in ("winback_requested", "winback_requested_by", "winback_requested_at", "winback_request_note",
+              "winback_app_suggested", "winback_suc_suggested", "winback_draft_message"):
+        offer.pop(k, None)
     case.commercial_offer = offer
     case.updated_at = _now()
     db.commit()
@@ -414,6 +537,11 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
     if not case:
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
     offer = dict(case.commercial_offer or {})
+    prepared_by = offer.get("winback_requested_by")
+    draft_message = offer.get("winback_draft_message")
+    sugg_app = offer.get("winback_app_suggested")
+    sugg_suc = offer.get("winback_suc_suggested")
+    offer.pop("winback_draft_message", None)
     if data.approve:
         orig_app = float(offer.get("application_fee") or offer.get("system_app") or 0)
         orig_suc = float(offer.get("success_fee") or offer.get("system_suc") or 0)
@@ -430,6 +558,13 @@ def approve_winback(id: int, data: WinbackApprove, db: Session = Depends(get_db)
         offer["winback_status"] = "approved"
         offer["winback_saving"] = round((orig_app - offer["winback_app"]) + (orig_suc - offer["winback_suc"]))
         offer["winback_offer_valid_until"] = (_now() + timedelta(days=WINBACK_VALIDITY_DAYS)).date().isoformat()
+        if prepared_by:
+            offer["winback_prepared_by"] = prepared_by
+        # keep the consultant's drafted message only if the admin approved the same amounts it quotes
+        if draft_message and sugg_app is not None and sugg_suc is not None \
+                and round(float(sugg_app) / 10) * 10 == offer["winback_app"] \
+                and round(float(sugg_suc) / 10) * 10 == offer["winback_suc"]:
+            offer["winback_draft_message"] = draft_message
     else:
         offer["winback_status"] = "dismissed"
     offer.pop("winback_requested", None)
@@ -556,8 +691,6 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
         if not phone:
             errors.append("Δεν υπάρχει τηλέφωνο πελάτη")
         else:
-            if not phone.startswith("+"):
-                phone = "+30" + (phone[1:] if phone.startswith("0") else phone)
             ok, err = _chatwoot_send_with_retry(case.client_name, phone, data.message)
             if not ok:
                 errors.append(f"Viber: {err}")
@@ -574,6 +707,7 @@ def send_winback(id: int, data: WinbackSendRequest, db: Session = Depends(get_db
         raise HTTPException(status_code=503, detail=" | ".join(errors))
 
     offer["winback_status"] = "sent"
+    offer.pop("winback_draft_message", None)
     case.commercial_offer = offer
     case.last_contacted_at = _now()
     case.updated_at = _now()
@@ -599,13 +733,7 @@ def send_viber_message(id: int, data: ViberSendRequest, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="Η υπόθεση δεν βρέθηκε")
 
     phone = (case.client_phone or "").strip().replace(" ", "").replace("-", "")
-    if phone and not phone.startswith("+"):
-        if phone.startswith("00"):
-            phone = "+" + phone[2:]
-        elif phone.startswith("0"):
-            phone = "+30" + phone[1:]
-        else:
-            phone = "+30" + phone
+    phone = _normalize_greek_phone(phone)
 
     # Try Chatwoot first (creates contact + conversation + delivers via Viber inbox)
     chatwoot_ok, chatwoot_err = _chatwoot_send(case.client_name, phone, data.message)

@@ -11,13 +11,17 @@ import ClientPreview from './pages/ClientPreview'
 import Login from './pages/Login'
 import QuickQuote from './pages/QuickQuote'
 import FinancialDashboard from './pages/FinancialDashboard'
+import Winback from './pages/Winback'
 import Leads from './pages/Leads'
 import LeadsReporting from './pages/LeadsReporting'
 import LeadLists from './pages/LeadLists'
 import IrisPayments from './pages/IrisPayments'
 import Themis from './pages/Themis'
+import ThemisCreate from './pages/ThemisCreate'
 import ThemisSettings from './pages/ThemisSettings'
 import ThemisConversations from './pages/ThemisConversations'
+import LogistisOutreach from './pages/LogistisOutreach'
+import LogistisAdmin from './pages/LogistisAdmin'
 import NotificationListener from './components/NotificationListener'
 import { loginUser } from './api'
 
@@ -78,6 +82,8 @@ export default function App() {
         <Route path="/preview/:token" element={<ClientPreview />} />
         {/* Public Θέμις AI screening chat — no auth */}
         <Route path="/themis/:token" element={<Themis />} />
+        {/* Public ΛΟΓΙΣΤΗΣ direct integration — creates lead + redirects to Θέμις chat */}
+        <Route path="/themis/create" element={<ThemisCreate />} />
 
         {/* Auth-protected app */}
         {!auth ? (
@@ -94,12 +100,15 @@ export default function App() {
             <Route path="/quick-quote" element={<QuickQuote />} />
             <Route path="/statistics" element={<Statistics currentEmployee={auth.employee} />} />
             <Route path="/finances" element={<FinancialDashboard currentEmployee={auth.employee} />} />
+            <Route path="/winback" element={<Winback currentEmployee={auth.employee} />} />
             <Route path="/leads" element={<Leads currentEmployee={auth.employee} />} />
             <Route path="/lead-lists" element={<LeadLists currentEmployee={auth.employee} />} />
             <Route path="/payments" element={<IrisPayments currentEmployee={auth.employee} />} />
             <Route path="/leads-reporting" element={<LeadsReporting currentEmployee={auth.employee} />} />
             <Route path="/themis-settings" element={<ThemisSettings />} />
             <Route path="/themis-conversations" element={<ThemisConversations />} />
+            <Route path="/logistis-outreach" element={<LogistisOutreach currentEmployee={auth.employee} />} />
+            <Route path="/logistis-admin" element={<LogistisAdmin />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         )}

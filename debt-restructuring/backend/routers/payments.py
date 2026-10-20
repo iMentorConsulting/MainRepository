@@ -23,7 +23,7 @@ import logging
 from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 import requests as http_requests
@@ -182,12 +182,26 @@ def _call_dias(url: str, payload: dict, label: str) -> dict:
 # Schemas
 # ---------------------------------------------------------------------------
 
+def _pad_afm(afm: str) -> str:
+    if not afm:
+        return afm
+    afm = afm.strip()
+    if afm.isdigit() and len(afm) < 9:
+        afm = afm.zfill(9)
+    return afm
+
+
 class CreateIrisPaymentRequest(BaseModel):
     customerName: str
     customerAFM: str = ""
     serviceType: str = ""
     netAmount: float
     linkedCaseId: int | None = None
+
+    @field_validator('customerAFM', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v or '')
 
 
 class IrisPaymentOut(BaseModel):

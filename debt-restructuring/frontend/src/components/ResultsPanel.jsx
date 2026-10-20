@@ -101,11 +101,28 @@ export default function ResultsPanel({ calc, incomeData }) {
         </div>
       )}
 
+      {/* Installments above the disposable income — only when legal limits / fixed installments prevent a lower plan */}
+      {!calc.lePub && calc.monthlyDisp1 > 0 && (calc.capacityShortfall > 1 || calc.totalC1 > calc.monthlyDisp1 + 1 || calc.totalMonthlyPay > calc.monthlyDisp24 + 1) && (
+        <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 text-sm text-orange-800">
+          ⚠️ Οι δόσεις ({fmt(calc.totalC1)} / {fmt(calc.totalMonthlyPay)}) υπερβαίνουν το μηνιαίο διαθέσιμο ({fmt(calc.monthlyDisp1)}):
+          οι οφειλές «Ενήμερη», οι ελάχιστες δόσεις Δημοσίου και τα νομικά όρια διαγραφής δεν επιτρέπουν χαμηλότερο πλάνο.
+        </div>
+      )}
+
       {/* Income summary */}
       <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 text-sm space-y-1">
         <p className="font-bold text-blue-800 mb-2">💶 Περίληψη Διαθέσιμου Εισοδήματος</p>
         {isLegal ? (
           <>
+            {calc.lePub && (
+              <div className="mb-2 pb-2 border-b border-blue-200 space-y-0.5">
+                <p className="font-semibold text-blue-900">ΑΑΔΕ / ΕΦΚΑ (ΚΥΑ 77129 ΕΞ 2025, Β' 2331/2025)</p>
+                <p>Έτος 1: <b>{fmt(calc.lePub.annual.year1)}</b>/έτος · <b>{fmt(calc.lePub.monthly.year1)}</b>/μήνα</p>
+                <p>Έτη 2–4: <b>{fmt(calc.lePub.annual.years24)}</b>/έτος · <b>{fmt(calc.lePub.monthly.years24)}</b>/μήνα</p>
+                <p>Έτος 5 και μετά: <b>{fmt(calc.lePub.annual.years5)}</b>/έτος · <b>{fmt(calc.lePub.monthly.years5)}</b>/μήνα</p>
+              </div>
+            )}
+            {calc.lePub && <p className="font-semibold text-blue-900">Τράπεζες / servicers</p>}
             <p>Ετήσιο διαθέσιμο για εξυπηρέτηση: <b>{fmt(calc.dispAnnual)}</b></p>
             <p>Μηνιαίο διαθέσιμο για εξυπηρέτηση: <b>{fmt(calc.dispMonthly)}</b></p>
           </>

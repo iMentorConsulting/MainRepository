@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { format, formatDistanceToNow } from 'date-fns'
 import { el } from 'date-fns/locale'
@@ -10,8 +10,10 @@ import {
 } from '@heroicons/react/24/outline'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
-import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus } from '../utils/calculations'
+import { fmt, creditorDisplayName, formatOfferWithVAT, getPaymentStatus, calculateOfferWithWithholding, getBankingDetailsText } from '../utils/calculations'
 import { buildEmailHtml, wrapEmailDocument, buildResultsEmailHtml } from '../utils/reportGenerators'
+import FinanceIntakePanel from '../components/FinanceIntakePanel'
+import BankruptcyCase from './BankruptcyCase'
 
 const STATUS_LABELS = {
   draft:     { label: 'Άντληση Στοιχείων',      cls: 'bg-gray-100 text-gray-700' },
@@ -30,24 +32,24 @@ const CONTACT_STAGES = [
   { key: 'Δεν Ενδιαφέρεται', icon: '❌', cls: 'bg-red-100 text-red-700' },
 ]
 
-const IBANS_TEXT = `\n\n🏦 *Τραπεζικοί Λογαριασμοί:*\nΠειραιώς: GR4501714330006433164381388\nEurobank: GR5802601680000060201330648\nAlpha Bank: GR2401407750775002330002138\nΔικαιούχος: *I MENTOR IKE*`
 
-function buildOfferBlock(offer) {
+function buildOfferBlock(offer, incomeSubType) {
   if (!offer || (!offer.application_fee && !offer.success_fee)) return ''
   const lines = [`\n\n💼 *Οικονομική Προσφορά:*`]
   if (offer.application_fee) {
-    const appFee = formatOfferWithVAT(offer.application_fee)
+    const appFee = calculateOfferWithWithholding(offer.application_fee, incomeSubType)
     lines.push(`• Αίτηση & Διαδικασία: *${appFee.formatted}*`)
   }
   if (offer.success_fee) {
-    const successFee = formatOfferWithVAT(offer.success_fee)
+    const successFee = calculateOfferWithWithholding(offer.success_fee, incomeSubType)
     lines.push(`• Success Fee (αποδοχή): *${successFee.formatted}*`)
   }
+  lines.push(getBankingDetailsText())
   return lines.join('\n')
 }
 
-function buildViberMessage(type, name, url, offer = null, includeOffer = false) {
-  const offerSection = includeOffer ? buildOfferBlock(offer) + IBANS_TEXT : ''
+function buildViberMessage(type, name, url, offer = null, includeOffer = false, incomeSubType = '') {
+  const offerSection = includeOffer ? buildOfferBlock(offer, incomeSubType) : ''
   switch (type) {
     case 'initial':
       return `Αγαπητέ/ή *${name}*,\n\nΗ ανάλυση των στοιχείων σας στον *Εξωδικαστικό Μηχανισμό Ρύθμισης Οφειλών* ολοκληρώθηκε.\n\nΜπορείτε να δείτε την πλήρη ανάλυσή μας στον παρακάτω σύνδεσμο, χρησιμοποιώντας τον *ΑΦΜ* σας ως κωδικό πρόσβασης:\n\n${url}${offerSection}\n\nΓια οποιαδήποτε ερώτηση είμαστε στη διάθεσή σας.\n\n*i-Mentor Consulting*\nΤ: *2810 363007*`
@@ -154,13 +156,13 @@ function renderStepLabel(stepRows, idx) {
   return `${sy}ο–${ey}ο έτος`
 }
 
-function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, onSend, onClose, sending }) {
+function ViberPreviewModal({ msgType, msgLabel, caseName, url, offer, debtorType, onSend, onClose, sending }) {
   const [includeOffer, setIncludeOffer] = useState(false)
-  const [message, setMessage] = useState(() => buildViberMessage(msgType, caseName, url, offer, false))
+  const [message, setMessage] = useState(() => buildViberMessage(msgType, caseName, url, offer, false, debtorType))
 
   const toggleOffer = (checked) => {
     setIncludeOffer(checked)
-    setMessage(buildViberMessage(msgType, caseName, url, offer, checked))
+    setMessage(buildViberMessage(msgType, caseName, url, offer, checked, debtorType))
   }
 
   return (
@@ -246,20 +248,21 @@ function buildEmailTextPreview(caseData, { includeTable, includeDisclaimer, incl
   lines.push('Στόχος μας: Η πρόταση που καταθέτουμε στους πιστωτές στοχεύει να είναι καλύτερη από το θεωρητικό αποτέλεσμα — διεκδικώντας ευνοϊκότερες διαγραφές και χαμηλότερες δόσεις για εσάς.')
   lines.push('')
   if (includeOffer && (offer.application_fee || offer.success_fee)) {
+    const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
     lines.push('─── ΟΙΚΟΝΟΜΙΚΗ ΠΡΟΣΦΟΡΑ ───')
     if (offer.application_fee) {
-      const g = Math.round(Number(offer.application_fee) * 1.24)
-      lines.push(`• Αίτηση & Διαδικασία: ${Number(offer.application_fee).toLocaleString('el-GR')}€ + ΦΠΑ 24% = ${g.toLocaleString('el-GR')}€`)
+      const appFee = calculateOfferWithWithholding(Number(offer.application_fee), incomeSubType)
+      lines.push(`• Αίτηση & Διαδικασία: ${appFee.formatted}`)
     }
     if (offer.success_fee) {
-      const g = Math.round(Number(offer.success_fee) * 1.24)
-      lines.push(`• Success Fee (αποδοχή): ${Number(offer.success_fee).toLocaleString('el-GR')}€ + ΦΠΑ 24% = ${g.toLocaleString('el-GR')}€`)
+      const successFee = calculateOfferWithWithholding(Number(offer.success_fee), incomeSubType)
+      lines.push(`• Success Fee (αποδοχή): ${successFee.formatted}`)
     }
     lines.push('')
     lines.push('Τραπεζικοί Λογαριασμοί:')
-    lines.push('  Πειραιώς:   GR45 0171 4330 0064 3316 4381 388')
-    lines.push('  Eurobank:   GR58 0260 1680 0000 6020 1330 648')
-    lines.push('  Alpha Bank: GR24 0140 7750 7750 0233 0002 138')
+    lines.push('  Πειραιώς:   GR4501714330006433164381388')
+    lines.push('  Alpha Bank: GR2401407750775002330002138')
+    lines.push('  Eurobank:   GR5802601680000060201330648')
     lines.push('  Δικαιούχος: I MENTOR IKE')
     lines.push('')
   }
@@ -312,11 +315,12 @@ function EmailOptionsModal({ caseData, onClose }) {
     const insDebt = finalPlan.filter(p => p.type === 'Ασφαλιστικά Ταμεία').reduce((s, p) => s + (p.amount || 0), 0)
     const isVulnerable = !!(caseData.income_data?.isVulnerable) && !caseData.debtor_type?.includes('Νομικό')
     const sumWrC = est.sumWrC ?? finalPlan.reduce((s, p) => s + (p.writeoffC || 0), 0)
+    const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
     const data = {
       clientName: caseData.client_name,
       clientPhone: caseData.client_phone,
       clientEmail: caseData.client_email,
-      debtorType: caseData.debtor_type,
+      debtorType: incomeSubType,
       totalDebt: est.sumDebt || 0,
       totalWriteOff: est.sumWr || 0,
       totalRemaining: est.totalRemaining || 0,
@@ -632,6 +636,8 @@ export default function CaseDetail({ currentEmployee }) {
   if (loading) return <div className="p-10 text-center text-gray-400">Φόρτωση…</div>
   if (!caseData) return <div className="p-10 text-center text-red-500">Η υπόθεση δεν βρέθηκε</div>
 
+  if (caseData.service_type === 'ΠΤΩΧΕΥΣΗ') return <BankruptcyCase caseData={caseData} onChange={setCaseData} />
+
   const est = caseData.estimates || {}
   const act = caseData.actual_results
   const st = STATUS_LABELS[caseData.status] || STATUS_LABELS.draft
@@ -668,6 +674,24 @@ export default function CaseDetail({ currentEmployee }) {
         </div>
 
         <div className="flex gap-2 flex-wrap items-center">
+          {/* Bankruptcy service — create from this case, or jump to the linked one */}
+          {caseData.bankruptcy?.linked_case_id ? (
+            <Link to={`/cases/${caseData.bankruptcy.linked_case_id}`} className="btn-secondary gap-2 text-sm" title="Υπάρχει υπόθεση πτώχευσης">⚖️ Πτώχευση #{caseData.bankruptcy.linked_case_id}</Link>
+          ) : (
+            <button
+              onClick={async () => {
+                if (!confirm('Δημιουργία υπόθεσης ΠΤΩΧΕΥΣΗΣ με αντιγραφή των στοιχείων πελάτη, οφειλών, εισοδημάτων και περιουσίας;')) return
+                try {
+                  const res = await api.createBankruptcyCase(id)
+                  toast.success('Δημιουργήθηκε υπόθεση πτώχευσης')
+                  navigate(`/cases/${res.data.id}`)
+                } catch (e) { toast.error(e?.response?.data?.detail || 'Σφάλμα δημιουργίας') }
+              }}
+              className="btn-secondary gap-2 text-sm"
+              title="Δημιουργία υπόθεσης πτώχευσης από αυτή την υπόθεση"
+            >⚖️ Δημιουργία Πτώχευσης</button>
+          )}
+
           {/* Portal toggle */}
           <button
             onClick={handlePortalToggle}
@@ -795,18 +819,22 @@ export default function CaseDetail({ currentEmployee }) {
       )}
 
       {/* Viber preview modal */}
-      {viberModal && caseData && (
-        <ViberPreviewModal
-          msgType={viberModal.msgType}
-          msgLabel={viberModal.msgLabel}
-          caseName={caseData.client_name}
-          url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
-          offer={caseData.commercial_offer || {}}
-          onSend={handleViberSend}
-          onClose={() => setViberModal(null)}
-          sending={viberSending}
-        />
-      )}
+      {viberModal && caseData && (() => {
+        const incomeSubType = caseData.income_data?.fpSubType || (caseData.debtor_type === 'Φυσικό Πρόσωπο' ? 'Επιτηδευματίας' : 'Επιτηδευματίας')
+        return (
+          <ViberPreviewModal
+            msgType={viberModal.msgType}
+            msgLabel={viberModal.msgLabel}
+            caseName={caseData.client_name}
+            url={`${PORTAL_BASE}/preview/${caseData.share_token}`}
+            offer={caseData.commercial_offer || {}}
+            debtorType={incomeSubType}
+            onSend={handleViberSend}
+            onClose={() => setViberModal(null)}
+            sending={viberSending}
+          />
+        )
+      })()}
 
       {/* Email options modal */}
       {emailModalOpen && caseData && (
@@ -978,8 +1006,11 @@ export default function CaseDetail({ currentEmployee }) {
         )}
       </div>
 
+      {/* Finance intake — record payment to external Finance system */}
+      <FinanceIntakePanel caseData={caseData} />
+
       {/* Estimated results */}
-      <h2 className="section-title flex items-center gap-2"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Εκτιμώμενα Αποτελέσματα</h2>
+      <h2 className="section-title flex items-center gap-2 mt-5"><ChartBarIcon className="w-5 h-5 text-blue-600 shrink-0" /> Εκτιμώμενα Αποτελέσματα</h2>
       <div className="card mb-5">
         <div className="flex flex-wrap gap-3 mb-4">
           <div className="kpi-card"><div className="kpi-label">Συνολική Οφειλή</div><div className="kpi-value">{est.sumDebt ? fmt(est.sumDebt) : '—'}</div></div>

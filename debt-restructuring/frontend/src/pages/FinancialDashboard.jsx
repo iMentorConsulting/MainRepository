@@ -18,6 +18,7 @@ import {
 import * as api from '../api'
 import { patchOffer, approveWinback, sendWinback } from '../api'
 import { toast } from 'react-hot-toast'
+import { buildWinbackTemplates } from '../utils/winbackTemplates'
 import PerformanceAnalysisDashboard from '../components/PerformanceAnalysisDashboard'
 import BulkImportForm from '../components/BulkImportForm'
 import {
@@ -103,11 +104,31 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [realStats, setRealStats] = useState(null)
   const [pricingConfig, setPricingConfig] = useState(() => loadPricingConfig())
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
+  const [payroll, setPayroll] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')  // Empty = show all data by default
+  const [selectedWeek, setSelectedWeek] = useState('')
   const [showBulkImport, setShowBulkImport] = useState(false)
+
+  // Generate last 12 weeks for week selector
+  const generateWeeks = () => {
+    const weeks = []
+    const today = new Date()
+    for (let i = 11; i >= 0; i--) {
+      const date = new Date(today)
+      date.setDate(date.getDate() - (date.getDay() === 0 ? 6 : date.getDay() - 1) - (i * 7))
+      const weekStart = new Date(date)
+      const weekEnd = new Date(weekStart)
+      weekEnd.setDate(weekEnd.getDate() + 6)
+      const weekStartStr = weekStart.toISOString().split('T')[0]
+      const weekEndStr = weekEnd.toISOString().split('T')[0]
+      const weekLabel = `Εβδ. ${weekStart.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' })} - ${weekEnd.toLocaleDateString('el-GR', { day: 'numeric', month: 'short' })}`
+      weeks.push({ start: weekStartStr, end: weekEndStr, label: weekLabel })
+    }
+    return weeks
+  }
 
   const handleBackupNow = async () => {
     setBackingUp(true)
@@ -133,12 +154,10 @@ export default function FinancialDashboard({ currentEmployee }) {
   const handleDownloadExport = () => api.exportData().catch(() => toast.error('Σφάλμα export'))
 
   const handleSavePricing = async (cfg) => {
+    savePricingConfig(cfg)   // always sync to localStorage so CaseForm reads updated values
     try {
       await api.putPricingConfig(cfg)
-    } catch {
-      // persist locally as fallback if API unreachable
-      savePricingConfig(cfg)
-    }
+    } catch { /* ignore — localStorage is the source of truth for the calculator */ }
     setPricingConfig(cfg)
   }
 
@@ -148,6 +167,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       if (res.data && Object.keys(res.data).length > 0)
         setPricingConfig({ ...DEFAULT_PRICING_CONFIG, ...res.data })
     }).catch(() => {})
+    api.getPayrollTargets().then(r => setPayroll(r.data)).catch(() => {})
   }, [])
 
   // Fetch real pipeline statistics
@@ -167,6 +187,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       })
   }
 
+  const [serviceFilter, setServiceFilter] = useState('')  // '' = all services | ΕΞΩΔΙΚΑΣΤΙΚΟΣ | ΠΤΩΧΕΥΣΗ
   const [allEmployeeStats, setAllEmployeeStats] = useState(null)
   const [leadsCountByConsultant, setLeadsCountByConsultant] = useState(null)
 
@@ -244,7 +265,8 @@ export default function FinancialDashboard({ currentEmployee }) {
     }
 
     // Fetch both employee stats and leads count
-    api.getAnalyticsPipelineStatsByEmployee(dateFrom ? `${dateFrom}T00:00:00Z` : null, dateTo ? `${dateTo}T23:59:59Z` : null)
+    // Send dates in YYYY-MM-DD format (backend expects this format, not ISO with timestamps)
+    api.getAnalyticsPipelineStatsByEmployee(dateFrom || null, dateTo || null, serviceFilter || null)
       .then(r => {
         console.log('Employee stats:', r.data)
         setAllEmployeeStats(r.data)
@@ -265,7 +287,7 @@ export default function FinancialDashboard({ currentEmployee }) {
         console.error('Status:', err?.response?.status)
         console.error('Data:', err?.response?.data)
       })
-  }, [selectedMonth, dateFromFilter, dateToFilter])
+  }, [selectedMonth, dateFromFilter, dateToFilter, serviceFilter])
 
   const offerCases = useMemo(() =>
     cases.filter(c => c.commercial_offer && (c.commercial_offer.application_fee || c.commercial_offer.success_fee)),
@@ -474,9 +496,58 @@ export default function FinancialDashboard({ currentEmployee }) {
               className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
             />
           </div>
+          <select
+            value={selectedMonth}
+            onChange={e => {
+              if (e.target.value) {
+                const [year, month] = e.target.value.split('-')
+                const from = `${year}-${month}-01`
+                const lastDay = new Date(parseInt(year), parseInt(month), 0).getDate()
+                const to = `${year}-${month}-${String(lastDay).padStart(2, '0')}`
+                setDateFromFilter(from)
+                setDateToFilter(to)
+                setSelectedMonth(e.target.value)
+                setSelectedWeek('')
+              }
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            <option value="">Μήνας/Έτος</option>
+            {[...Array(12)].map((_, i) => {
+              const date = new Date()
+              date.setMonth(date.getMonth() - i)
+              const year = date.getFullYear()
+              const month = String(date.getMonth() + 1).padStart(2, '0')
+              const monthName = new Intl.DateTimeFormat('el-GR', { month: 'long', year: 'numeric' }).format(date)
+              return <option key={`${year}-${month}`} value={`${year}-${month}`}>{monthName}</option>
+            })}
+          </select>
+
+          <select
+            value={selectedWeek}
+            onChange={e => {
+              if (e.target.value) {
+                const weeks = generateWeeks()
+                const week = weeks.find(w => w.start === e.target.value)
+                if (week) {
+                  setDateFromFilter(week.start)
+                  setDateToFilter(week.end)
+                  setSelectedWeek(week.start)
+                  setSelectedMonth('')
+                }
+              }
+            }}
+            className="text-xs px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+          >
+            <option value="">Εβδομάδα</option>
+            {generateWeeks().map(week => (
+              <option key={week.start} value={week.start}>{week.label}</option>
+            ))}
+          </select>
           <button
             onClick={() => {
               setSelectedMonth('')
+              setSelectedWeek('')
               setDateFromFilter('')
               setDateToFilter('')
               fetchAnalytics()
@@ -523,25 +594,64 @@ export default function FinancialDashboard({ currentEmployee }) {
         {/* Per-Employee Breakdown — EXCLUDING HARIS */}
         {allEmployeeStats && Object.keys(allEmployeeStats).filter(e => e !== 'HARIS').length > 0 && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5 mb-6">
-            <h3 className="text-sm font-black text-gray-700 mb-4">Ανάλυση ανά Σύμβουλο</h3>
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <h3 className="text-sm font-black text-gray-700">Ανάλυση ανά Σύμβουλο</h3>
+              <div className="flex rounded-lg border border-gray-200 overflow-hidden text-xs font-bold">
+                {[['', 'Όλες'], ['ΕΞΩΔΙΚΑΣΤΙΚΟΣ', 'Εξωδικαστικός'], ['ΠΤΩΧΕΥΣΗ', '⚖️ Πτώχευση']].map(([v, label]) => (
+                  <button key={v} onClick={() => setServiceFilter(v)}
+                    className={`px-3 py-1.5 ${serviceFilter === v ? 'bg-blue-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}>{label}</button>
+                ))}
+              </div>
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
               {Object.entries(allEmployeeStats).filter(([emp]) => emp !== 'HARIS').map(([emp, stats]) => {
                 const revenue = stats.collected_revenue || { first_payment: 0, second_payment: 0, total: 0 }
-                const leadsCount = leadsCountByConsultant?.[emp] || 0
                 return (
                   <div key={emp} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
                     <div className="font-semibold text-sm text-gray-800 mb-2">{emp}</div>
                     <div className="space-y-1 text-xs">
-                      <div><span className="text-gray-600">Leads ανατεθ.:</span> <span className="font-bold text-blue-600">{leadsCount}</span></div>
                       <div><span className="text-gray-600">Σύνολο:</span> <span className="font-bold">{stats.total_cases}</span></div>
-                      {stats.stage_breakdown && (
-                        <div className="bg-white rounded p-1.5 border border-gray-200 space-y-0.5">
-                          <div className="text-gray-500 font-semibold text-xs mb-1">Στάδια Pipeline</div>
-                          {stats.stage_breakdown.νέα_ανάλυση > 0 && <div><span className="text-gray-500">Νέα Ανάλυση:</span> <span className="font-bold">{stats.stage_breakdown.νέα_ανάλυση}</span></div>}
-                          {stats.stage_breakdown.θετική_ανταπόκριση > 0 && <div><span className="text-gray-500">Θετική Ανταπόκριση:</span> <span className="font-bold">{stats.stage_breakdown.θετική_ανταπόκριση}</span></div>}
-                          {stats.stage_breakdown.σε_διαπραγμάτευση > 0 && <div><span className="text-gray-500">Σε Διαπραγμάτευση:</span> <span className="font-bold">{stats.stage_breakdown.σε_διαπραγμάτευση}</span></div>}
-                          <div><span className="text-emerald-600">Έκλεισε:</span> <span className="font-bold text-emerald-700">{stats.stage_breakdown.έκλεισε}</span></div>
-                          <div><span className="text-red-600">Δεν Ενδιαφέρεται:</span> <span className="font-bold text-red-700">{stats.stage_breakdown.δεν_ενδιαφέρεται}</span></div>
+                      <div className="bg-blue-50 rounded p-1.5 border border-blue-200">
+                        <span className="text-blue-700 font-semibold">⚙️ Εν Εξελίξει Υποθέσεις:</span> <span className="font-bold text-blue-800">{stats.active_cases_count ?? 0}</span>
+                      </div>
+                      {stats.active_pipeline && (
+                        <div className="bg-white rounded p-1.5 border border-indigo-200 space-y-1.5">
+                          <div className="text-indigo-700 font-bold text-xs mb-1">📊 Pipeline Υποθέσεων</div>
+                          {/* Άντληση Στοιχείων (draft) */}
+                          {stats.active_pipeline.draft.count > 0 && (
+                            <div className="text-xs space-y-0.5 border-b border-gray-100 pb-1">
+                              <div className="font-semibold text-gray-700">Άντληση Στοιχείων <span className="text-gray-500 font-normal">({stats.active_pipeline.draft.count})</span></div>
+                              <div className="pl-2 text-gray-500">Αναμ. 1η πληρ. <span className="font-bold text-green-700">({stats.closure_percentage}%): {(stats.active_pipeline.draft.expected_1st || 0).toLocaleString('el-GR')}€</span></div>
+                              <div className="pl-2 text-gray-500">Αναμ. 2η πληρ. <span className="font-bold text-purple-700">({stats.closure_percentage}%×{stats.settlement_acceptance_percentage}%): {(stats.active_pipeline.draft.expected_2nd || 0).toLocaleString('el-GR')}€</span></div>
+                            </div>
+                          )}
+                          {/* Οριστικοποίηση Αίτησης (submitted) */}
+                          {stats.active_pipeline.submitted.count > 0 && (
+                            <div className="text-xs space-y-0.5 border-b border-gray-100 pb-1">
+                              <div className="font-semibold text-gray-700">Οριστικοποίηση Αίτησης <span className="text-gray-500 font-normal">({stats.active_pipeline.submitted.count})</span></div>
+                              <div className="pl-2 text-gray-400 italic text-xs">1η πληρωμή ✓ εισπράχθηκε</div>
+                              <div className="pl-2 text-gray-500">Αναμ. 2η πληρ. <span className="font-bold text-purple-700">({stats.settlement_acceptance_percentage}%): {(stats.active_pipeline.submitted.expected_2nd || 0).toLocaleString('el-GR')}€</span></div>
+                            </div>
+                          )}
+                          {/* Πρόταση Ρύθμισης (in_review) */}
+                          {stats.active_pipeline.in_review.count > 0 && (
+                            <div className="text-xs space-y-0.5">
+                              <div className="font-semibold text-gray-700">Πρόταση Ρύθμισης <span className="text-gray-500 font-normal">({stats.active_pipeline.in_review.count})</span></div>
+                              <div className="pl-2 text-gray-400 italic text-xs">1η πληρωμή ✓ εισπράχθηκε</div>
+                              <div className="pl-2 text-gray-500">Αναμ. 2η πληρ. <span className="font-bold text-purple-700">({stats.settlement_acceptance_percentage}%): {(stats.active_pipeline.in_review.expected_2nd || 0).toLocaleString('el-GR')}€</span></div>
+                            </div>
+                          )}
+                          {/* Total expected */}
+                          {(() => {
+                            const p = stats.active_pipeline
+                            const total1 = p.draft.expected_1st || 0
+                            const total2 = (p.draft.expected_2nd || 0) + (p.submitted.expected_2nd || 0) + (p.in_review.expected_2nd || 0)
+                            return (total1 + total2 > 0) && (
+                              <div className="text-xs font-bold border-t border-indigo-100 pt-1 mt-1">
+                                <span className="text-indigo-700">Σύνολο αναμενόμενο:</span> <span className="text-indigo-800">{(total1 + total2).toLocaleString('el-GR')}€</span>
+                              </div>
+                            )
+                          })()}
                         </div>
                       )}
                       <div><span className="text-emerald-600">Κλεισμένες:</span> <span className="font-bold text-emerald-700">{stats.closure_percentage}% ({stats.closed_count}/{stats.closure_count})</span></div>
@@ -558,16 +668,9 @@ export default function FinancialDashboard({ currentEmployee }) {
                         <div><span className="text-purple-600">2η πληρωμή:</span> <span className="font-bold text-purple-700">{(revenue.second_payment || 0).toLocaleString('el-GR')}€ ({revenue.second_payment_completed_count || 0})</span></div>
                         <div className="font-bold text-lg"><span className="text-gray-800">Σύνολο:</span> <span className="text-blue-800">{(revenue.total || 0).toLocaleString('el-GR')}€</span></div>
                       </div>
-                      {stats.date_range && (
+                      {(dateFromFilter || dateToFilter) && (
                         <div className="pt-1 border-t border-gray-300 mt-1 text-xs">
-                          {(() => {
-                            const formatDate = (iso) => {
-                              if (!iso) return '—'
-                              const [y, m, d] = iso.split('T')[0].split('-')
-                              return `${d}/${m}/${y}`
-                            }
-                            return <div className="text-gray-500">Περίοδος: {formatDate(stats.date_range.earliest)} → {formatDate(stats.date_range.latest)}</div>
-                          })()}
+                          <div className="text-gray-500">Περίοδος: {dateFromFilter || '—'} — {dateToFilter || '—'}</div>
                         </div>
                       )}
                     </div>
@@ -872,6 +975,69 @@ export default function FinancialDashboard({ currentEmployee }) {
           />
         )}
       </div>
+
+      {/* ── Payroll Targets ──────────────────────────────────────────────────── */}
+      {payroll && payroll.employees?.length > 0 && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+          <h2 className="text-sm font-black text-gray-700 mb-1 flex items-center gap-2">
+            🎯 Στόχοι Μισθοδοσίας — {payroll.month_name} {payroll.year}
+          </h2>
+          <p className="text-xs text-gray-400 mb-4">Ημέρα {payroll.days_elapsed}/{payroll.days_in_month} · αποστολή {new Date(payroll.sent_at).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}</p>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b-2 border-gray-100 text-xs text-gray-400 uppercase">
+                  <th className="text-left py-2 px-3">Υπάλληλος</th>
+                  <th className="text-right py-2 px-3">Στόχος</th>
+                  <th className="text-right py-2 px-3">Εισπράξεις</th>
+                  <th className="text-right py-2 px-3">Επίτευξη</th>
+                  <th className="py-2 px-3 w-32">Πρόοδος</th>
+                </tr>
+              </thead>
+              <tbody>
+                {payroll.employees.map((emp, i) => {
+                  const pct = emp.achievement_pct ?? (emp.target > 0 ? emp.sales_to_date / emp.target * 100 : null)
+                  const barColor = pct == null ? 'bg-blue-400' : pct >= 100 ? 'bg-green-500' : pct >= 70 ? 'bg-blue-500' : 'bg-amber-500'
+                  const txtColor = pct == null ? 'text-gray-500' : pct >= 100 ? 'text-green-700' : pct >= 70 ? 'text-blue-700' : 'text-amber-600'
+                  return (
+                    <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                      <td className="py-2 px-3 font-medium text-gray-700">{emp.name}</td>
+                      <td className="py-2 px-3 text-right text-gray-600">{emp.target?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className="py-2 px-3 text-right font-semibold text-gray-800">{emp.sales_to_date?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className={`py-2 px-3 text-right font-bold ${txtColor}`}>{pct != null ? `${Math.round(pct)}%` : '—'}</td>
+                      <td className="py-2 px-3">
+                        <div className="h-2 rounded-full bg-gray-100 overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct != null ? Math.min(100, pct) : 0}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+                {(() => {
+                  const totalTarget = payroll.employees.reduce((s, e) => s + (e.target || 0), 0)
+                  const totalSales = payroll.employees.reduce((s, e) => s + (e.sales_to_date || 0), 0)
+                  const totalPct = totalTarget > 0 ? (totalSales / totalTarget) * 100 : null
+                  const barColor = totalPct == null ? 'bg-blue-400' : totalPct >= 100 ? 'bg-green-500' : totalPct >= 70 ? 'bg-blue-500' : 'bg-amber-500'
+                  const txtColor = totalPct == null ? 'text-gray-500' : totalPct >= 100 ? 'text-green-700' : totalPct >= 70 ? 'text-blue-700' : 'text-amber-600'
+                  return (
+                    <tr className="border-t-2 border-gray-300 bg-gray-50">
+                      <td className="py-2.5 px-3 font-black text-gray-800 text-xs uppercase tracking-wide">Σύνολο</td>
+                      <td className="py-2.5 px-3 text-right font-black text-gray-700">{totalTarget.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className="py-2.5 px-3 text-right font-black text-gray-900">{totalSales.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
+                      <td className={`py-2.5 px-3 text-right font-black ${txtColor}`}>{totalPct != null ? `${Math.round(totalPct)}%` : '—'}</td>
+                      <td className="py-2.5 px-3">
+                        <div className="h-2.5 rounded-full bg-gray-200 overflow-hidden">
+                          <div className={`h-full rounded-full ${barColor}`} style={{ width: `${totalPct != null ? Math.min(100, totalPct) : 0}%` }} />
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })()}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {/* ── Deals Table ─────────────────────────────────────────────────────── */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
@@ -1414,133 +1580,11 @@ function KpiCard({ icon, label, value, sub, color }) {
   )
 }
 
-const WINBACK_DAYS = 10
-
-function buildWinbackTemplates(c) {
-  const name = c.client_name || ''
-  const wbApp = c.commercial_offer?.winback_app || 0
-  const wbSuc = c.commercial_offer?.winback_suc || 0
-  const origApp = c.commercial_offer?.application_fee || c.commercial_offer?.system_app || 0
-  const origSuc = c.commercial_offer?.success_fee || c.commercial_offer?.system_suc || 0
-  const totalDebt = (c.debts || []).reduce((s, d) => s + (Number(d.amount) || 0), 0)
-  const debtK = totalDebt >= 1000 ? (totalDebt / 1000).toFixed(0) + 'χιλ.' : Math.round(totalDebt) + ''
-  const bankCount = (c.debts || []).filter(d => d.type === 'Τράπεζα').length
-  const fmtApp = Number(wbApp).toLocaleString('el-GR')
-  const fmtSuc = Number(wbSuc).toLocaleString('el-GR')
-  const fmtOrigApp = Number(origApp).toLocaleString('el-GR')
-  const fmtOrigSuc = Number(origSuc).toLocaleString('el-GR')
-
-  const validUntil = c.commercial_offer?.winback_offer_valid_until
-  let validUntilLine = ''
-  if (validUntil) {
-    const vDate = new Date(validUntil)
-    const daysLeft = Math.max(0, Math.ceil((vDate - new Date()) / (1000 * 60 * 60 * 24)))
-    validUntilLine = `\n\n⏰ Η προσφορά ισχύει έως **${format(vDate, 'dd/MM/yyyy')}** (${daysLeft} ημέρες ακόμα).`
-  }
-
-  const templates = [
-    {
-      id: 'special-price',
-      icon: '💎',
-      label: 'Ειδική Τιμή',
-      text: `💎 Αγαπητέ/ή ${name},
-
-Επανερχόμαστε με μια **ξεχωριστή πρόταση** που σχεδιάσαμε αποκλειστικά για εσάς.
-
-Γνωρίζουμε ότι το κόστος αποτελεί συχνά το κυριότερο εμπόδιο στη λήψη αποφάσεων — γι' αυτό θέλουμε να το κάνουμε όσο πιο προσιτό γίνεται:
-
-▸ Κόστος υποβολής αίτησης: **${fmtApp} €** (αντί ${fmtOrigApp} €)
-▸ Αμοιβή επιτυχίας: **${fmtSuc} €** (αντί ${fmtOrigSuc} €)
-
-Η ρύθμιση των οφειλών σας είναι εφικτή. Ένα βήμα χωρίζει από μια νέα αρχή. 📞
-
-Η ομάδα iMentor`,
-    },
-    {
-      id: 'empathy',
-      icon: '🤝',
-      label: 'Συμπαράσταση',
-      text: `🤝 Αγαπητέ/ή ${name},
-
-Γνωρίζουμε ότι κάθε υπόθεση έχει τη δική της ιστορία — και **δεν κρίνουμε ποτέ**.
-
-${bankCount > 0 ? `Με ${bankCount} τράπεζ${bankCount === 1 ? 'α' : 'ες'} και λοιπούς πιστωτές να πιέζουν, ` : ''}η καθημερινότητα μπορεί να είναι εξαντλητική. Εμείς είμαστε εδώ **για να μπούμε ανάμεσα** — με γνώση, εμπειρία και αποτελέσματα.
-
-Για να κάνουμε αυτό το βήμα όσο πιο εύκολο γίνεται για εσάς:
-
-▸ Κόστος υποβολής: **${fmtApp} €**
-▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
-
-Μια συνομιλία δεν δεσμεύει σε τίποτα. Είμαστε εδώ. 💬
-
-Η ομάδα iMentor`,
-    },
-    {
-      id: 'second-chance',
-      icon: '🔄',
-      label: 'Δεύτερη Ευκαιρία',
-      text: `🔄 Αγαπητέ/ή ${name},
-
-Μερικές φορές χρειαζόμαστε χρόνο για να πάρουμε τις **σωστές αποφάσεις** — και αυτό είναι απολύτως φυσιολογικό.
-
-${totalDebt > 0 ? `Οι οφειλές των ${debtK} € δεν εξαφανίζονται από μόνες τους — αλλά μπορούν να ρυθμιστούν. ` : ''}Η νομοθεσία δίνει σήμερα **πραγματικές ευκαιρίες** αναδιάρθρωσης που αξίζει να εξερευνήσετε.
-
-Σας περιμένουμε, με ακόμα καλύτερες συνθήκες:
-
-▸ Κόστος υποβολής: **${fmtApp} €**
-▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
-
-Ας μιλήσουμε ξανά — χωρίς καμία πίεση. 🙏
-
-Η ομάδα iMentor`,
-    },
-    {
-      id: 'reconsider',
-      icon: '💭',
-      label: 'Ξανασκεφτείτε το',
-      text: `💭 Αγαπητέ/ή ${name},
-
-Θέλαμε απλώς να σας θυμίσουμε ότι **η πρότασή μας παραμένει ανοιχτή**.
-
-Καταλαβαίνουμε ότι μια τέτοια απόφαση δεν λαμβάνεται εύκολα. Όμως κάθε μέρα που περνά, οι τόκοι και τα πρόστιμα συνεχίζουν να μεγαλώνουν. **Η ρύθμιση σταματά αυτόν τον κύκλο.**
-
-Για να διευκολύνουμε την επιλογή σας, σας προσφέρουμε:
-
-▸ Κόστος υποβολής: **${fmtApp} €**
-▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
-
-Ένα μόνο μήνυμα αρκεί για να ξεκινήσουμε. ✉️
-
-Η ομάδα iMentor`,
-    },
-    {
-      id: 'timing',
-      icon: '⏳',
-      label: 'Κατάλληλη Στιγμή',
-      text: `⏳ Αγαπητέ/ή ${name},
-
-Το νομικό πλαίσιο για τη ρύθμιση οφειλών **εξελίσσεται διαρκώς** — και τα παράθυρα ευκαιρίας δεν παραμένουν ανοιχτά για πάντα.
-
-Πιστεύουμε ότι **τώρα είναι η κατάλληλη στιγμή** για να κάνετε αυτό το βήμα. Έχουμε ήδη αναλύσει την υπόθεσή σας και γνωρίζουμε ότι υπάρχει λύση.
-
-Η πρότασή μας, με ειδικές συνθήκες:
-
-▸ Κόστος υποβολής: **${fmtApp} €**
-▸ Αμοιβή επιτυχίας: **${fmtSuc} €**
-
-Είμαστε έτοιμοι να προχωρήσουμε μαζί σας — αμέσως. 🚀
-
-Η ομάδα iMentor`,
-    },
-  ]
-
-  return validUntilLine ? templates.map(t => ({ ...t, text: t.text + validUntilLine })) : templates
-}
-
 function WinbackComposer({ c, onSend, onClose }) {
   const templates = useMemo(() => buildWinbackTemplates(c), [c])
   const [selectedTpl, setSelectedTpl] = useState(0)
-  const [body, setBody] = useState(() => templates[0].text)
+  const draft = c.commercial_offer?.winback_draft_message
+  const [body, setBody] = useState(() => draft || templates[0].text)
   const [channel, setChannel] = useState('viber')
   const [sending, setSending] = useState(false)
 
@@ -1585,6 +1629,11 @@ function WinbackComposer({ c, onSend, onClose }) {
 
       {/* Editable preview */}
       <div>
+        {draft && (
+          <p className="text-xs text-violet-700 bg-violet-50 border border-violet-200 rounded px-2 py-1 mb-1">
+            ✍️ Το μήνυμα συντάχθηκε από τον/την {c.commercial_offer?.winback_prepared_by || 'σύμβουλο'}. Ελέγξτε το πριν την αποστολή.
+          </p>
+        )}
         <p className="text-xs font-semibold text-gray-500 mb-1">Προεπισκόπηση &amp; επεξεργασία:</p>
         <textarea
           value={body}
@@ -1640,16 +1689,8 @@ function WinbackComposer({ c, onSend, onClose }) {
 function WinbackPanel({ cases, onCasesUpdate }) {
   const now = new Date()
 
-  const candidates = cases.filter(c => {
-    // Emergency win-back requests (from the case detail page) bypass all other conditions
-    if (c.commercial_offer?.winback_requested) return true
-    if (c.contact_stage !== 'Δεν Ενδιαφέρεται') return false
-    const ws = c.commercial_offer?.winback_status
-    if (ws === 'approved' || ws === 'sent' || ws === 'dismissed') return false
-    const ref = c.stage_changed_at || c.updated_at
-    if (!ref) return false
-    return (now - new Date(ref)) / (1000 * 60 * 60 * 24) >= WINBACK_DAYS
-  })
+  // The consultants decide what to offer (page «Win-back»); only their submitted requests reach the admin
+  const candidates = cases.filter(c => c.commercial_offer?.winback_requested)
 
   const approved = cases.filter(c => c.commercial_offer?.winback_status === 'approved')
 
@@ -1660,6 +1701,33 @@ function WinbackPanel({ cases, onCasesUpdate }) {
   const [openComposer, setOpenComposer] = useState(null)
   const [showSent, setShowSent] = useState(false)
   const [edits, setEdits] = useState({})  // { [caseId]: { app, suc } }
+  const [copyConsultant, setCopyConsultant] = useState('')
+
+  const allList = [...candidates, ...approved, ...sent]
+  const CONSULTANTS = [...new Set(allList.map(c => c.employee).filter(Boolean))].sort()
+
+  const handleCopyForConsultant = async (consultant) => {
+    const list = allList.filter(c => !consultant || c.employee === consultant)
+    if (!list.length) { toast.error('Δεν υπάρχουν υποθέσεις για αυτόν τον σύμβουλο'); return }
+
+    const lines = list.map(c => {
+      const ref = c.stage_changed_at || c.updated_at
+      const days = ref ? Math.floor((now - new Date(ref)) / (1000 * 60 * 60 * 24)) : '?'
+      const wbApp = c.commercial_offer?.winback_app || Math.round((c.commercial_offer?.application_fee || 0) * 0.7 / 10) * 10
+      const wbSuc = c.commercial_offer?.winback_suc || Math.round((c.commercial_offer?.success_fee || 0) * 0.7 / 10) * 10
+      const status = c.commercial_offer?.winback_status === 'sent' ? '✅ Εστάλη' : c.commercial_offer?.winback_status === 'approved' ? '⏳ Εγκρίθηκε' : '🔔 Εκκρεμεί'
+      return `• ${c.client_name} | ${days} ημέρες | Αίτηση: ${wbApp}€ | Success: ${wbSuc}€ | ${status}`
+    })
+
+    const header = consultant
+      ? `📋 Win-back — ${consultant} (${list.length} υποθέσεις)\n${'─'.repeat(40)}`
+      : `📋 Win-back — Όλοι οι σύμβουλοι (${list.length} υποθέσεις)\n${'─'.repeat(40)}`
+
+    try {
+      await navigator.clipboard.writeText(`${header}\n${lines.join('\n')}`)
+      toast.success(`Αντιγράφηκε${consultant ? ` — ${consultant}` : ''}`)
+    } catch { toast.error('Αποτυχία αντιγραφής') }
+  }
 
   const handleApprove = async (c, approve, overrides = {}) => {
     try {
@@ -1685,23 +1753,40 @@ function WinbackPanel({ cases, onCasesUpdate }) {
 
   return (
     <div className="bg-violet-50 border border-violet-200 rounded-2xl p-5 space-y-4">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-sm font-black text-violet-800 flex items-center gap-2">
           <SparklesIcon className="w-4 h-4" />
           Επαναφορά Πελατών (Win-back)
         </h2>
         {totalSaving > 0 && (
-          <span className="ml-auto bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
+          <span className="bg-green-100 text-green-800 text-xs font-bold px-3 py-1 rounded-full">
             Εκτιμώμενο saving: {totalSaving.toLocaleString('el-GR')} €
           </span>
         )}
+        <div className="ml-auto flex items-center gap-2">
+          <select
+            value={copyConsultant}
+            onChange={e => setCopyConsultant(e.target.value)}
+            className="text-xs border border-violet-300 rounded px-2 py-1 bg-white text-violet-700 focus:outline-none"
+          >
+            <option value="">Όλοι οι σύμβουλοι</option>
+            {CONSULTANTS.map(emp => <option key={emp} value={emp}>{emp}</option>)}
+          </select>
+          <button
+            onClick={() => handleCopyForConsultant(copyConsultant)}
+            className="text-xs px-3 py-1 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-lg transition-colors"
+          >
+            📋 Copy
+          </button>
+        </div>
       </div>
 
       {/* Candidates awaiting approval */}
       {candidates.length > 0 && (
         <div>
           <p className="text-xs text-violet-600 font-semibold mb-2">
-            {WINBACK_DAYS}+ ημέρες σε «Δεν Ενδιαφέρεται» — εγκρίνετε αποστολή με -30%:
+            Προτάσεις από τους συμβούλους — ελέγξτε τις τιμές και εγκρίνετε για αποστολή:
+            {' '}<a href="/winback" className="underline text-violet-700">Όλες οι ευκαιρίες →</a>
           </p>
           <div className="space-y-2">
             {candidates.map(c => {
@@ -1731,9 +1816,15 @@ function WinbackPanel({ cases, onCasesUpdate }) {
                     </div>
                     {isEmergency && (
                       <div className="text-xs text-amber-700 font-semibold mt-0.5">
-                        🚨 Έκτακτο αίτημα από {c.commercial_offer.winback_requested_by}
+                        📨 Πρόταση από {c.commercial_offer.winback_requested_by}
                         {c.commercial_offer.winback_request_note && <> — «{c.commercial_offer.winback_request_note}»</>}
                       </div>
+                    )}
+                    {c.commercial_offer?.winback_draft_message && (
+                      <details className="mt-1">
+                        <summary className="text-xs text-violet-600 cursor-pointer">Προβολή μηνύματος</summary>
+                        <pre className="whitespace-pre-wrap text-xs bg-gray-50 border border-gray-200 rounded p-2 mt-1 font-sans">{c.commercial_offer.winback_draft_message}</pre>
+                      </details>
                     )}
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {bdItems.map((item, i) => (

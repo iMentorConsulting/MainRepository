@@ -1,6 +1,16 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, Any
 from datetime import datetime
+
+
+def _pad_afm(v: Optional[str]) -> Optional[str]:
+    """Ensure ΑΦΜ is always 9 digits by left-padding with zeros (Excel strips leading zeros)."""
+    if not v:
+        return v
+    v = v.strip()
+    if v.isdigit() and len(v) < 9:
+        v = v.zfill(9)
+    return v
 
 
 class CaseCreate(BaseModel):
@@ -19,6 +29,13 @@ class CaseCreate(BaseModel):
     portal_active: bool = True
     contact_stage: str = "Νέα Ανάλυση"
     commercial_offer: Optional[dict] = None
+    service_type: str = "ΕΞΩΔΙΚΑΣΤΙΚΟΣ"
+    bankruptcy: dict = {}
+
+    @field_validator('client_vat', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v)
 
 
 class CaseUpdate(BaseModel):
@@ -38,6 +55,13 @@ class CaseUpdate(BaseModel):
     portal_active: Optional[bool] = None
     contact_stage: Optional[str] = None
     commercial_offer: Optional[dict] = None
+    service_type: Optional[str] = None
+    bankruptcy: Optional[dict] = None
+
+    @field_validator('client_vat', mode='before')
+    @classmethod
+    def normalize_afm(cls, v):
+        return _pad_afm(v)
 
 
 class ContactUpdate(BaseModel):
@@ -70,6 +94,8 @@ class CaseResponse(BaseModel):
     last_contacted_at: Optional[datetime] = None
     reminder_count: int = 0
     commercial_offer: Optional[dict] = None
+    service_type: str = "ΕΞΩΔΙΚΑΣΤΙΚΟΣ"
+    bankruptcy: Optional[dict] = None
     portal_visit_count: int = 0
     portal_visits: Optional[list] = None
     created_at: datetime
@@ -108,6 +134,8 @@ class CaseListItem(BaseModel):
     reminder_count: int = 0
     portal_visit_count: int = 0
     commercial_offer: Optional[dict] = None
+    service_type: str = "ΕΞΩΔΙΚΑΣΤΙΚΟΣ"
+    bankruptcy: Optional[dict] = None
     created_at: datetime
     updated_at: datetime
     submitted_at: Optional[datetime]
