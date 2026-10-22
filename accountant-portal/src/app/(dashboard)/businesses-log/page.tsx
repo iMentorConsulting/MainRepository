@@ -1,7 +1,7 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import Link from 'next/link'
-import { Building2, Search, RefreshCw, Download, Filter } from 'lucide-react'
+import { Building2, Search, RefreshCw, Download, Filter, Mail } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
@@ -46,6 +46,8 @@ export default function BusinessesLogPage() {
   const [selectedAccountants, setSelectedAccountants] = useState<string[]>([])
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
+  const [backfilling, setBackfilling] = useState(false)
+  const [backfillStatus, setBackfillStatus] = useState('')
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350)
@@ -67,6 +69,48 @@ export default function BusinessesLogPage() {
   }, [page, selectedSources, selectedAccountants, dateFrom, dateTo, debouncedSearch])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  async function runEligibilityBackfill() {
+    if (!confirm(
+      'Θα σταλεί το email "Βρέθηκαν διαθέσιμα προγράμματα" σε κάθε επιχείρηση που ταιριάζει με τα τρέχοντα φίλτρα και δεν έχει ήδη επεξεργαστεί (πραγματικά emails σε πραγματικούς παραλήπτες). Συνέχεια;'
+    )) return
+    setBackfilling(true)
+    let totalSent = 0
+    let totalProcessed = 0
+    try {
+      while (true) {
+        const res = await fetch('/api/admin/eligibility-email-backfill', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            sources: selectedSources,
+            accountantIds: selectedAccountants,
+            dateFrom: dateFrom || undefined,
+            dateTo: dateTo || undefined,
+            search: debouncedSearch || undefined,
+          }),
+        })
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}))
+          setBackfillStatus(err.error || 'Σφάλμα.')
+          break
+        }
+        const d = await res.json()
+        totalSent += d.sent
+        totalProcessed += d.processed
+        setBackfillStatus(`${totalProcessed} επεξεργάστηκαν, ${totalSent} emails εστάλησαν — απομένουν ${d.remaining}...`)
+        if (d.processed === 0 || d.remaining === 0) {
+          setBackfillStatus(`Ολοκληρώθηκε: ${totalProcessed} επεξεργάστηκαν, ${totalSent} emails εστάλησαν.`)
+          break
+        }
+      }
+    } catch {
+      setBackfillStatus('Σφάλμα δικτύου.')
+    } finally {
+      setBackfilling(false)
+      fetchData()
+    }
+  }
 
   // reset page on filter change
   useEffect(() => { setPage(1) }, [selectedSources, selectedAccountants, dateFrom, dateTo, debouncedSearch])
@@ -94,11 +138,23 @@ export default function BusinessesLogPage() {
             Ιστορικό δημιουργίας επιχειρήσεων — πηγή, ώρα και χρήστης
           </p>
         </div>
-        <Button variant="outline" onClick={fetchData} className="flex items-center gap-2">
-          <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-          Ανανέωση
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={runEligibilityBackfill} loading={backfilling} className="flex items-center gap-2">
+            <Mail size={14} />
+            Αποστολή emails επιλεξιμότητας
+          </Button>
+          <Button variant="outline" onClick={fetchData} className="flex items-center gap-2">
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            Ανανέωση
+          </Button>
+        </div>
       </div>
+
+      {backfillStatus && (
+        <div className="bg-indigo-50 border border-indigo-200 text-indigo-800 text-sm rounded-lg px-4 py-2.5">
+          {backfillStatus}
+        </div>
+      )}
 
       {/* Filters */}
       <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
