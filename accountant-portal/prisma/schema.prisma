@@ -164,6 +164,11 @@ model Business {
   iMentorServices       String[]            // services received from I-MENTOR (e.g. ΕΣΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ)
   excludedFromCampaigns Boolean             @default(false)
   unsubscribeToken      String?             @unique @default(cuid())
+  // Set once the "Βρέθηκαν διαθέσιμα προγράμματα" eligibility email (or an
+  // evaluation that found nothing to send) has been processed for this
+  // business — lets the admin backfill tool make forward progress through a
+  // backlog without re-processing the same row on every run.
+  eligibilityEmailSentAt DateTime?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
   activities            BusinessActivity[]
