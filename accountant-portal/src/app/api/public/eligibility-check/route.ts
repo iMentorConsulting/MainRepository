@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { checkEligibilityForAfm } from '@/lib/eligibility-check-core'
+import { buildEligibilitySubject, buildEligibilityEmailHtml } from '@/lib/eligibility-email'
+import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
 
@@ -160,5 +162,30 @@ export async function POST(request: NextRequest) {
       data: { checkedAt: new Date(), result: finalResult as any },
     }).catch(() => {})
   }
+
+  // Also email the same "Βρέθηκαν διαθέσιμα προγράμματα" notification the
+  // Moosend signup webhook sends — the widget shows results live on the
+  // page, but a visitor who closes the tab (or wants a record to come back
+  // to) still gets the follow-up. Fire-and-forget so it never delays the
+  // live page response. eligibilityEmailSentAt gating is shared with the
+  // admin backfill tool, so a business never gets this email twice from the
+  // two different triggers.
+  if (result.programs.length > 0) {
+    ;(async () => {
+      const business = await prisma.business.findUnique({
+        where: { afm: cleanAfm },
+        select: { id: true, eligibilityEmailSentAt: true },
+      })
+      if (business && !business.eligibilityEmailSentAt) {
+        await sendEmail({
+          to: cleanEmail,
+          subject: buildEligibilitySubject(result.businessName, result.programs.length),
+          html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails }),
+        })
+        await prisma.business.update({ where: { id: business.id }, data: { eligibilityEmailSentAt: new Date() } })
+      }
+    })().catch(err => console.error('[EligibilityCheck] email send failed:', err?.message))
+  }
+
   return NextResponse.json(finalResult, { headers: cors(origin) })
 }
