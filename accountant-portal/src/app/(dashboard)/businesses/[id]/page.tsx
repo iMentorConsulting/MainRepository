@@ -176,84 +176,88 @@ export default function BusinessDetailPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3 print:hidden">
-        <Link href="/businesses">
-          <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Πίσω</Button>
-        </Link>
-        <div className="flex-1">
-          <h1 className="text-2xl font-bold text-gray-900">{business.onomasia || 'Επιχείρηση'}</h1>
-          <div className="flex items-center gap-3 mt-1 flex-wrap">
-            <span className="font-mono text-gray-500 text-sm">ΑΦΜ: {business.afm}</span>
-            {business.legalStatusDescr && (
-              <Badge variant="secondary">{business.legalStatusDescr}</Badge>
-            )}
-            {(business.deactivationFlag === 'Y' || business.stopDate) && (
-              <Badge variant="danger">Ανενεργή</Badge>
-            )}
-            <SourceBadge source={business.source} />
-            <CategoryBadge category={getEffectiveCategory(business)} size="lg" />
-            <select
-              value={getEffectiveCategory(business) || ''}
-              onChange={e => setCategory(e.target.value)}
-              className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-              title="Αλλαγή κλάδου"
-            >
-              <option value="">-</option>
-              {ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-            </select>
-            {resolveRegionFromZip(business.postalZipCode) && (
-              <Badge variant="info" className="flex items-center gap-1">
-                <MapPin size={12} />
-                {resolveRegionFromZip(business.postalZipCode)}
-              </Badge>
-            )}
+      <div className="flex flex-col gap-3 md:flex-row md:items-center print:hidden">
+        <div className="flex items-center gap-3">
+          <Link href="/businesses">
+            <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Πίσω</Button>
+          </Link>
+          <div className="flex-1 min-w-0">
+            <h1 className="text-2xl font-bold text-gray-900">{business.onomasia || 'Επιχείρηση'}</h1>
+            <div className="flex items-center gap-3 mt-1 flex-wrap">
+              <span className="font-mono text-gray-500 text-sm">ΑΦΜ: {business.afm}</span>
+              {business.legalStatusDescr && (
+                <Badge variant="secondary">{business.legalStatusDescr}</Badge>
+              )}
+              {(business.deactivationFlag === 'Y' || business.stopDate) && (
+                <Badge variant="danger">Ανενεργή</Badge>
+              )}
+              <SourceBadge source={business.source} />
+              <CategoryBadge category={getEffectiveCategory(business)} size="lg" />
+              <select
+                value={getEffectiveCategory(business) || ''}
+                onChange={e => setCategory(e.target.value)}
+                className="text-xs border border-gray-300 rounded-lg px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+                title="Αλλαγή κλάδου"
+              >
+                <option value="">-</option>
+                {ALL_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+              </select>
+              {resolveRegionFromZip(business.postalZipCode) && (
+                <Badge variant="info" className="flex items-center gap-1">
+                  <MapPin size={12} />
+                  {resolveRegionFromZip(business.postalZipCode)}
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
-        <Button
-          variant="outline"
-          onClick={() => window.print()}
-        >
-          <Printer size={16} className="mr-2" />
-          Εκτύπωση / PDF
-        </Button>
-        <Button
-          onClick={() => setQuickSend(true)}
-          className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg"
-        >
-          <Send size={15} />
-          Γρήγορη Αποστολή
-        </Button>
-        <Button variant="outline" onClick={() => setNewCase(true)}>
-          <ClipboardList size={16} className="mr-2" />
-          Ανάθεση Επιχορήγησης
-        </Button>
-        <Link href={`/exodikastikos/new?businessId=${business.id}`}>
-          <Button variant="outline">
-            <Scale size={16} className="mr-2" />
-            Ανάθεση Εξωδικαστικού
+        <div className="flex items-center gap-2 flex-wrap md:ml-auto md:flex-shrink-0">
+          <Button
+            variant="outline"
+            onClick={() => window.print()}
+          >
+            <Printer size={16} className="mr-2" />
+            Εκτύπωση / PDF
           </Button>
-        </Link>
-        <Link href={`/ptoxeusi/new?businessId=${business.id}`}>
-          <Button variant="outline">
-            <Gavel size={16} className="mr-2" />
-            Ανάθεση Πτώχευσης
+          <Button
+            onClick={() => setQuickSend(true)}
+            className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg"
+          >
+            <Send size={15} />
+            Γρήγορη Αποστολή
           </Button>
-        </Link>
-        <Link href={`/businesses/${id}/edit`}>
-          <Button variant="outline">
-            <Edit size={16} className="mr-2" />
-            Επεξεργασία
+          <Button variant="outline" onClick={() => setNewCase(true)}>
+            <ClipboardList size={16} className="mr-2" />
+            Ανάθεση Επιχορήγησης
           </Button>
-        </Link>
-        <Button
-          variant="outline"
-          onClick={handleDelete}
-          loading={deleting}
-          className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
-        >
-          <Trash2 size={15} className="mr-1.5" />
-          Διαγραφή
-        </Button>
+          <Link href={`/exodikastikos/new?businessId=${business.id}`}>
+            <Button variant="outline">
+              <Scale size={16} className="mr-2" />
+              Ανάθεση Εξωδικαστικού
+            </Button>
+          </Link>
+          <Link href={`/ptoxeusi/new?businessId=${business.id}`}>
+            <Button variant="outline">
+              <Gavel size={16} className="mr-2" />
+              Ανάθεση Πτώχευσης
+            </Button>
+          </Link>
+          <Link href={`/businesses/${id}/edit`}>
+            <Button variant="outline">
+              <Edit size={16} className="mr-2" />
+              Επεξεργασία
+            </Button>
+          </Link>
+          <Button
+            variant="outline"
+            onClick={handleDelete}
+            loading={deleting}
+            className="border-red-200 text-red-600 hover:bg-red-50 hover:border-red-300"
+          >
+            <Trash2 size={15} className="mr-1.5" />
+            Διαγραφή
+          </Button>
+        </div>
       </div>
 
       {/* Print-only header */}
