@@ -203,7 +203,7 @@ export default function GemiBusinessDetailPage() {
 
   return (
     <div className="max-w-4xl space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <Link href="/gemi/businesses">
             <Button variant="ghost" size="sm"><ArrowLeft size={16} className="mr-1" />Επιστροφή</Button>
@@ -235,7 +235,7 @@ export default function GemiBusinessDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2 shrink-0 flex-wrap justify-end">
+        <div className="flex gap-2 flex-wrap md:justify-end md:shrink-0">
           <Button variant="outline" onClick={() => window.print()}>
             <Printer size={14} className="mr-1" />Εκτύπωση / PDF
           </Button>
