@@ -7,8 +7,10 @@ import {
 import api from '../api'
 
 const getWidgetUnits = () => api.get('/widget/units')
-const generateWidgetToken = (id) => api.post(`/widget/generate-token/${id}`)
-const regenerateWidgetToken = (id) => api.post(`/widget/regenerate-token/${id}`)
+// Widgets are per room type; single-unit types (villas) keep their unit token so existing embeds still work
+const generateWidgetToken = (w) => api.post(w.room_type_id ? `/widget/generate-type-token/${w.room_type_id}` : `/widget/generate-token/${w.id}`)
+const regenerateWidgetToken = (w) => api.post(w.room_type_id ? `/widget/regenerate-type-token/${w.room_type_id}` : `/widget/regenerate-token/${w.id}`)
+const widgetKey = (w) => w.room_type_id ? `t${w.room_type_id}` : `u${w.id}`
 const getWidgetInquiries = () => api.get('/widget/inquiries')
 const updateInquiryStatus = (id, status) => api.patch(`/widget/inquiries/${id}`, { status })
 
@@ -136,8 +138,8 @@ function UnitWidgetCard({ unit, onTokenGenerated }) {
   const generate = async () => {
     setLoading(true)
     try {
-      const r = await generateWidgetToken(unit.id)
-      onTokenGenerated(unit.id, r.data.widget_token)
+      const r = await generateWidgetToken(unit)
+      onTokenGenerated(widgetKey(unit), r.data.widget_token)
       toast.success('Widget URL δημιουργήθηκε')
     } catch { toast.error('Σφάλμα') } finally { setLoading(false) }
   }
@@ -146,8 +148,8 @@ function UnitWidgetCard({ unit, onTokenGenerated }) {
     if (!confirm('Το παλιό embed link θα σταματήσει να λειτουργεί. Συνεχίζετε;')) return
     setLoading(true)
     try {
-      const r = await regenerateWidgetToken(unit.id)
-      onTokenGenerated(unit.id, r.data.widget_token)
+      const r = await regenerateWidgetToken(unit)
+      onTokenGenerated(widgetKey(unit), r.data.widget_token)
       toast.success('Νέο Widget URL δημιουργήθηκε')
     } catch { toast.error('Σφάλμα') } finally { setLoading(false) }
   }
@@ -157,7 +159,10 @@ function UnitWidgetCard({ unit, onTokenGenerated }) {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="font-semibold text-gray-800">{unit.name}</h3>
-          <p className="text-xs text-gray-400">{unit.type} · {unit.capacity} άτομα</p>
+          <p className="text-xs text-gray-400">
+            {unit.property_name && <>{unit.property_name} · </>}{unit.capacity} άτομα
+            {unit.units_count > 1 && <> · <span className="text-blue-600 font-medium">διαθεσιμότητα {unit.units_count} μονάδες</span></>}
+          </p>
         </div>
         {!widgetUrl ? (
           <button onClick={generate} disabled={loading}
@@ -246,7 +251,7 @@ export default function WidgetAdmin() {
   }, [])
 
   const handleTokenGenerated = (unitId, token) => {
-    setUnits(us => us.map(u => u.id === unitId ? { ...u, widget_token: token } : u))
+    setUnits(us => us.map(u => widgetKey(u) === unitId ? { ...u, widget_token: token } : u))
   }
 
   const handleStatusChange = async (id, status) => {
@@ -301,12 +306,14 @@ export default function WidgetAdmin() {
         ) : tab === 'embed' ? (
           <>
             <div className="bg-blue-50 border border-blue-100 rounded-xl p-4 text-sm text-blue-800">
-              <strong>Πώς λειτουργεί:</strong> Κάθε ακίνητο παίρνει έναν μοναδικό σύνδεσμο widget.
+              <strong>Πώς λειτουργεί:</strong> Κάθε τύπος καταλύματος παίρνει έναν μοναδικό σύνδεσμο widget — μια βίλα
+              έχει δικό της, ενώ ένας τύπος με πολλές σουίτες (π.χ. 7) έχει ένα κοινό widget που δείχνει μια ημερομηνία
+              κλεισμένη μόνο όταν δεν μένει καμία ελεύθερη σουίτα. Σε κάθε αίτημα δεσμεύεται αυτόματα μια ελεύθερη σουίτα.
               Οι επισκέπτες βλέπουν το ημερολόγιο διαθεσιμότητας σε πραγματικό χρόνο και υποβάλλουν αίτημα κράτησης.
               Θα λαμβάνετε email για κάθε νέο αίτημα.
             </div>
             {units.map(u => (
-              <UnitWidgetCard key={u.id} unit={u} onTokenGenerated={handleTokenGenerated} />
+              <UnitWidgetCard key={widgetKey(u)} unit={u} onTokenGenerated={handleTokenGenerated} />
             ))}
           </>
         ) : (

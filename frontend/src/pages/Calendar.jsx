@@ -2,7 +2,7 @@ import { useEffect, useState, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import toast from 'react-hot-toast'
 import { useSuggestedPrice, PriceHint } from '../components/PriceSuggestion'
-import { getUnits, getBookings, getPricingRates, getAvailabilityCalendar, getBookingChannels, createCustomer, createBooking, blockDates } from '../api'
+import { getUnits, getProperties, getBookings, getPricingRates, getAvailabilityCalendar, getBookingChannels, createCustomer, createBooking, blockDates } from '../api'
 import { format, addMonths, subMonths, getDaysInMonth, startOfMonth, addDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { ChevronLeftIcon, ChevronRightIcon, XMarkIcon } from '@heroicons/react/24/outline'
@@ -187,6 +187,200 @@ export default function Calendar() {
     setPopup({ unitId, checkIn, checkOut, unitName, top: t.clientY + 12, left: safeLeft })
   }
 
+  // ── Grouping: property → room type (with free-unit counts) → units ──
+  const [properties, setProperties] = useState([])
+  const [collapsed, setCollapsed] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('istay_cal_collapsed') || '{}') } catch { return {} }
+  })
+  useEffect(() => { getProperties().then(r => setProperties(r.data)).catch(() => {}) }, [])
+  const toggleGroup = (key) => setCollapsed(c => {
+    const next = { ...c, [key]: !c[key] }
+    try { localStorage.setItem('istay_cal_collapsed', JSON.stringify(next)) } catch {}
+    return next
+  })
+  const naturalKey = (n) => (n || '').split(/(\d+)/).map(t => /^\d+$/.test(t) ? t.padStart(6, '0') : t.toLowerCase()).join('')
+  const fullWidth = { width: `${days.length * DAY_W}px` }
+
+  const renderUnitRow = (u, indent = false) => (
+            <div key={u.id} className="flex border-b border-gray-100">
+                <div className={`w-40 flex-shrink-0 ${indent ? 'pl-6 pr-3' : 'px-3'} border-r border-gray-200 flex items-center`} style={{ height: `${ROW_H}px` }}>
+                  <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
+                </div>
+                <div className="flex relative" style={{ height: `${ROW_H}px` }}>
+                  {days.map(d => {
+                    const ds = format(d, 'yyyy-MM-dd')
+                    const dayNum = d.getDate()
+                    const isToday = ds === today
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6
+                    const isSelected = drag?.unitId === u.id && dayNum >= selMin && dayNum <= selMax
+                    const isBooked = bookedDates[u.id]?.has(ds)
+                    const isStop = !isBooked && !!stopSales[u.id]?.[ds]
+                    const seasonalRate = !isBooked ? findRate(u.id, ds) : null
+                    const displayPrice = seasonalRate
+                      ? Math.round(seasonalRate.price_per_night)
+                      : (!isBooked && u.base_price > 0 ? Math.round(u.base_price) : null)
+                    return (
+                      <div
+                        key={ds}
+                        data-uid={String(u.id)}
+                        data-day={String(dayNum)}
+                        style={{ width: `${DAY_W}px`, height: `${ROW_H}px` }}
+                        className={`flex-shrink-0 border-r border-gray-100 cursor-crosshair relative transition-colors ${
+                          isSelected ? 'bg-blue-200' :
+                          isStop ? 'bg-red-50' :
+                          isToday ? 'bg-blue-50' :
+                          isWeekend ? 'bg-gray-50' : ''
+                        }`}
+                        onMouseDown={e => handleMouseDown(e, u.id, dayNum)}
+                        onMouseEnter={() => handleMouseEnter(u.id, dayNum)}
+                        onMouseUp={e => handleMouseUp(e, u.id, dayNum, u.name)}
+                        onTouchStart={e => handleTouchStart(e, u.id, dayNum)}
+                        onTouchMove={handleTouchMove}
+                        onTouchEnd={e => handleTouchEnd(e, u.id, u.name)}
+                      >
+                        {/* Stop-sale indicator */}
+                        {isStop && (
+                          <span className="absolute top-1 left-0 right-0 text-center text-red-400 font-bold pointer-events-none" style={{ fontSize: '9px' }}>
+                            STOP
+                          </span>
+                        )}
+                        {/* Rate on vacant/stop cells: seasonal rule > unit base_price */}
+                        {!isBooked && displayPrice && (
+                          <span
+                            className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${isStop ? 'text-red-300' : seasonalRate ? 'text-gray-500' : 'text-gray-300'}`}
+                            style={{ fontSize: '11px', lineHeight: 1 }}
+                          >
+                            €{displayPrice}
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+  
+                  {/* Booking blocks */}
+                  {(bookingsByUnit[u.id] || []).map(b => {
+                    if (b.status === 'cancelled') return null
+                    const bIn = new Date(b.check_in + 'T00:00:00')
+                    const bOut = new Date(b.check_out + 'T00:00:00')
+                    const monthStart = new Date(year, mon, 1)
+                    const monthEnd = new Date(year, mon + 1, 1)
+                    const dispStart = bIn < monthStart ? monthStart : bIn
+                    const dispEnd = bOut > monthEnd ? monthEnd : bOut
+                    const startDay = dispStart.getDate() - 1
+                    // Fix: bookings ending exactly on monthEnd (first of next month) must use daysInMonth
+                    const endDay = dispEnd >= monthEnd ? daysInMonth : dispEnd.getDate() - 1
+                    const span = endDay - startDay
+                    if (span <= 0) return null
+  
+                    const left = startDay * DAY_W
+                    const width = span * DAY_W - 2
+                    const nights = Math.round((bOut - bIn) / 86400000)
+                    const isBlocked = b.channel === 'blocked' || b.customer?.first_name === 'BLOCKED'
+                    const dailyRate = !isBlocked && nights > 0 && b.total_price > 0
+                      ? Math.round(b.total_price / nights)
+                      : null
+                    const blockedSeasonalRate = isBlocked ? findRate(u.id, b.check_in) : null
+                    const blockedRate = blockedSeasonalRate?.price_per_night
+                      ?? (isBlocked && u.base_price > 0 ? u.base_price : null)
+                    const wide = width >= 44
+  
+                    return (
+                      <div
+                        key={b.id}
+                        title={isBlocked
+                          ? `🔒 Μπλοκ ${b.check_in} – ${b.check_out}\n${b.notes || ''}`
+                          : `${b.customer.first_name} ${b.customer.last_name}\n${b.check_in} – ${b.check_out} (${nights} νύχτες)\nΑ: ${b.guests}  Σύνολο: €${b.total_price}  Ημ/νύχτα: €${dailyRate || '—'}`
+                        }
+                        onClick={() => !isBlocked && navigate(`/bookings?edit=${b.id}`)}
+                        className={`absolute rounded text-white flex flex-col justify-center px-1.5 overflow-hidden transition-all pointer-events-auto
+                          ${isBlocked ? 'cursor-default bg-gray-500' : `cursor-pointer hover:brightness-110 ${channelBgMap[b.channel] || 'bg-gray-400'}`}
+                          ${STATUS_OPACITY[b.status]}`}
+                        style={{ top: '4px', left: `${left}px`, width: `${width}px`, height: `${ROW_H - 8}px`, zIndex: 1 }}
+                      >
+                        {/* Name */}
+                        <span className="truncate font-semibold leading-tight" style={{ fontSize: '11px' }}>
+                          {isBlocked ? '🔒 Μπλοκ' : `${b.customer.last_name}${b.is_billed ? ' ✓' : ''}`}
+                        </span>
+                        {/* Rate + guests — always show when block is wide enough */}
+                        {wide && (
+                          <span className="leading-tight text-white/80" style={{ fontSize: '10px' }}>
+                            {isBlocked
+                              ? (blockedRate ? `€${Math.round(blockedRate)}` : '—')
+                              : [dailyRate ? `€${dailyRate}/ν` : null, b.guests > 0 ? `${b.guests}👤` : null].filter(Boolean).join(' · ')
+                            }
+                          </span>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              </div>
+  )
+
+  const renderGroups = () => {
+    const byId = Object.fromEntries(units.map(u => [u.id, u]))
+    const used = new Set()
+    const groups = properties.map(p => ({
+      key: `p${p.id}`, name: p.name,
+      types: p.room_types.map(t => ({
+        ...t,
+        units: units.filter(u => u.room_type_id === t.id).sort((a, b) => naturalKey(a.name).localeCompare(naturalKey(b.name))),
+      })).filter(t => t.units.length),
+    })).filter(g => g.types.length)
+    groups.forEach(g => g.types.forEach(t => t.units.forEach(u => used.add(u.id))))
+    const loose = units.filter(u => !used.has(u.id))
+    // One property (or properties not loaded yet): plain rows, as before
+    if (groups.length < 2) {
+      const flat = groups.flatMap(g => g.types.flatMap(t => t.units)).concat(loose)
+      return flat.map(u => renderUnitRow(u))
+    }
+    return (
+      <>
+        {groups.map(g => {
+          const unitCount = g.types.reduce((n, t) => n + t.units.length, 0)
+          const isCollapsed = !!collapsed[g.key]
+          return (
+            <div key={g.key}>
+              <button type="button" onClick={() => toggleGroup(g.key)}
+                className="flex w-full text-left border-b border-gray-200 bg-slate-100 hover:bg-slate-200/70 transition-colors">
+                <div className="w-40 flex-shrink-0 px-3 py-1.5 border-r border-gray-200 flex items-center gap-1.5 sticky left-0 bg-inherit">
+                  <span className="text-gray-500 text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
+                  <span className="text-xs font-bold text-gray-800 truncate">{g.name}</span>
+                </div>
+                <div className="py-1.5 px-2 text-[11px] text-gray-500" style={fullWidth}>{unitCount} {unitCount === 1 ? 'μονάδα' : 'μονάδες'}</div>
+              </button>
+              {!isCollapsed && g.types.map(t => t.units.length === 1 ? renderUnitRow(t.units[0]) : (
+                <div key={`t${t.id}`}>
+                  <div className="flex border-b border-gray-100 bg-blue-50/40">
+                    <div className="w-40 flex-shrink-0 px-3 py-1 border-r border-gray-200 flex items-center">
+                      <span className="text-[11px] font-semibold text-blue-800 truncate">{t.name}</span>
+                    </div>
+                    <div className="flex">
+                      {days.map(d => {
+                        const ds = format(d, 'yyyy-MM-dd')
+                        const free = t.units.filter(u => !bookedDates[u.id]?.has(ds) && !stopSales[u.id]?.[ds]).length
+                        const total = t.units.length
+                        const cls = free === 0 ? 'text-red-600 font-bold' : free <= Math.ceil(total / 3) ? 'text-amber-600 font-semibold' : 'text-emerald-700'
+                        return (
+                          <div key={ds} style={{ width: `${DAY_W}px` }} title={`${t.name}: ${free} από ${total} ελεύθερες`}
+                            className={`flex-shrink-0 text-center border-r border-gray-100 py-1 text-[10px] tabular-nums ${cls}`}>
+                            {free}/{total}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  {t.units.map(u => renderUnitRow(u, true))}
+                </div>
+              ))}
+            </div>
+          )
+        })}
+        {loose.map(u => renderUnitRow(u))}
+      </>
+    )
+  }
+
   return (
     <div className="p-4 md:p-6 space-y-4" onMouseLeave={() => { setDrag(null); dragRef.current = null }}>
       <div className="flex items-center justify-between">
@@ -244,122 +438,8 @@ export default function Calendar() {
             })}
           </div>
 
-          {/* Unit rows */}
-          {units.map(u => (
-            <div key={u.id} className="flex border-b border-gray-100">
-              <div className="w-40 flex-shrink-0 px-3 border-r border-gray-200 flex items-center" style={{ height: `${ROW_H}px` }}>
-                <p className="text-xs font-semibold text-gray-700 truncate">{u.name}</p>
-              </div>
-              <div className="flex relative" style={{ height: `${ROW_H}px` }}>
-                {days.map(d => {
-                  const ds = format(d, 'yyyy-MM-dd')
-                  const dayNum = d.getDate()
-                  const isToday = ds === today
-                  const isWeekend = d.getDay() === 0 || d.getDay() === 6
-                  const isSelected = drag?.unitId === u.id && dayNum >= selMin && dayNum <= selMax
-                  const isBooked = bookedDates[u.id]?.has(ds)
-                  const isStop = !isBooked && !!stopSales[u.id]?.[ds]
-                  const seasonalRate = !isBooked ? findRate(u.id, ds) : null
-                  const displayPrice = seasonalRate
-                    ? Math.round(seasonalRate.price_per_night)
-                    : (!isBooked && u.base_price > 0 ? Math.round(u.base_price) : null)
-                  return (
-                    <div
-                      key={ds}
-                      data-uid={String(u.id)}
-                      data-day={String(dayNum)}
-                      style={{ width: `${DAY_W}px`, height: `${ROW_H}px` }}
-                      className={`flex-shrink-0 border-r border-gray-100 cursor-crosshair relative transition-colors ${
-                        isSelected ? 'bg-blue-200' :
-                        isStop ? 'bg-red-50' :
-                        isToday ? 'bg-blue-50' :
-                        isWeekend ? 'bg-gray-50' : ''
-                      }`}
-                      onMouseDown={e => handleMouseDown(e, u.id, dayNum)}
-                      onMouseEnter={() => handleMouseEnter(u.id, dayNum)}
-                      onMouseUp={e => handleMouseUp(e, u.id, dayNum, u.name)}
-                      onTouchStart={e => handleTouchStart(e, u.id, dayNum)}
-                      onTouchMove={handleTouchMove}
-                      onTouchEnd={e => handleTouchEnd(e, u.id, u.name)}
-                    >
-                      {/* Stop-sale indicator */}
-                      {isStop && (
-                        <span className="absolute top-1 left-0 right-0 text-center text-red-400 font-bold pointer-events-none" style={{ fontSize: '9px' }}>
-                          STOP
-                        </span>
-                      )}
-                      {/* Rate on vacant/stop cells: seasonal rule > unit base_price */}
-                      {!isBooked && displayPrice && (
-                        <span
-                          className={`absolute bottom-1 left-0 right-0 text-center pointer-events-none font-medium ${isStop ? 'text-red-300' : seasonalRate ? 'text-gray-500' : 'text-gray-300'}`}
-                          style={{ fontSize: '11px', lineHeight: 1 }}
-                        >
-                          €{displayPrice}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-
-                {/* Booking blocks */}
-                {(bookingsByUnit[u.id] || []).map(b => {
-                  if (b.status === 'cancelled') return null
-                  const bIn = new Date(b.check_in + 'T00:00:00')
-                  const bOut = new Date(b.check_out + 'T00:00:00')
-                  const monthStart = new Date(year, mon, 1)
-                  const monthEnd = new Date(year, mon + 1, 1)
-                  const dispStart = bIn < monthStart ? monthStart : bIn
-                  const dispEnd = bOut > monthEnd ? monthEnd : bOut
-                  const startDay = dispStart.getDate() - 1
-                  // Fix: bookings ending exactly on monthEnd (first of next month) must use daysInMonth
-                  const endDay = dispEnd >= monthEnd ? daysInMonth : dispEnd.getDate() - 1
-                  const span = endDay - startDay
-                  if (span <= 0) return null
-
-                  const left = startDay * DAY_W
-                  const width = span * DAY_W - 2
-                  const nights = Math.round((bOut - bIn) / 86400000)
-                  const isBlocked = b.channel === 'blocked' || b.customer?.first_name === 'BLOCKED'
-                  const dailyRate = !isBlocked && nights > 0 && b.total_price > 0
-                    ? Math.round(b.total_price / nights)
-                    : null
-                  const blockedSeasonalRate = isBlocked ? findRate(u.id, b.check_in) : null
-                  const blockedRate = blockedSeasonalRate?.price_per_night
-                    ?? (isBlocked && u.base_price > 0 ? u.base_price : null)
-                  const wide = width >= 44
-
-                  return (
-                    <div
-                      key={b.id}
-                      title={isBlocked
-                        ? `🔒 Μπλοκ ${b.check_in} – ${b.check_out}\n${b.notes || ''}`
-                        : `${b.customer.first_name} ${b.customer.last_name}\n${b.check_in} – ${b.check_out} (${nights} νύχτες)\nΑ: ${b.guests}  Σύνολο: €${b.total_price}  Ημ/νύχτα: €${dailyRate || '—'}`
-                      }
-                      onClick={() => !isBlocked && navigate(`/bookings?edit=${b.id}`)}
-                      className={`absolute rounded text-white flex flex-col justify-center px-1.5 overflow-hidden transition-all pointer-events-auto
-                        ${isBlocked ? 'cursor-default bg-gray-500' : `cursor-pointer hover:brightness-110 ${channelBgMap[b.channel] || 'bg-gray-400'}`}
-                        ${STATUS_OPACITY[b.status]}`}
-                      style={{ top: '4px', left: `${left}px`, width: `${width}px`, height: `${ROW_H - 8}px`, zIndex: 1 }}
-                    >
-                      {/* Name */}
-                      <span className="truncate font-semibold leading-tight" style={{ fontSize: '11px' }}>
-                        {isBlocked ? '🔒 Μπλοκ' : `${b.customer.last_name}${b.is_billed ? ' ✓' : ''}`}
-                      </span>
-                      {/* Rate + guests — always show when block is wide enough */}
-                      {wide && (
-                        <span className="leading-tight text-white/80" style={{ fontSize: '10px' }}>
-                          {isBlocked
-                            ? (blockedRate ? `€${Math.round(blockedRate)}` : '—')
-                            : [dailyRate ? `€${dailyRate}/ν` : null, b.guests > 0 ? `${b.guests}👤` : null].filter(Boolean).join(' · ')
-                          }
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          ))}
+          {/* Unit rows, grouped by property and room type */}
+          {renderGroups()}
 
           {units.length === 0 && (
             <div className="px-4 py-8 text-center text-sm text-gray-400">Δεν υπάρχουν μονάδες.</div>

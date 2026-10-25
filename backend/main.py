@@ -60,7 +60,8 @@ Base.metadata.create_all(bind=engine)
 from sqlalchemy import text as _text_b
 # One statement per try: a column that already exists must not skip the ones after it
 for _stmt in ("ALTER TABLE units ADD COLUMN property_id INTEGER REFERENCES properties(id)",
-              "ALTER TABLE units ADD COLUMN room_type_id INTEGER REFERENCES room_types(id)"):
+              "ALTER TABLE units ADD COLUMN room_type_id INTEGER REFERENCES room_types(id)",
+              "ALTER TABLE room_types ADD COLUMN widget_token VARCHAR(64)"):
     try:
         with engine.connect() as _bc:
             _bc.execute(_text_b(_stmt))

@@ -61,6 +61,7 @@ class RoomType(Base):
     base_price = Column(Float, default=0.0)
     description = Column(Text, nullable=True)
     sort_order = Column(Integer, default=0)
+    widget_token = Column(String(64), nullable=True, index=True)  # one availability widget per type
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
