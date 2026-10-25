@@ -329,26 +329,25 @@ export default function Calendar() {
     })).filter(g => g.types.length)
     groups.forEach(g => g.types.forEach(t => t.units.forEach(u => used.add(u.id))))
     const loose = units.filter(u => !used.has(u.id))
-    // One property (or properties not loaded yet): plain rows, as before
-    if (groups.length < 2) {
-      const flat = groups.flatMap(g => g.types.flatMap(t => t.units)).concat(loose)
-      return flat.map(u => renderUnitRow(u))
-    }
+    // Properties not loaded yet: plain rows
+    if (groups.length === 0) return units.map(u => renderUnitRow(u))
+    // A single property needs no property header, but keeps its room-type grouping
+    const single = groups.length === 1
     return (
       <>
         {groups.map(g => {
           const unitCount = g.types.reduce((n, t) => n + t.units.length, 0)
-          const isCollapsed = !!collapsed[g.key]
+          const isCollapsed = !single && !!collapsed[g.key]
           return (
             <div key={g.key}>
-              <button type="button" onClick={() => toggleGroup(g.key)}
+              {!single && <button type="button" onClick={() => toggleGroup(g.key)}
                 className="flex w-full text-left border-b border-gray-200 bg-slate-100 hover:bg-slate-200/70 transition-colors">
                 <div className="w-40 flex-shrink-0 px-3 py-1.5 border-r border-gray-200 flex items-center gap-1.5 sticky left-0 bg-inherit">
                   <span className="text-gray-500 text-[10px]">{isCollapsed ? '▶' : '▼'}</span>
                   <span className="text-xs font-bold text-gray-800 truncate">{g.name}</span>
                 </div>
                 <div className="py-1.5 px-2 text-[11px] text-gray-500" style={fullWidth}>{unitCount} {unitCount === 1 ? 'μονάδα' : 'μονάδες'}</div>
-              </button>
+              </button>}
               {!isCollapsed && g.types.map(t => t.units.length === 1 ? renderUnitRow(t.units[0]) : (
                 <div key={`t${t.id}`}>
                   <div className="flex border-b border-gray-100 bg-blue-50/40">
