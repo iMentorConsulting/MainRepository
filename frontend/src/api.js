@@ -14,7 +14,7 @@ export const setSelectedProperty = (id) => {
   try { id ? localStorage.setItem(propertyKey(), String(id)) : localStorage.removeItem(propertyKey()) } catch {}
 }
 // Lists that follow the property selector
-const PROPERTY_SCOPED = ['/units/', '/bookings/', '/reports/occupancy', '/reports/by-channel', '/reports/financial', '/reports/price-analytics']
+const PROPERTY_SCOPED = ['/units/', '/bookings/', '/reports/occupancy', '/reports/by-channel', '/reports/financial', '/reports/price-analytics', '/pricing/coverage', '/pricing/audit']
 
 // Attach auth token to every request
 api.interceptors.request.use((config) => {
@@ -150,6 +150,9 @@ export const createPricingRate = (data) => api.post('/pricing/rates', data)
 export const updatePricingRate = (id, data) => api.put(`/pricing/rates/${id}`, data)
 export const deletePricingRate = (id) => api.delete(`/pricing/rates/${id}`)
 export const checkPrice = (params) => api.get('/pricing/check', { params })
+export const getPricingCoverage = (params) => api.get('/pricing/coverage', { params })
+export const getPricingAudit = (params) => api.get('/pricing/audit', { params })
+export const applyPricingAudit = (bookingId) => api.post(`/pricing/audit/apply/${bookingId}`)
 
 // Discounts
 export const getDiscounts = () => api.get('/discounts/')

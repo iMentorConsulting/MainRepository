@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from database import get_db
-from models import SeasonalRate, Unit, Discount
+from models import SeasonalRate, Unit, Discount, Booking
 from auth_utils import get_tenant
 from pydantic import BaseModel
 from typing import Optional
@@ -22,10 +22,41 @@ def _best_rate(unit_id: int, unit: Unit, check_in: date, tenant: str, db) -> Opt
         .all()
     )
     specific = [r for r in rates if r.unit_id == unit_id]
-    by_type = [r for r in rates if not r.unit_id and r.unit_type == unit.type]
+    by_type = [r for r in rates if not r.unit_id and _same_type(r.unit_type, unit.type)]
     general = [r for r in rates if not r.unit_id and not r.unit_type]
     matched = specific or by_type or general
     return matched[0] if matched else None
+
+
+def _same_type(a: Optional[str], b: Optional[str]) -> bool:
+    return bool(a) and (a or "").strip().lower() == (b or "").strip().lower()
+
+
+def _ranges(days: list) -> list:
+    """Consecutive dates → [[first, last], ...] (ISO strings)."""
+    from datetime import timedelta
+    out = []
+    for d in sorted(days):
+        if out and (d - out[-1][1]).days == 1:
+            out[-1][1] = d
+        else:
+            out.append([d, d])
+    return [[a.isoformat(), b.isoformat()] for a, b in out]
+
+
+def quote_stay(unit: Unit, check_in: date, check_out: date, tenant: str, db, booking_date: Optional[date] = None) -> dict:
+    """Default price of a stay: each night's seasonal rate (else base price) minus applicable discounts."""
+    subtotal, nightly = _stay_subtotal(unit.id, unit, check_in, check_out, tenant, db)
+    discounts = get_applicable_discounts(unit.id, unit.type, check_in, check_out, booking_date or date.today(),
+                                         tenant, db, subtotal)
+    savings = round(sum(d["savings"] for d in discounts), 2)
+    uncovered = [date.fromisoformat(n["date"]) for n in nightly if not n["rate"]]
+    return {
+        "subtotal": subtotal, "discounts": discounts, "total_savings": savings,
+        "final_price": round(max(0, subtotal - savings), 2), "nightly": nightly,
+        "rate_names": sorted({n["rate"] for n in nightly if n["rate"]}),
+        "uncovered_nights": len(uncovered), "uncovered_ranges": _ranges(uncovered),
+    }
 
 
 def _stay_subtotal(unit_id: int, unit: Unit, check_in: date, check_out: date, tenant: str, db):
@@ -42,7 +73,7 @@ def _stay_subtotal(unit_id: int, unit: Unit, check_in: date, check_out: date, te
     while d < check_out:
         covering = [r for r in rates if r.date_from <= d <= r.date_to]
         matched = ([r for r in covering if r.unit_id == unit_id]
-                   or [r for r in covering if not r.unit_id and r.unit_type == unit.type]
+                   or [r for r in covering if not r.unit_id and _same_type(r.unit_type, unit.type)]
                    or [r for r in covering if not r.unit_id and not r.unit_type])
         r = matched[0] if matched else None
         nights.append({"date": d.isoformat(), "price": r.price_per_night if r else (unit.base_price or 0),
@@ -213,4 +244,80 @@ def check_price(
         "avg_per_night": round(subtotal / nights, 2) if nights else 0,
         "rate_names": rate_names,
         "uses_base_price": any(not n["rate"] for n in nightly),
+        "uncovered_nights": sum(1 for n in nightly if not n["rate"]),
+        "uncovered_ranges": _ranges([date.fromisoformat(n["date"]) for n in nightly if not n["rate"]]),
+        "base_price": unit.base_price,
     }
+
+
+@router.get("/coverage")
+def pricing_coverage(year: int = Query(...), property_id: Optional[int] = None,
+                     db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Nights of the year not covered by any pricing period, grouped by units sharing the same gaps."""
+    q = db.query(Unit).filter(Unit.tenant == tenant, Unit.is_active == True)
+    if property_id:
+        q = q.filter(Unit.property_id == property_id)
+    groups: dict = {}
+    for u in q.all():
+        _, nightly = _stay_subtotal(u.id, u, date(year, 1, 1), date(year + 1, 1, 1), tenant, db)
+        gaps = _ranges([date.fromisoformat(n["date"]) for n in nightly if not n["rate"]])
+        if gaps:
+            key = repr(gaps)
+            g = groups.setdefault(key, {"ranges": gaps, "units": [], "nights": sum(1 for n in nightly if not n["rate"]),
+                                        "base_prices": set()})
+            g["units"].append(u.name)
+            g["base_prices"].add(u.base_price)
+    return [{**g, "units": sorted(g["units"]), "base_prices": sorted(g["base_prices"])} for g in groups.values()]
+
+
+def _audit_row(b: Booking, db, tenant: str) -> dict:
+    booked_on = b.created_at.date() if b.created_at else date.today()
+    q = quote_stay(b.unit, b.check_in, b.check_out, tenant, db, booking_date=booked_on)
+    diff = round((b.total_price or 0) - q["final_price"], 2)
+    return {
+        "id": b.id, "unit_id": b.unit_id, "unit_name": b.unit.name,
+        "guest": f"{b.customer.first_name} {b.customer.last_name}".strip() if b.customer else "",
+        "channel": b.channel, "check_in": b.check_in.isoformat(), "check_out": b.check_out.isoformat(),
+        "nights": (b.check_out - b.check_in).days, "booked_on": booked_on.isoformat(),
+        "actual": round(b.total_price or 0, 2), "expected": q["final_price"], "subtotal": q["subtotal"],
+        "diff": diff, "diff_pct": round(diff / q["final_price"] * 100, 1) if q["final_price"] else None,
+        "rate_names": q["rate_names"], "discounts": [d["name"] for d in q["discounts"]],
+        "total_savings": q["total_savings"], "uncovered_nights": q["uncovered_nights"],
+        "uncovered_ranges": q["uncovered_ranges"],
+    }
+
+
+@router.get("/audit")
+def pricing_audit(year: int = Query(...), property_id: Optional[int] = None, tolerance: float = 1.0,
+                  db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Compare every reservation arriving in `year` with its default price (periods + discounts)."""
+    from sqlalchemy.orm import joinedload
+    q = db.query(Booking).options(joinedload(Booking.unit), joinedload(Booking.customer)).filter(
+        Booking.tenant == tenant, Booking.check_in >= date(year, 1, 1), Booking.check_in <= date(year, 12, 31),
+        Booking.status != "cancelled", Booking.channel != "blocked",
+    )
+    if property_id:
+        q = q.filter(Booking.unit.has(Unit.property_id == property_id))
+    rows = [_audit_row(b, db, tenant) for b in q.order_by(Booking.check_in).all() if b.unit]
+    for r in rows:
+        r["ok"] = abs(r["diff"]) <= tolerance
+    return {
+        "year": year, "total": len(rows),
+        "mismatched": sum(1 for r in rows if not r["ok"]),
+        "uncovered": sum(1 for r in rows if r["uncovered_nights"]),
+        "rows": rows,
+    }
+
+
+@router.post("/audit/apply/{booking_id}")
+def apply_audit_price(booking_id: int, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Set a reservation's total to its default price; commission follows the booking's commission %."""
+    b = db.query(Booking).filter(Booking.id == booking_id, Booking.tenant == tenant).first()
+    if not b or not b.unit:
+        raise HTTPException(404, "Η κράτηση δεν βρέθηκε")
+    row = _audit_row(b, db, tenant)
+    b.total_price = row["expected"]
+    if b.commission_percent:
+        b.commission = round(b.total_price * b.commission_percent / 100, 2)
+    db.commit()
+    return {"ok": True, "total_price": b.total_price, "commission": b.commission}

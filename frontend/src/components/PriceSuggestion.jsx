@@ -21,6 +21,7 @@ export function useSuggestedPrice(unitId, checkIn, checkOut) {
   return quote
 }
 
+const fmtD = (iso) => iso.slice(8, 10) + '/' + iso.slice(5, 7)
 const eur = (v) => `€${Number(v || 0).toLocaleString('el-GR', { maximumFractionDigits: 2 })}`
 
 export function PriceHint({ quote, currentPrice, onApply }) {
@@ -38,6 +39,12 @@ export function PriceHint({ quote, currentPrice, onApply }) {
     <p className="text-[11px] text-gray-500 mt-1 leading-snug">
       Προτεινόμενη τιμή <strong className="text-gray-700">{eur(quote.suggested_price)}</strong>
       <span className="block">{basis}</span>
+      {quote.uncovered_nights > 0 && (
+        <span className="block text-amber-700">
+          ⚠ {quote.uncovered_nights} {quote.uncovered_nights === 1 ? 'νύχτα' : 'νύχτες'} χωρίς περίοδο στην Τιμολόγηση
+          ({quote.uncovered_ranges.map(([a, b]) => a === b ? fmtD(a) : `${fmtD(a)}–${fmtD(b)}`).join(', ')}) → βασική τιμή {eur(quote.base_price)}
+        </span>
+      )}
       {differs && (
         <button type="button" onClick={() => onApply(quote.suggested_price)} className="text-blue-600 hover:underline font-medium">
           Εφαρμογή

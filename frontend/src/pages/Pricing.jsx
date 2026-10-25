@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getPricingRates, createPricingRate, updatePricingRate, deletePricingRate, checkPrice, getUnits, getDiscounts, createDiscount, updateDiscount, deleteDiscount } from '../api'
+import { getPricingRates, createPricingRate, updatePricingRate, deletePricingRate, checkPrice, getUnits, getDiscounts, createDiscount, updateDiscount, deleteDiscount, getPricingCoverage, getPricingAudit, applyPricingAudit } from '../api'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, MagnifyingGlassIcon, TagIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -423,6 +423,106 @@ function DiscountModal({ discount, units, onClose, onSaved }) {
 }
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
+// ── Reservation price check: recorded total vs default price (periods + discounts) ──
+function PriceAudit({ years, initialYear }) {
+  const [year, setYear] = useState(initialYear)
+  const [data, setData] = useState(null)
+  const [onlyDiff, setOnlyDiff] = useState(true)
+  const [applying, setApplying] = useState(null)
+  const eur = (v) => `€${Number(v || 0).toLocaleString('el-GR', { maximumFractionDigits: 2 })}`
+  const d = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`
+
+  const load = () => { setData(null); getPricingAudit({ year }).then(r => setData(r.data)).catch(() => toast.error('Αποτυχία ελέγχου')) }
+  useEffect(() => { load() }, [year])
+
+  async function apply(r) {
+    if (!confirm(`Αλλαγή συνόλου κράτησης ${r.guest || ''} (${d(r.check_in)}–${d(r.check_out)}) από ${eur(r.actual)} σε ${eur(r.expected)};`)) return
+    setApplying(r.id)
+    try { await applyPricingAudit(r.id); toast.success('Η τιμή ενημερώθηκε'); load() }
+    catch { toast.error('Αποτυχία ενημέρωσης') } finally { setApplying(null) }
+  }
+
+  const rows = (data?.rows || []).filter(r => !onlyDiff || !r.ok)
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+          {years.map(y => (
+            <button key={y} onClick={() => setYear(y)}
+              className={`px-3 py-1 rounded-lg text-sm font-medium ${year === y ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>{y}</button>
+          ))}
+        </div>
+        <label className="flex items-center gap-1.5 text-sm text-gray-700">
+          <input type="checkbox" checked={onlyDiff} onChange={e => setOnlyDiff(e.target.checked)} /> Μόνο με διαφορά
+        </label>
+      </div>
+
+      {!data ? (
+        <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" /></div>
+      ) : (
+        <>
+          <div className="flex flex-wrap gap-2 text-sm">
+            <span className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700">Κρατήσεις {data.year}: <strong>{data.total}</strong></span>
+            <span className={`px-3 py-1.5 rounded-lg ${data.mismatched ? 'bg-red-50 text-red-700' : 'bg-green-50 text-green-700'}`}>Με διαφορά τιμής: <strong>{data.mismatched}</strong></span>
+            <span className={`px-3 py-1.5 rounded-lg ${data.uncovered ? 'bg-amber-50 text-amber-800' : 'bg-gray-100 text-gray-600'}`}>Με νύχτες χωρίς περίοδο: <strong>{data.uncovered}</strong></span>
+          </div>
+          <p className="text-xs text-gray-500">
+            Αναμενόμενη τιμή = εποχικές τιμές κάθε νύχτας (ή βασική τιμή όπου δεν υπάρχει περίοδος) μείον τις εκπτώσεις που ισχύουν σήμερα,
+            με ημερομηνία κράτησης την ημέρα καταχώρισης. Κρατήσεις από Airbnb/Booking έχουν συνήθως άλλη τιμή λόγω χρεώσεων/εκπτώσεων της πλατφόρμας.
+          </p>
+          {rows.length === 0 ? (
+            <p className="text-center py-12 text-sm text-gray-400">{onlyDiff ? 'Όλες οι κρατήσεις έχουν τη σωστή τιμή 🎉' : 'Δεν υπάρχουν κρατήσεις'}</p>
+          ) : (
+            <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="bg-gray-50 text-xs text-gray-600 uppercase border-b">
+                  <th className="text-left px-3 py-2.5">Κράτηση</th>
+                  <th className="text-left px-3 py-2.5">Διάστημα</th>
+                  <th className="text-right px-3 py-2.5">Καταχωρημένη</th>
+                  <th className="text-right px-3 py-2.5">Αναμενόμενη</th>
+                  <th className="text-right px-3 py-2.5">Διαφορά</th>
+                  <th className="text-left px-3 py-2.5">Βάση υπολογισμού</th>
+                  <th className="px-3 py-2.5" />
+                </tr></thead>
+                <tbody className="divide-y divide-gray-100">
+                  {rows.map(r => (
+                    <tr key={r.id} className="align-top">
+                      <td className="px-3 py-2.5">
+                        <p className="font-medium text-gray-900">{r.guest || '—'}</p>
+                        <p className="text-xs text-gray-500">{r.unit_name} · {r.channel}</p>
+                      </td>
+                      <td className="px-3 py-2.5 whitespace-nowrap tabular-nums">{d(r.check_in)}–{d(r.check_out)}<span className="block text-xs text-gray-500">{r.nights} νύχτες</span></td>
+                      <td className="px-3 py-2.5 text-right tabular-nums">{eur(r.actual)}</td>
+                      <td className="px-3 py-2.5 text-right tabular-nums font-medium">{eur(r.expected)}</td>
+                      <td className={`px-3 py-2.5 text-right tabular-nums font-semibold ${r.ok ? 'text-green-600' : r.diff < 0 ? 'text-red-600' : 'text-amber-600'}`}>
+                        {r.ok ? '✓' : `${r.diff > 0 ? '+' : '−'}${eur(Math.abs(r.diff))}`}
+                        {!r.ok && r.diff_pct != null && <span className="block text-[11px] font-normal">{r.diff_pct > 0 ? '+' : '−'}{Math.abs(r.diff_pct)}%</span>}
+                      </td>
+                      <td className="px-3 py-2.5 text-xs text-gray-600 min-w-[180px]">
+                        {r.rate_names.length > 0 && <p>{r.rate_names.join(', ')}</p>}
+                        {r.discounts.length > 0 && <p>Έκπτωση: {r.discounts.join(', ')} (−{eur(r.total_savings)})</p>}
+                        {r.uncovered_nights > 0 && <p className="text-amber-700">⚠ {r.uncovered_nights} νύχτες χωρίς περίοδο ({r.uncovered_ranges.map(([a, b]) => a === b ? d(a) : `${d(a)}–${d(b)}`).join(', ')})</p>}
+                      </td>
+                      <td className="px-3 py-2.5 text-right">
+                        {!r.ok && (
+                          <button disabled={applying === r.id} onClick={() => apply(r)}
+                            className="text-xs px-2.5 py-1 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 whitespace-nowrap disabled:opacity-50">
+                            {applying === r.id ? '…' : 'Εφαρμογή'}
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  )
+}
+
 export default function Pricing() {
   const currentYear = new Date().getFullYear()
   const [rates, setRates] = useState([])
@@ -434,9 +534,11 @@ export default function Pricing() {
   const [modal, setModal] = useState(null)
   const [discountModal, setDiscountModal] = useState(null)
   const [activeTab, setActiveTab] = useState('rates')
+  const [coverage, setCoverage] = useState([])
 
   const load = async () => {
     setLoading(true)
+    getPricingCoverage({ year }).then(r => setCoverage(r.data)).catch(() => setCoverage([]))
     try {
       const [ratesRes, unitsRes, discountsRes] = await Promise.all([
         getPricingRates({ year, ...(filterUnit ? { unit_id: filterUnit } : {}) }),
@@ -497,7 +599,7 @@ export default function Pricing() {
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-sm">
             <PlusIcon className="h-4 w-4" /> Νέα Περίοδος
           </button>
-        ) : (
+        ) : activeTab === 'discounts' && (
           <button onClick={() => setDiscountModal({})}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-xl text-sm font-semibold hover:bg-blue-700 shadow-sm">
             <PlusIcon className="h-4 w-4" /> Νέα Έκπτωση
@@ -521,7 +623,13 @@ export default function Pricing() {
             </span>
           )}
         </button>
+        <button onClick={() => setActiveTab('audit')}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === 'audit' ? 'bg-white text-blue-700 shadow-sm' : 'text-gray-600 hover:text-gray-900'}`}>
+          Έλεγχος κρατήσεων
+        </button>
       </div>
+
+      {activeTab === 'audit' && <PriceAudit years={years} initialYear={year} />}
 
       {activeTab === 'rates' && (
         <>
@@ -544,6 +652,20 @@ export default function Pricing() {
             </select>
             <span className="text-sm text-gray-500">{rates.length} περίοδοι</span>
           </div>
+
+          {/* Nights of the year without any pricing period → the base price is used there */}
+          {coverage.length > 0 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-900 space-y-1.5">
+              <p className="font-semibold">⚠ Ημερομηνίες του {year} χωρίς τιμολογιακή περίοδο — εκεί χρησιμοποιείται η βασική τιμή της μονάδας</p>
+              {coverage.map((g, i) => (
+                <p key={i} className="text-xs">
+                  <strong>{g.units.length > 4 ? `${g.units.slice(0, 4).join(', ')} +${g.units.length - 4}` : g.units.join(', ')}</strong>
+                  {' '}({g.nights} νύχτες, βασική {g.base_prices.map(p => `€${p}`).join('/')}):{' '}
+                  {g.ranges.map(([a, b]) => `${a.slice(8, 10)}/${a.slice(5, 7)}${a === b ? '' : `–${b.slice(8, 10)}/${b.slice(5, 7)}`}`).join(', ')}
+                </p>
+              ))}
+            </div>
+          )}
 
           {/* Overlap warning */}
           {overlapping.size > 0 && (
