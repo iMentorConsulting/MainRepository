@@ -34,6 +34,37 @@ def _token():
     return secrets.token_urlsafe(32)
 
 
+class Property(Base):
+    """A property (κατάλυμα) — e.g. a villa collection or a suites complex — under one business login."""
+    __tablename__ = "properties"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    legal_name = Column(String(200), nullable=True)
+    vat_number = Column(String(50), nullable=True)
+    address = Column(String(300), nullable=True)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class RoomType(Base):
+    """What is sold on the platforms (e.g. Riviera Loft); its units are the physical rooms/villas."""
+    __tablename__ = "room_types"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tenant = Column(String(50), nullable=False, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
+    name = Column(String(200), nullable=False)
+    unit_prefix = Column(String(100), nullable=True)
+    capacity = Column(Integer, default=2)
+    base_price = Column(Float, default=0.0)
+    description = Column(Text, nullable=True)
+    sort_order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class Unit(Base):
     __tablename__ = "units"
 
@@ -50,6 +81,8 @@ class Unit(Base):
     owner_id = Column(Integer, ForeignKey("owners.id"), nullable=True)
     beds24_prop_id = Column(Integer, nullable=True)
     beds24_room_id = Column(Integer, nullable=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=True, index=True)
+    room_type_id = Column(Integer, ForeignKey("room_types.id"), nullable=True, index=True)
     tenant = Column(String(50), nullable=False, default='evaivoni', index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 

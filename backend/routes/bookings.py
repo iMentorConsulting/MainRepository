@@ -199,6 +199,7 @@ def get_bookings(
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
     unit_id: Optional[int] = None,
+    property_id: Optional[int] = None,
     channel: Optional[str] = None,
     status: Optional[str] = None,
     is_billed: Optional[bool] = None,
@@ -212,6 +213,8 @@ def get_bookings(
     q = db.query(Booking).options(joinedload(Booking.unit), joinedload(Booking.customer)).filter(Booking.tenant == tenant)
     if unit_id:
         q = q.filter(Booking.unit_id == unit_id)
+    if property_id:
+        q = q.filter(Booking.unit.has(Unit.property_id == property_id))
     if channel:
         q = q.filter(Booking.channel == channel)
     if status:

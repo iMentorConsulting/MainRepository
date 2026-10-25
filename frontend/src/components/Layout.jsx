@@ -1,13 +1,14 @@
 import { useState } from 'react'
 import { Outlet, NavLink } from 'react-router-dom'
 import IStayLogo from './IStayLogo'
+import PropertySwitcher from './PropertySwitcher'
 import {
   HomeIcon, CalendarDaysIcon, BookmarkSquareIcon, BuildingOfficeIcon,
   UsersIcon, ChartBarIcon, SparklesIcon, ArrowRightOnRectangleIcon,
   ClipboardDocumentCheckIcon, GlobeAltIcon, BanknotesIcon, WrenchScrewdriverIcon,
   HomeModernIcon, TagIcon, ArrowsRightLeftIcon, CodeBracketIcon, CalendarIcon,
   CreditCardIcon, Bars3Icon, XMarkIcon, Cog6ToothIcon, ChatBubbleLeftRightIcon,
-  CloudArrowUpIcon, ArrowTrendingUpIcon,
+  CloudArrowUpIcon, ArrowTrendingUpIcon, BuildingOffice2Icon,
 } from '@heroicons/react/24/outline'
 
 const navGroups = [
@@ -27,6 +28,7 @@ const navGroups = [
   {
     label: 'Μονάδες',
     items: [
+      { to: '/properties', label: 'Καταλύματα & Τύποι', Icon: BuildingOffice2Icon },
       { to: '/units', label: 'Μονάδες', Icon: BuildingOfficeIcon },
       { to: '/owners', label: 'Ιδιοκτήτες', Icon: HomeModernIcon },
       { to: '/cleaning', label: 'Καθαριότητα', Icon: ClipboardDocumentCheckIcon },
@@ -105,6 +107,7 @@ export default function Layout({ auth, onLogout }) {
           <p className="text-xs text-gray-600 mt-1 font-medium truncate">
             {auth?.name}
           </p>
+          <PropertySwitcher className="mt-2" />
         </div>
         <nav className="flex-1 overflow-y-auto p-3" aria-label="Πλοήγηση εφαρμογής">
           {navGroups.map((group) => (
@@ -146,6 +149,7 @@ export default function Layout({ auth, onLogout }) {
               <div>
                 <IStayLogo variant="blue" className="h-7" />
                 <p className="text-xs text-gray-500 mt-0.5 font-medium truncate">{auth?.name}</p>
+                <PropertySwitcher className="mt-2" />
               </div>
               <button
                 onClick={closeDrawer}

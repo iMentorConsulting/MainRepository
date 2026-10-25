@@ -5,12 +5,27 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 })
 
+// Selected property (κατάλυμα) — per business login; empty = all properties
+const propertyKey = () => {
+  try { return `istay_property_${JSON.parse(localStorage.getItem('auth') || 'null')?.tenant_id || ''}` } catch { return 'istay_property_' }
+}
+export const getSelectedProperty = () => { try { return localStorage.getItem(propertyKey()) || '' } catch { return '' } }
+export const setSelectedProperty = (id) => {
+  try { id ? localStorage.setItem(propertyKey(), String(id)) : localStorage.removeItem(propertyKey()) } catch {}
+}
+// Lists that follow the property selector
+const PROPERTY_SCOPED = ['/units/', '/bookings/', '/reports/occupancy', '/reports/by-channel', '/reports/financial', '/reports/price-analytics']
+
 // Attach auth token to every request
 api.interceptors.request.use((config) => {
   try {
     const auth = JSON.parse(localStorage.getItem('auth') || 'null')
     if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`
   } catch {}
+  const prop = getSelectedProperty()
+  if (prop && (config.method || 'get') === 'get' && PROPERTY_SCOPED.includes(config.url)) {
+    config.params = { property_id: prop, ...(config.params || {}) }
+  }
   return config
 })
 
@@ -213,5 +228,15 @@ export const getListingLatest = () => api.get('/listing-optimizer/latest')
 export const getListingHistory = () => api.get('/listing-optimizer/history')
 export const getListingRecommendations = (params) => api.get('/listing-optimizer/recommendations', { params })
 export const setListingRecommendationStatus = (id, status) => api.patch(`/listing-optimizer/recommendations/${id}`, { status })
+
+// Properties & room types
+export const getProperties = () => api.get('/properties')
+export const createProperty = (data) => api.post('/properties', data)
+export const updateProperty = (id, data) => api.put(`/properties/${id}`, data)
+export const deleteProperty = (id) => api.delete(`/properties/${id}`)
+export const createRoomType = (data) => api.post('/room-types', data)
+export const updateRoomType = (id, data) => api.put(`/room-types/${id}`, data)
+export const deleteRoomType = (id) => api.delete(`/room-types/${id}`)
+export const addRoomTypeUnits = (id, count) => api.post(`/room-types/${id}/units`, { count })
 
 export default api

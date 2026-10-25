@@ -16,7 +16,7 @@ from models import (
     ServiceRequest, GuestMessage, GuestPortalSettings, BookingInquiry,
     Expense, Loan, Owner, MaintenanceIssue, GapAlertTemplate, SeasonalRate,
     Discount, ChannelRate, TenantSettings, EmailLog, InstallationLicense,
-    ListingSnapshot, ListingRecommendation,
+    ListingSnapshot, ListingRecommendation, Property, RoomType,
 )
 
 router = APIRouter(prefix="/backup", tags=["backup"])
@@ -30,6 +30,8 @@ _schedule_log: dict = {}  # tenant_id -> {status, filename, timestamp, error?}
 TENANT_MODELS = [
     ("tenant_settings", TenantSettings),
     ("owners", Owner),
+    ("properties", Property),
+    ("room_types", RoomType),
     ("units", Unit),
     ("customers", Customer),
     ("bookings", Booking),

@@ -11,6 +11,15 @@ from calendar import monthrange
 router = APIRouter(prefix="/reports", tags=["reports"])
 
 
+def _scope_unit_ids(db, tenant: str, unit_ids: Optional[str], property_id: Optional[int]) -> Optional[str]:
+    """An explicit unit selection wins; otherwise a property narrows reports to its units."""
+    if unit_ids or not property_id:
+        return unit_ids
+    from routes.properties import property_unit_ids
+    ids = property_unit_ids(db, tenant, property_id)
+    return ",".join(str(i) for i in ids) if ids else "0"
+
+
 def _loan_installment_sum(loans, from_date, to_date):
     """Return total loan installments active during the date range."""
     total = 0.0
@@ -87,9 +96,11 @@ def occupancy_report(
     to_date: date = Query(...),
     unit_id: Optional[int] = None,
     unit_ids: Optional[str] = None,
+    property_id: Optional[int] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
+    unit_ids = _scope_unit_ids(db, tenant, unit_ids, property_id)
     total_days = (to_date - from_date).days
     if total_days <= 0:
         return {"error": "Μη έγκυρο εύρος ημερομηνιών"}
@@ -212,9 +223,11 @@ def by_channel(
     from_date: date = Query(...),
     to_date: date = Query(...),
     unit_ids: Optional[str] = None,
+    property_id: Optional[int] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
+    unit_ids = _scope_unit_ids(db, tenant, unit_ids, property_id)
     bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
@@ -262,9 +275,11 @@ def financial_report(
     to_date: date = Query(...),
     group_by: str = Query("month"),
     unit_ids: Optional[str] = None,
+    property_id: Optional[int] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
+    unit_ids = _scope_unit_ids(db, tenant, unit_ids, property_id)
     bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",
@@ -395,9 +410,11 @@ def price_analytics(
     to_date: date = Query(...),
     group_by: str = Query("month"),
     unit_ids: Optional[str] = None,
+    property_id: Optional[int] = None,
     db: Session = Depends(get_db),
     tenant: str = Depends(get_tenant),
 ):
+    unit_ids = _scope_unit_ids(db, tenant, unit_ids, property_id)
     bkgs_q = db.query(Booking).filter(
         Booking.tenant == tenant,
         Booking.status == "confirmed",

@@ -24,6 +24,7 @@ import Loans from './pages/Loans'
 import AppSettings from './pages/AppSettings'
 import Backup from './pages/Backup'
 import ListingOptimizer from './pages/ListingOptimizer'
+import Properties from './pages/Properties'
 import Communications from './pages/Communications'
 
 const GuestPortal = lazy(() => import('./pages/GuestPortal'))
@@ -132,6 +133,7 @@ export default function App() {
               <Route path="settings" element={<AppSettings />} />
               <Route path="backup" element={<Backup />} />
               <Route path="listing-optimizer" element={<ListingOptimizer />} />
+              <Route path="properties" element={<Properties />} />
               <Route path="communications" element={<Communications />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Route>

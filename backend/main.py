@@ -49,6 +49,7 @@ from routes.cm_revenue import router as cm_revenue_router
 from routes.finance_api import router as finance_api_router
 from routes.backup import router as backup_router
 from routes.listing_optimizer import router as listing_optimizer_router
+from routes.properties import router as properties_router
 
 load_dotenv()
 
@@ -57,6 +58,15 @@ Base.metadata.create_all(bind=engine)
 
 # Booking system migrations (idempotent — fail silently on SQLite)
 from sqlalchemy import text as _text_b
+# One statement per try: a column that already exists must not skip the ones after it
+for _stmt in ("ALTER TABLE units ADD COLUMN property_id INTEGER REFERENCES properties(id)",
+              "ALTER TABLE units ADD COLUMN room_type_id INTEGER REFERENCES room_types(id)"):
+    try:
+        with engine.connect() as _bc:
+            _bc.execute(_text_b(_stmt))
+            _bc.commit()
+    except Exception:
+        pass
 try:
     with engine.connect() as _bc:
         _bc.execute(_text_b("ALTER TABLE guest_portal_settings ADD COLUMN smtp_host VARCHAR(200)"))
@@ -659,6 +669,14 @@ with SessionLocal() as _db:
         if _tr.id not in _TENANTS:
             _TENANTS[_tr.id] = {'name': _tr.name, 'password': _tr.password, 'is_active': True}
 
+# Every unit belongs to a property and a room type (existing units: default property, own type)
+from routes.properties import backfill_properties as _backfill_properties
+with SessionLocal() as _db:
+    try:
+        _backfill_properties(_db)
+    except Exception as _e:
+        print(f"[migration] properties backfill failed: {_e}")
+
 import pytz as _pytz
 from apscheduler.schedulers.background import BackgroundScheduler as _BGScheduler
 
@@ -933,6 +951,7 @@ app.include_router(email_scan_router, prefix="/api")
 app.include_router(communications_router, prefix="/api")
 app.include_router(backup_router, prefix="/api")
 app.include_router(listing_optimizer_router, prefix="/api")
+app.include_router(properties_router, prefix="/api")
 
 # Case management
 app.include_router(cm_auth_router)
