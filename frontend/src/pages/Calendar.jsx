@@ -352,9 +352,13 @@ export default function Calendar() {
               {!isCollapsed && g.types.map(t => t.units.length === 1 ? renderUnitRow(t.units[0]) : (
                 <div key={`t${t.id}`}>
                   <div className="flex border-b border-gray-100 bg-blue-50/40">
-                    <div className="w-40 flex-shrink-0 px-3 py-1 border-r border-gray-200 flex items-center">
+                    <button type="button" onClick={() => toggleGroup(`t${t.id}`)}
+                      title={collapsed[`t${t.id}`] ? 'Ανάπτυξη' : 'Σύμπτυξη'}
+                      className="w-40 flex-shrink-0 px-3 py-1 border-r border-gray-200 flex items-center gap-1.5 text-left hover:bg-blue-100/60 transition-colors">
+                      <span className="text-blue-500 text-[9px]">{collapsed[`t${t.id}`] ? '▶' : '▼'}</span>
                       <span className="text-[11px] font-semibold text-blue-800 truncate">{t.name}</span>
-                    </div>
+                      <span className="text-[10px] text-blue-400 shrink-0">{t.units.length}</span>
+                    </button>
                     <div className="flex">
                       {days.map(d => {
                         const ds = format(d, 'yyyy-MM-dd')
@@ -370,7 +374,7 @@ export default function Calendar() {
                       })}
                     </div>
                   </div>
-                  {t.units.map(u => renderUnitRow(u, true))}
+                  {!collapsed[`t${t.id}`] && t.units.map(u => renderUnitRow(u, true))}
                 </div>
               ))}
             </div>

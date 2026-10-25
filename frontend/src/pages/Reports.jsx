@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from 'react'
+import UnitGroupFilter from '../components/UnitGroupFilter'
 import { getOccupancy, getByChannel, getFinancial, getPriceAnalytics, getExpenses, getLoanTotal, getOwners, getOwnerReport, sendOwnerReport, getUnits } from '../api'
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend,
@@ -167,31 +168,9 @@ export default function Reports() {
         </div>
       </div>}
 
-      {/* Unit filter — hidden on owners tab */}
+      {/* Unit filter — hidden on owners tab; grouped by property and room type */}
       {tab !== 'owners' && units.length > 0 && (
-        <div className="bg-white rounded-xl border border-gray-200 px-4 py-3 flex flex-wrap gap-2 items-center">
-          <span className="text-xs font-medium text-gray-500 mr-1">Μονάδες:</span>
-          <button
-            onClick={() => setSelectedUnitIds([])}
-            className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${selectedUnitIds.length === 0 ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-          >
-            Όλες
-          </button>
-          {units.map((u) => {
-            const sel = selectedUnitIds.includes(u.id)
-            return (
-              <button
-                key={u.id}
-                onClick={() => setSelectedUnitIds(prev =>
-                  prev.includes(u.id) ? prev.filter(id => id !== u.id) : [...prev, u.id]
-                )}
-                className={`px-3 py-1 rounded-full text-xs font-medium border transition-colors ${sel ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:border-blue-400'}`}
-              >
-                {u.name}
-              </button>
-            )
-          })}
-        </div>
+        <UnitGroupFilter units={units} selected={selectedUnitIds} onChange={setSelectedUnitIds} />
       )}
 
       {/* Tabs */}
