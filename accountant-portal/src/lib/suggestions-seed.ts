@@ -145,6 +145,26 @@ export async function ensureErmisTagsBackfilled() {
   }
 }
 
+export async function ensureBusinessTagsNotNull() {
+  // Self-detecting backfill: some bulk-import path(s) have left Business.tags
+  // as an actual NULL column value rather than an empty array (the Prisma
+  // schema declares it non-nullable, but nothing enforced that at the DB
+  // level for these rows). This matters beyond cosmetics: Postgres's array
+  // overlap operator (`&&`, used by Prisma's `tags: {hasSome: [...]}`)
+  // returns NULL — not false — when either side is NULL, and `NOT NULL` is
+  // still NULL, which a WHERE clause treats as "exclude". Confirmed in
+  // production: a program's excludeTags check wrongly dropped 52 of 53
+  // otherwise-eligible matches whose businesses had tags = NULL. Backfilling
+  // to '{}' here fixes existing rows; it doesn't stop new NULLs from a
+  // non-Prisma insert path, but makes every exclusion-filter query correct
+  // again on its next run regardless.
+  await prisma.$executeRaw`
+    UPDATE "Business"
+    SET tags = '{}'
+    WHERE tags IS NULL
+  `
+}
+
 export async function ensureGemiTagsBackfilled() {
   // Self-detecting backfill: add "ΓΕΜΗ" to all gemi-claim businesses that don't have it yet.
   const gemiTag = 'ΓΕΜΗ'

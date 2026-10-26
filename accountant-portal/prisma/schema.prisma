@@ -160,7 +160,7 @@ model Business {
   phone                 String?
   viberPhone            String?
   notes                 String?
-  tags                  String[]
+  tags                  String[]            @default([])
   iMentorServices       String[]            // services received from I-MENTOR (e.g. ΕΣΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ)
   excludedFromCampaigns Boolean             @default(false)
   unsubscribeToken      String?             @unique @default(cuid())

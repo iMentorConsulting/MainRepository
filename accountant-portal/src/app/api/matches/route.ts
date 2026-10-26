@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/business-categories'
 import { regionWhereClause, GREEK_REGIONS } from '@/lib/greek-regions'
 import { reconcileMatchStatuses } from '@/lib/matching'
-import { ensureGemiTagsBackfilled, ensureTagAliasesResolved } from '@/lib/suggestions-seed'
+import { ensureGemiTagsBackfilled, ensureTagAliasesResolved, ensureBusinessTagsNotNull } from '@/lib/suggestions-seed'
 import { getProgramExclusionFilters, withProgramExclusions as applyProgramExclusions } from '@/lib/program-exclusions'
 
 export const dynamic = 'force-dynamic'
@@ -20,6 +20,11 @@ export async function GET(request: NextRequest) {
   // Both are self-detecting no-ops once all records are up to date.
   ensureGemiTagsBackfilled().catch(() => {})
   ensureTagAliasesResolved().catch(() => {})
+  // Awaited, not fire-and-forget: a NULL tags column breaks this very
+  // request's own exclusion-filter query (see ensureBusinessTagsNotNull),
+  // so it must finish before the where-clause below runs, not just "on some
+  // future request".
+  await ensureBusinessTagsNotNull().catch(() => {})
 
   const { searchParams } = request.nextUrl
   const page = parseInt(searchParams.get('page') || '1')

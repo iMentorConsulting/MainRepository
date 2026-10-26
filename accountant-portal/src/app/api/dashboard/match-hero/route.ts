@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { getProgramExclusionFilters, withProgramExclusions } from '@/lib/program-exclusions'
+import { ensureBusinessTagsNotNull } from '@/lib/suggestions-seed'
 
 export const dynamic = 'force-dynamic'
 
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
   const isAdmin = session.user.role === 'ADMIN'
   const filterAccountantId = isAdmin ? request.nextUrl.searchParams.get('accountantId') || undefined : undefined
   const effectiveAccountantId = isAdmin ? filterAccountantId : (session.user.accountantId || undefined)
+
+  // Awaited: a NULL tags column breaks the exclusion-filter query below (see
+  // ensureBusinessTagsNotNull), so it must finish before that query runs.
+  await ensureBusinessTagsNotNull().catch(() => {})
 
   const baseWhere = {
     status: { not: 'REJECTED' as const },
