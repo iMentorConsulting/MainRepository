@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
+import { Prisma } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { normalizeLegalForm } from '@/lib/legal-forms'
@@ -96,6 +97,43 @@ export async function GET(request: NextRequest) {
     prisma.programMatch.findMany({ where: scopedWhere, select: { id: true, business: { select: { onomasia: true, afm: true } } } }),
   ])
 
+  // Prisma's JS layer can show `tags: []` for a column whose *actual* DB
+  // value is NULL. In Postgres, `tags && ARRAY[...]` on a NULL array yields
+  // NULL (not false), and `NOT NULL` is still NULL — which a WHERE clause
+  // treats as "exclude", not "include". scopedCount staying 1 even with the
+  // exclusion filter reduced to a single trivial condition points exactly
+  // at this: check the real column value directly, bypassing Prisma's JS
+  // normalization, and run the equivalent condition as raw SQL for comparison.
+  const accountantClause = accountantId ? Prisma.sql`AND b."accountantId" = ${accountantId}` : Prisma.empty
+  const tagsNullCheck = await prisma.$queryRaw<{ afm: string; tags_is_null: boolean; tags_raw: string[] | null; overlap_result: boolean | null }[]>`
+    SELECT b.afm,
+           b.tags IS NULL AS tags_is_null,
+           b.tags AS tags_raw,
+           (b.tags && ${program.excludeTags}::text[]) AS overlap_result
+    FROM "ProgramMatch" pm
+    JOIN "Business" b ON b.id = pm."businessId"
+    WHERE pm."programId" = ${programId}
+      ${accountantClause}
+    LIMIT 10
+  `.catch((e: any) => ({ error: String(e?.message || e) }))
+
+  const rawExclusionCount = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint AS count
+    FROM "ProgramMatch" pm
+    JOIN "Business" b ON b.id = pm."businessId"
+    WHERE pm."programId" = ${programId}
+      ${accountantClause}
+      AND NOT (b.tags && ${program.excludeTags}::text[])
+  `.catch((e: any) => [{ count: BigInt(-1) }])
+  const rawExclusionCountIsTrueAndFalse = await prisma.$queryRaw<{ count: bigint }[]>`
+    SELECT COUNT(*)::bigint AS count
+    FROM "ProgramMatch" pm
+    JOIN "Business" b ON b.id = pm."businessId"
+    WHERE pm."programId" = ${programId}
+      ${accountantClause}
+      AND (b.tags && ${program.excludeTags}::text[]) IS NOT TRUE
+  `.catch((e: any) => [{ count: BigInt(-1) }])
+
   return NextResponse.json({
     program: { id: program.id, title: program.title, excludeTags: program.excludeTags, requireTags: program.requireTags, excludedLegalForms: program.excludedLegalForms },
     totalRaw: rows.length,
@@ -104,6 +142,15 @@ export async function GET(request: NextRequest) {
     scopedCount,
     scopedWhereUsed: scopedWhere,
     scopedMatches: scopedMatches.map(m => ({ afm: m.business.afm, name: m.business.onomasia })),
+    tagsNullCheck,
+    // SQL's three-valued logic: rawExclusionCount uses `NOT (tags && excludeTags)`
+    // (NULL propagates through NOT, so a NULL tags column silently drops the row —
+    // exactly matching Prisma's NOT:{business:{tags:{hasSome:...}}} translation);
+    // rawExclusionCountIsTrueAndFalse uses `IS NOT TRUE` instead, which treats a
+    // NULL result as "didn't overlap" rather than "unknown, so excluded". If the
+    // first is 1 and the second is 53, that confirms a NULL tags column is the bug.
+    rawExclusionCount: Number((rawExclusionCount as any)[0]?.count ?? -1),
+    rawExclusionCountIsTrueAndFalse: Number((rawExclusionCountIsTrueAndFalse as any)[0]?.count ?? -1),
     rows,
   })
 }
