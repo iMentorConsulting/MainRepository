@@ -73,10 +73,6 @@ export async function GET(request: NextRequest) {
     }
   })
 
-  // Run the EXACT same Prisma where-clause /api/matches and /api/dashboard/
-  // match-hero now share, to see whether the real query — not this route's
-  // own hand-written reasons[] computation above — is what disagrees.
-  const exclusionFilters = await getProgramExclusionFilters()
   const sharedBaseWhere: any = {
     status: { not: 'REJECTED' as const },
     rejectionReasonId: null,
@@ -84,20 +80,30 @@ export async function GET(request: NextRequest) {
     ...(accountantId ? { business: { accountantId } } : {}),
     programId,
   }
-  const sharedWhere = withProgramExclusions(sharedBaseWhere, exclusionFilters)
-  const liveCountViaSharedWhere = await prisma.programMatch.count({ where: sharedWhere })
-  const liveMatchesViaSharedWhere = await prisma.programMatch.findMany({
-    where: sharedWhere,
-    select: { id: true, business: { select: { onomasia: true, afm: true } } },
-  })
+
+  // UNSCOPED (the old, confirmed-buggy construction — pulls every program's
+  // rules into one filter) vs SCOPED (the fix — only this one program's
+  // rules), run side by side so a "still broken after deploy" report can be
+  // told apart from "the fix genuinely doesn't help" without guessing.
+  const unscopedFilters = await getProgramExclusionFilters()
+  const unscopedWhere = withProgramExclusions(sharedBaseWhere, unscopedFilters)
+  const scopedFilters = await getProgramExclusionFilters([programId])
+  const scopedWhere = withProgramExclusions(sharedBaseWhere, scopedFilters)
+
+  const [unscopedCount, scopedCount, scopedMatches] = await Promise.all([
+    prisma.programMatch.count({ where: unscopedWhere }),
+    prisma.programMatch.count({ where: scopedWhere }),
+    prisma.programMatch.findMany({ where: scopedWhere, select: { id: true, business: { select: { onomasia: true, afm: true } } } }),
+  ])
 
   return NextResponse.json({
     program: { id: program.id, title: program.title, excludeTags: program.excludeTags, requireTags: program.requireTags, excludedLegalForms: program.excludedLegalForms },
     totalRaw: rows.length,
     visibleCount: rows.filter(r => r.visible).length,
-    liveCountViaSharedWhere,
-    sharedWhereUsed: sharedWhere,
-    liveMatchesViaSharedWhere: liveMatchesViaSharedWhere.map(m => ({ afm: m.business.afm, name: m.business.onomasia })),
+    unscopedCount,
+    scopedCount,
+    scopedWhereUsed: scopedWhere,
+    scopedMatches: scopedMatches.map(m => ({ afm: m.business.afm, name: m.business.onomasia })),
     rows,
   })
 }
