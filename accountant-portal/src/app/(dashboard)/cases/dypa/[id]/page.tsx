@@ -12,6 +12,7 @@ export default function DypaAssignmentPage() {
   const { id } = useParams<{ id: string }>()
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const canViewTaxisnet = isAdmin || session?.user?.role === 'CONSULTANT'
 
   const [value, setValue] = useState<DypaFormValue | null>(null)
   const [business, setBusiness] = useState<DypaBusinessInfo | null>(null)
@@ -70,6 +71,13 @@ export default function DypaAssignmentPage() {
   async function confirmPayment() {
     await fetch(`/api/cases/dypa/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ initialFeeStatus: 'PAID' }) })
     load()
+  }
+
+  async function revealTaxisnet() {
+    const res = await fetch(`/api/cases/dypa/${id}?revealCredentials=1`)
+    if (!res.ok) return null
+    const data = await res.json()
+    return { taxisnetUsername: data.taxisnetUsername ?? null, taxisnetPassword: data.taxisnetPassword ?? null }
   }
 
   async function generateLink() {
@@ -167,6 +175,8 @@ export default function DypaAssignmentPage() {
         canConfirmPayment={isAdmin}
         onConfirmPayment={confirmPayment}
         showTaxisnet
+        canViewTaxisnet={canViewTaxisnet}
+        onRevealTaxisnet={revealTaxisnet}
         saving={saving}
       />
     </div>

@@ -3,7 +3,7 @@ import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
-import { Building2, Briefcase, ShieldCheck, FileSignature, Lock, Banknote, Rocket, CheckCircle2, PlusCircle, Trash2, Info, Globe2 } from 'lucide-react'
+import { Building2, Briefcase, ShieldCheck, FileSignature, Lock, Banknote, Rocket, CheckCircle2, PlusCircle, Trash2, Info, Globe2, Eye, Copy } from 'lucide-react'
 
 // Σημείο 5 της λίστας αφορά τη Δήλωση Σώρευσης De minimis — δεν επαναλαμβάνεται
 // ως ξεχωριστό checkbox, καλύπτεται από το ένα μεγάλο checkbox αποδοχής.
@@ -99,7 +99,7 @@ const labelCls = 'text-sm font-medium text-gray-700 mb-1 block'
 
 export function DypaForm({
   value, business, program, onPatch, onSubmitTaxisnet, onAcceptTerms, onFinalAccept, onSetHireStartDate,
-  pricing, canSetHireDate, canConfirmPayment, onConfirmPayment, showTaxisnet = true, saving,
+  pricing, canSetHireDate, canConfirmPayment, onConfirmPayment, showTaxisnet = true, canViewTaxisnet, onRevealTaxisnet, saving,
 }: {
   value: DypaFormValue
   business?: DypaBusinessInfo | null
@@ -114,11 +114,35 @@ export function DypaForm({
   canConfirmPayment?: boolean
   onConfirmPayment?: () => Promise<void> | void
   showTaxisnet?: boolean
+  // ADMIN/CONSULTANT only — accountants can submit/overwrite credentials but
+  // never view them already stored.
+  canViewTaxisnet?: boolean
+  onRevealTaxisnet?: () => Promise<{ taxisnetUsername: string | null; taxisnetPassword: string | null } | null>
   saving?: boolean
 }) {
   const [affiliated, setAffiliated] = useState(value.affiliatedCompanies || [])
   const [taxisnetUser, setTaxisnetUser] = useState('')
   const [taxisnetPass, setTaxisnetPass] = useState('')
+  const [revealedTaxisnet, setRevealedTaxisnet] = useState<{ taxisnetUsername: string | null; taxisnetPassword: string | null } | null>(null)
+  const [revealing, setRevealing] = useState(false)
+  const [copiedField, setCopiedField] = useState<'user' | 'pass' | null>(null)
+
+  async function revealTaxisnet() {
+    if (!onRevealTaxisnet) return
+    setRevealing(true)
+    try {
+      const result = await onRevealTaxisnet()
+      setRevealedTaxisnet(result)
+    } finally {
+      setRevealing(false)
+    }
+  }
+
+  function copyTaxisnet(field: 'user' | 'pass', text: string) {
+    navigator.clipboard.writeText(text)
+    setCopiedField(field)
+    setTimeout(() => setCopiedField(null), 2000)
+  }
   const [hireDate, setHireDate] = useState(value.hireStartDate ? value.hireStartDate.slice(0, 10) : '')
   const [termsChecked, setTermsChecked] = useState<boolean[]>(TERMS.map(() => !!value.termsAcceptedAt))
   const [finalChecked, setFinalChecked] = useState(!!value.finalAcceptedAt)
@@ -388,7 +412,37 @@ export function DypaForm({
               Εισάγετε τους κωδικούς Taxisnet της ίδιας της αιτούσας επιχείρησης (όχι του λογιστή). Αποθηκεύονται κρυπτογραφημένα (AES-256) και χρησιμοποιούνται αποκλειστικά για την υποβολή της αίτησης στη ΔΥΠΑ. Μπορούν να καταχωρηθούν τώρα ή να αναβληθούν μέχρι μετά την πληρωμή της επιχείρησης.
             </div>
             {(value.taxisnetUsernameSet && value.taxisnetPasswordSet && !taxisnetUser && !taxisnetPass) ? (
-              <p className="text-sm text-emerald-700 flex items-center gap-1"><CheckCircle2 size={14} /> Έχουν ήδη καταχωρηθεί.</p>
+              <div className="space-y-2">
+                <p className="text-sm text-emerald-700 flex items-center gap-1"><CheckCircle2 size={14} /> Έχουν ήδη καταχωρηθεί.</p>
+                {canViewTaxisnet && onRevealTaxisnet && (
+                  revealedTaxisnet ? (
+                    <div className="grid grid-cols-2 gap-3 bg-slate-50 rounded-lg border border-slate-200 p-3">
+                      <div>
+                        <label className={labelCls}>Όνομα χρήστη Taxisnet</label>
+                        <div className="flex items-center gap-2">
+                          <input readOnly className={inputCls} value={revealedTaxisnet.taxisnetUsername || ''} />
+                          <button type="button" className="text-slate-500 hover:text-indigo-600" onClick={() => copyTaxisnet('user', revealedTaxisnet.taxisnetUsername || '')}>
+                            {copiedField === 'user' ? <CheckCircle2 size={16} className="text-emerald-600" /> : <Copy size={16} />}
+                          </button>
+                        </div>
+                      </div>
+                      <div>
+                        <label className={labelCls}>Κωδικός Taxisnet</label>
+                        <div className="flex items-center gap-2">
+                          <input readOnly className={inputCls} value={revealedTaxisnet.taxisnetPassword || ''} />
+                          <button type="button" className="text-slate-500 hover:text-indigo-600" onClick={() => copyTaxisnet('pass', revealedTaxisnet.taxisnetPassword || '')}>
+                            {copiedField === 'pass' ? <CheckCircle2 size={16} className="text-emerald-600" /> : <Copy size={16} />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <Button size="sm" variant="outline" onClick={revealTaxisnet} loading={revealing}>
+                      <Eye size={14} className="mr-1" /> Προβολή κωδικών
+                    </Button>
+                  )
+                )}
+              </div>
             ) : null}
             <div className="grid grid-cols-2 gap-3">
               <div>

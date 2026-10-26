@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { encrypt } from '@/lib/crypto'
+import { encrypt, decrypt } from '@/lib/crypto'
 import { createAuditLog } from '@/lib/audit'
 
 async function loadAssignment(id: string) {
@@ -25,9 +25,20 @@ async function loadAssignment(id: string) {
   })
 }
 
-function serialize(assignment: NonNullable<Awaited<ReturnType<typeof loadAssignment>>>) {
+// Credentials are never sent to the browser by default — only ADMIN/CONSULTANT
+// (never ACCOUNTANT) get the decrypted values, and only when explicitly asked
+// for via revealCredentials, so an ordinary case-page load never carries them.
+function serialize(assignment: NonNullable<Awaited<ReturnType<typeof loadAssignment>>>, revealCredentials: boolean) {
   const { taxisnetUsernameEnc, taxisnetPasswordEnc, ...rest } = assignment
-  return { ...rest, taxisnetUsernameSet: !!taxisnetUsernameEnc, taxisnetPasswordSet: !!taxisnetPasswordEnc }
+  return {
+    ...rest,
+    taxisnetUsernameSet: !!taxisnetUsernameEnc,
+    taxisnetPasswordSet: !!taxisnetPasswordEnc,
+    ...(revealCredentials ? {
+      taxisnetUsername: taxisnetUsernameEnc ? decrypt(taxisnetUsernameEnc) : null,
+      taxisnetPassword: taxisnetPasswordEnc ? decrypt(taxisnetPasswordEnc) : null,
+    } : {}),
+  }
 }
 
 export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
@@ -43,9 +54,23 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
 
+  // Only decrypted/returned when staff explicitly asks (?revealCredentials=1) —
+  // accountants can never see them regardless of this flag.
+  const wantsCredentials = request.nextUrl.searchParams.get('revealCredentials') === '1'
+  const revealCredentials = isStaff && wantsCredentials && (!!assignment.taxisnetUsernameEnc || !!assignment.taxisnetPasswordEnc)
+  if (revealCredentials) {
+    await createAuditLog({
+      userId: session.user.id,
+      action: 'VIEW',
+      entity: 'DypaAssignment',
+      entityId: assignment.id,
+      details: `Προβολή κωδικών Taxisnet για ανάθεση ΔΥΠΑ #${assignment.clientCase.caseNumber}`,
+    })
+  }
+
   const settings = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   return NextResponse.json({
-    ...serialize(assignment),
+    ...serialize(assignment, revealCredentials),
     pricing: {
       initialFeeCents: settings?.dypaInitialFeeCents ?? 15000,
       recurringFeeCents: settings?.dypaRecurringFeeCents ?? 5000,
@@ -134,5 +159,5 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     details: `Ενημέρωση ανάθεσης ΔΥΠΑ #${updated.clientCase.caseNumber}`,
   })
 
-  return NextResponse.json(serialize(updated))
+  return NextResponse.json(serialize(updated, false))
 }
