@@ -30,7 +30,18 @@ export async function GET(request: NextRequest) {
     ...(effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}),
   }
 
-  const exclusionFilters = await getProgramExclusionFilters()
+  // Scope exclusion rules to only the programs this accountant actually has
+  // candidate matches for — pulling in every program in the system's rules
+  // into one combined filter was confirmed to wrongly exclude rows for a
+  // rule-free program once enough unrelated programs' rules piled in (see
+  // program-exclusions.ts). A quick unscoped pass gets the real candidate
+  // set; exclusion rules are then applied scoped and re-queried.
+  const candidateProgramIds = (await prisma.programMatch.findMany({
+    where: baseWhere,
+    select: { programId: true },
+    distinct: ['programId'],
+  })).map(r => r.programId)
+  const exclusionFilters = await getProgramExclusionFilters(candidateProgramIds)
   const where = withProgramExclusions(baseWhere, exclusionFilters)
 
   const matches = await prisma.programMatch.findMany({

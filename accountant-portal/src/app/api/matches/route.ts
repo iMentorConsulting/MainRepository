@@ -124,15 +124,32 @@ export async function GET(request: NextRequest) {
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
     : baseWhere
 
-  const exclusionFilters = await getProgramExclusionFilters()
-  const { affectedProgramIds } = exclusionFilters
-  const withProgramExclusions = (w: any) => applyProgramExclusions(w, exclusionFilters)
+  // Scope the exclusion-rule lookup to only the program(s) actually in play
+  // for the result set — pulling in every OTHER program's excludeTags/
+  // requireTags/excludedLegalForms rules into one combined OR/NOT tree
+  // (keyed by that row's own programId) was confirmed in production to
+  // wrongly exclude rows belonging to a program with NO rules of its own,
+  // once enough unrelated programs' rules piled into the same filter (a
+  // program with empty excludedLegalForms lost 52 of 53 otherwise-visible
+  // matches once >90 OTHER programs' legal-form exclusions were ORed in
+  // alongside it). Scoping sidesteps that regardless of its exact cause.
+  const resultScopeProgramIds = programIds.length > 0
+    ? programIds
+    : (await prisma.programMatch.findMany({ where: baseWhereWithHidden, select: { programId: true }, distinct: ['programId'] })).map(r => r.programId)
+  const resultExclusionFilters = await getProgramExclusionFilters(resultScopeProgramIds)
+  const withProgramExclusions = (w: any) => applyProgramExclusions(w, resultExclusionFilters)
 
   // `where`/`whereWithHidden` scope the actual result set (includes the program filter);
   // `baseWhereWithHidden` (without the program filter) is reused to compute the program
   // facet counts below, so the program dropdown reflects only the other active filters.
   const where = withProgramExclusions(programIds.length > 0 ? { ...baseWhere, programId: { in: programIds } } : baseWhere)
   const whereWithHidden = withProgramExclusions(programIds.length > 0 ? { ...baseWhereWithHidden, programId: { in: programIds } } : baseWhereWithHidden)
+
+  // The program facet (dropdown counts below) spans every program regardless
+  // of the current program filter, so it needs the full, unscoped rule set —
+  // but each affected program is recounted individually below with the
+  // where-clause scoped to just that one program, for the same reason.
+  const { affectedProgramIds } = await getProgramExclusionFilters()
 
   const safeSort = SORTABLE.has(sortBy) ? sortBy : 'matchScore'
   let orderBy: any = { [safeSort]: sortDir }
@@ -225,10 +242,17 @@ export async function GET(request: NextRequest) {
       where: { ...baseWhereWithHidden, programId: { notIn: affectedProgramIds } },
       _count: { _all: true },
     }),
-    Promise.all(affectedProgramIds.map(async id => ({
-      programId: id,
-      count: await prisma.programMatch.count({ where: withProgramExclusions({ ...baseWhereWithHidden, programId: id }) }),
-    }))),
+    Promise.all(affectedProgramIds.map(async id => {
+      // Scoped to just this one program — reusing resultExclusionFilters
+      // (built for the currently selected program(s), if any) would silently
+      // apply no rules at all for every OTHER affected program being
+      // recounted here.
+      const filtersForId = await getProgramExclusionFilters([id])
+      return {
+        programId: id,
+        count: await prisma.programMatch.count({ where: applyProgramExclusions({ ...baseWhereWithHidden, programId: id }, filtersForId) }),
+      }
+    })),
   ])
   const programCounts = [
     ...bulkProgramCounts.map(p => ({ programId: p.programId, count: p._count._all })),

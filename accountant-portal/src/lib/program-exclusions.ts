@@ -8,14 +8,27 @@ import { prisma } from '@/lib/prisma'
 // more "suitable" matches than the table actually returned for the same
 // accountant+program), so this is now the single source of truth, applied
 // as a Prisma where-clause by both routes.
-export async function getProgramExclusionFilters() {
+// `scopeProgramIds`, when given, restricts the rules pulled in to just those
+// programs — critical when a program filter is already active. Without it,
+// every OTHER program's excludeTags/requireTags/excludedLegalForms rules
+// still get ORed into the same where-clause (each tagged with its own
+// programId, so they shouldn't match rows for a different program) — but in
+// production this ballooned into 90+-branch OR/NOT trees spanning every
+// program in the system, and real rows for an unrelated, rule-free program
+// were wrongly excluded anyway (confirmed via a live diagnostic: a program
+// with empty excludeTags/requireTags/excludedLegalForms still lost 52 of 53
+// otherwise-eligible matches once combined with other programs' unrelated
+// legal-form exclusions in one giant filter). Keeping the filter scoped to
+// only the programs actually being queried sidesteps that entirely.
+export async function getProgramExclusionFilters(scopeProgramIds?: string[]) {
+  const scopeClause = scopeProgramIds && scopeProgramIds.length > 0 ? { id: { in: scopeProgramIds } } : {}
   const [programsWithTagRules, programsWithExcludedLegalForms] = await Promise.all([
     prisma.program.findMany({
-      where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
+      where: { ...scopeClause, OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
       select: { id: true, excludeTags: true, requireTags: true },
     }),
     prisma.program.findMany({
-      where: { excludedLegalForms: { isEmpty: false } },
+      where: { ...scopeClause, excludedLegalForms: { isEmpty: false } },
       select: { id: true, excludedLegalForms: true },
     }),
   ])
