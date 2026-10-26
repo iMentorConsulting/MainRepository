@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle, Calendar } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
@@ -151,13 +151,26 @@ function OpportunityCard({ opp, accountantId }: { opp: ProgramOpportunity; accou
 
 export function MatchesHero({ accountantId }: { accountantId?: string }) {
   const [programs, setPrograms] = useState<ProgramOpportunity[] | null>(null)
+  // Guards against out-of-order responses: accountantId can change shortly
+  // after mount (e.g. the Λογιστής filter hydrating from the URL just after
+  // this component's first, unscoped fetch already went out), firing a
+  // second request. Without this, a slower unscoped response can resolve
+  // after the scoped one and silently overwrite the correct, filtered
+  // counts with the global ones.
+  const requestSeq = useRef(0)
 
   useEffect(() => {
+    const seq = ++requestSeq.current
     const params = accountantId ? `?accountantId=${accountantId}` : ''
     fetch(`/api/dashboard/match-hero${params}`)
       .then(r => r.json())
-      .then(data => setPrograms(data.programs || []))
-      .catch(() => setPrograms([]))
+      .then(data => {
+        if (seq !== requestSeq.current) return
+        setPrograms(data.programs || [])
+      })
+      .catch(() => {
+        if (seq === requestSeq.current) setPrograms([])
+      })
   }, [accountantId])
 
   return (
