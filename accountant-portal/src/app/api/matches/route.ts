@@ -70,7 +70,15 @@ async function getProgramExclusionFilters() {
     if (conditions.length > 0) legalFormExcludeFilter = { NOT: { OR: conditions } }
   }
 
-  return { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter }
+  // Programs whose matches need per-program re-checking below — the bulk
+  // facet groupBy skips these to stay a cheap single scan.
+  const affectedProgramIds = Array.from(new Set([
+    ...excludePrograms.map(p => p.id),
+    ...requirePrograms.map(p => p.id),
+    ...programsWithExcludedLegalForms.map(p => p.id),
+  ]))
+
+  return { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter, affectedProgramIds }
 }
 
 export async function GET(request: NextRequest) {
@@ -185,7 +193,7 @@ export async function GET(request: NextRequest) {
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
     : baseWhere
 
-  const { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter } = await getProgramExclusionFilters()
+  const { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter, affectedProgramIds } = await getProgramExclusionFilters()
 
   const withProgramExclusions = (w: any) => {
     let result = w
@@ -279,21 +287,35 @@ export async function GET(request: NextRequest) {
     accountants = await prisma.accountant.findMany({ select: { id: true, officeName: true }, orderBy: { officeName: 'asc' } })
   }
 
-  // Program facet: counts are based on baseWhereWithHidden (other active filters)
-  // but WITHOUT the program-exclusion joins — adding them to a groupBy full-table
-  // scan is extremely slow and the slight over-count on edge cases is acceptable.
-  const programCounts = await prisma.programMatch.groupBy({
-    by: ['programId'],
-    where: baseWhereWithHidden,
-    _count: { _all: true },
-  })
+  // Program facet: counts are based on baseWhereWithHidden (other active filters).
+  // Most programs have no exclude/require-tag or legal-form rules, so they're
+  // counted with one cheap groupBy scan. Programs that DO have such rules are
+  // re-counted individually with those rules applied — skipping this for all
+  // programs (as before) made the facet badge show raw, pre-exclusion counts
+  // (e.g. "(53)") while the actual filtered table — applying those same rules
+  // via `where`/`whereWithHidden` — correctly showed far fewer matches.
+  const [bulkProgramCounts, affectedProgramCounts] = await Promise.all([
+    prisma.programMatch.groupBy({
+      by: ['programId'],
+      where: { ...baseWhereWithHidden, programId: { notIn: affectedProgramIds } },
+      _count: { _all: true },
+    }),
+    Promise.all(affectedProgramIds.map(async id => ({
+      programId: id,
+      count: await prisma.programMatch.count({ where: withProgramExclusions({ ...baseWhereWithHidden, programId: id }) }),
+    }))),
+  ])
+  const programCounts = [
+    ...bulkProgramCounts.map(p => ({ programId: p.programId, count: p._count._all })),
+    ...affectedProgramCounts.filter(p => p.count > 0),
+  ]
   const programTitles = await prisma.program.findMany({
     where: { id: { in: programCounts.map(p => p.programId) } },
     select: { id: true, title: true },
   })
   const titleById = new Map(programTitles.map(p => [p.id, p.title]))
   const programs = programCounts
-    .map(p => ({ id: p.programId, title: titleById.get(p.programId) || '—', count: p._count._all }))
+    .map(p => ({ id: p.programId, title: titleById.get(p.programId) || '—', count: p.count }))
     .sort((a, b) => a.title.localeCompare(b.title))
 
   const legalStatusFacet = await prisma.business.findMany({
