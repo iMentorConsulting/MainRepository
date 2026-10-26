@@ -1,13 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { normalizeLegalForm } from '@/lib/legal-forms'
+import { getProgramExclusionFilters, withProgramExclusions } from '@/lib/program-exclusions'
 
 export const dynamic = 'force-dynamic'
 
 // Powers the dashboard's matches hero: one card per program with active
 // matches, each showing its description, match count, and (on expand) the
-// matched businesses. Scoped by the same accountant rules as /api/matches.
+// matched businesses. Scoped by the same accountant rules as /api/matches,
+// using the exact same shared exclusion-filter logic as that route's own
+// query (applied as a Prisma where-clause, not re-implemented in JS) — the
+// two must never be able to silently diverge on what counts as a match.
 export async function GET(request: NextRequest) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
@@ -16,7 +19,7 @@ export async function GET(request: NextRequest) {
   const filterAccountantId = isAdmin ? request.nextUrl.searchParams.get('accountantId') || undefined : undefined
   const effectiveAccountantId = isAdmin ? filterAccountantId : (session.user.accountantId || undefined)
 
-  const where = {
+  const baseWhere = {
     status: { not: 'REJECTED' as const },
     // Mirror /api/matches's default "hideUnsuitable" filter — otherwise the
     // hero's count includes matches the table hides by default (an existing
@@ -26,6 +29,9 @@ export async function GET(request: NextRequest) {
     NOT: { criterionChecks: { some: { value: 'FAIL' } } },
     ...(effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}),
   }
+
+  const exclusionFilters = await getProgramExclusionFilters()
+  const where = withProgramExclusions(baseWhere, exclusionFilters)
 
   const matches = await prisma.programMatch.findMany({
     where,
@@ -39,32 +45,17 @@ export async function GET(request: NextRequest) {
           id: true,
           onomasia: true,
           afm: true,
-          tags: true,
-          legalStatusDescr: true,
           activities: { where: { firmActKind: 1 }, select: { firmActDescr: true }, take: 1 },
         },
       },
-      program: { select: { id: true, title: true, description: true, category: true, extraCriteriaIds: true, excludeTags: true, requireTags: true, excludedLegalForms: true, endDate: true } },
+      program: { select: { id: true, title: true, description: true, category: true, extraCriteriaIds: true, endDate: true } },
     },
-  })
-
-  // Enforce each program's own tag-based exclusion/require lists and legal-form
-  // exclusion live, since old ProgramMatch rows created before these fields
-  // were set (or already reviewed/notified, which matching cleanup leaves
-  // untouched) would otherwise still surface here.
-  const visibleMatches = matches.filter(m => {
-    if ((m.program.excludeTags || []).some(t => m.business.tags.includes(t))) return false
-    const requireTags = m.program.requireTags || []
-    if (requireTags.length > 0 && !requireTags.some(t => m.business.tags.includes(t))) return false
-    const excludedLegalForms = m.program.excludedLegalForms || []
-    if (excludedLegalForms.includes(normalizeLegalForm(m.business.legalStatusDescr))) return false
-    return true
   })
 
   // "Πρόσθετες Προϋποθέσεις" can come from either the free-text field or the
   // checklist of EligibilityCriterion entries — fall back to the checklist
   // labels when the free-text field is empty so both authoring styles show up.
-  const allCriteriaIds = Array.from(new Set(visibleMatches.flatMap(m => m.program.extraCriteriaIds || [])))
+  const allCriteriaIds = Array.from(new Set(matches.flatMap(m => m.program.extraCriteriaIds || [])))
   const criteriaList = allCriteriaIds.length > 0
     ? await prisma.eligibilityCriterion.findMany({ where: { id: { in: allCriteriaIds } }, select: { id: true, label: true } })
     : []
@@ -81,7 +72,7 @@ export async function GET(request: NextRequest) {
     businesses: Array<{ id: string; name: string; afm: string; activityDescr: string | null }>
   }>()
 
-  for (const m of visibleMatches) {
+  for (const m of matches) {
     const entry = byProgram.get(m.program.id) || {
       programId: m.program.id,
       programTitle: m.program.title,

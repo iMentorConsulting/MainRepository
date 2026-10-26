@@ -6,80 +6,11 @@ import { categoryWhereClause, ALL_CATEGORIES, BusinessCategory } from '@/lib/bus
 import { regionWhereClause, GREEK_REGIONS } from '@/lib/greek-regions'
 import { reconcileMatchStatuses } from '@/lib/matching'
 import { ensureGemiTagsBackfilled, ensureTagAliasesResolved } from '@/lib/suggestions-seed'
+import { getProgramExclusionFilters, withProgramExclusions as applyProgramExclusions } from '@/lib/program-exclusions'
 
 export const dynamic = 'force-dynamic'
 
 const SORTABLE = new Set(['matchScore', 'createdAt', 'status', 'business.onomasia', 'business.afm', 'program.title', 'business.accountant.officeName'])
-
-// ─── Program-exclusion filters (join-based, no Business table scan) ──────────
-// Instead of materialising (businessId, programId) pairs — which creates
-// enormous WHERE clauses as the business table grows — we express exclusions
-// as nested Prisma relations (programId = X AND business.tags hasSome [...]).
-// PostgreSQL turns these into efficient EXISTS sub-selects.
-async function getProgramExclusionFilters() {
-  const [programsWithTagRules, programsWithExcludedLegalForms] = await Promise.all([
-    prisma.program.findMany({
-      where: { OR: [{ excludeTags: { isEmpty: false } }, { requireTags: { isEmpty: false } }] },
-      select: { id: true, excludeTags: true, requireTags: true },
-    }),
-    prisma.program.findMany({
-      where: { excludedLegalForms: { isEmpty: false } },
-      select: { id: true, excludedLegalForms: true },
-    }),
-  ])
-
-  let excludeTagsFilter: any = null
-  let requireTagsFilter: any = null
-
-  const excludePrograms = programsWithTagRules.filter(p => p.excludeTags.length > 0)
-  if (excludePrograms.length > 0) {
-    excludeTagsFilter = {
-      NOT: {
-        OR: excludePrograms.map(p => ({
-          programId: p.id,
-          business: { tags: { hasSome: p.excludeTags } },
-        })),
-      },
-    }
-  }
-
-  const requirePrograms = programsWithTagRules.filter(p => p.requireTags.length > 0)
-  if (requirePrograms.length > 0) {
-    requireTagsFilter = {
-      OR: [
-        { programId: { notIn: requirePrograms.map(p => p.id) } },
-        ...requirePrograms.map(p => ({
-          programId: p.id,
-          business: { tags: { hasSome: p.requireTags } },
-        })),
-      ],
-    }
-  }
-
-  // normalizeLegalForm is identity for non-null trimmed strings; 'ΙΔΙΩΤΗΣ' maps
-  // to null/empty. Express this via a nested relation instead of pairs.
-  let legalFormExcludeFilter: any = null
-  if (programsWithExcludedLegalForms.length > 0) {
-    const conditions = programsWithExcludedLegalForms.flatMap(p =>
-      p.excludedLegalForms.map(form =>
-        form === 'ΙΔΙΩΤΗΣ'
-          ? { programId: p.id, business: { OR: [{ legalStatusDescr: null }, { legalStatusDescr: '' }, { legalStatusDescr: 'ΙΔΙΩΤΗΣ' }] } }
-          : { programId: p.id, business: { legalStatusDescr: form } }
-      )
-    )
-    if (conditions.length > 0) legalFormExcludeFilter = { NOT: { OR: conditions } }
-  }
-
-  // Programs whose matches need per-program re-checking below — the bulk
-  // facet groupBy skips these to stay a cheap single scan.
-  const affectedProgramIds = Array.from(new Set([
-    ...excludePrograms.map(p => p.id),
-    ...requirePrograms.map(p => p.id),
-    ...programsWithExcludedLegalForms.map(p => p.id),
-  ]))
-
-  return { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter, affectedProgramIds }
-}
 
 export async function GET(request: NextRequest) {
   const session = await auth()
@@ -193,15 +124,9 @@ export async function GET(request: NextRequest) {
     ? { ...baseWhere, rejectionReasonId: null, NOT: { criterionChecks: { some: { value: 'FAIL' } } } }
     : baseWhere
 
-  const { excludeTagsFilter, requireTagsFilter, legalFormExcludeFilter, affectedProgramIds } = await getProgramExclusionFilters()
-
-  const withProgramExclusions = (w: any) => {
-    let result = w
-    if (excludeTagsFilter) result = { ...result, AND: [...(result.AND || []), excludeTagsFilter] }
-    if (requireTagsFilter) result = { ...result, AND: [...(result.AND || []), requireTagsFilter] }
-    if (legalFormExcludeFilter) result = { ...result, AND: [...(result.AND || []), legalFormExcludeFilter] }
-    return result
-  }
+  const exclusionFilters = await getProgramExclusionFilters()
+  const { affectedProgramIds } = exclusionFilters
+  const withProgramExclusions = (w: any) => applyProgramExclusions(w, exclusionFilters)
 
   // `where`/`whereWithHidden` scope the actual result set (includes the program filter);
   // `baseWhereWithHidden` (without the program filter) is reused to compute the program
