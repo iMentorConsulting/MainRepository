@@ -649,8 +649,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   const [resending, setResending] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [showFinance, setShowFinance] = useState(false)
-  const [showMore, setShowMore] = useState(false)
-  const [cloning, setCloning] = useState(false)
 
   const reload = useCallback(async () => {
     const l = await getLead(lead.id)
@@ -791,27 +789,6 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
           {full?.email && <a href={gmailUrl(full.email)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm border px-2.5 py-1 rounded-lg hover:bg-gray-50"><EnvelopeIcon className="w-4 h-4 text-red-500" />Email</a>}
           <a href="https://www1.aade.gr/taxisnet/mytaxisnet/protected/displayConsts.htm" target="_blank" rel="noreferrer" className="flex items-center gap-1 text-sm border px-2.5 py-1 rounded-lg hover:bg-gray-50">TaxisNet</a>
           <button onClick={() => setEditing(e => !e)} className="flex items-center gap-1 text-sm border px-2.5 py-1 rounded-lg hover:bg-gray-50"><PencilIcon className="w-4 h-4 text-gray-500" />Επεξεργασία</button>
-          <button onClick={() => setShowMore(v => !v)} className="flex items-center gap-1 text-sm border px-2 py-1 rounded-lg hover:bg-gray-50 text-gray-400" title="Περισσότερες ενέργειες">⋯</button>
-          {showMore && (
-            <button
-              disabled={cloning}
-              onClick={async () => {
-                if (!window.confirm('Δημιουργία αντιγράφου αυτού του lead; Το νέο lead θα έχει τα ίδια στοιχεία επικοινωνίας αλλά καθαρό ιστορικό (status: NEW LEAD).')) return
-                setCloning(true)
-                try {
-                  const newLead = await cloneLead(lead.id)
-                  toast.success(`Δημιουργήθηκε νέο lead #${newLead.id}`)
-                  setShowMore(false)
-                  onChanged?.()
-                } catch (e) {
-                  toast.error('Σφάλμα κλωνοποίησης')
-                } finally { setCloning(false) }
-              }}
-              className="flex items-center gap-1 text-sm border border-orange-200 text-orange-700 bg-orange-50 hover:bg-orange-100 px-2.5 py-1 rounded-lg disabled:opacity-50"
-            >
-              🔁 {cloning ? 'Αντιγραφή...' : 'Κλωνοποίηση Lead'}
-            </button>
-          )}
         </div>
 
         {editing && (
