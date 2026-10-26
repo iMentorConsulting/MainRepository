@@ -460,7 +460,10 @@ def list_leads(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    query = db.query(CMLead)
+    from models_cases import CMBusinessProfile as _BP
+    query = db.query(CMLead).outerjoin(
+        _BP, and_(_BP.afm == CMLead.afm, CMLead.afm.isnot(None))
+    )
     if status:
         query = query.filter(CMLead.status.in_([s.strip() for s in status.split(",") if s.strip()]))
     if exclude_status:
@@ -523,6 +526,7 @@ def list_leads(
             CMLead.phone2.ilike(like),
             CMLead.email.ilike(like),
             CMLead.afm.ilike(like),
+            _BP.onomasia.ilike(like),
         ))
 
     total = query.count()
