@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { normalizeLegalForm } from '@/lib/legal-forms'
+import { getProgramExclusionFilters, withProgramExclusions } from '@/lib/program-exclusions'
 
 export const dynamic = 'force-dynamic'
 
@@ -72,10 +73,31 @@ export async function GET(request: NextRequest) {
     }
   })
 
+  // Run the EXACT same Prisma where-clause /api/matches and /api/dashboard/
+  // match-hero now share, to see whether the real query — not this route's
+  // own hand-written reasons[] computation above — is what disagrees.
+  const exclusionFilters = await getProgramExclusionFilters()
+  const sharedBaseWhere: any = {
+    status: { not: 'REJECTED' as const },
+    rejectionReasonId: null,
+    NOT: { criterionChecks: { some: { value: 'FAIL' } } },
+    ...(accountantId ? { business: { accountantId } } : {}),
+    programId,
+  }
+  const sharedWhere = withProgramExclusions(sharedBaseWhere, exclusionFilters)
+  const liveCountViaSharedWhere = await prisma.programMatch.count({ where: sharedWhere })
+  const liveMatchesViaSharedWhere = await prisma.programMatch.findMany({
+    where: sharedWhere,
+    select: { id: true, business: { select: { onomasia: true, afm: true } } },
+  })
+
   return NextResponse.json({
     program: { id: program.id, title: program.title, excludeTags: program.excludeTags, requireTags: program.requireTags, excludedLegalForms: program.excludedLegalForms },
     totalRaw: rows.length,
     visibleCount: rows.filter(r => r.visible).length,
+    liveCountViaSharedWhere,
+    sharedWhereUsed: sharedWhere,
+    liveMatchesViaSharedWhere: liveMatchesViaSharedWhere.map(m => ({ afm: m.business.afm, name: m.business.onomasia })),
     rows,
   })
 }
