@@ -291,6 +291,8 @@ function MatchesPageInner() {
   useEffect(() => {
     const fromUrl = searchParams.get('programIds')
     setProgramFilter(fromUrl ? fromUrl.split(',').filter(Boolean) : [])
+    const accountantsFromUrl = searchParams.get('accountantIds')
+    if (accountantsFromUrl) setAccountantFilter(accountantsFromUrl.split(',').filter(Boolean))
   }, [searchParams])
 
   function handleSearch() {

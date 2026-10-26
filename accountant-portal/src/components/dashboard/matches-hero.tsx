@@ -82,7 +82,7 @@ function DeadlineChip({ endDate, category }: { endDate: string | null; category?
 
 const VISIBLE_BUSINESSES = 6
 
-function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
+function OpportunityCard({ opp, accountantId }: { opp: ProgramOpportunity; accountantId?: string }) {
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? opp.businesses : opp.businesses.slice(0, VISIBLE_BUSINESSES)
   const hiddenCount = opp.businesses.length - visible.length
@@ -140,7 +140,7 @@ function OpportunityCard({ opp }: { opp: ProgramOpportunity }) {
       )}
 
       <Link
-        href={`/matches?programIds=${opp.programId}`}
+        href={`/matches?programIds=${opp.programId}${accountantId ? `&accountantIds=${accountantId}` : ''}`}
         className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-indigo-700 mt-3 pt-3 border-t border-slate-100"
       >
         Δείτε στα Matches <ArrowRight size={12} />
@@ -177,7 +177,7 @@ export function MatchesHero({ accountantId }: { accountantId?: string }) {
           <div className="h-40 flex items-center justify-center text-white/60 text-sm">Δεν υπάρχουν matches ακόμη</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {programs.map(opp => <OpportunityCard key={opp.programId} opp={opp} />)}
+            {programs.map(opp => <OpportunityCard key={opp.programId} opp={opp} accountantId={accountantId} />)}
           </div>
         )}
       </div>

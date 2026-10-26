@@ -18,6 +18,12 @@ export async function GET(request: NextRequest) {
 
   const where = {
     status: { not: 'REJECTED' as const },
+    // Mirror /api/matches's default "hideUnsuitable" filter — otherwise the
+    // hero's count includes matches the table hides by default (an existing
+    // rejection reason or a FAILed extra criterion), making the card's count
+    // wildly overstate what actually shows up when the user follows through.
+    rejectionReasonId: null,
+    NOT: { criterionChecks: { some: { value: 'FAIL' } } },
     ...(effectiveAccountantId ? { business: { accountantId: effectiveAccountantId } } : {}),
   }
 
