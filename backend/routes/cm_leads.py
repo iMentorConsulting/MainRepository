@@ -191,11 +191,14 @@ def find_gemi_lead(db: Session, afm, program_title=None, program_category=None, 
         matches = [l for l in cands if _is_logistis_lead(l) and (l.program or "") == program_category]
         if matches:
             return max(matches, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
-    # 3) No program info at all — fall back to the best-ranked LOGISTIS lead for this AFM
-    #    (prevents duplicate auto-creates when a webhook arrives without a program field)
-    logistis_cands = [l for l in cands if _is_logistis_lead(l)]
-    if logistis_cands:
-        return max(logistis_cands, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
+    # 3) No program info at all — fall back to the best-ranked LOGISTIS lead for this AFM.
+    #    Only when we truly have no program to match on; if program info was provided but
+    #    didn't match steps 1-2, a different program is involved → return None so a new
+    #    lead gets created instead of incorrectly reusing the wrong-program lead.
+    if not program_title and not program_category:
+        logistis_cands = [l for l in cands if _is_logistis_lead(l)]
+        if logistis_cands:
+            return max(logistis_cands, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
     return None
 
 
@@ -994,6 +997,43 @@ def update_lead(
     db.commit()
     db.refresh(l)
     return lead_to_dict(l, include_comments=True)
+
+
+@router.post("/{lead_id}/clone")
+def clone_lead(
+    lead_id: int,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a copy of a lead (same contact/program info) with a clean slate:
+    no LOGISTIS case, no Finance send, no ΕΡΜΗΣ transcript, status=NEW LEAD."""
+    src = db.query(CMLead).filter(CMLead.id == lead_id).first()
+    if not src:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    clone = CMLead(
+        name=src.name,
+        phone=src.phone,
+        phone2=src.phone2,
+        email=src.email,
+        afm=src.afm,
+        source=src.source,
+        notes=src.notes,
+        program=src.program,
+        program_title=src.program_title,
+        service_type=src.service_type,
+        total_amount=src.total_amount,
+        assigned_agent_id=src.assigned_agent_id,
+        assigned_name=src.assigned_name,
+        next_call_date=src.next_call_date,
+        program_fields=src.program_fields,
+        status="NEW LEAD",
+    )
+    db.add(clone)
+    db.commit()
+    db.refresh(clone)
+    log.info("lead %d cloned to %d by %s", src.id, clone.id, current_user.username)
+    return lead_to_dict(clone, db)
 
 
 @router.delete("/{lead_id}")
