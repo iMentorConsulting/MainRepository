@@ -671,6 +671,9 @@ class CMLead(Base):
     finance_sent_at = Column(DateTime, nullable=True)
     finance_amount_sent = Column(Float, nullable=True)
 
+    # Accountant office that referred this lead via LOGISTIS (null = direct client)
+    accountant_office = Column(String(200), nullable=True)
+
     # Deferred ΕΡΜΗΣ link send: channel to use once business_ready confirms eligibility
     ermis_pending_link_channel = Column(String(10), nullable=True)
     ermis_pending_actor = Column(String(100), nullable=True)

@@ -852,6 +852,7 @@ def accept_assignment(
         lead.next_call_date = lead.next_call_date or today
         lead.portal_case_number = a.case_number
         lead.portal_case_link = portal_link
+        lead.accountant_office = a.accountant_office or lead.accountant_office
     else:
         import re as _re2
         _notes_upper = (_desc_summary or "").upper()
@@ -874,6 +875,7 @@ def accept_assignment(
             next_call_date=today,
             portal_case_number=a.case_number,
             portal_case_link=portal_link,
+            accountant_office=a.accountant_office or None,
         )
         db.add(lead)
     db.commit()

@@ -378,6 +378,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
         "ermis_started_at": l.ermis_started_at.isoformat() if l.ermis_started_at else None,
         "ermis_completed_at": l.ermis_completed_at.isoformat() if l.ermis_completed_at else None,
         "program_fields": l.program_fields or {},
+        "accountant_office": getattr(l, "accountant_office", None),
         "finance_sent_at": l.finance_sent_at.isoformat() if getattr(l, "finance_sent_at", None) else None,
         "finance_amount_sent": getattr(l, "finance_amount_sent", None),
         "created_at": l.created_at.isoformat() if l.created_at else None,

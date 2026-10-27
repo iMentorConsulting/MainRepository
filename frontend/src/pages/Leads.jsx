@@ -1293,6 +1293,13 @@ export default function Leads() {
                       <select value={lead.status} onChange={e => patch(lead, 'status', e.target.value)} className={`text-xs font-semibold rounded-full px-2 py-1 border-0 cursor-pointer ${STATUS_BADGE[lead.status] || 'bg-gray-100'}`}>
                         {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
+                      {(lead.source || '').toUpperCase().startsWith('LOGISTIS') && lead.accountant_office && (
+                        <div className="mt-0.5 max-w-[110px]">
+                          <span className="inline-block text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200 rounded px-1.5 py-0.5 leading-tight truncate max-w-full" title={lead.accountant_office}>
+                            📋 {lead.accountant_office}
+                          </span>
+                        </div>
+                      )}
                     </td>
                     <td className="px-2 py-1.5 w-32">
                       <select
