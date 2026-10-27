@@ -6,7 +6,12 @@ import { sendEmail } from '@/lib/email'
 
 // Admin-triggered, ad-hoc notification: sends a specific accountant the matches
 // for a specific program, regardless of the `notified` flag used by the bulk
-// per-program notify flow. Does not touch `notified` — purely additional/extra.
+// per-program notify flow (so it can reach matches that flow hasn't gotten to
+// yet). Marks the matches it actually emails as notified=true afterward —
+// otherwise the bulk "Αποστολή Ειδοποιήσεων" button on the program page would
+// still count them as pending and email the same accountant about the same
+// clients a second time, since its own badge/send logic only looks at
+// notified=false.
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session || session.user.role !== 'ADMIN') {
@@ -107,6 +112,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         </div>
       </div>
     `,
+  })
+
+  await prisma.programMatch.updateMany({
+    where: { id: { in: matches.map(m => m.id) } },
+    data: { notified: true },
   })
 
   return NextResponse.json({ notified: count })
