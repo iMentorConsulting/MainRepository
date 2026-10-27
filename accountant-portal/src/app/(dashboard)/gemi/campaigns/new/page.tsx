@@ -129,7 +129,16 @@ function NewGemiCampaignPageInner() {
       .catch(() => {})
     fetch('/api/gemi/campaigns/filter-options')
       .then(r => r.json())
-      .then(d => setFilterOptions(d))
+      .then(d => {
+        setFilterOptions(d)
+        // Default-exclude ΣΥΜΒΟΥΛΟΙ ΕΣΠΑ on a fresh campaign — these are
+        // I-MENTOR's own ΕΣΠΑ consultant contacts, not GEMI lead recipients,
+        // and should not receive GEMI campaigns by default.
+        const defaultExcludeTag = 'ΣΥΜΒΟΥΛΟΙ ΕΣΠΑ'
+        if (Array.isArray(d.tags) && d.tags.includes(defaultExcludeTag)) {
+          setExcludeTags(prev => prev.includes(defaultExcludeTag) ? prev : [...prev, defaultExcludeTag])
+        }
+      })
       .catch(() => {})
     fetch('/api/gemi/templates')
       .then(r => r.json())
