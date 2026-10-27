@@ -13,7 +13,10 @@ export async function GET(request: NextRequest) {
   const afm = request.nextUrl.searchParams.get('afm') || '094004695' // ΕΛΤΑ as default test AFM
 
   try {
-    const data = await lookupAfm(afm)
+    // This tool exists purely to verify AADE credentials/connectivity right
+    // now — the weekly valve (see lookupAfm) must never cause a false "no
+    // data, credentials may be wrong" result here.
+    const data = await lookupAfm(afm, { bypassValve: true })
     if (!data) {
       return NextResponse.json({ ok: false, error: 'No data returned — credentials may be wrong or AFM not found' })
     }

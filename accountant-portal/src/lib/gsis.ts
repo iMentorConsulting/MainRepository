@@ -242,7 +242,29 @@ function logAadeLookup(afm: string, success: boolean, errorCode?: string) {
     .catch(err => console.error('[GSIS] lookup log write failed:', err?.message))
 }
 
-export async function lookupAfm(afm: string): Promise<GsisBusinessData | null> {
+// How long a recent lookup (success OR failure) for the same ΑΦΜ blocks a
+// fresh AADE call. Accountants bulk-uploading spreadsheets with repeated/
+// overlapping ΑΦΜ across separate uploads (not just duplicate rows within
+// one file — that's deduped separately at the import route) were hitting
+// AADE dozens of times for the same ΑΦΜ in a single sitting, including ΑΦΜ
+// that permanently fail (same error every time), for no benefit: a result
+// from hours or days ago is still correct enough to act on, and AADE's
+// backing service is quota-limited and shared across the whole app.
+const RECENT_LOOKUP_WINDOW_MS = 7 * 24 * 60 * 60 * 1000
+
+export async function lookupAfm(afm: string, options?: { bypassValve?: boolean }): Promise<GsisBusinessData | null> {
+  if (!options?.bypassValve) {
+    const recentLookup = await prisma.aadeLookupLog.findFirst({
+      where: { afm, createdAt: { gte: new Date(Date.now() - RECENT_LOOKUP_WINDOW_MS) } },
+      orderBy: { createdAt: 'desc' },
+      select: { id: true, createdAt: true },
+    })
+    if (recentLookup) {
+      console.log(`[GSIS] Valve: skipping AFM ${afm} — already looked up at ${recentLookup.createdAt.toISOString()}, within the ${RECENT_LOOKUP_WINDOW_MS / 86400000}-day window`)
+      return null
+    }
+  }
+
   try {
     const text = await fetchFromGsis(afm)
     const result = parseGsisResponse(text, afm)

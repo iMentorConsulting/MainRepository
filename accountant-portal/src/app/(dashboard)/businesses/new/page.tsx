@@ -121,7 +121,10 @@ export default function NewBusinessPage() {
     const res = await fetch('/api/businesses/import', { method: 'POST', body: formData })
     const result = await res.json()
     if (res.ok) {
-      alert(`Εισαγωγή ολοκληρώθηκε: ${result.created} επιχειρήσεις δημιουργήθηκαν`)
+      const duplicateNote = result.duplicateRows > 0
+        ? `\n${result.duplicateRows} διπλότυπ${result.duplicateRows === 1 ? 'η γραμμή' : 'ές γραμμές'} με ίδιο ΑΦΜ αγνοήθηκ${result.duplicateRows === 1 ? 'ε' : 'αν'} (δεν αναζητήθηκαν ξανά στην ΑΑΔΕ).`
+        : ''
+      alert(`Εισαγωγή ολοκληρώθηκε: ${result.created} επιχειρήσεις δημιουργήθηκαν${duplicateNote}`)
       router.push('/businesses')
     } else {
       alert(result.error || 'Σφάλμα εισαγωγής')

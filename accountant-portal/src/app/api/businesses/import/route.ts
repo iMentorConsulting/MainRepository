@@ -70,12 +70,19 @@ export async function POST(request: NextRequest) {
 
   let created = 0
   let skipped = 0
+  let duplicateRows = 0
   const accountantId = session.user.role === 'ACCOUNTANT' ? session.user.accountantId : null
   const importedBusinessIds: string[] = []
+  // Repeated rows for the same ΑΦΜ within one uploaded file are pure waste —
+  // each one would otherwise trigger its own AADE lookup for data the first
+  // occurrence already fetched. Keep only the first occurrence.
+  const seenAfms = new Set<string>()
 
   for (const row of rows) {
     const afm = String(row.afm || row.ΑΦΜ || row.AFM || '').trim().replace(/\D/g, '').padStart(9, '0')
     if (!afm || afm === '000000000' || afm.length !== 9) { skipped++; continue }
+    if (seenAfms.has(afm)) { duplicateRows++; skipped++; continue }
+    seenAfms.add(afm)
 
     const phone = normalizePhone(row.tel ?? row.phone ?? row.τηλ ?? row.τηλέφωνο ?? row.ΤΗΛ ?? row.ΤΗΛΕΦΩΝΟ)
     const email = String(row.email || row.mail || row.Email || row.EMAIL || '').trim() || null
@@ -172,5 +179,5 @@ export async function POST(request: NextRequest) {
       .catch(err => console.error('[Matching] Batch match/notify for import failed:', err?.message))
   }
 
-  return NextResponse.json({ created, skipped, total: rows.length })
+  return NextResponse.json({ created, skipped, duplicateRows, total: rows.length })
 }
