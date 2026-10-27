@@ -115,6 +115,7 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
                   legalStatusDescr: 'ΙΔΙΩΤΗΣ',
                   email: cleanEmail || undefined,
                   phone: cleanPhone || undefined,
+                  tags: [],
                 },
               })
             } catch (createErr: any) {
@@ -206,6 +207,7 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
               stopDate: gemi!.stopDate,
               email: cleanEmail || undefined,
               phone: cleanPhone || undefined,
+              tags: [],
               activities: activities.length > 0 ? {
                 create: activities.map((a: any) => ({
                   firmActCode: a.firmActCode,

@@ -119,6 +119,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
             doy: gsisData.doy,
             doyDescr: gsisData.doyDescr,
             email: existing.email,
+            tags: [],
           },
         })
         if (gsisData.activities?.length) {

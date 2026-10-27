@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
         phone: newClient.phone || null,
         accountantId: session.user.role === 'ACCOUNTANT' ? session.user.accountantId : (newClient.accountantId || null),
         source: 'exodikastikos',
+        tags: [],
       },
     })
     await createAuditLog({

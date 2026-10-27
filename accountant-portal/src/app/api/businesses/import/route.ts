@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
           phone,
           email,
           accountantId,
+          tags: [],
           activities: businessData.activities?.length ? {
             create: businessData.activities.map((a: any) => ({
               firmActCode: a.firmActCode,

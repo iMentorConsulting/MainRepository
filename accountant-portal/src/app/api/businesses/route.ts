@@ -146,6 +146,7 @@ export async function POST(request: NextRequest) {
     const business = await prisma.business.create({
       data: {
         ...businessData,
+        tags: businessData.tags || [],
         activities: activities ? {
           create: activities.map((a: any) => ({
             firmActCode: a.firmActCode,
