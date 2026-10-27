@@ -1309,6 +1309,16 @@ try:
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_pending_link_channel VARCHAR(10)"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_pending_actor VARCHAR(100)"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS accountant_office VARCHAR(200)"))
+        # Backfill accountant_office for existing LOGISTIS leads from portal assignments
+        _conn.execute(_text("""
+            UPDATE cm_leads l
+            SET accountant_office = a.accountant_office
+            FROM cm_portal_assignments a
+            WHERE l.portal_case_number = a.case_number
+              AND a.accountant_office IS NOT NULL
+              AND a.accountant_office <> ''
+              AND l.accountant_office IS NULL
+        """))
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_leads finance_sent skipped: {_e}", flush=True)
