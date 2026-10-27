@@ -36,6 +36,56 @@ const PHASE_COLORS = {
 const fmt = (n) =>
   new Intl.NumberFormat('el-GR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n || 0)
 
+function MultiSelectFilter({ options, selected, onChange, placeholder }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    if (!open) return
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [open])
+
+  const toggle = (val) => {
+    const next = new Set(selected)
+    if (next.has(val)) next.delete(val); else next.add(val)
+    onChange(next)
+  }
+
+  const label = selected.size === 0
+    ? placeholder
+    : selected.size === 1
+      ? [...selected][0]
+      : `${selected.size} επιλεγμένα`
+
+  return (
+    <div ref={ref} className="relative">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className={`input w-auto text-sm flex items-center gap-1.5 pr-2 ${selected.size > 0 ? 'ring-2 ring-blue-400 border-blue-400' : ''}`}
+      >
+        <span className="truncate max-w-[200px]">{label}</span>
+        <ChevronDownIcon className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg z-50 min-w-[220px] max-h-72 overflow-y-auto py-1">
+          <label className="flex items-center gap-2 px-3 py-1.5 hover:bg-gray-50 cursor-pointer text-sm text-gray-500 border-b border-gray-100 mb-1">
+            <input type="checkbox" checked={selected.size === 0} onChange={() => onChange(new Set())} className="rounded accent-blue-600" />
+            <span className="italic">{placeholder}</span>
+          </label>
+          {options.map(opt => (
+            <label key={opt} className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-sm">
+              <input type="checkbox" checked={selected.has(opt)} onChange={() => toggle(opt)} className="rounded accent-blue-600" />
+              <span className="truncate">{opt}</span>
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
   const [open, setOpen] = useState(false)
   const [moving, setMoving] = useState(false)
@@ -468,14 +518,14 @@ export default function Kanban() {
   const [loading, setLoading] = useState(true)
   const [agents, setAgents] = useState([])
   const [filterAgent, setFilterAgent] = useState('')
-  const [filterService, setFilterService] = useState('')
+  const [filterService, setFilterService] = useState(new Set())
   const [filterSLA, setFilterSLA] = useState(0)
   const [filterSearch, setFilterSearch] = useState('')
   const [showPendingTemplates, setShowPendingTemplates] = useState(false)
   const [pipelinesData, setPipelinesData] = useState(PIPELINES)
   const [showSLA, setShowSLA] = useState(false)
   const [filterHasDocs, setFilterHasDocs] = useState(false)
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStatus, setFilterStatus] = useState(new Set())
   const [viewMode, setViewMode] = useState('kanban')
 
   const pipeline = pipelinesData[activeProgram] || PIPELINES[activeProgram]
@@ -507,11 +557,11 @@ export default function Kanban() {
 
   const filtered = cases.filter(c =>
     (!filterAgent || String(c.assigned_agent_id) === filterAgent) &&
-    (!filterService || c.service_type === filterService) &&
+    (filterService.size === 0 || filterService.has(c.service_type)) &&
     (!filterSLA || (c.sla_overdue_days != null && c.sla_overdue_days >= filterSLA)) &&
     (!filterSearch || c.client_name?.toLowerCase().includes(filterSearch.toLowerCase())) &&
     (!filterHasDocs || c.has_documents) &&
-    (!filterStatus || c.status === filterStatus)
+    (filterStatus.size === 0 || filterStatus.has(c.status))
   )
 
   // Build lookup: status → [cases]
@@ -568,7 +618,7 @@ export default function Kanban() {
         {PROGRAM_TABS.map(prog => (
           <button
             key={prog}
-            onClick={() => { setActiveProgram(prog); setFilterAgent(''); setFilterStatus('') }}
+            onClick={() => { setActiveProgram(prog); setFilterAgent(''); setFilterStatus(new Set()) }}
             className={`px-4 py-1.5 text-sm font-medium rounded-md transition-all ${
               activeProgram === prog ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-800'
             }`}
@@ -589,22 +639,22 @@ export default function Kanban() {
             onChange={e => setFilterSearch(e.target.value)}
           />
         </div>
-        <select className="input w-auto text-sm" value={filterService} onChange={e => setFilterService(e.target.value)}>
-          <option value="">Όλα τα Προγράμματα</option>
-          {filterOptions.service_types.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <MultiSelectFilter
+          options={filterOptions.service_types}
+          selected={filterService}
+          onChange={setFilterService}
+          placeholder="Όλα τα Προγράμματα"
+        />
         <select className="input w-auto text-sm" value={filterAgent} onChange={e => setFilterAgent(e.target.value)}>
           <option value="">Όλοι οι Agents</option>
           {agents.map(a => <option key={a.id} value={String(a.id)}>{a.full_name}</option>)}
         </select>
-        <select className="input w-auto text-sm max-w-[220px]" value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-          <option value="">Όλα τα Status</option>
-          {allPipelineStatuses.map(s => (
-            <option key={s} value={s}>{s}</option>
-          ))}
-        </select>
+        <MultiSelectFilter
+          options={allPipelineStatuses}
+          selected={filterStatus}
+          onChange={setFilterStatus}
+          placeholder="Όλα τα Status"
+        />
         <div className="flex items-center gap-1.5">
           <span className="text-sm text-gray-500 whitespace-nowrap">SLA &gt;</span>
           <input type="number" min="0" className="input w-20 text-sm" placeholder="ημ."
@@ -614,8 +664,8 @@ export default function Kanban() {
           <input type="checkbox" checked={filterHasDocs} onChange={e => setFilterHasDocs(e.target.checked)} className="rounded" />
           Έχουν έγγραφα
         </label>
-        {(filterAgent || filterService || filterSLA > 0 || filterSearch || filterHasDocs || filterStatus) && (
-          <button onClick={() => { setFilterAgent(''); setFilterService(''); setFilterSLA(0); setFilterSearch(''); setFilterHasDocs(false); setFilterStatus('') }}
+        {(filterAgent || filterService.size > 0 || filterSLA > 0 || filterSearch || filterHasDocs || filterStatus.size > 0) && (
+          <button onClick={() => { setFilterAgent(''); setFilterService(new Set()); setFilterSLA(0); setFilterSearch(''); setFilterHasDocs(false); setFilterStatus(new Set()) }}
             className="text-sm text-gray-500 hover:text-gray-800 underline">
             Καθαρισμός
           </button>
