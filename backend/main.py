@@ -1308,6 +1308,7 @@ try:
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS finance_amount_sent FLOAT"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_pending_link_channel VARCHAR(10)"))
         _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS ermis_pending_actor VARCHAR(100)"))
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS accountant_office VARCHAR(200)"))
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_leads finance_sent skipped: {_e}", flush=True)
