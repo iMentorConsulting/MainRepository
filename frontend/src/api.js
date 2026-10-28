@@ -310,4 +310,11 @@ export const refreshLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/
 export const sendLeadToFinance = (leadId, payload) => api.post(`/api/cm/leads/${leadId}/send-to-finance`, payload).then(r => r.data)
 export const cloneLead = (leadId) => api.post(`/api/cm/leads/${leadId}/clone`).then(r => r.data)
 
+// Meta Lead Ads integration
+export const getMetaPages = () => api.get('/api/cm/meta-pages').then(r => r.data)
+export const createMetaPage = (data) => api.post('/api/cm/meta-pages', data).then(r => r.data)
+export const updateMetaPage = (id, data) => api.put(`/api/cm/meta-pages/${id}`, data).then(r => r.data)
+export const deleteMetaPage = (id) => api.delete(`/api/cm/meta-pages/${id}`).then(r => r.data)
+export const getMetaLeadLog = (limit = 50) => api.get('/api/cm/meta-leads-log', { params: { limit } }).then(r => r.data)
+
 export default api

@@ -783,3 +783,39 @@ class FinancePayment(Base):
     accountant   = Column(String(100), nullable=True)
 
     created_at   = Column(DateTime, default=datetime.utcnow)
+
+
+class CMMetaPageConfig(Base):
+    """Meta Lead Ads — one row per connected Facebook Page."""
+    __tablename__ = "cm_meta_page_configs"
+
+    id                    = Column(Integer, primary_key=True)
+    page_id               = Column(String(50), nullable=False, index=True)
+    page_name             = Column(String(200), nullable=True)
+    page_access_token     = Column(Text, nullable=False)
+    verify_token          = Column(String(200), nullable=False)
+    default_program       = Column(String(100), nullable=True)
+    default_program_title = Column(String(300), nullable=True)
+    assigned_agent_id     = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
+    enabled               = Column(Boolean, default=True)
+    created_at            = Column(DateTime, default=datetime.utcnow)
+
+    assigned_agent = relationship("CMUser", foreign_keys=[assigned_agent_id])
+
+
+class CMMetaLeadLog(Base):
+    """Log of every Meta leadgen event we received."""
+    __tablename__ = "cm_meta_lead_logs"
+
+    id            = Column(Integer, primary_key=True)
+    page_id       = Column(String(50), nullable=True)
+    form_id       = Column(String(50), nullable=True)
+    leadgen_id    = Column(String(50), nullable=False, unique=True, index=True)
+    ad_name       = Column(String(300), nullable=True)
+    campaign_name = Column(String(300), nullable=True)
+    raw_payload   = Column(JSON, nullable=True)
+    field_data    = Column(JSON, nullable=True)
+    lead_id       = Column(Integer, ForeignKey("cm_leads.id"), nullable=True)
+    status        = Column(String(30), nullable=True)   # ok | fetch_error | no_contact
+    error         = Column(Text, nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow)

@@ -48,6 +48,7 @@ const nav = [
   { to: '/users', label: 'Χρήστες', Icon: UsersIcon, adminOnly: true },
   { to: '/backup', label: 'Αντίγραφα Ασφαλείας', Icon: CloudArrowUpIcon, adminOnly: true },
   { to: '/status-notifications', label: 'Ειδοποιήσεις Status', Icon: BellAlertIcon, adminOnly: true },
+  { to: '/meta-ads', label: 'Meta Lead Ads', Icon: GlobeAltIcon, adminOnly: true },
 ]
 
 function ChangePasswordModal({ onClose }) {

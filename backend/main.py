@@ -36,6 +36,7 @@ from routes.cm_leads_sync import router as cm_leads_sync_router
 from routes.cm_leads_ermis import router as cm_leads_ermis_router
 from routes.cm_dypa_hiring import router as cm_dypa_hiring_router
 from routes.cm_webhook import router_public as cm_webhook_public_router, router_admin as cm_webhook_admin_router
+from routes.cm_meta_leads import router_public as cm_meta_public_router, router_admin as cm_meta_admin_router, router_log as cm_meta_log_router
 
 load_dotenv()
 
@@ -1071,6 +1072,9 @@ app.include_router(cm_leads_ermis_router)
 app.include_router(cm_dypa_hiring_router)
 app.include_router(cm_webhook_public_router)
 app.include_router(cm_webhook_admin_router)
+app.include_router(cm_meta_public_router)
+app.include_router(cm_meta_admin_router)
+app.include_router(cm_meta_log_router)
 
 
 try:
@@ -1086,6 +1090,43 @@ try:
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_import_blocklist create skipped: {_e}", flush=True)
+
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_meta_page_configs (
+                id SERIAL PRIMARY KEY,
+                page_id VARCHAR(50) NOT NULL,
+                page_name VARCHAR(200),
+                page_access_token TEXT NOT NULL,
+                verify_token VARCHAR(200) NOT NULL,
+                default_program VARCHAR(100),
+                default_program_title VARCHAR(300),
+                assigned_agent_id INTEGER REFERENCES cm_users(id),
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_meta_lead_logs (
+                id SERIAL PRIMARY KEY,
+                page_id VARCHAR(50),
+                form_id VARCHAR(50),
+                leadgen_id VARCHAR(50) NOT NULL UNIQUE,
+                ad_name VARCHAR(300),
+                campaign_name VARCHAR(300),
+                raw_payload JSONB,
+                field_data JSONB,
+                lead_id INTEGER REFERENCES cm_leads(id),
+                status VARCHAR(30),
+                error TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+    print("[migration] cm_meta_page_configs + cm_meta_lead_logs ready", flush=True)
+except Exception as _e:
+    print(f"[migration] Meta tables skipped: {_e}", flush=True)
 
 try:
     with engine.connect() as _conn:
