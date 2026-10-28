@@ -33,3 +33,29 @@
   .scrollbar-hide::-webkit-scrollbar { display: none; }
   .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+@media print {
+  @page {
+    margin: 1.5cm;
+    size: A4;
+  }
+
+  /* Hide all app chrome */
+  aside, header, nav, .print\:hidden {
+    display: none !important;
+  }
+
+  /* Full width content */
+  body, #root, .flex, main {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Prevent cards from splitting across pages */
+  .print-card {
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+}
