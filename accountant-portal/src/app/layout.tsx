@@ -1,4 +1,4 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import './globals.css'
@@ -14,6 +14,15 @@ export const metadata: Metadata = {
       { url: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><rect width="32" height="32" rx="8" fill="%234f46e5"/><text y="24" x="4" font-size="22" font-family="Arial" font-weight="bold" fill="white">iM</text></svg>', type: 'image/svg+xml' },
     ],
   },
+}
+
+// Without this, mobile Safari has no signal that the page is responsive and
+// falls back to laying it out at a fixed ~980px desktop width, then shrinks
+// the whole page to fit the screen — everything (header, sidebar, cards)
+// renders tiny and narrow with blank space filling the rest of the viewport.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
