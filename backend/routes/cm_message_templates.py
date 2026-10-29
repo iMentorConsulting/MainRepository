@@ -84,8 +84,7 @@ def list_all_templates(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403)
+    # All authenticated users can list all templates
     rows = db.query(CMMessageTemplate).order_by(
         CMMessageTemplate.sort_order, CMMessageTemplate.id
     ).all()
@@ -98,7 +97,7 @@ def create_template(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     t = CMMessageTemplate(**body.dict())
     db.add(t)
@@ -114,8 +113,7 @@ def update_template(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403)
+    # All authenticated users can edit templates
     t = db.query(CMMessageTemplate).filter(CMMessageTemplate.id == tid).first()
     if not t:
         raise HTTPException(status_code=404)
@@ -132,7 +130,7 @@ def delete_template(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     t = db.query(CMMessageTemplate).filter(CMMessageTemplate.id == tid).first()
     if not t:
@@ -147,7 +145,7 @@ def seed_templates(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     count = _seed(db)
     return {"seeded": count}

@@ -5,7 +5,7 @@ import toast from 'react-hot-toast'
 
 const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
 
-function TemplateCard({ template, onSaved, onDeleted, readOnly }) {
+function TemplateCard({ template, onSaved, onDeleted, isAdmin }) {
   const [form, setForm] = useState({
     label: template.label,
     text: template.text,
@@ -36,22 +36,6 @@ function TemplateCard({ template, onSaved, onDeleted, readOnly }) {
     await deleteMessageTemplate(template.id)
     onDeleted(template.id)
     toast.success('Διαγράφηκε')
-  }
-
-  if (readOnly) {
-    return (
-      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
-        <div className="font-semibold text-sm text-gray-800">{template.label}</div>
-        <div className="text-sm text-gray-600 whitespace-pre-wrap">{template.text}</div>
-        {template.programs?.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {template.programs.map(p => (
-              <span key={p} className="text-[11px] bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">{p}</span>
-            ))}
-          </div>
-        )}
-      </div>
-    )
   }
 
   return (
@@ -99,10 +83,12 @@ function TemplateCard({ template, onSaved, onDeleted, readOnly }) {
           Ενεργό
         </label>
         <div className="flex gap-2">
-          <button onClick={del} className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
-            <TrashIcon className="w-3.5 h-3.5" />
-            Διαγραφή
-          </button>
+          {isAdmin && (
+            <button onClick={del} className="flex items-center gap-1.5 text-xs text-red-500 hover:text-red-700 px-2 py-1.5 rounded-lg hover:bg-red-50 transition-colors">
+              <TrashIcon className="w-3.5 h-3.5" />
+              Διαγραφή
+            </button>
+          )}
           {dirty && (
             <button onClick={save} disabled={saving}
               className="flex items-center gap-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg transition-colors disabled:opacity-60">
@@ -179,7 +165,7 @@ export default function MessageTemplatesPage() {
   const isAdmin = auth?.user?.role === 'admin'
 
   useEffect(() => {
-    const fetch = isAdmin ? getAllMessageTemplates : getMessageTemplates
+    const fetch = getAllMessageTemplates
     fetch()
       .then(data => setTemplates(data.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)))
       .catch(() => toast.error('Σφάλμα φόρτωσης'))
@@ -234,7 +220,8 @@ export default function MessageTemplatesPage() {
             template={t}
             onSaved={onSaved}
             onDeleted={onDeleted}
-            readOnly={!isAdmin}
+            readOnly={false}
+            isAdmin={isAdmin}
           />
         ))}
         {!loading && templates.length === 0 && !adding && (
