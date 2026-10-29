@@ -291,7 +291,7 @@ function SendModal({ lead, onClose }) {
             <div className="text-[11px] text-gray-400 mb-1.5">Πρότυπα μηνυμάτων:</div>
             <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
               {SEND_TEMPLATES
-                .filter(t => !t.programs || t.programs.some(p => (lead.program || lead.service_type || '').toUpperCase().includes(p)))
+                .filter(t => !t.programs || t.programs.some(p => [lead.program, lead.program_title, lead.service_type].filter(Boolean).some(v => v.toUpperCase().includes(p))))
                 .map((t, i) => (
                   <button key={i} type="button" onClick={() => setMessage(t.text)}
                     className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
