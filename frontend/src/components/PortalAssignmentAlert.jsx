@@ -149,14 +149,6 @@ export default function PortalAssignmentAlert() {
                   Αποδοχή
                 </button>
                 <button
-                  onClick={() => handleDismiss(a)}
-                  disabled={busyId === a.id}
-                  className="btn-secondary flex items-center gap-2 text-sm"
-                >
-                  <XMarkIcon className="w-4 h-4" />
-                  Απόρριψη
-                </button>
-                <button
                   onClick={() => handleSnooze(a)}
                   disabled={busyId === a.id}
                   className="btn-secondary flex items-center gap-2 text-sm"
