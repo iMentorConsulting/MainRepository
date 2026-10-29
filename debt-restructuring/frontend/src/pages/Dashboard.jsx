@@ -4,9 +4,12 @@ import { toast } from 'react-hot-toast'
 import { format, differenceInDays } from 'date-fns'
 import { el } from 'date-fns/locale'
 import { MagnifyingGlassIcon, PlusIcon, DocumentDuplicateIcon, TrashIcon, EyeIcon, PencilIcon, LinkIcon, ExclamationTriangleIcon, RocketLaunchIcon } from '@heroicons/react/24/outline'
+import MultiSelect from '../components/MultiSelect'
+import { SERVICE_LABELS, SERVICE_BANKRUPTCY } from '../utils/bankruptcy'
 import * as api from '../api'
 import { PORTAL_BASE } from '../api'
 import { fmt } from '../utils/calculations'
+import { WINBACK_DAYS } from '../utils/winbackTemplates'
 
 const EMPLOYEES = ['STELLA', 'VALLIA', 'SOFIA', 'HARIS']
 
@@ -52,7 +55,9 @@ export default function Dashboard({ currentEmployee }) {
   const [apiError, setApiError] = useState(null)
   const [search, setSearch] = useState('')
   const [filterEmployee, setFilterEmployee] = useState('')
-  const [filterStatus, setFilterStatus] = useState('')
+  const [filterStatus, setFilterStatus] = useState([])  // multi-select (case status)
+  const [filterStage, setFilterStage] = useState([])
+  const [filterService, setFilterService] = useState([])  // Υπηρεσία: Εξωδικαστικός / Πτώχευση    // multi-select (pipeline stage)
   const [filterLogistis, setFilterLogistis] = useState(false)
 
   const load = async () => {
@@ -61,7 +66,6 @@ export default function Dashboard({ currentEmployee }) {
     try {
       const params = {}
       if (filterEmployee) params.employee = filterEmployee
-      if (filterStatus) params.status = filterStatus
       if (search) params.search = search
       const res = await api.listCases(params)
       setCases(res.data)
@@ -79,7 +83,7 @@ export default function Dashboard({ currentEmployee }) {
     }
   }
 
-  useEffect(() => { load() }, [filterEmployee, filterStatus, search])
+  useEffect(() => { load() }, [filterEmployee, search])
 
   const handleDelete = async (id, name) => {
     if (!window.confirm(`Διαγραφή υπόθεσης "${name}";`)) return
@@ -104,14 +108,29 @@ export default function Dashboard({ currentEmployee }) {
   }
 
 
-  const statusSummary = cases.reduce((acc, c) => {
+  // Top cards: count per status among the cases matching the employee/search/Pipeline filters,
+  // so they follow the multi-select (selected statuses stay highlighted)
+  const matchesStage = (c) => filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση')
+  const isBk = (c) => c.service_type === SERVICE_BANKRUPTCY
+  const matchesService = (c) => filterService.length === 0 || filterService.includes(c.service_type || 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')
+  // Status cards describe the Εξωδικαστικός process; bankruptcy cases have their own stages
+  const statusSummary = cases.filter(c => matchesStage(c) && matchesService(c) && !isBk(c)).reduce((acc, c) => {
     acc[c.status] = (acc[c.status] || 0) + 1
     return acc
   }, {})
 
   const attentionCases = cases.filter(needsAttention)
+  const winbackOpen = cases.filter(c => {
+    const o = c.commercial_offer || {}
+    if (c.employee !== currentEmployee || o.winback_requested || ['approved', 'sent', 'dismissed'].includes(o.winback_status)) return false
+    const ref = c.stage_changed_at || c.updated_at
+    return c.contact_stage === 'Δεν Ενδιαφέρεται' && ref && (Date.now() - new Date(ref)) / 86400000 >= WINBACK_DAYS
+  })
   const logistisCases = cases.filter(c => c.external_source === 'logistis')
-  const visibleCases = filterLogistis ? logistisCases : cases
+  const visibleCases = (filterLogistis ? logistisCases : cases)
+    .filter(c => filterStage.length === 0 || filterStage.includes(c.contact_stage || 'Νέα Ανάλυση'))
+    .filter(c => filterStatus.length === 0 || (!isBk(c) && filterStatus.includes(c.status)))
+    .filter(matchesService)
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
@@ -129,7 +148,7 @@ export default function Dashboard({ currentEmployee }) {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-black text-blue-800">Υποθέσεις Οφειλών</h1>
-          <p className="text-gray-500 text-sm mt-0.5">{cases.length} υποθέσεις συνολικά</p>
+          <p className="text-gray-500 text-sm mt-0.5">{visibleCases.length} υποθέσεις{visibleCases.length !== cases.length ? ` (από ${cases.length})` : ' συνολικά'}</p>
         </div>
         <div className="flex gap-2">
           <Link
@@ -138,6 +157,9 @@ export default function Dashboard({ currentEmployee }) {
           >
             <RocketLaunchIcon className="w-4 h-4" /> Pipeline
           </Link>
+          <button className="btn-secondary gap-2 text-sm" onClick={() => navigate('/cases/new?service=ΠΤΩΧΕΥΣΗ')}>
+            ⚖️ Νέα Πτώχευση
+          </button>
           <button className="btn-primary gap-2" onClick={() => navigate('/cases/new')}>
             <PlusIcon className="w-4 h-4" /> Νέα Υπόθεση
           </button>
@@ -160,6 +182,15 @@ export default function Dashboard({ currentEmployee }) {
         </Link>
       )}
 
+      {/* Win-back opportunities waiting for the consultant's decision */}
+      {winbackOpen.length > 0 && currentEmployee !== 'HARIS' && (
+        <Link to="/winback" className="flex items-center gap-3 rounded-2xl px-4 py-3 mb-4 border-2 border-violet-300 bg-violet-50 hover:bg-violet-100 text-violet-800 transition-colors">
+          <span className="text-xl">💎</span>
+          <span className="font-bold text-sm">{winbackOpen.length} ευκαιρίες win-back περιμένουν την απόφασή σας</span>
+          <span className="ml-auto text-xs font-semibold">Άνοιγμα →</span>
+        </Link>
+      )}
+
       {/* LOGISTIS referrals — gather all together */}
       {logistisCases.length > 0 && (
         <button
@@ -178,16 +209,20 @@ export default function Dashboard({ currentEmployee }) {
 
       {/* Quick stats */}
       <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6">
-        {Object.entries(STATUS_LABELS).map(([key, { label, cls }]) => (
+        {Object.entries(STATUS_LABELS).map(([key, { label, cls }]) => {
+          // With a status filter active, cards of statuses that are not selected show no value
+          const dimmed = filterStatus.length > 0 && !filterStatus.includes(key)
+          return (
           <button
             key={key}
-            onClick={() => setFilterStatus(filterStatus === key ? '' : key)}
-            className={`card text-center cursor-pointer hover:shadow-md transition-shadow ${filterStatus === key ? 'ring-2 ring-blue-500' : ''}`}
+            onClick={() => setFilterStatus(filterStatus.includes(key) ? filterStatus.filter(x => x !== key) : [...filterStatus, key])}
+            className={`card text-center cursor-pointer hover:shadow-md transition-shadow ${filterStatus.includes(key) ? 'ring-2 ring-blue-500' : ''} ${dimmed ? 'opacity-60' : ''}`}
           >
-            <div className="text-2xl font-black text-blue-800">{statusSummary[key] || 0}</div>
+            <div className="text-2xl font-black text-blue-800">{dimmed ? '—' : (statusSummary[key] || 0)}</div>
             <div className={`text-xs font-semibold mt-1 px-2 py-0.5 rounded-full ${cls} inline-block`}>{label}</div>
           </button>
-        ))}
+          )
+        })}
       </div>
 
       {/* Filters */}
@@ -200,12 +235,14 @@ export default function Dashboard({ currentEmployee }) {
           <option value="">Όλοι οι υπάλληλοι</option>
           {EMPLOYEES.map((e) => <option key={e} value={e}>{e}</option>)}
         </select>
-        <select className="input w-auto min-w-[140px]" value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
-          <option value="">Όλες οι καταστάσεις</option>
-          {Object.entries(STATUS_LABELS).map(([k, { label }]) => <option key={k} value={k}>{label}</option>)}
-        </select>
-        {(filterEmployee || filterStatus || search) && (
-          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus(''); setSearch('') }}>
+        <MultiSelect value={filterService} onChange={setFilterService} placeholder="Όλες οι υπηρεσίες"
+          options={Object.entries(SERVICE_LABELS).map(([value, label]) => ({ value, label }))} />
+        <MultiSelect value={filterStatus} onChange={setFilterStatus} placeholder="Όλες οι καταστάσεις"
+          options={Object.entries(STATUS_LABELS).map(([k, { label }]) => ({ value: k, label }))} />
+        <MultiSelect value={filterStage} onChange={setFilterStage} placeholder="Όλα τα Pipeline"
+          options={Object.keys(CONTACT_STAGE_CONFIG).map((k) => ({ value: k, label: `${CONTACT_STAGE_CONFIG[k].icon} ${k}` }))} />
+        {(filterEmployee || filterStatus.length > 0 || filterStage.length > 0 || filterService.length > 0 || search) && (
+          <button className="btn-secondary text-xs" onClick={() => { setFilterEmployee(''); setFilterStatus([]); setFilterStage([]); setFilterService([]); setSearch('') }}>
             Καθαρισμός
           </button>
         )}
@@ -227,6 +264,7 @@ export default function Dashboard({ currentEmployee }) {
               <tr>
                 <th className="th text-left pl-4">Πελάτης</th>
                 <th className="th">Υπάλληλος</th>
+                <th className="th">Υπηρεσία</th>
                 <th className="th">Κατάσταση</th>
                 <th className="th">Pipeline</th>
                 <th className="th">Εκτ. Οφειλή</th>
@@ -262,7 +300,14 @@ export default function Dashboard({ currentEmployee }) {
                       <span className="bg-blue-100 text-blue-800 text-xs font-bold px-2 py-0.5 rounded-full">{c.employee}</span>
                     </td>
                     <td className="td">
-                      <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${isBk(c) ? 'bg-indigo-100 text-indigo-700' : 'bg-gray-100 text-gray-600'}`}>
+                        {isBk(c) ? '⚖️ Πτώχευση' : 'Εξωδικαστικός'}
+                      </span>
+                    </td>
+                    <td className="td">
+                      {isBk(c)
+                        ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700">{c.bankruptcy?.stage || '—'}</span>
+                        : <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${st.cls}`}>{st.label}</span>}
                     </td>
                     <td className="td">
                       <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${stageCfg.cls}`}>

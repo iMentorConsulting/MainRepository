@@ -40,6 +40,7 @@ export const loginUser = (employee, password) => api.post('/auth/login', { emplo
 export const listCases = (params) => api.get('/cases/', { params })
 export const getCase = (id) => api.get(`/cases/${id}`)
 export const createCase = (data) => api.post('/cases/', data)
+export const createBankruptcyCase = (id) => api.post(`/cases/${id}/create-bankruptcy`)
 export const updateCase = (id, data) => api.put(`/cases/${id}`, data)
 export const deleteCase = (id) => api.delete(`/cases/${id}`)
 export const saveActualResults = (id, data) => api.patch(`/cases/${id}/actual`, data)
@@ -49,6 +50,7 @@ export const patchOffer = (id, commercial_offer) => api.patch(`/cases/${id}/offe
 export const notifyPricingApproval = (id, data) => api.post(`/cases/${id}/notify-pricing-approval`, data)
 export const approveWinback = (id, approve, overrides = {}) => api.post(`/cases/${id}/approve-winback`, { approve, ...overrides })
 export const requestWinback = (id, data) => api.post(`/cases/${id}/request-winback`, data)
+export const cancelWinbackRequest = (id) => api.post(`/cases/${id}/cancel-winback-request`)
 export const sendWinback = (id, channel, message, subject) => api.post(`/cases/${id}/send-winback`, { channel, message, subject })
 export const sendViber = (id, data) => api.post(`/cases/${id}/send-viber`, data)
 export const sendEmail = (id, data) => api.post(`/cases/${id}/send-email`, data)
@@ -60,6 +62,22 @@ export const getPendingNotifications = () => api.get('/notifications/pending')
 export const listPendingExternalCases = () => api.get('/cases/', { params: { status: 'pending_external' } })
 export const acceptExternalCase = (id, employee) => api.post(`/cases/${id}/accept-external`, { employee })
 export const pushExternalStatus = (id, data) => api.post(`/cases/${id}/external-status`, data)
+
+// Finance / Payroll
+export const getPayrollTargets = () => api.get('/finance/payroll-targets/current')
+
+// Accountant outreach (Logistis)
+export const getMyAccountantAssignment = () => api.get('/accountants/my')
+export const assignNextAccountant = () => api.post('/accountants/my/assign-next')
+export const updateAccountantStatus = (assignmentId, status, notes) => api.patch('/accountants/my/status', { assignment_id: assignmentId, status, notes })
+export const getAccountantPool = () => api.get('/accountants/pool')
+export const getAccountantAdminOverview = () => api.get('/accountants/admin/overview')
+export const adminForceSkip = (employee, assignmentId = null) => api.post(`/accountants/admin/force-skip/${employee}`, assignmentId ? { assignment_id: assignmentId } : {})
+export const adminForceAssign = (employee, accountant_id = null) => api.post(`/accountants/admin/force-assign/${employee}`, accountant_id ? { accountant_id } : {})
+
+// Finance intake (payment recording → external Finance system)
+export const recordFinancePayment = (payload) => api.post('/finance-intake', payload)
+export const getFinancePayments = (caseId) => api.get(`/finance-intake/case/${caseId}`)
 
 // Config
 export const getPricingConfig = () => api.get('/config/pricing')
@@ -82,10 +100,11 @@ export const getAnalyticsPipelineStats = (employee, dateFrom, dateTo) => {
   if (dateTo) params.date_to = dateTo
   return api.get('/analytics/pipeline-stats', { params })
 }
-export const getAnalyticsPipelineStatsByEmployee = (dateFrom, dateTo) => {
+export const getAnalyticsPipelineStatsByEmployee = (dateFrom, dateTo, service) => {
   const params = {}
   if (dateFrom) params.date_from = dateFrom
   if (dateTo) params.date_to = dateTo
+  if (service) params.service = service
   return api.get('/analytics/pipeline-stats-by-employee', { params })
 }
 
@@ -100,6 +119,7 @@ export const listLeads = (params) => api.get('/leads/', { params, paramsSerializ
 }})
 export const getLead = (id) => api.get(`/leads/${id}`)
 export const patchLead = (id, data) => api.patch(`/leads/${id}`, data)
+export const deleteLead = (id) => api.delete(`/leads/${id}`)
 export const addLeadComment = (id, text, author) => api.post(`/leads/${id}/comment`, { text, author })
 export const editLeadComment = (id, idx, text) => api.patch(`/leads/${id}/comment/${idx}`, { text })
 export const deleteLeadComment = (id, idx) => api.delete(`/leads/${id}/comment/${idx}`)
@@ -130,6 +150,7 @@ export const getConsultantPerformanceMetrics = (dateFrom, dateTo) => {
 export const bulkImportCallsAndVibers = (data) => api.post('/leads/admin/import-bulk', data)
 export const getLeadsReporting = () => api.get('/leads/reporting')
 export const getLeadsDailyVolume = () => api.get('/leads/daily-volume')
+export const getLeadsConversion = () => api.get('/leads/conversion')
 export const getLeadsCountByConsultant = (dateFrom, dateTo) => {
   const params = {}
   if (dateFrom) params.date_from = dateFrom
@@ -204,5 +225,17 @@ export const createIrisPayment = (data) => api.post('/payments/iris/create', dat
 export const listIrisPayments = () => api.get('/payments/iris')
 export const getIrisPayment = (paymentId) => api.get(`/payments/iris/${paymentId}`)
 export const recheckIrisPayment = (paymentId) => api.post(`/payments/iris/${paymentId}/recheck`)
+
+// ΛΟΓΙΣΤΗΣ Integration — External Lead Creation
+// Direct redirect flow: creates a lead and returns themis_url for immediate redirect
+// No authentication required (public endpoint for external systems)
+export const createLeadExternal = (data) => {
+  // Create a special axios instance without Bearer token for this external endpoint
+  const externalApi = axios.create({
+    baseURL: import.meta.env.VITE_API_URL || '/api',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return externalApi.post('/external/create-lead', data)
+}
 
 export default api

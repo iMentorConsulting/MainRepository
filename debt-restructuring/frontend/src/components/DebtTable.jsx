@@ -273,7 +273,7 @@ function DebtRow({ debt, onChange, onDelete }) {
       {/* Property value */}
       <td className="td px-2 py-2 min-w-[120px]">
         {debt.mortgaged ? (
-          <NumInput value={debt.propertyValue} onChange={(v) => onChange({ ...debt, propertyValue: v })} placeholder="Αξία €" />
+          <NumInput value={debt.propertyValue} onChange={(v) => onChange({ ...debt, propertyValue: v })} placeholder="Αξία ΕΝΦΙΑ €" title="Φορολογητέα αξία ΕΝΦΙΑ (εκτός σχεδίου: αντικειμενική, εξωτερικό: εμπορική) — μόνο το μερίδιο του αιτούντος" />
         ) : isBank && debt.amount > 0 ? (
           <span className="text-xs text-red-500 font-semibold">⚠️ Ανασφάλιστη</span>
         ) : null}

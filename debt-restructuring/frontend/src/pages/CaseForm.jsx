@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { toast } from 'react-hot-toast'
 import { ArrowLeftIcon, DocumentTextIcon, CloudArrowUpIcon, SparklesIcon, CheckCircleIcon, ExclamationTriangleIcon, BanknotesIcon, ClipboardDocumentListIcon, CalculatorIcon, ChartBarIcon } from '@heroicons/react/24/outline'
 import { computeOffer, loadPricingConfig, scoreBreakdown, DEFAULT_PRICING_CONFIG } from '../utils/pricing'
@@ -9,7 +9,7 @@ import IncomePanel from '../components/IncomePanel'
 import ResultsPanel from '../components/ResultsPanel'
 import PlanParamsModal from '../components/PlanParamsModal'
 import * as api from '../api'
-import { calculateAll, creditorDisplayName, fmt, buildForecastText } from '../utils/calculations'
+import { calculateAll, creditorDisplayName, fmt, buildForecastText, computeIncomeFromData } from '../utils/calculations'
 import { PARAMS_B } from '../utils/calculationParams'
 import { buildPlanHtml, wrapPlanDocument } from '../utils/reportGenerators'
 
@@ -45,7 +45,7 @@ function defaultIncome() {
     savings: 0,
     // legacy single-year field (backward compat)
     annualIncome: 0,
-    // LE fields — 3-year data (ΚΥΑ 7712925/2025)
+    // LE fields — 3-year data (ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025))
     ke_t1: 0, ke_t2: 0, ke_t3: 0,
     kerdh_t1: null, kerdh_t2: null, kerdh_t3: null,
     leEnfia: 0,
@@ -162,6 +162,9 @@ export default function CaseForm({ currentEmployee }) {
   const [employee, setEmployee] = useState(currentEmployee || '')
   const [notes, setNotes] = useState('')
   const [status, setStatus] = useState('draft')
+  const [searchParams] = useSearchParams()
+  const [service, setService] = useState(searchParams.get('service') === 'ΠΤΩΧΕΥΣΗ' ? 'ΠΤΩΧΕΥΣΗ' : 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')  // ΕΞΩΔΙΚΑΣΤΙΚΟΣ | ΠΤΩΧΕΥΣΗ (chosen when creating the case)
+  const isBk = service === 'ΠΤΩΧΕΥΣΗ'
   const [commercialOffer, setCommercialOffer] = useState({ application_fee: 0, success_fee: 0 })
   const [calc, setCalc] = useState(null)
   const [saving, setSaving] = useState(false)
@@ -179,6 +182,7 @@ export default function CaseForm({ currentEmployee }) {
       setEmployee(c.employee)
       setNotes(c.notes || '')
       setStatus(c.status)
+      setService(c.service_type || 'ΕΞΩΔΙΚΑΣΤΙΚΟΣ')
       if (c.commercial_offer) setCommercialOffer(c.commercial_offer)
     }).catch(() => toast.error('Σφάλμα φόρτωσης υπόθεσης'))
   }, [id])
@@ -186,13 +190,14 @@ export default function CaseForm({ currentEmployee }) {
   // Recalculate on every input change
   useEffect(() => {
     const validDebts = debts.filter((d) => d.amount > 0)
-    if (validDebts.length > 0) {
+    // Bankruptcy cases have no restructuring calculation
+    if (validDebts.length > 0 && !isBk) {
       const cfg = loadPricingConfig()
       setCalc(calculateAll(debts, assets, income, { ...PARAMS_B, writeoffCapPct: cfg.writeoffCapPct ?? 70 }))
     } else {
       setCalc(null)
     }
-  }, [debts, assets, income])
+  }, [debts, assets, income, isBk])
 
   const handleSave = async () => {
     if (!client.name.trim()) return toast.error('Εισάγετε όνομα πελάτη')
@@ -241,6 +246,7 @@ export default function CaseForm({ currentEmployee }) {
         })() : {},
         notes,
         commercial_offer: commercialOffer,
+        ...(isEditing ? {} : { service_type: service }),
       }
       if (isEditing) {
         await api.updateCase(id, payload)
@@ -285,9 +291,9 @@ export default function CaseForm({ currentEmployee }) {
           </button>
           <div>
             <h1 className="text-2xl font-black text-blue-800">
-              {isEditing ? 'Επεξεργασία Υπόθεσης' : 'Νέα Υπόθεση Οφειλών'}
+              {isEditing ? 'Επεξεργασία Υπόθεσης' : (isBk ? 'Νέα Υπόθεση Πτώχευσης' : 'Νέα Υπόθεση Οφειλών')}
             </h1>
-            <p className="text-gray-500 text-sm">🧮 Εισαγωγή Οφειλών & Θεωρητική Προσομοίωση</p>
+            <p className="text-gray-500 text-sm">{isBk ? '⚖️ Εισαγωγή στοιχείων οφειλετών (επαγγελματίες / νομικά πρόσωπα)' : '🧮 Εισαγωγή Οφειλών & Θεωρητική Προσομοίωση'}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
@@ -338,11 +344,20 @@ export default function CaseForm({ currentEmployee }) {
             </select>
           </div>
           <div>
+            <label className="label">Υπηρεσία</label>
+            <select className="input" value={service} disabled={isEditing} onChange={(e) => setService(e.target.value)}>
+              <option value="ΕΞΩΔΙΚΑΣΤΙΚΟΣ">Εξωδικαστικός</option>
+              <option value="ΠΤΩΧΕΥΣΗ">Πτώχευση</option>
+            </select>
+          </div>
+          {!isBk && (
+          <div>
             <label className="label">Κατάσταση Υπόθεσης</label>
             <select className="input" value={status} onChange={(e) => setStatus(e.target.value)}>
               {STATUS_OPTIONS.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
             </select>
           </div>
+          )}
           <div className="md:col-span-3">
             <label className="label">Σημειώσεις</label>
             <input className="input" placeholder="Εσωτερικές σημειώσεις…" value={notes} onChange={(e) => setNotes(e.target.value)} />
@@ -350,13 +365,20 @@ export default function CaseForm({ currentEmployee }) {
         </div>
       </div>
 
-      {/* Commercial Offer */}
+      {/* Commercial Offer (Εξωδικαστικός only — bankruptcy fees are set in the case page) */}
+      {!isBk && (<>
       <h2 className="section-title flex items-center gap-2"><BanknotesIcon className="w-5 h-5 text-blue-600 shrink-0" /> Οικονομική Προσφορά</h2>
       <OfferSection
         debts={debts} assets={assets} income={income} setIncome={setIncome}
         commercialOffer={commercialOffer} setCommercialOffer={setCommercialOffer}
         caseId={isEditing ? id : null} employee={employee} calc={calc}
       />
+      </>)}
+      {isBk && (
+        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
+          ⚖️ Υπηρεσία <b>Πτώχευσης</b>: μετά την αποθήκευση ορίζετε αμοιβές, στάδια, δικηγόρο, δικαστήριο, ημερομηνίες και δικαιολογητικά στη σελίδα της υπόθεσης.
+        </div>
+      )}
 
       {/* Debts */}
       <h2 className="section-title flex items-center gap-2"><ClipboardDocumentListIcon className="w-5 h-5 text-blue-600 shrink-0" /> Οφειλές</h2>
@@ -371,133 +393,175 @@ export default function CaseForm({ currentEmployee }) {
       </div>
 
       {/* Income analysis block — FP only, shows ratio + 3-phase caps */}
-      {calc && income.debtorType !== 'Νομικό Πρόσωπο' && calc.monthlyDisp1 !== undefined && (
-        <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
-          <p className="font-bold text-indigo-800 mb-3 text-sm flex items-center gap-1.5"><ChartBarIcon className="w-4 h-4 shrink-0" /> ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
-          <div className="text-sm text-indigo-900 space-y-1 font-mono">
-            <div className="flex justify-between">
-              <span>Εισόδημα οφειλέτη (έτος Τ):</span>
-              <span className="font-semibold">{fmt(calc.annualIncome)}/έτος</span>
-            </div>
-            {(income.spouseIncome || 0) > 0 && (
-              <>
-                <div className="flex justify-between">
-                  <span>Εισόδημα συζύγου:</span>
-                  <span className="font-semibold">{fmt(income.spouseIncome)}/έτος</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Οικογενειακό εισόδημα:</span>
-                  <span className="font-semibold">{fmt(calc.fpFamilyIncome)}/έτος</span>
-                </div>
-                <div className="flex justify-between text-indigo-600">
-                  <span>Αναλογία οφειλέτη:</span>
-                  <span>{((calc.fpRatio || 1) * 100).toFixed(1)}%</span>
-                </div>
-              </>
-            )}
-            <div className="border-t border-indigo-200 pt-1 mt-1">
-              <div className="flex justify-between text-gray-600">
-                <span>Σύνολο δαπανών (επιμερ. ΕΔΔ + λοιπά):</span>
-                <span>{fmt(calc.totalExpenses)}/έτος</span>
+      {!isBk && income.debtorType !== 'Νομικό Πρόσωπο' && (() => {
+        const previewAnnualIncome = computeIncomeFromData(income)
+        const hasIncomeData = previewAnnualIncome > 0
+        const showFullAnalysis = calc && calc.monthlyDisp1 !== undefined
+
+        return (hasIncomeData || showFullAnalysis) ? (
+          <div className="mb-5 rounded-xl border border-indigo-200 bg-indigo-50 p-4">
+            <p className="font-bold text-indigo-800 mb-3 text-sm flex items-center gap-1.5"><ChartBarIcon className="w-4 h-4 shrink-0" /> ΑΝΑΛΥΣΗ ΕΙΣΟΔΗΜΑΤΟΣ — ΚΥΑ 67360 άρθρο 8Α §5</p>
+            <div className="text-sm text-indigo-900 space-y-1 font-mono">
+              <div className="flex justify-between">
+                <span>Εισόδημα οφειλέτη (έτος Τ):</span>
+                <span className="font-semibold">{fmt(showFullAnalysis ? calc.annualIncome : previewAnnualIncome)}/έτος</span>
               </div>
-            </div>
-            <div className="border-t border-indigo-200 pt-1 mt-1 space-y-0.5">
-              <div className="flex justify-between font-semibold text-green-800">
-                <span>Μηνιαίο διαθέσιμο — Έτος 1 (T×80%):</span>
-                <span>{fmt(calc.monthlyDisp1)}/μήνα</span>
-              </div>
-              {income.fpSubType === 'Επιτηδευματίας' ? (
+              {(income.spouseIncome || 0) > 0 && (
                 <>
-                  <div className="flex justify-between text-green-700">
-                    <span>
-                      Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):
-                      {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1 && (
-                        <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1 (Year T &gt; avg2)</span>
-                      )}
-                    </span>
-                    <span>
-                      {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1
-                        ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg * 0.65 / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp24)}</span>
-                        : fmt(calc.monthlyDisp24)
-                      }
-                      /μήνα
-                    </span>
+                  <div className="flex justify-between">
+                    <span>Εισόδημα συζύγου:</span>
+                    <span className="font-semibold">{fmt(income.spouseIncome)}/έτος</span>
                   </div>
-                  <div className="flex justify-between text-green-600">
-                    <span>
-                      Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):
-                      {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1 && (
-                        <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1</span>
-                      )}
-                    </span>
-                    <span>
-                      {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1
-                        ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp5)}</span>
-                        : fmt(calc.monthlyDisp5)
-                      }
-                      /μήνα
-                    </span>
-                  </div>
-                  {calc.fpAvg2Income > 0 && (
-                    <div className="flex justify-between text-xs text-indigo-500 pt-0.5">
-                      <span>avg2_kpa — ΚΠΑ μέσος 2 υψηλ. ετών:</span>
-                      <span>{fmt(calc.fpAvg2Income)}/έτος</span>
-                    </div>
+                  {showFullAnalysis && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Οικογενειακό εισόδημα:</span>
+                        <span className="font-semibold">{fmt(calc.fpFamilyIncome)}/έτος</span>
+                      </div>
+                      <div className="flex justify-between text-indigo-600">
+                        <span>Αναλογία οφειλέτη:</span>
+                        <span>{((calc.fpRatio || 1) * 100).toFixed(1)}%</span>
+                      </div>
+                    </>
                   )}
                 </>
-              ) : (
+              )}
+              {showFullAnalysis && (
                 <>
-                  {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
-                    <div className="flex justify-between text-green-700">
-                      <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
-                      <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
+                  <div className="border-t border-indigo-200 pt-1 mt-1">
+                    <div className="flex justify-between text-gray-600">
+                      <span>Σύνολο δαπανών (επιμερ. ΕΔΔ + λοιπά):</span>
+                      <span>{fmt(calc.totalExpenses)}/έτος</span>
                     </div>
-                  )}
-                  {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
-                    <div className="flex justify-between text-green-600">
-                      <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
-                      <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
+                  </div>
+                  <div className="border-t border-indigo-200 pt-1 mt-1 space-y-0.5">
+                    <div className="flex justify-between font-semibold text-green-800">
+                      <span>Μηνιαίο διαθέσιμο — Έτος 1 (T×80%):</span>
+                      <span>{fmt(calc.monthlyDisp1)}/μήνα</span>
                     </div>
-                  )}
+                    {income.fpSubType === 'Επιτηδευματίας' ? (
+                      <>
+                        <div className="flex justify-between text-green-700">
+                          <span>
+                            Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):
+                            {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1 && (
+                              <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1 (Year T &gt; avg2)</span>
+                            )}
+                          </span>
+                          <span>
+                            {calc.monthlyDisp24 <= calc.monthlyDisp1 + 1
+                              ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg * 0.65 / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp24)}</span>
+                              : fmt(calc.monthlyDisp24)
+                            }
+                            /μήνα
+                          </span>
+                        </div>
+                        <div className="flex justify-between text-green-600">
+                          <span>
+                            Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):
+                            {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1 && (
+                              <span className="ml-1 text-xs text-amber-600">→ ισχύει Έτος 1</span>
+                            )}
+                          </span>
+                          <span>
+                            {calc.monthlyDisp5 <= calc.monthlyDisp1 + 1
+                              ? <span className="text-amber-700">{fmt(calc.fpDispFromAvg / 12)} <span className="text-xs font-normal">(raw)</span> → {fmt(calc.monthlyDisp5)}</span>
+                              : fmt(calc.monthlyDisp5)
+                            }
+                            /μήνα
+                          </span>
+                        </div>
+                        {calc.fpAvg2Income > 0 && (
+                          <div className="flex justify-between text-xs text-indigo-500 pt-0.5">
+                            <span>avg2_kpa — ΚΠΑ μέσος 2 υψηλ. ετών:</span>
+                            <span>{fmt(calc.fpAvg2Income)}/έτος</span>
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        {calc.monthlyDisp24 > calc.monthlyDisp1 + 1 && (
+                          <div className="flex justify-between text-green-700">
+                            <span>Μηνιαίο διαθέσιμο — Έτη 2–4 (avg×65%):</span>
+                            <span>{fmt(calc.monthlyDisp24)}/μήνα</span>
+                          </div>
+                        )}
+                        {calc.monthlyDisp5 > calc.monthlyDisp1 + 1 && (
+                          <div className="flex justify-between text-green-600">
+                            <span>Μηνιαίο διαθέσιμο — Έτη 5+ (avg×100%):</span>
+                            <span>{fmt(calc.monthlyDisp5)}/μήνα</span>
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
                 </>
               )}
             </div>
           </div>
-        </div>
-      )}
+        ) : null
+      })()}
 
-      {/* flag_MAX_DOSES warning banner — ΦΕΚ Β' 2896/2021 §7.1/4 + ΚΥΑ 7712925/2025 */}
-      {calc?.flagMaxDoses && (() => {
-        const isFpSE = income.debtorType !== 'Νομικό Πρόσωπο' && income.fpSubType === 'Επιτηδευματίας'
-        if (isFpSE && calc.fpEulogoNote) {
-          return (
-            <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
-              <span className="text-xl shrink-0">⚡</span>
-              <div>
-                <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ ΚΕΡΔΟΥΣ — ΚΥΑ 77697/2021 §7.1.4</p>
-                <p className="text-sm text-amber-700">{calc.fpEulogoNote}</p>
-              </div>
-            </div>
-          )
-        }
-        const lawRef = 'ΚΥΑ 7712925/2025'
+      {/* Νομικό Πρόσωπο — κανόνας εύλογου ποσοστού κέρδους (10% × ΚΕ) για ΑΑΔΕ/ΕΦΚΑ — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025) */}
+      {income.debtorType === 'Νομικό Πρόσωπο' && calc?.lePub && (() => {
+        const lp = calc.lePub
+        const dur = calc.lePubDuration
         return (
-          <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
-            <span className="text-xl shrink-0">⚡</span>
-            <div>
-              <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ — {lawRef}</p>
-              <p className="text-sm text-amber-700 mb-1">
-                Το υπολογισθέν διαθέσιμο ({fmt(calc.leMoDispMonthly)}/μήνα) &lt; 10% × ΚΕ ({fmt(calc.leFloorMonthly)}/μήνα).
-              </p>
-              <ul className="text-sm text-amber-700 space-y-0.5">
-                <li>→ Διαθέσιμο αναπροσαρμόζεται σε: <b>{fmt(calc.dispMonthly)}/μήνα</b></li>
-                <li>→ Εφαρμόζεται <b>μέγιστος</b> αριθμός δόσεων (<b>240 μήνες</b>) σε ΑΑΔΕ και ΕΦΚΑ — οι υπόλοιποι πιστωτές δεν επηρεάζονται</li>
-                <li>→ Η δόση ΑΑΔΕ/ΕΦΚΑ υπολογίζεται τοκοχρεωλυτικά για 240 μήνες</li>
-              </ul>
-            </div>
-          </div>
+          <>
+            {dur && (
+              <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+                {dur.forced ? (
+                  <p className="font-semibold">Διάρκεια ΑΑΔΕ/ΕΦΚΑ: <b>{dur.months} μήνες</b> — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025): εφαρμογή μέγιστου αριθμού δόσεων λόγω κανόνα εύλογου ποσοστού 10%</p>
+                ) : (
+                  <>
+                    <p className="font-semibold">Διάρκεια ΑΑΔΕ / ΕΦΚΑ (κανόνας ΚΠΑ): <b>{dur.months} μήνες</b>{dur.covered ? '' : ' (μέγιστη — προκύπτει διαγραφή)'}</p>
+                    <p className="text-xs mt-0.5">
+                      ΚΠΑ διαθέσιμου ({dur.months} μήνες, 3%): <b>{fmt(dur.kpa)}</b> {dur.covered ? '≥' : '<'} οφειλή ΑΑΔΕ + ΕΦΚΑ <b>{fmt(dur.debt)}</b>
+                      {dur.covered && dur.kpaPrev != null && <> · στους {dur.months - 12} μήνες η ΚΠΑ είναι {fmt(dur.kpaPrev)} (δεν καλύπτει)</>}
+                    </p>
+                  </>
+                )}
+              </div>
+            )}
+            {lp.warnings.length > 0 && (
+              <div className="mb-3 rounded-xl border border-yellow-300 bg-yellow-50 p-3 text-sm text-yellow-800">
+                {lp.warnings.map((w, i) => <p key={i}>⚠️ {w}</p>)}
+              </div>
+            )}
+            {lp.ruleTriggered ? (
+              <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+                <span className="text-xl shrink-0">⚡</span>
+                <div>
+                  <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΥΛΟΓΟΥ ΠΟΣΟΣΤΟΥ — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025)</p>
+                  <p className="text-sm text-amber-700 mb-1">
+                    Κέρδη μετά ΕΝΦΙΑ &lt; 10% × ΚΕ σε όλα τα έτη της τριετίας — Τ-1: {fmt(lp.xBefore[0])}/έτος &lt; {fmt(lp.floors[0])}/έτος.
+                  </p>
+                  <ul className="text-sm text-amber-700 space-y-0.5">
+                    <li>→ Διαθέσιμο έτους 1: <b>{fmt(lp.monthly.year1)}/μήνα</b> · ετών 2–4: <b>{fmt(lp.monthly.years24)}/μήνα</b> · από έτος 5: <b>{fmt(lp.monthly.years5)}/μήνα</b></li>
+                  </ul>
+                </div>
+              </div>
+            ) : lp.eligible10 ? (
+              <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+                {lp.ruleTriggeredT1
+                  ? <>Κανόνας 10% ΚΕ: το κατώφλι ισχύει στο Τ-1 αλλά όχι σε όλα τα έτη της τριετίας — το διαθέσιμο αναπροσαρμόζεται ανά έτος, αλλά δεν επιβάλλεται μέγιστος αριθμός δόσεων.</>
+                  : <>Κανόνας 10% ΚΕ (Δημόσιο): δεν ενεργοποιείται — Κέρδη Τ-1 ({fmt(lp.xBefore[0])}) ≥ 10% ΚΕ Τ-1 ({fmt(lp.floors[0])}).</>}
+              </div>
+            ) : null}
+          </>
         )
       })()}
+
+      {/* Επιτηδευματίας — εύλογο ποσοστό κέρδους (ΚΥΑ 77697/2021 §7.1.4) */}
+      {income.debtorType !== 'Νομικό Πρόσωπο' && calc?.flagMaxDoses && calc.fpEulogoNote && (
+        <div className="mb-5 rounded-xl border border-amber-300 bg-amber-50 p-4 flex gap-3">
+          <span className="text-xl shrink-0">⚡</span>
+          <div>
+            <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΎΛΟΓΟΥ ΠΟΣΟΣΤΟΎ ΚΕΡΔΟΥΣ — ΚΥΑ 77697/2021 §7.1.4</p>
+            <p className="text-sm text-amber-700">{calc.fpEulogoNote}</p>
+          </div>
+        </div>
+      )}
 
       {/* Results */}
       {calc && calc.sumDebt > 0 && (
