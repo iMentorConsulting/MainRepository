@@ -16,6 +16,53 @@ import toast from 'react-hot-toast'
 
 export const LEAD_STATUSES = ['NEW LEAD', 'WORKED', 'CALL', 'HOT', 'ACTIVE', 'DEAL', 'CANCEL']
 
+const SEND_TEMPLATES = [
+  {
+    label: '👋 Πρώτη επικοινωνία',
+    text: 'Καλησπέρα σας! Είμαστε από την iMentor Consulting και επικοινωνούμε σχετικά με το αίτημά σας. Θα θέλαμε να σας ενημερώσουμε για τα προγράμματα χρηματοδότησης που ταιριάζουν στη δραστηριότητά σας. Πότε θα ήταν βολικό να μιλήσουμε;',
+  },
+  {
+    label: '📞 Υπενθύμιση κλήσης',
+    text: 'Καλησπέρα! Προσπαθήσαμε να επικοινωνήσουμε μαζί σας χωρίς αποτέλεσμα. Παρακαλούμε ενημερώστε μας για κάποια βολική ώρα να σας καλέσουμε σχετικά με τα διαθέσιμα προγράμματα χρηματοδότησης.',
+  },
+  {
+    label: '📄 Αίτηση εγγράφων',
+    text: 'Καλησπέρα! Για να προχωρήσουμε με την αίτησή σας, χρειαζόμαστε τα παρακάτω έγγραφα:\n• Εκκαθαριστικό τελευταίου έτους\n• Άδεια λειτουργίας επιχείρησης\n• Καταστατικό (για εταιρείες)\n\nΠαρακαλούμε αποστείλτε τα το συντομότερο δυνατό.',
+  },
+  {
+    label: '✅ Έγκριση αίτησης',
+    text: 'Καλησπέρα! Χαρούμενοι να σας ανακοινώσουμε ότι η αίτησή σας εγκρίθηκε! Θα επικοινωνήσουμε σύντομα για τα επόμενα βήματα.',
+  },
+  {
+    label: '⏰ Υπενθύμιση προθεσμίας',
+    text: 'Καλησπέρα! Σας υπενθυμίζουμε ότι η προθεσμία υποβολής των εγγράφων για το πρόγραμμα πλησιάζει. Παρακαλούμε επικοινωνήστε μαζί μας το συντομότερο για να ολοκληρώσουμε τη διαδικασία.',
+  },
+  {
+    label: '📋 Ενημέρωση προόδου',
+    text: 'Καλησπέρα! Θέλαμε να σας ενημερώσουμε για την πρόοδο της αίτησής σας. Η υπόθεσή σας βρίσκεται σε επεξεργασία και θα σας ειδοποιήσουμε άμεσα για οποιαδήποτε εξέλιξη.',
+  },
+  {
+    label: '💶 Μικροπιστώσεις — Ενδιαφέρον',
+    programs: ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'],
+    text: 'Καλησπέρα! Σας επικοινωνούμε για το πρόγραμμα Μικροπιστώσεων. Παρέχει δάνειο έως €25.000 με εγγύηση του δημοσίου, χωρίς εξασφαλίσεις. Ιδανικό για νέες και μικρές επιχειρήσεις. Θέλετε να μάθετε περισσότερα;',
+  },
+  {
+    label: '🏠 Ανακαινίζω — Ενδιαφέρον',
+    programs: ['ΑΝΑΚΑΙΝΙΖΩ'],
+    text: 'Καλησπέρα! Σχετικά με το πρόγραμμα "Ανακαινίζω — Νοικιάζω / Αξιοποιώ". Επιδοτείται το 40% των δαπανών ανακαίνισης. Απαιτείται φορολογική ενημερότητα. Θα θέλατε να κλείσουμε ένα ραντεβού για αναλυτική ενημέρωση;',
+  },
+  {
+    label: '🎓 ΔΥΠΑ — Ενδιαφέρον',
+    programs: ['ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ'],
+    text: 'Καλησπέρα! Σχετικά με το πρόγραμμα ΔΥΠΑ. Επιδοτεί την απασχόληση νέων ανέργων με κάλυψη του μισθολογικού κόστους για 12 μήνες. Ενδείκνυται για επιχειρήσεις που σχεδιάζουν προσλήψεις. Ενδιαφέρεστε να ενημερωθείτε;',
+  },
+  {
+    label: '📊 ΕΣΠΑ — Ενδιαφέρον',
+    programs: ['ΕΣΠΑ'],
+    text: 'Καλησπέρα! Σχετικά με τα προγράμματα ΕΣΠΑ για επιχειρήσεις. Επιχορήγηση έως 50% για επενδύσεις σε εξοπλισμό, λογισμικό και αναβάθμιση υποδομών. Θα θέλατε να αξιολογήσουμε μαζί την επιλεξιμότητα της επιχείρησής σας;',
+  },
+]
+
 // Email domain typo corrections (common Greek user mistakes)
 const EMAIL_DOMAIN_FIXES = {
   'hotmail.fr': 'hotmail.gr',
@@ -239,6 +286,20 @@ function SendModal({ lead, onClose }) {
             ))}
           </div>
           {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
+          {/* Template chips */}
+          <div>
+            <div className="text-[11px] text-gray-400 mb-1.5">Πρότυπα μηνυμάτων:</div>
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              {SEND_TEMPLATES
+                .filter(t => !t.programs || t.programs.some(p => (lead.program || lead.service_type || '').toUpperCase().includes(p)))
+                .map((t, i) => (
+                  <button key={i} type="button" onClick={() => setMessage(t.text)}
+                    className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
+                    {t.label}
+                  </button>
+                ))}
+            </div>
+          </div>
           <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Γράψτε το μήνυμά σας…" className="w-full px-3 py-2 border rounded-lg text-sm" />
           <p className="text-[11px] text-gray-400">
             {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
@@ -295,6 +356,20 @@ function BulkSendModal({ leads, onClose, onSend }) {
             ))}
           </div>
           {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
+          {/* Template chips — show generic + any matching the selected leads' programs */}
+          <div>
+            <div className="text-[11px] text-gray-400 mb-1.5">Πρότυπα μηνυμάτων:</div>
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
+              {SEND_TEMPLATES
+                .filter(t => !t.programs || t.programs.some(p => uniqueProgs.some(u => (u || '').toUpperCase().includes(p))))
+                .map((t, i) => (
+                  <button key={i} type="button" onClick={() => setMessage(t.text)}
+                    className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
+                    {t.label}
+                  </button>
+                ))}
+            </div>
+          </div>
           <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Γράψτε το μήνυμά σας…" className="w-full px-3 py-2 border rounded-lg text-sm" autoFocus />
           <p className="text-[11px] text-gray-400">
             {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
