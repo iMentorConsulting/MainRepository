@@ -283,7 +283,10 @@ function TemplateManagerModal({ onClose }) {
             <div className="text-center py-8 text-gray-400 text-sm">Δεν υπάρχουν πρότυπα ακόμη</div>
           )}
           {templates.map(t => (
-            <div key={t.id} className="bg-white border border-gray-200 rounded-lg p-3 flex items-start gap-3">
+            <div key={t.id}
+              className={`bg-white border rounded-lg p-3 flex items-start gap-3 transition-colors ${isAdmin ? 'border-gray-200 hover:border-blue-300 hover:bg-blue-50/30 cursor-pointer' : 'border-gray-200'}`}
+              onClick={isAdmin ? () => startEdit(t) : undefined}
+            >
               <div className="flex-1 min-w-0">
                 <div className="font-medium text-sm">{t.label}</div>
                 <div className="text-xs text-gray-500 mt-0.5 line-clamp-2 whitespace-pre-wrap">{t.text}</div>
@@ -294,9 +297,21 @@ function TemplateManagerModal({ onClose }) {
                 )}
               </div>
               {isAdmin && (
-                <div className="flex gap-2 shrink-0">
-                  <button onClick={() => startEdit(t)} className="text-xs text-blue-600 hover:underline">Επεξ.</button>
-                  <button onClick={() => del(t)} className="text-xs text-red-500 hover:underline">Διαγρ.</button>
+                <div className="flex gap-1.5 shrink-0" onClick={e => e.stopPropagation()}>
+                  <button
+                    onClick={() => startEdit(t)}
+                    title="Επεξεργασία"
+                    className="p-1.5 rounded-lg text-blue-600 hover:bg-blue-100 transition-colors"
+                  >
+                    <PencilIcon className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={() => del(t)}
+                    title="Διαγραφή"
+                    className="p-1.5 rounded-lg text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <TrashIcon className="w-4 h-4" />
+                  </button>
                 </div>
               )}
             </div>
