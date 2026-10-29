@@ -1152,6 +1152,7 @@ export default function Leads() {
   const [hideCancel, setHideCancel] = useState(true)   // CANCEL hidden by default
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [bulkBusy, setBulkBusy] = useState(false)
+  const [bulkStatusTarget, setBulkStatusTarget] = useState('')
   const [retryBusy, setRetryBusy] = useState(false)
   const isAdmin = getAuth()?.user?.role === 'admin'
 
@@ -1316,6 +1317,23 @@ export default function Leads() {
     } finally { setOnboardBusy(false) }
   }
 
+  const handleBulkStatusChange = async (newStatus) => {
+    if (!newStatus) return
+    const ids = [...selectedIds]
+    if (!confirm(`Αλλαγή status σε "${newStatus}" για ${ids.length} leads;`)) { setBulkStatusTarget(''); return }
+    setBulkBusy(true)
+    const tid = toast.loading(`Ενημέρωση ${ids.length} leads…`)
+    try {
+      await Promise.all(ids.map(id => updateLead(id, { status: newStatus })))
+      toast.success(`${ids.length} leads → ${newStatus}`, { id: tid })
+      setSelectedIds(new Set())
+      setBulkStatusTarget('')
+      load()
+    } catch (e) {
+      toast.error('Σφάλμα ενημέρωσης status', { id: tid })
+    } finally { setBulkBusy(false) }
+  }
+
   const SortTh = ({ col, children, className = '' }) => (
     <th onClick={() => toggleSort(col)} className={`px-2 py-2 text-left font-semibold text-gray-600 cursor-pointer select-none whitespace-nowrap ${className}`}>
       <span className="inline-flex items-center gap-1">{children}{sort.sort === col && (sort.direction === 'asc' ? <ChevronUpIcon className="w-3 h-3" /> : <ChevronDownIcon className="w-3 h-3" />)}</span>
@@ -1334,32 +1352,6 @@ export default function Leads() {
           <div className="text-sm text-gray-500">{data.total} εγγραφές {options.total ? `(από ${options.total})` : ''}</div>
         </div>
         <div className="flex items-center gap-2">
-          {isAdmin && (
-            <>
-              <button onClick={async () => {
-                if (!window.confirm('Αναβάθμιση όλων των NEW LEAD με σχόλια συμβούλου σε WORKED;')) return
-                const r = await upgradeWorkedLeads()
-                toast.success(`Αναβαθμίστηκαν ${r.upgraded} leads → WORKED`)
-                load()
-              }}
-                className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
-                ✅ Upgrade WORKED
-              </button>
-              <button onClick={async () => {
-                if (!window.confirm('Επαναφορά WORKED leads χωρίς πραγματικά σχόλια → NEW LEAD;')) return
-                const r = await downgradeWorkedLeads()
-                toast.success(`Επαναφέρθηκαν ${r.downgraded} leads → NEW LEAD`)
-                load()
-              }}
-                className="flex items-center gap-1.5 text-sm bg-orange-100 text-orange-700 hover:bg-orange-200 border border-orange-300 px-3 py-1.5 rounded-lg font-medium">
-                ↩ Downgrade WORKED
-              </button>
-<button onClick={async () => { const r = await backfillErmisTranscripts(); toast.success(`Μεταφέρθηκαν ${r.updated}/${r.total} transcript(s) — αποτυχίες: ${r.failed}`) }}
-                className="flex items-center gap-1.5 text-sm bg-purple-100 text-purple-700 hover:bg-purple-200 border border-purple-300 px-3 py-1.5 rounded-lg font-medium">
-                💬 Backfill ΕΡΜΗΣ
-              </button>
-            </>
-          )}
           <button onClick={() => setShowNew(true)} className="btn-primary text-sm flex items-center gap-1"><PlusIcon className="w-4 h-4" />Νέο Lead</button>
         </div>
       </div>
@@ -1596,6 +1588,17 @@ export default function Leads() {
           >
             🔗 {onboardBusy ? 'Αποστολή…' : `Link ΑΦΜ (${selectedIds.size})`}
           </button>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={bulkStatusTarget}
+              onChange={e => { setBulkStatusTarget(e.target.value); handleBulkStatusChange(e.target.value) }}
+              disabled={bulkBusy}
+              className="text-sm bg-gray-700 text-white border border-gray-500 rounded-xl px-3 py-1.5 cursor-pointer disabled:opacity-50 focus:outline-none"
+            >
+              <option value="">Αλλαγή Status…</option>
+              {LEAD_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
           <button onClick={() => setSelectedIds(new Set())} className="text-gray-400 hover:text-white text-sm px-2 py-1 rounded-lg">
             ✕ Αποεπιλογή
           </button>
