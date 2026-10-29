@@ -1,11 +1,11 @@
 import { useState, useEffect, useCallback } from 'react'
-import { getAllMessageTemplates, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate, getAuth } from '../api'
+import { getMessageTemplates, getAllMessageTemplates, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate, getAuth } from '../api'
 import { PlusIcon, TrashIcon, CheckIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
 const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
 
-function TemplateCard({ template, onSaved, onDeleted }) {
+function TemplateCard({ template, onSaved, onDeleted, readOnly }) {
   const [form, setForm] = useState({
     label: template.label,
     text: template.text,
@@ -36,6 +36,22 @@ function TemplateCard({ template, onSaved, onDeleted }) {
     await deleteMessageTemplate(template.id)
     onDeleted(template.id)
     toast.success('Διαγράφηκε')
+  }
+
+  if (readOnly) {
+    return (
+      <div className="bg-white border border-gray-200 rounded-xl p-4 space-y-2">
+        <div className="font-semibold text-sm text-gray-800">{template.label}</div>
+        <div className="text-sm text-gray-600 whitespace-pre-wrap">{template.text}</div>
+        {template.programs?.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {template.programs.map(p => (
+              <span key={p} className="text-[11px] bg-blue-100 text-blue-700 rounded-full px-2 py-0.5">{p}</span>
+            ))}
+          </div>
+        )}
+      </div>
+    )
   }
 
   return (
@@ -163,11 +179,12 @@ export default function MessageTemplatesPage() {
   const isAdmin = auth?.user?.role === 'admin'
 
   useEffect(() => {
-    getAllMessageTemplates()
+    const fetch = isAdmin ? getAllMessageTemplates : getMessageTemplates
+    fetch()
       .then(data => setTemplates(data.sort((a, b) => a.sort_order - b.sort_order || a.id - b.id)))
       .catch(() => toast.error('Σφάλμα φόρτωσης'))
       .finally(() => setLoading(false))
-  }, [])
+  }, [isAdmin])
 
   const onSaved = useCallback((saved) => {
     setTemplates(prev => prev.map(t => t.id === saved.id ? saved : t)
@@ -183,16 +200,16 @@ export default function MessageTemplatesPage() {
     setAdding(false)
   }, [])
 
-  if (!isAdmin) return <div className="p-8 text-center text-gray-500">Δεν έχετε πρόσβαση.</div>
-
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">Πρότυπα Μηνυμάτων</h1>
-          <p className="text-sm text-gray-500 mt-0.5">Τα πρότυπα εμφανίζονται στο modal αποστολής Leads.</p>
+          <p className="text-sm text-gray-500 mt-0.5">
+            {isAdmin ? 'Επεξεργαστείτε τα πρότυπα που εμφανίζονται στο modal αποστολής Leads.' : 'Έτοιμα πρότυπα μηνυμάτων για αποστολή σε leads.'}
+          </p>
         </div>
-        {!adding && (
+        {isAdmin && !adding && (
           <button onClick={() => setAdding(true)}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm px-4 py-2 rounded-lg transition-colors">
             <PlusIcon className="w-4 h-4" />
@@ -204,7 +221,7 @@ export default function MessageTemplatesPage() {
       {loading && <div className="text-center py-12 text-gray-400">Φόρτωση…</div>}
 
       <div className="space-y-4">
-        {adding && (
+        {isAdmin && adding && (
           <NewTemplateCard
             nextOrder={templates.length}
             onCreated={onCreated}
@@ -212,7 +229,13 @@ export default function MessageTemplatesPage() {
           />
         )}
         {templates.map(t => (
-          <TemplateCard key={t.id} template={t} onSaved={onSaved} onDeleted={onDeleted} />
+          <TemplateCard
+            key={t.id}
+            template={t}
+            onSaved={onSaved}
+            onDeleted={onDeleted}
+            readOnly={!isAdmin}
+          />
         ))}
         {!loading && templates.length === 0 && !adding && (
           <div className="text-center py-12 text-gray-400 text-sm">Δεν υπάρχουν πρότυπα ακόμη.</div>

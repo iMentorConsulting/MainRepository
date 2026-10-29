@@ -50,7 +50,7 @@ const nav = [
   { to: '/backup', label: 'Αντίγραφα Ασφαλείας', Icon: CloudArrowUpIcon, adminOnly: true },
   { to: '/status-notifications', label: 'Ειδοποιήσεις Status', Icon: BellAlertIcon, adminOnly: true },
   { to: '/meta-ads', label: 'Meta Lead Ads', Icon: GlobeAltIcon, adminOnly: true },
-  { to: '/message-templates', label: 'Πρότυπα Μηνυμάτων', Icon: DocumentTextIcon, adminOnly: true },
+  { to: '/message-templates', label: 'Πρότυπα Μηνυμάτων', Icon: DocumentTextIcon },
 ]
 
 function ChangePasswordModal({ onClose }) {
