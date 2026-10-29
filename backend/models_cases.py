@@ -803,6 +803,19 @@ class CMMetaPageConfig(Base):
     assigned_agent = relationship("CMUser", foreign_keys=[assigned_agent_id])
 
 
+class CMMessageTemplate(Base):
+    """Editable message templates used in the Leads send modal."""
+    __tablename__ = "cm_message_templates"
+
+    id         = Column(Integer, primary_key=True)
+    label      = Column(String(100), nullable=False)
+    text       = Column(Text, nullable=False)
+    programs   = Column(JSON, nullable=True)   # list of program keys; null = show for all
+    sort_order = Column(Integer, default=0)
+    enabled    = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
 class CMMetaLeadLog(Base):
     """Log of every Meta leadgen event we received."""
     __tablename__ = "cm_meta_lead_logs"

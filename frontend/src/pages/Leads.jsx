@@ -5,6 +5,7 @@ import {
   sendLeadMessage, bulkSendLeadMessage, bulkOnboardLeads, convertLeadToCase, startLeadErmis, resendLeadErmisLink, bulkStartErmis, bulkResendErmis, getLeadDuplicates, mergeLeads,
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants, upgradeWorkedLeads, downgradeWorkedLeads,
   sendLeadToFinance, cloneLead,
+  getMessageTemplates, getAllMessageTemplates, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -15,53 +16,6 @@ import {
 import toast from 'react-hot-toast'
 
 export const LEAD_STATUSES = ['NEW LEAD', 'WORKED', 'CALL', 'HOT', 'ACTIVE', 'DEAL', 'CANCEL']
-
-const SEND_TEMPLATES = [
-  {
-    label: '👋 Πρώτη επικοινωνία',
-    text: 'Καλησπέρα σας! Είμαστε από την iMentor Consulting και επικοινωνούμε σχετικά με το αίτημά σας. Θα θέλαμε να σας ενημερώσουμε για τα προγράμματα χρηματοδότησης που ταιριάζουν στη δραστηριότητά σας. Πότε θα ήταν βολικό να μιλήσουμε;',
-  },
-  {
-    label: '📞 Υπενθύμιση κλήσης',
-    text: 'Καλησπέρα! Προσπαθήσαμε να επικοινωνήσουμε μαζί σας χωρίς αποτέλεσμα. Παρακαλούμε ενημερώστε μας για κάποια βολική ώρα να σας καλέσουμε σχετικά με τα διαθέσιμα προγράμματα χρηματοδότησης.',
-  },
-  {
-    label: '📄 Αίτηση εγγράφων',
-    text: 'Καλησπέρα! Για να προχωρήσουμε με την αίτησή σας, χρειαζόμαστε τα παρακάτω έγγραφα:\n• Εκκαθαριστικό τελευταίου έτους\n• Άδεια λειτουργίας επιχείρησης\n• Καταστατικό (για εταιρείες)\n\nΠαρακαλούμε αποστείλτε τα το συντομότερο δυνατό.',
-  },
-  {
-    label: '✅ Έγκριση αίτησης',
-    text: 'Καλησπέρα! Χαρούμενοι να σας ανακοινώσουμε ότι η αίτησή σας εγκρίθηκε! Θα επικοινωνήσουμε σύντομα για τα επόμενα βήματα.',
-  },
-  {
-    label: '⏰ Υπενθύμιση προθεσμίας',
-    text: 'Καλησπέρα! Σας υπενθυμίζουμε ότι η προθεσμία υποβολής των εγγράφων για το πρόγραμμα πλησιάζει. Παρακαλούμε επικοινωνήστε μαζί μας το συντομότερο για να ολοκληρώσουμε τη διαδικασία.',
-  },
-  {
-    label: '📋 Ενημέρωση προόδου',
-    text: 'Καλησπέρα! Θέλαμε να σας ενημερώσουμε για την πρόοδο της αίτησής σας. Η υπόθεσή σας βρίσκεται σε επεξεργασία και θα σας ειδοποιήσουμε άμεσα για οποιαδήποτε εξέλιξη.',
-  },
-  {
-    label: '💶 Μικροπιστώσεις — Ενδιαφέρον',
-    programs: ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'],
-    text: 'Καλησπέρα! Σας επικοινωνούμε για το πρόγραμμα Μικροπιστώσεων. Παρέχει δάνειο έως €25.000 με εγγύηση του δημοσίου, χωρίς εξασφαλίσεις. Ιδανικό για νέες και μικρές επιχειρήσεις. Θέλετε να μάθετε περισσότερα;',
-  },
-  {
-    label: '🏠 Ανακαινίζω — Ενδιαφέρον',
-    programs: ['ΑΝΑΚΑΙΝΙΖΩ'],
-    text: 'Καλησπέρα! Σχετικά με το πρόγραμμα "Ανακαινίζω — Νοικιάζω / Αξιοποιώ". Επιδοτείται το 40% των δαπανών ανακαίνισης. Απαιτείται φορολογική ενημερότητα. Θα θέλατε να κλείσουμε ένα ραντεβού για αναλυτική ενημέρωση;',
-  },
-  {
-    label: '🎓 ΔΥΠΑ — Ενδιαφέρον',
-    programs: ['ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ'],
-    text: 'Καλησπέρα! Σχετικά με το πρόγραμμα ΔΥΠΑ. Επιδοτεί την απασχόληση νέων ανέργων με κάλυψη του μισθολογικού κόστους για 12 μήνες. Ενδείκνυται για επιχειρήσεις που σχεδιάζουν προσλήψεις. Ενδιαφέρεστε να ενημερωθείτε;',
-  },
-  {
-    label: '📊 ΕΣΠΑ — Ενδιαφέρον',
-    programs: ['ΕΣΠΑ'],
-    text: 'Καλησπέρα! Σχετικά με τα προγράμματα ΕΣΠΑ για επιχειρήσεις. Επιχορήγηση έως 50% για επενδύσεις σε εξοπλισμό, λογισμικό και αναβάθμιση υποδομών. Θα θέλατε να αξιολογήσουμε μαζί την επιλεξιμότητα της επιχείρησής σας;',
-  },
-]
 
 // Email domain typo corrections (common Greek user mistakes)
 const EMAIL_DOMAIN_FIXES = {
@@ -245,9 +199,130 @@ function CommentComposer({ onSubmit }) {
   )
 }
 
+const PROGRAMS_LIST = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+
+function TemplateManagerModal({ onClose }) {
+  const [templates, setTemplates] = useState([])
+  const [editing, setEditing] = useState(null) // null | 'new' | template object
+  const [form, setForm] = useState({ label: '', text: '', programs: [], sort_order: 0 })
+  const [saving, setSaving] = useState(false)
+  const auth = getAuth()
+  const isAdmin = auth?.user?.role === 'admin'
+
+  useEffect(() => {
+    getAllMessageTemplates().then(setTemplates).catch(() => toast.error('Σφάλμα φόρτωσης'))
+  }, [])
+
+  const startEdit = (t) => { setEditing(t); setForm({ label: t.label, text: t.text, programs: t.programs || [], sort_order: t.sort_order ?? 0 }) }
+  const startNew = () => { setEditing('new'); setForm({ label: '', text: '', programs: [], sort_order: templates.length }) }
+
+  const save = async () => {
+    if (!form.label.trim() || !form.text.trim()) { toast.error('Συμπλήρωσε τίτλο και κείμενο'); return }
+    setSaving(true)
+    try {
+      const payload = { ...form, programs: form.programs.length > 0 ? form.programs : null, enabled: true }
+      const saved = editing === 'new'
+        ? await createMessageTemplate(payload)
+        : await updateMessageTemplate(editing.id, payload)
+      setTemplates(prev => editing === 'new' ? [...prev, saved] : prev.map(t => t.id === saved.id ? saved : t))
+      setEditing(null)
+      toast.success('Αποθηκεύτηκε')
+    } catch { toast.error('Σφάλμα αποθήκευσης') } finally { setSaving(false) }
+  }
+
+  const del = async (t) => {
+    if (!confirm(`Διαγραφή "${t.label}";`)) return
+    await deleteMessageTemplate(t.id)
+    setTemplates(prev => prev.filter(x => x.id !== t.id))
+    toast.success('Διαγράφηκε')
+  }
+
+  const toggleProg = (p) => setForm(f => ({ ...f, programs: f.programs.includes(p) ? f.programs.filter(x => x !== p) : [...f.programs, p] }))
+
+  return (
+    <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b flex items-center justify-between">
+          <div className="font-bold">Διαχείριση Προτύπων Μηνυμάτων</div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {/* Edit/New form */}
+          {editing && (
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 space-y-3">
+              <div className="font-semibold text-sm text-blue-800">{editing === 'new' ? 'Νέο Πρότυπο' : `Επεξεργασία: ${editing.label}`}</div>
+              <input value={form.label} onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
+                placeholder="Τίτλος (π.χ. 👋 Πρώτη επικοινωνία)" className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <textarea value={form.text} onChange={e => setForm(f => ({ ...f, text: e.target.value }))}
+                rows={5} placeholder="Κείμενο μηνύματος…" className="w-full border rounded-lg px-3 py-2 text-sm" />
+              <div>
+                <div className="text-xs text-gray-500 mb-1.5">Εμφάνιση μόνο για προγράμματα (άδειο = όλα):</div>
+                <div className="flex flex-wrap gap-1.5">
+                  {PROGRAMS_LIST.map(p => (
+                    <button key={p} type="button" onClick={() => toggleProg(p)}
+                      className={`text-xs px-2 py-1 rounded-full border transition-colors ${form.programs.includes(p) ? 'bg-blue-600 text-white border-blue-600' : 'bg-white border-gray-300 hover:bg-gray-50'}`}>
+                      {p}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              <div className="flex gap-2">
+                <input type="number" value={form.sort_order} onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
+                  className="w-20 border rounded-lg px-2 py-1.5 text-sm" placeholder="Σειρά" />
+                <span className="text-xs text-gray-400 self-center">Σειρά εμφάνισης</span>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={save} disabled={saving} className="btn-primary text-sm">{saving ? 'Αποθήκευση…' : 'Αποθήκευση'}</button>
+                <button onClick={() => setEditing(null)} className="btn-secondary text-sm">Άκυρο</button>
+              </div>
+            </div>
+          )}
+
+          {/* Template list */}
+          {templates.length === 0 && !editing && (
+            <div className="text-center py-8 text-gray-400 text-sm">Δεν υπάρχουν πρότυπα ακόμη</div>
+          )}
+          {templates.map(t => (
+            <div key={t.id} className="bg-white border border-gray-200 rounded-lg p-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="font-medium text-sm">{t.label}</div>
+                <div className="text-xs text-gray-500 mt-0.5 line-clamp-2 whitespace-pre-wrap">{t.text}</div>
+                {t.programs?.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {t.programs.map(p => <span key={p} className="text-[10px] bg-blue-100 text-blue-700 rounded-full px-1.5 py-0.5">{p}</span>)}
+                  </div>
+                )}
+              </div>
+              {isAdmin && (
+                <div className="flex gap-2 shrink-0">
+                  <button onClick={() => startEdit(t)} className="text-xs text-blue-600 hover:underline">Επεξ.</button>
+                  <button onClick={() => del(t)} className="text-xs text-red-500 hover:underline">Διαγρ.</button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        {isAdmin && !editing && (
+          <div className="p-4 border-t">
+            <button onClick={startNew} className="btn-primary text-sm w-full">+ Νέο Πρότυπο</button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function useTemplates() {
+  const [templates, setTemplates] = useState([])
+  useEffect(() => { getMessageTemplates().then(setTemplates).catch(() => {}) }, [])
+  return templates
+}
+
 function SendModal({ lead, onClose }) {
   const [channel, setChannel] = useState('viber')
   const [message, setMessage] = useState('')
+  const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const templates = useTemplates()
   const prog = lead.program_title || lead.service_type || lead.program || ''
   const consultant = lead.assigned_name || ''
   const defaultSubject = prog ? `i-Mentor Consulting — ${prog}` : 'i-Mentor Consulting'
@@ -287,19 +362,24 @@ function SendModal({ lead, onClose }) {
           </div>
           {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
           {/* Template chips */}
-          <div>
-            <div className="text-[11px] text-gray-400 mb-1.5">Πρότυπα μηνυμάτων:</div>
-            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-              {SEND_TEMPLATES
-                .filter(t => !t.programs || t.programs.some(p => [lead.program, lead.program_title, lead.service_type].filter(Boolean).some(v => v.toUpperCase().includes(p))))
-                .map((t, i) => (
-                  <button key={i} type="button" onClick={() => setMessage(t.text)}
-                    className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
-                    {t.label}
-                  </button>
-                ))}
+          {templates.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-gray-400">Πρότυπα μηνυμάτων:</span>
+                <button onClick={() => setShowTemplateManager(true)} className="text-[11px] text-blue-500 hover:underline">✏️ Διαχείριση</button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                {templates
+                  .filter(t => !t.programs?.length || t.programs.some(p => [lead.program, lead.program_title, lead.service_type].filter(Boolean).some(v => v.toUpperCase().includes(p))))
+                  .map(t => (
+                    <button key={t.id} type="button" onClick={() => setMessage(t.text)}
+                      className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
+                      {t.label}
+                    </button>
+                  ))}
+              </div>
             </div>
-          </div>
+          )}
           <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Γράψτε το μήνυμά σας…" className="w-full px-3 py-2 border rounded-lg text-sm" />
           <p className="text-[11px] text-gray-400">
             {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
@@ -311,6 +391,7 @@ function SendModal({ lead, onClose }) {
           <button onClick={submit} disabled={busy || !message} className="btn-primary text-sm flex items-center gap-1"><PaperAirplaneIcon className="w-4 h-4" />{busy ? '…' : 'Αποστολή'}</button>
         </div>
       </div>
+      {showTemplateManager && <TemplateManagerModal onClose={() => setShowTemplateManager(false)} />}
     </div>
   )
 }
@@ -328,6 +409,8 @@ function BulkSendModal({ leads, onClose, onSend }) {
   const [message, setMessage] = useState('')
   const [subject, setSubject] = useState(defaultSubject)
   const [busy, setBusy] = useState(false)
+  const [showTemplateManager, setShowTemplateManager] = useState(false)
+  const templates = useTemplates()
   const submit = async () => {
     if (!message.trim()) return
     setBusy(true)
@@ -356,20 +439,25 @@ function BulkSendModal({ leads, onClose, onSend }) {
             ))}
           </div>
           {channel !== 'viber' && <input value={subject} onChange={e => setSubject(e.target.value)} placeholder="Θέμα (email)" className="w-full px-3 py-2 border rounded-lg text-sm" />}
-          {/* Template chips — show generic + any matching the selected leads' programs */}
-          <div>
-            <div className="text-[11px] text-gray-400 mb-1.5">Πρότυπα μηνυμάτων:</div>
-            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto pr-1">
-              {SEND_TEMPLATES
-                .filter(t => !t.programs || t.programs.some(p => uniqueProgs.some(u => (u || '').toUpperCase().includes(p))))
-                .map((t, i) => (
-                  <button key={i} type="button" onClick={() => setMessage(t.text)}
-                    className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
-                    {t.label}
-                  </button>
-                ))}
+          {/* Template chips */}
+          {templates.length > 0 && (
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[11px] text-gray-400">Πρότυπα μηνυμάτων:</span>
+                <button onClick={() => setShowTemplateManager(true)} className="text-[11px] text-blue-500 hover:underline">✏️ Διαχείριση</button>
+              </div>
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
+                {templates
+                  .filter(t => !t.programs?.length || t.programs.some(p => uniqueProgs.some(u => (u || '').toUpperCase().includes(p))))
+                  .map(t => (
+                    <button key={t.id} type="button" onClick={() => setMessage(t.text)}
+                      className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 hover:text-blue-700 transition-colors whitespace-nowrap">
+                      {t.label}
+                    </button>
+                  ))}
+              </div>
             </div>
-          </div>
+          )}
           <textarea value={message} onChange={e => setMessage(e.target.value)} rows={5} placeholder="Γράψτε το μήνυμά σας…" className="w-full px-3 py-2 border rounded-lg text-sm" autoFocus />
           <p className="text-[11px] text-gray-400">
             {channel !== 'email' && '📱 Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email). '}
@@ -383,6 +471,7 @@ function BulkSendModal({ leads, onClose, onSend }) {
           </button>
         </div>
       </div>
+      {showTemplateManager && <TemplateManagerModal onClose={() => setShowTemplateManager(false)} />}
     </div>
   )
 }

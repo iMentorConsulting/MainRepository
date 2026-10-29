@@ -317,4 +317,10 @@ export const updateMetaPage = (id, data) => api.put(`/api/cm/meta-pages/${id}`, 
 export const deleteMetaPage = (id) => api.delete(`/api/cm/meta-pages/${id}`).then(r => r.data)
 export const getMetaLeadLog = (limit = 50) => api.get('/api/cm/meta-leads-log', { params: { limit } }).then(r => r.data)
 
+export const getMessageTemplates = () => api.get('/api/cm/message-templates').then(r => r.data)
+export const getAllMessageTemplates = () => api.get('/api/cm/message-templates/all').then(r => r.data)
+export const createMessageTemplate = (data) => api.post('/api/cm/message-templates', data).then(r => r.data)
+export const updateMessageTemplate = (id, data) => api.put(`/api/cm/message-templates/${id}`, data).then(r => r.data)
+export const deleteMessageTemplate = (id) => api.delete(`/api/cm/message-templates/${id}`).then(r => r.data)
+
 export default api
