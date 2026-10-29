@@ -708,8 +708,8 @@ def record_visit(token: str, body: dict, db: Session = Depends(get_db)):
     if not case or not case.portal_active:
         raise HTTPException(status_code=404, detail="Portal not found or inactive")
 
-    # For ΑΝΑΚΑΙΝΙΖΩ cases without AFM: verify entered phone
-    if case.program_category == "ΑΝΑΚΑΙΝΙΖΩ" and not (case.afm or "").strip():
+    # For ΑΝΑΚΑΙΝΙΖΩ: always verify by phone (frontend shows phone input for this program)
+    if case.program_category == "ΑΝΑΚΑΙΝΙΖΩ":
         def _norm(p):
             p = _re.sub(r'\D', '', p or '')
             if p.startswith('30') and len(p) > 10:
