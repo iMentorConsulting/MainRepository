@@ -15,6 +15,7 @@ import { GREEK_REGIONS } from '@/lib/greek-regions'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 import { parseRequirementsList } from '@/lib/requirements-list'
 import { EligibilityQuestionsEditor } from '@/components/programs/eligibility-questions-editor'
+import { ProgramQA } from '@/components/programs/program-qa'
 import type { ExpenseCategory } from '@/components/programs/expense-categories-editor'
 
 function formatEuro(value: number | null | undefined) {
@@ -615,6 +616,8 @@ export default function ProgramDetailPage() {
               </CardContent>
             </Card>
           )}
+
+          {canDiagnose && <ProgramQA programId={program.id} />}
 
           {program.videoUrls?.length > 0 && (
             <Card>
