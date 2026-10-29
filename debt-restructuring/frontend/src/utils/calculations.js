@@ -282,14 +282,16 @@ export function computeLePublicDisposable(incomeData = {}, params = PARAMS_B) {
   const years24 = Math.max(0.65 * M2, X[0])
   const years5 = Math.max(M2, X[0])
 
-  // Βήμα 4 — ο κανόνας καθορίζει το αποτέλεσμα μόνο όταν εφαρμόζεται στο Τ-1
-  const ruleTriggered = floorApplied[0]
+  // Βήμα 4 — ενεργοποίηση του κανόνα (μέγιστος αριθμός δόσεων): το κατώφλι 10% ισχύει σε ΟΛΑ τα έτη της τριετίας.
+  // (Αν ισχύει μόνο σε κάποια έτη, το διαθέσιμο ανεβαίνει ανά έτος αλλά δεν επιβάλλεται μέγιστος αριθμός δόσεων.)
+  const ruleTriggered = floorApplied.every(Boolean)
+  const ruleTriggeredT1 = floorApplied[0]
 
   return {
     eligible10, X, xBefore, floors, floorApplied, M2,
     annual: { year1, years24, years5 },
     monthly: { year1: year1 / 12, years24: years24 / 12, years5: years5 / 12 },
-    ruleTriggered,
+    ruleTriggered, ruleTriggeredT1,
     warnings,
   }
 }
@@ -645,7 +647,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
         leFloorMonthly = dispFromPresumed / 12
         disp1 = Math.max(dispFromY1, dispFromPresumed)
         flagMaxDoses = true
-        fpEulogoNote = `⚠️ Εφαρμόστηκε ο κανόνας εύλογου ποσοστού κέρδους (ΚΥΑ 77697/2021 §7.1.4, όπως ισχύει): περιθώριο κέρδους ${fpEulogoMarginPct.toFixed(1).replace('.', ',')}% < 10% → το διαθέσιμο εισόδημα αναπροσαρμόστηκε σε ${fmt(fpEulogoPresumedIncome)} (10% × ΚΕ Τ) και επιβλήθηκε ο μέγιστος αριθμός δόσεων (240 μήνες) σε ΑΑΔΕ και ΕΦΚΑ.`
+        fpEulogoNote = `⚠️ Εφαρμόστηκε ο κανόνας εύλογου ποσοστού κέρδους (ΚΥΑ 77697/2021 §7.1.4, όπως ισχύει): περιθώριο κέρδους ${fpEulogoMarginPct.toFixed(1).replace('.', ',')}% < 10% → το διαθέσιμο εισόδημα αναπροσαρμόστηκε σε ${fmt(fpEulogoPresumedIncome)} (10% × ΚΕ Τ) και επιβλήθηκε ο μέγιστος αριθμός δόσεων (240 μήνες) σε ΑΑΔΕ και ΕΦΚΑ, και ο μέγιστος αριθμός δόσεων ανά κατηγορία οφειλής στις τράπεζες/servicers (ΚΥΑ 43666 ΕΞ 2025, σημείο 7.1 περ. 4).`
       }
 
       dispYear1 = disp1
@@ -678,9 +680,22 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const pubDisp24 = lePub ? Math.max(0, lePub.monthly.years24) : monthlyDisp24
 
   // ΑΑΔΕ/ΕΦΚΑ duration of a Νομικό Πρόσωπο (3-year data): ΚΠΑ rule on the total public debt
-  const lePubDuration = lePub
-    ? lePublicDuration(lePub, analysisRows.filter((r) => isPublicDebt(r.type)).reduce((a, r) => a + r.amount, 0), params)
-    : null
+  const _publicDebtTotal = analysisRows.filter((r) => isPublicDebt(r.type)).reduce((a, r) => a + r.amount, 0)
+  let lePubDuration = null
+  if (lePub && _publicDebtTotal > 0) {
+    if (lePub.ruleTriggered) {
+      // ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025): κανόνας εύλογου ποσοστού 10% → μέγιστος αριθμός δόσεων (240), χωρίς
+      // αναζήτηση ελάχιστης διάρκειας. Ελάχιστη δόση 50 €: αν με 240 μήνες η δόση πέφτει κάτω, μειώνεται η διάρκεια.
+      const maxN = params.maxMonths.publicMax
+      const kpa = lePublicKpa(lePub, maxN, params.publicRate)
+      lePubDuration = { months: maxN, covered: kpa >= _publicDebtTotal, forced: true, debt: _publicDebtTotal, kpa, kpaPrev: null }
+    } else {
+      lePubDuration = lePublicDuration(lePub, _publicDebtTotal, params)
+    }
+  }
+  // Rule «εύλογο ποσοστό κέρδους» active → banks/servicers also get the maximum installments of their category
+  // (ΚΥΑ 43666 ΕΞ 2025, Β' 1253/2025, σημείο 7.2 περ. δ — Νομικό Πρόσωπο · σημείο 7.1 περ. 4 — Επιτηδευματίας)
+  const forceBanksMax = !!((lePub && lePub.ruleTriggered) || (!isLE && flagMaxDoses))
 
   // --- plan base: compute max months per debt ---
   const planBase = analysisRows.map((r) => {
@@ -689,7 +704,7 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
     // εύλογο ποσοστό κέρδους rule (FP Επιτηδευματίας) / small-LE turnover floor: only ΑΑΔΕ/ΕΦΚΑ
     // (public debts) are forced to the maximum 240 installments — banks/other creditors are unaffected
     // and keep their own normal max-months & greedy-extension behaviour (ΚΥΑ 77697/2021 §7.1.4)
-    const isForcedMax = flagMaxDoses && isPublicDebt(r.type)
+    const isForcedMax = (flagMaxDoses && isPublicDebt(r.type)) || (forceBanksMax && !isPublicDebt(r.type))
     if (lePubDuration && isPublicDebt(r.type)) {
       // fixed duration from the ΚΠΑ rule (multiple of 12)
       return {
@@ -1002,8 +1017,9 @@ export function calculateAll(debts, assets, incomeData, params = PARAMS_B) {
   const totalMonthlyPay = finalPlan.reduce((s, p) => s + (p.payShown || 0), 0)
   const totalC1 = finalPlan.reduce((s, p) => s + p.c1, 0)
   // ratio vs year1 (display); ratio5 vs years5+ (scenario logic — uses long-term income)
-  // Νομικό Πρόσωπο with a separate ΑΑΔΕ/ΕΦΚΑ disposable: capacity = bank disposable + public disposable (year 1)
-  const capacityY1 = monthlyIncome + (lePub ? pubDisp1 : 0)
+  // Percentage = Σ monthly installments / monthly disposable income. For a Νομικό Πρόσωπο with separate public and
+  // bank disposables, the capacity is the sum of the pools that have creditors.
+  const capacityY1 = incomeGroups.reduce((sum, g) => sum + Math.max(0, g.d1), 0)
   const ratio  = capacityY1  > 0 ? Math.round(totalMonthlyPay / capacityY1  * 100) : 0
   const ratio5 = monthlyDisp5   > 0 ? Math.round(totalMonthlyPay / monthlyDisp5   * 100) : 0
   // Conservative scenario aggregates

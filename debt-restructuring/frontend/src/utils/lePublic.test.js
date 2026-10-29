@@ -37,22 +37,21 @@ describe('Test 1 — ο κανόνας ΔΕΝ ενεργοποιείται', () 
   })
 })
 
-describe('Test 2 — ο κανόνας ενεργοποιείται (Τ-1 < 10% × ΚΕ)', () => {
+describe('Test 2 — ο κανόνας ενεργοποιείται σε όλα τα έτη → 240 μήνες', () => {
   const income = { ...base, ke_t1: 199334, ke_t2: 208777, ke_t3: 26934, kerdh_t1: 10000, kerdh_t2: 2787, kerdh_t3: 0 }
   const r = computeLePublicDisposable(income)
-  it('X_Τ1 = 10% × ΚΕ_Τ1', () => {
+  it('X_Τ1 = 10% × ΚΕ_Τ1 και ισχύει σε όλα τα έτη', () => {
     close(r.X[0], 19933.4); close(r.monthly.year1, 1661.12)
+    expect(r.floorApplied).toEqual([true, true, true])
     expect(r.ruleTriggered).toBe(true)
   })
-  it('η διάρκεια ΑΑΔΕ/ΕΦΚΑ προκύπτει από την ΚΠΑ (όχι σταθερά 240), πολλαπλάσιο του 12', () => {
+  it('μέγιστος αριθμός δόσεων, χωρίς αναζήτηση ελάχιστης διάρκειας', () => {
     const calc = calculateAll(debts, [], income)
-    expect(calc.flagMaxDoses).toBe(false)
-    const d = calc.lePubDuration
-    expect(d.months % 12).toBe(0)
-    expect(d.months).toBeLessThan(240)
-    expect(d.kpa).toBeGreaterThanOrEqual(d.debt)
-    expect(d.kpaPrev).toBeLessThan(d.debt)
-    calc.finalPlan.filter((p) => p.type === 'Εφορία' || p.type === 'Ασφαλιστικά Ταμεία').forEach((p) => expect(p.months).toBe(d.months))
+    expect(calc.lePubDuration.forced).toBe(true)
+    expect(calc.lePubDuration.months).toBe(240)
+    calc.finalPlan.filter((p) => p.type === 'Εφορία' || p.type === 'Ασφαλιστικά Ταμεία').forEach((p) => expect(p.months).toBe(240))
+    // τράπεζες/servicers: μέγιστες δόσεις της κατηγορίας τους (ανέγγυο ΝΠ: 180)
+    expect(calc.finalPlan.find((p) => p.type === 'Τράπεζα').months).toBe(180)
   })
 })
 
@@ -121,7 +120,10 @@ describe('Test 6 — διάρκεια από ΚΠΑ (πραγματικό δοσ
     close(lp.annual.year1, 2693.4)
     close(lp.annual.years24, 17784.23)           // max(65% × M2, X_Τ1)
     close(lp.annual.years5, 27360.35)            // max(M2, X_Τ1)
-    expect(lp.ruleTriggered).toBe(true)
+    // Το κατώφλι 10% ισχύει στο Τ-1 αλλά όχι σε όλα τα έτη (κέρδη Τ-2 = 33.843 ≥ 19.933) → ΔΕΝ επιβάλλεται 240·
+    // η πραγματική απόφαση της πλατφόρμας είχε 48 δόσεις.
+    expect(lp.ruleTriggeredT1).toBe(true)
+    expect(lp.ruleTriggered).toBe(false)
   })
   it('ΚΠΑ: 36 μήνες δεν καλύπτει, 48 μήνες καλύπτει', () => {
     expect(Math.abs(lePublicKpa(lp, 36) - 36113)).toBeLessThan(2)
@@ -150,5 +152,68 @@ describe('Test 6 — διάρκεια από ΚΠΑ (πραγματικό δοσ
   it('όταν ούτε οι 240 μήνες καλύπτουν → 240 με διαγραφή', () => {
     const d = lePublicDuration(lp, 5_000_000)
     expect(d.months).toBe(240); expect(d.covered).toBe(false)
+  })
+})
+
+// ── Πραγματικός πελάτης: κανόνας 10% σε όλα τα έτη → 240 δόσεις ΑΑΔΕ/ΕΦΚΑ ─────────────────────
+describe('Test 7 — πραγματικός πελάτης (ΚΥΑ 77129 ΕΞ 2025)', () => {
+  const income = { ...base, ke_t1: 188229, ke_t2: 118112, ke_t3: 113938, kerdh_t1: 3808, kerdh_t2: 690, kerdh_t3: 1, deposits: 500 }
+  const pub = [
+    { id: 'a', type: 'Εφορία', amount: 26809, interestPct: 0, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0 },
+    { id: 'e', type: 'Ασφαλιστικά Ταμεία', amount: 21892, interestPct: 0, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0 },
+  ]
+  const calc = calculateAll(pub, [], income)
+  const aade = calc.finalPlan.find((p) => p.type === 'Εφορία')
+  const efka = calc.finalPlan.find((p) => p.type === 'Ασφαλιστικά Ταμεία')
+  it('ο κανόνας ενεργοποιείται, διαθέσιμο 18.822,90 €/έτος', () => {
+    expect(calc.lePub.ruleTriggered).toBe(true)
+    close(calc.lePub.annual.year1, 18822.9)
+    close(calc.lePub.monthly.year1, 1568.58)
+  })
+  it('240 μήνες, δόσεις 148,68 € και 121,41 €, σύνολο 270,09 €, χωρίς διαγραφή', () => {
+    expect(aade.months).toBe(240); expect(efka.months).toBe(240)
+    close(aade.c2Exact, 148.68); close(efka.c2Exact, 121.41)
+    close(aade.c2Exact + efka.c2Exact, 270.09)
+    expect(calc.sumWr).toBe(0)
+  })
+  it('ποσοστό = Σ δόσεων / μηνιαίο διαθέσιμο (17%)', () => {
+    expect(calc.ratio).toBe(17)
+  })
+})
+
+describe('Επιπλέον περιπτώσεις', () => {
+  const mkPub = (a, e) => [
+    { id: 'a', type: 'Εφορία', amount: a, interestPct: 0, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0 },
+    { id: 'e', type: 'Ασφαλιστικά Ταμεία', amount: e, interestPct: 0, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0 },
+  ]
+  it('κέρδη ≥ 10% τζίρου: ο κανόνας δεν ενεργοποιείται, ισχύει η ελάχιστη διάρκεια (ΚΠΑ)', () => {
+    const income = { ...base, ke_t1: 100000, ke_t2: 100000, ke_t3: 100000, kerdh_t1: 40000, kerdh_t2: 40000, kerdh_t3: 40000 }
+    const calc = calculateAll(mkPub(26809, 21892), [], income)
+    expect(calc.lePub.ruleTriggered).toBe(false)
+    expect(calc.lePubDuration.forced).toBeFalsy()
+    expect(calc.lePubDuration.months).toBeLessThan(240)
+  })
+  it('τζίρος > 2,5 εκ. σε ένα από τα 3 έτη: ο κανόνας δεν ενεργοποιείται ακόμη κι αν τα κέρδη είναι χαμηλά', () => {
+    const income = { ...base, ke_t1: 188229, ke_t2: 2600000, ke_t3: 113938, kerdh_t1: 3808, kerdh_t2: 690, kerdh_t3: 1 }
+    const calc = calculateAll(mkPub(26809, 21892), [], income)
+    expect(calc.lePub.eligible10).toBe(false)
+    expect(calc.lePub.ruleTriggered).toBe(false)
+    expect(calc.lePubDuration.forced).toBeFalsy()
+  })
+  it('μικρή οφειλή: δόση < 50 € στους 240 μήνες → μειώνεται η διάρκεια ώστε η δόση να είναι τουλάχιστον 50 €', () => {
+    const income = { ...base, ke_t1: 188229, ke_t2: 118112, ke_t3: 113938, kerdh_t1: 3808, kerdh_t2: 690, kerdh_t3: 1 }
+    const calc = calculateAll(mkPub(26809, 5000), [], income)
+    const efka = calc.finalPlan.find((p) => p.type === 'Ασφαλιστικά Ταμεία')
+    expect(efka.months).toBeLessThan(240)
+    expect(efka.c2Exact).toBeGreaterThanOrEqual(49.99)
+    expect(efka.c2Exact).toBeLessThan(55)
+  })
+  it('Φυσικό Πρόσωπο επιχειρηματίας με οφειλή σε τράπεζα: ο κανόνας εύλογου ποσοστού δίνει μέγιστες δόσεις και στις τράπεζες', () => {
+    const fpse = { debtorType: 'Φυσικό Πρόσωπο', fpSubType: 'Επιτηδευματίας', fp_income_t1: 5000, fp_income_t2: 8000, fp_income_t3: 9000,
+      fp_ke_t1: 200000, fp_ke_t2: 180000, fp_ke_t3: 160000, householdValue: 6448, householdSize: 1, debtorAge: 40 }
+    const bankDebt = [{ id: 'b', type: 'Τράπεζα', creditorName: 'Bank', amount: 30000, interestPct: 10, status: 'Ληξιπρόθεσμη', mortgaged: false, propertyValue: 0 }]
+    const calc = calculateAll(bankDebt, [], fpse)
+    expect(calc.flagMaxDoses).toBe(true)
+    expect(calc.finalPlan[0].months).toBe(240)   // ανέγγυο ΦΠ: μέγιστο 240
   })
 })

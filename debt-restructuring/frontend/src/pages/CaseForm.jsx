@@ -510,11 +510,17 @@ export default function CaseForm({ currentEmployee }) {
           <>
             {dur && (
               <div className="mb-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-                <p className="font-semibold">Διάρκεια ΑΑΔΕ / ΕΦΚΑ — ΚΥΑ 77697 ΕΞ 2021, όρος 7.14γ: <b>{dur.months} μήνες</b>{dur.covered ? '' : ' (μέγιστη — προκύπτει διαγραφή)'}</p>
-                <p className="text-xs mt-0.5">
-                  ΚΠΑ διαθέσιμου ({dur.months} μήνες, 3%): <b>{fmt(dur.kpa)}</b> {dur.covered ? '≥' : '<'} οφειλή ΑΑΔΕ + ΕΦΚΑ <b>{fmt(dur.debt)}</b>
-                  {dur.covered && dur.kpaPrev != null && <> · στους {dur.months - 12} μήνες η ΚΠΑ είναι {fmt(dur.kpaPrev)} (δεν καλύπτει)</>}
-                </p>
+                {dur.forced ? (
+                  <p className="font-semibold">Διάρκεια ΑΑΔΕ/ΕΦΚΑ: <b>{dur.months} μήνες</b> — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025): εφαρμογή μέγιστου αριθμού δόσεων λόγω κανόνα εύλογου ποσοστού 10%</p>
+                ) : (
+                  <>
+                    <p className="font-semibold">Διάρκεια ΑΑΔΕ / ΕΦΚΑ (κανόνας ΚΠΑ): <b>{dur.months} μήνες</b>{dur.covered ? '' : ' (μέγιστη — προκύπτει διαγραφή)'}</p>
+                    <p className="text-xs mt-0.5">
+                      ΚΠΑ διαθέσιμου ({dur.months} μήνες, 3%): <b>{fmt(dur.kpa)}</b> {dur.covered ? '≥' : '<'} οφειλή ΑΑΔΕ + ΕΦΚΑ <b>{fmt(dur.debt)}</b>
+                      {dur.covered && dur.kpaPrev != null && <> · στους {dur.months - 12} μήνες η ΚΠΑ είναι {fmt(dur.kpaPrev)} (δεν καλύπτει)</>}
+                    </p>
+                  </>
+                )}
               </div>
             )}
             {lp.warnings.length > 0 && (
@@ -528,7 +534,7 @@ export default function CaseForm({ currentEmployee }) {
                 <div>
                   <p className="font-bold text-amber-800 mb-0.5">ΕΝΕΡΓΟΠΟΙΗΣΗ ΚΑΝΟΝΑ ΕΥΛΟΓΟΥ ΠΟΣΟΣΤΟΥ — ΚΥΑ 77129 ΕΞ 2025 (Β' 2331/2025)</p>
                   <p className="text-sm text-amber-700 mb-1">
-                    Κέρδη Τ-1 μετά ΕΝΦΙΑ ({fmt(lp.xBefore[0])}/έτος) &lt; 10% × ΚΕ Τ-1 ({fmt(lp.floors[0])}/έτος).
+                    Κέρδη μετά ΕΝΦΙΑ &lt; 10% × ΚΕ σε όλα τα έτη της τριετίας — Τ-1: {fmt(lp.xBefore[0])}/έτος &lt; {fmt(lp.floors[0])}/έτος.
                   </p>
                   <ul className="text-sm text-amber-700 space-y-0.5">
                     <li>→ Διαθέσιμο έτους 1: <b>{fmt(lp.monthly.year1)}/μήνα</b> · ετών 2–4: <b>{fmt(lp.monthly.years24)}/μήνα</b> · από έτος 5: <b>{fmt(lp.monthly.years5)}/μήνα</b></li>
@@ -537,7 +543,9 @@ export default function CaseForm({ currentEmployee }) {
               </div>
             ) : lp.eligible10 ? (
               <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
-                Κανόνας 10% ΚΕ (Δημόσιο): δεν ενεργοποιείται — Κέρδη Τ-1 ({fmt(lp.xBefore[0])}) ≥ 10% ΚΕ Τ-1 ({fmt(lp.floors[0])}).
+                {lp.ruleTriggeredT1
+                  ? <>Κανόνας 10% ΚΕ: το κατώφλι ισχύει στο Τ-1 αλλά όχι σε όλα τα έτη της τριετίας — το διαθέσιμο αναπροσαρμόζεται ανά έτος, αλλά δεν επιβάλλεται μέγιστος αριθμός δόσεων.</>
+                  : <>Κανόνας 10% ΚΕ (Δημόσιο): δεν ενεργοποιείται — Κέρδη Τ-1 ({fmt(lp.xBefore[0])}) ≥ 10% ΚΕ Τ-1 ({fmt(lp.floors[0])}).</>}
               </div>
             ) : null}
           </>
