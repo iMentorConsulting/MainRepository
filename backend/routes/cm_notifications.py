@@ -753,6 +753,10 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     elif not phone.startswith("30"):
         phone = "30" + phone
 
+    # Viber text limit is 1000 characters
+    if len(message) > 1000:
+        message = message[:997] + "…"
+
     payload = {
         "to": phone,
         "text": message,
