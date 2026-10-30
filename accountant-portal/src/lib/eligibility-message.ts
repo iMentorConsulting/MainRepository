@@ -35,6 +35,9 @@ export async function sendEligibilityMessages(
 ): Promise<EligibilityMessageOutcome> {
   const { mode, channels, markSent = true, dryRun = false } = options
 
+  const appSetting = dryRun ? null : await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const imentorLogoUrl = appSetting?.imentorLogoUrl || null
+
   const accountantCache = new Map<string, AccountantMentionInfo | null>()
   async function getAccountantInfo(accountantId: string | null): Promise<AccountantMentionInfo | null> {
     if (mode !== 'accountant' || !accountantId) return null
@@ -64,7 +67,7 @@ export async function sendEligibilityMessages(
             await sendEmail({
               to: b.email,
               subject: buildEligibilitySubject(result.businessName, result.programs.length, accountantInfo),
-              html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo }),
+              html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo, imentorLogoUrl }),
             })
           }
           sentEmail++
@@ -113,6 +116,9 @@ export async function sendEligibilityMessageTest(
 ): Promise<{ found: boolean; businessName?: string | null; afm?: string; programCount?: number; sentEmail: boolean; sentViber: boolean }> {
   const { mode, channels, testEmail, testPhone } = options
 
+  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const imentorLogoUrl = appSetting?.imentorLogoUrl || null
+
   for (const b of targets) {
     let result
     try {
@@ -134,7 +140,7 @@ export async function sendEligibilityMessageTest(
       await sendEmail({
         to: testEmail,
         subject: `[ΔΟΚΙΜΗ] ${buildEligibilitySubject(result.businessName, result.programs.length, accountantInfo)}`,
-        html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo }),
+        html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo, imentorLogoUrl }),
       })
       sentEmail = true
     }

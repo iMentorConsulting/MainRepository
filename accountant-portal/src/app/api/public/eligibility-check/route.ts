@@ -177,10 +177,11 @@ export async function POST(request: NextRequest) {
         select: { id: true, eligibilityEmailSentAt: true },
       })
       if (business && !business.eligibilityEmailSentAt) {
+        const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
         await sendEmail({
           to: cleanEmail,
           subject: buildEligibilitySubject(result.businessName, result.programs.length),
-          html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails }),
+          html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, imentorLogoUrl: appSetting?.imentorLogoUrl }),
         })
         await prisma.business.update({ where: { id: business.id }, data: { eligibilityEmailSentAt: new Date() } })
       }

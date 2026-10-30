@@ -31,8 +31,9 @@ export function buildEligibilityEmailHtml(params: {
   programs: EligibilityProgramResult[]
   businessDetails?: EligibilityBusinessDetails
   accountantInfo?: AccountantMentionInfo | null
+  imentorLogoUrl?: string | null
 }): string {
-  const { businessName, programs, businessDetails, accountantInfo } = params
+  const { businessName, programs, businessDetails, accountantInfo, imentorLogoUrl } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
   const cards = programs.map(p => `
@@ -44,15 +45,19 @@ export function buildEligibilityEmailHtml(params: {
       </a>
     </div>`).join('')
 
-  // Logo + office name lead the header itself (not just a footnote further
-  // down) so the accountant's branding is the first thing seen, before any
-  // I-MENTOR framing — this is explicitly what makes an accountant-branded
-  // send feel like it's coming from their own office, not a generic blast.
-  const accountantHeader = accountantInfo
-    ? `<div style="background:#ffffff;padding:18px 28px;border:1px solid #e5e7eb;border-bottom:none;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:14px;">
-         ${accountantInfo.logoUrl ? `<img src="${accountantInfo.logoUrl}" alt="${accountantInfo.officeName}" style="max-height:48px;max-width:160px;object-fit:contain;" />` : ''}
-         <p style="margin:0;font-size:17px;font-weight:800;color:#111827;">${accountantInfo.officeName}</p>
-       </div>`
+  // Single blue banner carries both brands side by side — I-MENTOR on the
+  // left, the accountant's office on the right — same co-branding layout
+  // used in campaign emails (src/lib/email.ts renderCampaignEmailHtml), so
+  // an accountant-branded send looks consistent with every other I-MENTOR
+  // email instead of bolting on a separate white logo strip above it.
+  const brandLeft = imentorLogoUrl
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;" />`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:17px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+
+  const brandRight = accountantInfo
+    ? (accountantInfo.logoUrl
+        ? `<img src="${accountantInfo.logoUrl}" alt="${accountantInfo.officeName}" style="display:block;height:52px;width:auto;max-width:200px;object-fit:contain;margin-left:auto;" />`
+        : `<span style="font-weight:800;color:#ffffff;font-size:16px;text-align:right;display:block;">${accountantInfo.officeName}</span>`)
     : ''
 
   const accountantNote = accountantInfo
@@ -63,9 +68,12 @@ export function buildEligibilityEmailHtml(params: {
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      ${accountantHeader}
-      <div style="background:#1e3a8a;padding:24px 28px;${accountantInfo ? '' : 'border-radius:12px 12px 0 0;'}">
-        <h1 style="margin:0;color:#fff;font-size:19px;">✅ Βρέθηκαν διαθέσιμα προγράμματα</h1>
+      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:20px 28px;border-radius:12px 12px 0 0;">
+        <table width="100%" cellpadding="0" cellspacing="0"><tr>
+          <td valign="middle" align="left" style="padding-right:12px;">${brandLeft}</td>
+          ${brandRight ? `<td valign="middle" align="right" style="padding-left:12px;">${brandRight}</td>` : ''}
+        </tr></table>
+        <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">✅ Βρέθηκαν διαθέσιμα προγράμματα</h1>
       </div>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>

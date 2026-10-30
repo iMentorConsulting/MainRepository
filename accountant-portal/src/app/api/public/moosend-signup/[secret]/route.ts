@@ -190,10 +190,12 @@ export async function POST(request: NextRequest, { params }: { params: { secret:
       return NextResponse.json({ ok: true, eligible: true, emailSent: false, reason: 'no email in payload' })
     }
 
+    const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+
     await sendEmail({
       to: email,
       subject: buildEligibilitySubject(result.businessName, result.programs.length),
-      html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails }),
+      html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, imentorLogoUrl: appSetting?.imentorLogoUrl }),
     })
 
     logWebhook({ ok: true, summary: `eligible: ${result.programs.length} program(s), email sent`, afm: cleanAfm, email, payload: body })
