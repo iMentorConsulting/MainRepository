@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
-import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick, Filter, X, Search } from 'lucide-react'
+import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick, Filter, X, Search, Target } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
+import { useSession } from 'next-auth/react'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
 const statusLabel: Record<string, string> = { DRAFT: 'Πρόχειρο', SCHEDULED: 'Προγρ/νο', SENT: 'Απεστάλη' }
@@ -112,12 +114,15 @@ function ChipGroup({ label, options, selected, onChange, searchable = false }: C
 // ──────────────────────────────────────────────────────────────────────────
 
 export default function CampaignsPage() {
+  const { data: session } = useSession()
+  const isAccountant = session?.user?.role === 'ACCOUNTANT'
   const [allCampaigns, setAllCampaigns] = useState<any[]>([])
   const [analytics, setAnalytics] = useState<any>(null)
   const [accountants, setAccountants] = useState<any[]>([])
   const [programs, setPrograms] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showFilters, setShowFilters] = useState(false)
+  const [eligibilityMessageOpen, setEligibilityMessageOpen] = useState(false)
 
   // Filter state
   const [selAccountants, setSelAccountants] = useState<string[]>([])
@@ -209,7 +214,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* ── Quick-start wizard cards ────────────────────────────────────── */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isAccountant ? 'lg:grid-cols-3' : ''}`}>
         <Link href="/campaigns/new?path=diy">
           <div className="group p-5 rounded-2xl border-2 border-indigo-200 bg-indigo-50 hover:border-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer">
             <div className="flex items-start gap-4">
@@ -243,7 +248,35 @@ export default function CampaignsPage() {
             </div>
           </div>
         </Link>
+
+        {isAccountant && (
+          <div
+            onClick={() => setEligibilityMessageOpen(true)}
+            className="group p-5 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100 transition-all cursor-pointer"
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-200 transition-colors">
+                <Target size={20} className="text-emerald-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-gray-900 text-base">Email/Viber Επιλεξιμότητας σε όλους τους πελάτες μου</h3>
+                <p className="text-sm text-gray-500 mt-0.5">Ένα μήνυμα ανά πελάτη, με όλα τα προγράμματα για τα οποία είναι αυτή τη στιγμή επιλέξιμος — όχι ξεχωριστό ανά πρόγραμμα.</p>
+                <span className="mt-2 inline-flex items-center gap-1 text-sm text-emerald-700 font-semibold">
+                  Αποστολή τώρα <ArrowRight size={14} />
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
+
+      {eligibilityMessageOpen && (
+        <EligibilityMessageModal
+          allMyClients
+          businessCountLabel="σε όλους τους πελάτες σας που είναι αυτή τη στιγμή επιλέξιμοι για κάποιο πρόγραμμα"
+          onClose={() => setEligibilityMessageOpen(false)}
+        />
+      )}
 
       {/* ── Filter panel ───────────────────────────────────────────────── */}
       {showFilters && (

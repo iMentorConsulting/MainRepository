@@ -1,11 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { checkEligibilityForAfm } from '@/lib/eligibility-check-core'
-import { buildEligibilitySubject, buildEligibilityEmailHtml, buildEligibilityViberText, AccountantMentionInfo } from '@/lib/eligibility-email'
-import { sendEmail } from '@/lib/email'
-import { sendViberMessage } from '@/lib/viber'
-import { mapWithConcurrency } from '@/lib/concurrency'
+import { sendEligibilityMessages } from '@/lib/eligibility-message'
 
 export const dynamic = 'force-dynamic'
 
@@ -73,62 +69,10 @@ export async function POST(request: NextRequest) {
     select: { id: true, afm: true, email: true, phone: true, viberPhone: true, accountantId: true },
   })
 
-  const accountantCache = new Map<string, AccountantMentionInfo | null>()
-  async function getAccountantInfo(accountantId: string | null): Promise<AccountantMentionInfo | null> {
-    if (mode !== 'accountant' || !accountantId) return null
-    if (accountantCache.has(accountantId)) return accountantCache.get(accountantId)!
-    const acc = await prisma.accountant.findUnique({ where: { id: accountantId }, select: { officeName: true, contactPerson: true } })
-    const info = acc ? { officeName: acc.officeName, contactPerson: acc.contactPerson } : null
-    accountantCache.set(accountantId, info)
-    return info
-  }
-
-  let sentEmail = 0
-  let sentViber = 0
-  let ineligible = 0
-  let failed = 0
-
-  await mapWithConcurrency(batch, 5, async (b) => {
-    try {
-      const result = await checkEligibilityForAfm(b.afm, b.email, b.phone)
-      if (!result.notFound && !result.inactive && result.programs.length > 0) {
-        const accountantInfo = await getAccountantInfo(b.accountantId)
-        if (channels.has('email') && b.email) {
-          await sendEmail({
-            to: b.email,
-            subject: buildEligibilitySubject(result.businessName, result.programs.length),
-            html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo }),
-          })
-          sentEmail++
-        }
-        const viberNumber = b.viberPhone || b.phone
-        if (channels.has('viber') && viberNumber) {
-          const viberResult = await sendViberMessage({
-            to: viberNumber,
-            text: buildEligibilityViberText({ businessName: result.businessName, programs: result.programs, accountantInfo }),
-            senderName: 'I-MENTOR',
-          })
-          if (viberResult.ok) sentViber++
-        }
-      } else {
-        ineligible++
-      }
-      await prisma.business.update({ where: { id: b.id }, data: { eligibilityEmailSentAt: new Date() } })
-    } catch (err: any) {
-      failed++
-      console.error(`[EligibilityBackfill] ΑΦΜ ${b.afm} failed:`, err?.message)
-      // Still mark as processed — a persistently-failing ΑΦΜ (e.g. AADE down
-      // for that lookup) would otherwise block every future batch forever.
-      await prisma.business.update({ where: { id: b.id }, data: { eligibilityEmailSentAt: new Date() } }).catch(() => {})
-    }
-  })
+  const outcome = await sendEligibilityMessages(batch, { mode, channels: channels as Set<'email' | 'viber'> })
 
   return NextResponse.json({
-    processed: batch.length,
-    sentEmail,
-    sentViber,
-    ineligible,
-    failed,
+    ...outcome,
     remaining: Math.max(0, totalRemaining - batch.length),
   })
 }

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
+import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
@@ -73,6 +74,7 @@ export default function BusinessDetailPage() {
   const [editNotes, setEditNotes] = useState(false)
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
+  const [eligibilityMessage, setEligibilityMessage] = useState(false)
   // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
   const [newCase, setNewCase] = useState(
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('newCase') === '1'
@@ -226,6 +228,13 @@ export default function BusinessDetailPage() {
             <Send size={15} />
             Γρήγορη Αποστολή
           </Button>
+          <Button
+            variant="outline"
+            onClick={() => setEligibilityMessage(true)}
+          >
+            <Mail size={15} className="mr-1.5" />
+            Email/Viber Επιλεξιμότητας
+          </Button>
           <Button variant="outline" onClick={() => setNewCase(true)}>
             <ClipboardList size={16} className="mr-2" />
             Ανάθεση Επιχορήγησης
@@ -273,6 +282,13 @@ export default function BusinessDetailPage() {
         <QuickSendModal
           businesses={[{ id: business.id, onomasia: business.onomasia, afm: business.afm, accountantId: business.accountantId, accountantOfficeName: business.accountant?.officeName }]}
           onClose={() => setQuickSend(false)}
+        />
+      )}
+
+      {eligibilityMessage && (
+        <EligibilityMessageModal
+          businessIds={[business.id]}
+          onClose={() => setEligibilityMessage(false)}
         />
       )}
 

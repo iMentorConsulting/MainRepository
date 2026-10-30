@@ -9,7 +9,8 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Pagination } from '@/components/ui/pagination'
 import { MultiSelect } from '@/components/ui/multi-select'
 import { QuickSendModal } from '@/components/quick-send-modal'
-import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList, CheckCircle2, MessageSquare } from 'lucide-react'
+import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
+import { Send, ChevronUp, ChevronDown, ChevronsUpDown, Search, Check, X as XIcon, Ban, Eye, EyeOff, ClipboardList, CheckCircle2, MessageSquare, Mail } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { ErmisTranscriptModal } from '@/components/programs/ermis-transcript-modal'
 import { getEffectiveCategory } from '@/lib/business-categories'
@@ -214,6 +215,7 @@ function MatchesPageInner() {
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [quickSendOpen, setQuickSendOpen] = useState(false)
+  const [eligibilityMessageOpen, setEligibilityMessageOpen] = useState(false)
   const [caseFor, setCaseFor] = useState<{ businessId: string; programId: string } | null>(null)
   const [transcriptFor, setTranscriptFor] = useState<{ businessId: string; programId: string } | null>(null)
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
@@ -332,6 +334,9 @@ function MatchesPageInner() {
     accountantId: m.business?.accountantId,
     accountantOfficeName: m.business?.accountant?.officeName,
   })).filter(b => b.id)
+  // Multiple selected matches can belong to the same business (different
+  // programs) — dedupe before sending the combined-eligibility message.
+  const selectedBusinessIds = Array.from(new Set(selectedBusinesses.map(b => b.id)))
 
   return (
     <div className="space-y-6">
@@ -344,6 +349,7 @@ function MatchesPageInner() {
         </div>
         <div className="flex items-center gap-3">
           {selected.size > 0 && (
+          <>
           <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
             onClick={() => setQuickSendOpen(true)}
@@ -351,6 +357,15 @@ function MatchesPageInner() {
             <Send size={15} />
             Γρήγορη Αποστολή ({selected.size})
           </Button>
+          <Button
+            variant="outline"
+            className="flex items-center gap-2"
+            onClick={() => setEligibilityMessageOpen(true)}
+          >
+            <Mail size={15} />
+            Email/Viber Επιλεξιμότητας ({selectedBusinessIds.length})
+          </Button>
+          </>
           )}
         </div>
       </div>
@@ -661,6 +676,14 @@ function MatchesPageInner() {
         <QuickSendModal
           businesses={selectedBusinesses}
           onClose={() => setQuickSendOpen(false)}
+          onSent={() => setSelected(new Set())}
+        />
+      )}
+
+      {eligibilityMessageOpen && selectedBusinessIds.length > 0 && (
+        <EligibilityMessageModal
+          businessIds={selectedBusinessIds}
+          onClose={() => setEligibilityMessageOpen(false)}
           onSent={() => setSelected(new Set())}
         />
       )}
