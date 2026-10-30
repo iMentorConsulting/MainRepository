@@ -763,12 +763,10 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     if service_type:
         payload["service_tag"] = service_type
 
-    import logging as _logging
-    _log = _logging.getLogger(__name__)
-    _log.info("Viber send payload: %s", payload)
+    print(f"[VIBER] payload to={payload['to']} name={payload.get('name')!r} service_tag={payload.get('service_tag')!r} text_len={len(payload['text'])}", flush=True)
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
-        _log.info("Viber bridge response %s: %s", resp.status_code, resp.text[:1000])
+        print(f"[VIBER] bridge response {resp.status_code}: {resp.text[:1000]}", flush=True)
         if resp.status_code in (200, 201):
             # Enqueue Chatwoot logging — processed by rate-limited background worker
             try:
