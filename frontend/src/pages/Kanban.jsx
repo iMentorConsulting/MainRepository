@@ -205,15 +205,19 @@ function QuickNotifyButton({ caseItem }) {
     setSending(true)
     try {
       const res = await sendNotification(caseItem.id, { notification_type: channel, message: msg, subject })
-      const ok = (res.results || []).some(r => r.status === 'sent')
-      const failed = (res.results || []).filter(r => r.status === 'failed')
+      const results = res.results || []
+      const ok = results.some(r => r.status === 'sent')
+      const failed = results.filter(r => r.status === 'failed')
+      const skipped = results.filter(r => r.status === 'skipped')
       if (ok) {
         toast.success('Ειδοποίηση εστάλη')
         setMsg(''); setOpen(false)
       } else if (failed.length) {
-        toast.error(failed[0].error || 'Αποτυχία αποστολής')
+        toast.error(`Αποτυχία: ${failed[0].error || 'Άγνωστο σφάλμα bridge'}`)
+      } else if (skipped.length) {
+        toast.error(`Δεν εστάλη: ${skipped[0].error || 'Δεν υπάρχουν στοιχεία επικοινωνίας'}`)
       } else {
-        toast.error('Δεν υπάρχουν στοιχεία επικοινωνίας')
+        toast.error('Δεν υπάρχουν στοιχεία επικοινωνίας για αυτή την υπόθεση')
       }
     } catch (e) { toast.error(e?.response?.data?.detail || 'Σφάλμα αποστολής') }
     finally { setSending(false) }
