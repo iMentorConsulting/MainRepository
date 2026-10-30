@@ -51,13 +51,13 @@ export function buildEligibilityEmailHtml(params: {
   // an accountant-branded send looks consistent with every other I-MENTOR
   // email instead of bolting on a separate white logo strip above it.
   const brandLeft = imentorLogoUrl
-    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:44px;width:auto;max-width:180px;object-fit:contain;" />`
-    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:17px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
 
   const brandRight = accountantInfo
     ? (accountantInfo.logoUrl
-        ? `<img src="${accountantInfo.logoUrl}" alt="${accountantInfo.officeName}" style="display:block;height:52px;width:auto;max-width:200px;object-fit:contain;margin-left:auto;" />`
-        : `<span style="font-weight:800;color:#ffffff;font-size:16px;text-align:right;display:block;">${accountantInfo.officeName}</span>`)
+        ? `<img src="${accountantInfo.logoUrl}" alt="${accountantInfo.officeName}" style="display:block;height:90px;width:auto;max-width:300px;object-fit:contain;margin-left:auto;" />`
+        : `<span style="font-weight:800;color:#ffffff;font-size:20px;text-align:right;display:block;">${accountantInfo.officeName}</span>`)
     : ''
 
   const accountantNote = accountantInfo
@@ -68,7 +68,7 @@ export function buildEligibilityEmailHtml(params: {
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:20px 28px;border-radius:12px 12px 0 0;">
+      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;border-radius:12px 12px 0 0;">
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
           <td valign="middle" align="left" style="padding-right:12px;">${brandLeft}</td>
           ${brandRight ? `<td valign="middle" align="right" style="padding-left:12px;">${brandRight}</td>` : ''}
