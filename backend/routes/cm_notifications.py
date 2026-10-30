@@ -767,16 +767,11 @@ def _send_viber(phone: str, message: str, client_name: str = "", agent_name: str
     if service_type:
         payload["service_tag"] = service_type
 
-    print(f"[VIBER] payload to={payload['to']} name={payload.get('name')!r} service_tag={payload.get('service_tag')!r} text_len={len(payload['text'])}", flush=True)
     try:
         resp = requests.post(f"{bridge_url}/send", json=payload, timeout=10)
-        print(f"[VIBER] bridge response {resp.status_code}: {resp.text[:1000]}", flush=True)
         if resp.status_code in (200, 201):
-            # Enqueue Chatwoot logging — processed by rate-limited background worker
-            try:
-                _cw_queue.put_nowait((phone, message, client_name))
-            except queue.Full:
-                pass  # queue full (>2000 pending), skip Chatwoot log for this one
+            # The bridge already logs the outgoing message to Chatwoot via the
+            # Infobip webhook — we must NOT also log here or it appears twice.
             return True, "OK"
         return False, f"Bridge HTTP {resp.status_code} — {resp.text[:500]}"
     except Exception as e:
