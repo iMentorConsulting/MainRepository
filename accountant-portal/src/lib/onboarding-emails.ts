@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email'
 const APP_URL = process.env.APP_URL || 'https://logistis.i-mentor.gr'
 const BOOKING_URL = process.env.ANYDESK_BOOKING_URL || 'https://calendly.com/i-mentor/anydesk-15min'
 
-const STEP_DELAYS_DAYS = [0, 3, 7, 14] // steps 1-4
+const STEP_DELAYS_DAYS = [0, 3, 7, 14, 21] // steps 1-5
 
 // ─── shared layout wrappers ────────────────────────────────────────────────
 
@@ -370,6 +370,56 @@ ${emailHeader('15 λεπτά AnyDesk — στήνουμε όλα μαζί 🖥�
   return { subject, html }
 }
 
+function step5(name: string, officeName: string): { subject: string; html: string } {
+  const subject = `Ένα μήνυμα, όλα τα προγράμματα — η πιο γρήγορη ενημέρωση πελατών`
+  const html = emailWrap(`
+${emailHeader('Ενημερώστε όλους τους πελάτες σας, για όλα όσα δικαιούνται, με ένα κλικ 📬', `Αντί για ένα email ανά πρόγραμμα, ένα μόνο μήνυμα με όλα τα προγράμματα που αφορούν τον κάθε πελάτη.`)}
+<div style="background:white;padding:32px 40px;">
+  <p style="font-size:15px;margin:0 0 24px;color:#374151;">Αγαπητέ/ή <strong>${name}</strong>,</p>
+  <p style="font-size:14px;margin:0 0 24px;color:#374151;line-height:1.7;">
+    Θέλουμε να σας δείξουμε ένα από τα πιο χρήσιμα εργαλεία της πλατφόρμας — ζητήθηκε από συναδέλφους σας και πιστεύουμε ότι θα σας εξοικονομήσει πολύ χρόνο: τη <strong>μαζική ενημέρωση επιλεξιμότητας</strong>.
+  </p>
+
+  ${emailSection('🎯', 'Το πρόβλημα που λύνει', `
+    Μέχρι τώρα, αν ένας πελάτης σας ήταν επιλέξιμος για 3 διαφορετικά προγράμματα, θα έπρεπε να του στείλετε (ή να λάβει) 3 ξεχωριστά μηνύματα — ένα ανά πρόγραμμα. Αυτό δεν είναι μόνο κουραστικό, αλλά κατακλύζει και τον πελάτη.
+  `)}
+
+  ${emailSection('✨', 'Η λύση: ένα μήνυμα με όλα μαζί', `
+    Με ένα κλικ, η πλατφόρμα ελέγχει <strong>σε πραγματικό χρόνο</strong> για ποια ενεργά προγράμματα είναι επιλέξιμος κάθε πελάτης σας, και στέλνει <strong>ένα ενιαίο email ή/και μήνυμα Viber</strong> που τα παρουσιάζει όλα μαζί, καθαρά και οργανωμένα.
+  `)}
+
+  ${infoBox('🏢', `
+    Το μήνυμα φέρει πάντα το <strong>λογότυπο και το όνομα του γραφείου σας</strong> — ο πελάτης βλέπει εσάς να τον ενημερώνετε, με την υποστήριξη της I-MENTOR.
+  `, '#ede9fe', '#c4b5fd', '#4c1d95')}
+
+  ${divider()}
+
+  <h2 style="font-size:17px;font-weight:700;color:#1e1b4b;margin:0 0 6px;">Πού το βρίσκετε</h2>
+  <p style="font-size:14px;color:#374151;line-height:1.9;margin:0 0 20px;">
+    Το κουμπί <strong>«Email/Viber Επιλεξιμότητας»</strong> είναι διαθέσιμο σε τρία σημεία:
+  </p>
+  <ul style="margin:0 0 20px;padding-left:20px;font-size:14px;color:#374151;line-height:2;">
+    <li>Στη σελίδα <strong>κάθε επιχείρησης</strong> — για μεμονωμένη αποστολή</li>
+    <li>Στη σελίδα <strong>«Επιχειρήσεις»</strong> — για αποστολή σε πολλές επιχειρήσεις ταυτόχρονα</li>
+    <li>Στη σελίδα <strong>«Campaigns»</strong> — για αποστολή σε <strong>όλο το πελατολόγιό σας</strong> με ένα κλικ</li>
+  </ul>
+
+  ${emailSection('🔎', 'Πριν την αποστολή, βλέπετε ακριβώς τι θα σταλεί', `
+    Η πλατφόρμα σας δείχνει μια προεπισκόπηση με τον ακριβή αριθμό email και μηνυμάτων Viber που θα σταλούν, πριν πατήσετε οριστική αποστολή — καμία έκπληξη.
+  `)}
+
+  ${ctaButton('Δείτε το στις Επιχειρήσεις σας →', `${APP_URL}/businesses`)}
+
+  ${divider()}
+
+  <p style="font-size:14px;color:#374151;line-height:1.7;margin:0 0 8px;">
+    Θέλετε να σας το δείξουμε ζωντανά, ή να στείλουμε μαζί την πρώτη ενημέρωση στο πελατολόγιό σας;
+  </p>
+  ${ctaButton('🗓️ Κλείστε ραντεβού AnyDesk (15 λεπτά)', BOOKING_URL, '#059669')}
+</div>`)
+  return { subject, html }
+}
+
 // ─── public API ────────────────────────────────────────────────────────────
 
 export async function scheduleOnboardingEmails(accountantId: string): Promise<void> {
@@ -410,6 +460,8 @@ export async function sendOnboardingEmailStep(onboardingEmailId: string): Promis
     payload = await step3(name, officeName, accountant.id)
   } else if (step === 4) {
     payload = step4(name, officeName)
+  } else if (step === 5) {
+    payload = step5(name, officeName)
   } else {
     return
   }
