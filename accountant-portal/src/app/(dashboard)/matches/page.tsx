@@ -353,17 +353,20 @@ function MatchesPageInner() {
           <Button
             className="bg-indigo-600 hover:bg-indigo-700 text-white flex items-center gap-2"
             onClick={() => setQuickSendOpen(true)}
+            title="Στέλνει μήνυμα για 1 συγκεκριμένο πρόγραμμα"
           >
             <Send size={15} />
             Γρήγορη Αποστολή ({selected.size})
+            <span className="hidden sm:inline text-[10px] font-normal bg-white/20 px-1.5 py-0.5 rounded">1 πρόγραμμα</span>
           </Button>
           <Button
-            variant="outline"
-            className="flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
             onClick={() => setEligibilityMessageOpen(true)}
+            title="Στέλνει ΕΝΑ μήνυμα με ΟΛΑ τα προγράμματα για τα οποία είναι επιλέξιμη κάθε επιχείρηση"
           >
             <Mail size={15} />
             Email/Viber Επιλεξιμότητας ({selectedBusinessIds.length})
+            <span className="hidden sm:inline text-[10px] font-normal bg-white/20 px-1.5 py-0.5 rounded">Όλα τα προγράμματα</span>
           </Button>
           </>
           )}

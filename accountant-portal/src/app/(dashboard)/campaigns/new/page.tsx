@@ -4,8 +4,9 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import { Button } from '@/components/ui/button'
 import { Select } from '@/components/ui/select'
-import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2, Search, X } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Mail, Users, Send, Sparkles, MessageCircle, CheckCircle2, Search, X, Target } from 'lucide-react'
 import Link from 'next/link'
+import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 
 // ── Step tracker ──────────────────────────────────────────────────────────────
 function Steps({ current }: { current: number }) {
@@ -31,7 +32,7 @@ function Steps({ current }: { current: number }) {
 }
 
 // ── Step 0: Choose path ───────────────────────────────────────────────────────
-function StepChoosePath({ onDiy, onWithIMentor }: { onDiy: () => void; onWithIMentor: () => void }) {
+function StepChoosePath({ onDiy, onWithIMentor, onEligibilityMessage }: { onDiy: () => void; onWithIMentor: () => void; onEligibilityMessage?: () => void }) {
   return (
     <div className="space-y-4">
       <div className="text-center mb-6">
@@ -59,6 +60,22 @@ function StepChoosePath({ onDiy, onWithIMentor }: { onDiy: () => void; onWithIMe
           <span className="mt-3 inline-flex items-center gap-1 text-sm text-purple-600 font-medium">Ζητήστε βοήθεια <ArrowRight size={14} /></span>
         </button>
       </div>
+
+      {onEligibilityMessage && (
+        <button onClick={onEligibilityMessage}
+          className="w-full text-left p-6 rounded-2xl border-2 border-emerald-100 hover:border-emerald-400 hover:bg-emerald-50 transition-all group">
+          <div className="flex items-start gap-4">
+            <div className="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0 group-hover:bg-emerald-200 transition-colors">
+              <Target size={22} className="text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="font-bold text-gray-900 mb-1">Email/Viber Επιλεξιμότητας σε όλους τους πελάτες μου</h3>
+              <p className="text-sm text-gray-500">Ένα μήνυμα ανά πελάτη, με <strong>όλα</strong> τα προγράμματα για τα οποία είναι αυτή τη στιγμή επιλέξιμος — όχι ξεχωριστό ανά πρόγραμμα όπως οι δύο παραπάνω επιλογές.</p>
+              <span className="mt-3 inline-flex items-center gap-1 text-sm text-emerald-700 font-medium">Αποστολή τώρα <ArrowRight size={14} /></span>
+            </div>
+          </div>
+        </button>
+      )}
     </div>
   )
 }
@@ -649,6 +666,7 @@ export default function NewCampaignPage() {
   const [path, setPath] = useState<'diy' | 'imentor' | null>(null)
 
   const [preselectedBusinessIds, setPreselectedBusinessIds] = useState<string[] | null>(null)
+  const [eligibilityMessageOpen, setEligibilityMessageOpen] = useState(false)
 
   useEffect(() => {
     const p = searchParams.get('path')
@@ -749,6 +767,7 @@ export default function NewCampaignPage() {
           <StepChoosePath
             onDiy={() => { setPath('diy'); setStep(1) }}
             onWithIMentor={() => { setPath('imentor'); setStep(1) }}
+            onEligibilityMessage={(session?.user as any)?.role === 'ACCOUNTANT' ? () => setEligibilityMessageOpen(true) : undefined}
           />
         )}
 
@@ -793,6 +812,14 @@ export default function NewCampaignPage() {
           />
         )}
       </div>
+
+      {eligibilityMessageOpen && (
+        <EligibilityMessageModal
+          allMyClients
+          businessCountLabel="σε όλους τους πελάτες σας που είναι αυτή τη στιγμή επιλέξιμοι για κάποιο πρόγραμμα"
+          onClose={() => setEligibilityMessageOpen(false)}
+        />
+      )}
     </div>
   )
 }

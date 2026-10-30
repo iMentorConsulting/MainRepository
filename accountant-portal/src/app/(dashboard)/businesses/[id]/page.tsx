@@ -224,16 +224,20 @@ export default function BusinessDetailPage() {
           <Button
             onClick={() => setQuickSend(true)}
             className="flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white text-sm px-4 py-2 rounded-lg"
+            title="Στέλνει μήνυμα για 1 συγκεκριμένο πρόγραμμα"
           >
             <Send size={15} />
             Γρήγορη Αποστολή
+            <span className="hidden sm:inline text-[10px] font-normal bg-white/20 px-1.5 py-0.5 rounded">1 πρόγραμμα</span>
           </Button>
           <Button
-            variant="outline"
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm px-4 py-2 rounded-lg"
             onClick={() => setEligibilityMessage(true)}
+            title="Στέλνει ΕΝΑ μήνυμα με ΟΛΑ τα προγράμματα για τα οποία είναι επιλέξιμη η επιχείρηση"
           >
-            <Mail size={15} className="mr-1.5" />
+            <Mail size={15} />
             Email/Viber Επιλεξιμότητας
+            <span className="hidden sm:inline text-[10px] font-normal bg-white/20 px-1.5 py-0.5 rounded">Όλα τα προγράμματα</span>
           </Button>
           <Button variant="outline" onClick={() => setNewCase(true)}>
             <ClipboardList size={16} className="mr-2" />

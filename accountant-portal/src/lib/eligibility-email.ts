@@ -77,12 +77,15 @@ export function buildEligibilityViberText(params: {
     ? `${name}, εντοπίσαμε 1 πρόγραμμα επιχορήγησης για το οποίο είστε πιθανώς επιλέξιμοι:`
     : `${name}, εντοπίσαμε ${programs.length} προγράμματα επιχορήγησης για τα οποία είστε πιθανώς επιλέξιμοι:`
 
+  // Viber (via Chatwoot) supports simple *bold* markup, same convention as
+  // WhatsApp — used here for program titles and the accountant's office name
+  // so they stand out in a plain-text message.
   const lines = [`🎯 ${intro}`, '']
   if (accountantInfo) {
-    lines.push(`(σε συνεργασία με το λογιστικό σας γραφείο${accountantInfo.officeName ? ` ${accountantInfo.officeName}` : ''})`, '')
+    lines.push(`(σε συνεργασία με το λογιστικό σας γραφείο${accountantInfo.officeName ? ` *${accountantInfo.officeName}*` : ''})`, '')
   }
   programs.forEach((p, i) => {
-    lines.push(`${i + 1}. ${p.title}`)
+    lines.push(`${i + 1}. *${p.title}*`)
     lines.push(`🤖 Δωρεάν έλεγχος με τον Ερμή: ${p.ermisUrl}`, '')
   })
   lines.push('iMentor Consulting')

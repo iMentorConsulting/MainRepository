@@ -13,7 +13,7 @@ import { Select } from '@/components/ui/select'
 import { getEffectiveCategory, ALL_CATEGORIES } from '@/lib/business-categories'
 import { CategoryBadge } from '@/components/businesses/category-badge'
 import { resolveRegionFromZip, GREEK_REGIONS } from '@/lib/greek-regions'
-import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown, RefreshCw } from 'lucide-react'
+import { Plus, Search, Download, Filter, Trash2, UserCog, Send, Smartphone, Upload, X, ChevronUp, ChevronDown, ChevronsUpDown, RefreshCw, Mail } from 'lucide-react'
 
 function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortDir: string }) {
   if (sortBy !== col) return <ChevronsUpDown size={13} className="text-gray-400 ml-1 inline" />
@@ -22,6 +22,7 @@ function SortIcon({ col, sortBy, sortDir }: { col: string; sortBy: string; sortD
     : <ChevronDown size={13} className="text-indigo-600 ml-1 inline" />
 }
 import { QuickSendModal } from '@/components/quick-send-modal'
+import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 
 interface Accountant {
   id: string
@@ -96,6 +97,7 @@ export default function BusinessesPage() {
   const [websiteFormOnly, setWebsiteFormOnly] = useState(false)
 
   const [quickSendOpen, setQuickSendOpen] = useState(false)
+  const [eligibilityMessageOpen, setEligibilityMessageOpen] = useState(false)
   const [enrichOpen, setEnrichOpen] = useState(false)
   const [assignOpen, setAssignOpen] = useState(false)
   const [assignAccountantId, setAssignAccountantId] = useState('')
@@ -353,9 +355,23 @@ export default function BusinessesPage() {
                 size="sm"
                 className="bg-indigo-600 hover:bg-indigo-700 text-white"
                 onClick={() => setQuickSendOpen(true)}
+                title="Στέλνει μήνυμα για 1 συγκεκριμένο πρόγραμμα"
               >
                 <Send size={14} className="mr-1" />
                 Γρήγορη Αποστολή ({selected.size})
+                <span className="hidden sm:inline text-[10px] font-normal bg-white/20 px-1.5 py-0.5 rounded ml-1">1 πρόγραμμα</span>
+              </Button>
+            )}
+            {selected.size > 0 && (
+              <Button
+                size="sm"
+                className="bg-emerald-600 hover:bg-emerald-700 text-white"
+                onClick={() => setEligibilityMessageOpen(true)}
+                title="Στέλνει ΕΝΑ μήνυμα με ΟΛΑ τα προγράμματα για τα οποία είναι επιλέξιμη κάθε επιχείρηση"
+              >
+                <Mail size={14} className="mr-1" />
+                Email/Viber Επιλεξιμότητας ({selected.size})
+                <span className="hidden sm:inline text-[10px] font-normal bg-white/20 px-1.5 py-0.5 rounded ml-1">Όλα τα προγράμματα</span>
               </Button>
             )}
             {isAdmin && selected.size > 0 && (
@@ -602,6 +618,14 @@ export default function BusinessesPage() {
         <QuickSendModal
           businesses={businesses.filter(b => selected.has(b.id)).map(b => ({ id: b.id, onomasia: b.onomasia, afm: b.afm, accountantId: b.accountantId, accountantOfficeName: b.accountant?.officeName }))}
           onClose={() => setQuickSendOpen(false)}
+          onSent={() => setSelected(new Set())}
+        />
+      )}
+
+      {eligibilityMessageOpen && (
+        <EligibilityMessageModal
+          businessIds={Array.from(selected)}
+          onClose={() => setEligibilityMessageOpen(false)}
           onSent={() => setSelected(new Set())}
         />
       )}
