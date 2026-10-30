@@ -2,17 +2,6 @@ import { buildProgramDescription } from './ermis-program-payload'
 import type { EligibilityProgramResult, EligibilityBusinessDetails } from './eligibility-check-core'
 import { buildAadeBusinessDetailsCardHtml } from './business-profile'
 
-// Sent when a website/Moosend signup turns out to be eligible for one or
-// more programs — lists every eligible program with its own "chat with
-// Ermis" link, same underlying data the on-page widget already shows live,
-// just delivered as an email for signups that happen off-page.
-export function buildEligibilitySubject(businessName: string | null, programCount: number): string {
-  const name = businessName || 'Η επιχείρησή σας'
-  return programCount === 1
-    ? `${name} — Βρέθηκε πρόγραμμα επιχορήγησης για εσάς`
-    : `${name} — Βρέθηκαν ${programCount} προγράμματα επιχορήγησης για εσάς`
-}
-
 // When mode === 'accountant' and the business has an assigned accountant,
 // the message frames this as a joint effort with their accountant's office
 // instead of I-MENTOR reaching out alone. Null/omitted means the admin chose
@@ -20,6 +9,21 @@ export function buildEligibilitySubject(businessName: string | null, programCoun
 export interface AccountantMentionInfo {
   officeName: string
   contactPerson?: string | null
+  logoUrl?: string | null
+}
+
+// Sent when a website/Moosend signup turns out to be eligible for one or
+// more programs — lists every eligible program with its own "chat with
+// Ermis" link, same underlying data the on-page widget already shows live,
+// just delivered as an email for signups that happen off-page. When sent on
+// an accountant's behalf, their office name leads the subject so it stands
+// out in the inbox instead of being buried in the body.
+export function buildEligibilitySubject(businessName: string | null, programCount: number, accountantInfo?: AccountantMentionInfo | null): string {
+  const name = businessName || 'Η επιχείρησή σας'
+  const base = programCount === 1
+    ? `${name} — Βρέθηκε πρόγραμμα επιχορήγησης για εσάς`
+    : `${name} — Βρέθηκαν ${programCount} προγράμματα επιχορήγησης για εσάς`
+  return accountantInfo?.officeName ? `${accountantInfo.officeName} × I-MENTOR: ${base}` : base
 }
 
 export function buildEligibilityEmailHtml(params: {
@@ -40,15 +44,27 @@ export function buildEligibilityEmailHtml(params: {
       </a>
     </div>`).join('')
 
+  // Logo + office name lead the header itself (not just a footnote further
+  // down) so the accountant's branding is the first thing seen, before any
+  // I-MENTOR framing — this is explicitly what makes an accountant-branded
+  // send feel like it's coming from their own office, not a generic blast.
+  const accountantHeader = accountantInfo
+    ? `<div style="background:#ffffff;padding:18px 28px;border:1px solid #e5e7eb;border-bottom:none;border-radius:12px 12px 0 0;display:flex;align-items:center;gap:14px;">
+         ${accountantInfo.logoUrl ? `<img src="${accountantInfo.logoUrl}" alt="${accountantInfo.officeName}" style="max-height:48px;max-width:160px;object-fit:contain;" />` : ''}
+         <p style="margin:0;font-size:17px;font-weight:800;color:#111827;">${accountantInfo.officeName}</p>
+       </div>`
+    : ''
+
   const accountantNote = accountantInfo
     ? `<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.6;">
-         Η ενημέρωση αυτή σας αποστέλλεται σε συνεργασία με το λογιστικό σας γραφείο${accountantInfo.officeName ? ` <strong>${accountantInfo.officeName}</strong>` : ''}.
+         Η ενημέρωση αυτή σας αποστέλλεται σε συνεργασία με το λογιστικό σας γραφείο <strong>${accountantInfo.officeName}</strong>.
        </p>`
     : ''
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;padding:24px 28px;border-radius:12px 12px 0 0;">
+      ${accountantHeader}
+      <div style="background:#1e3a8a;padding:24px 28px;${accountantInfo ? '' : 'border-radius:12px 12px 0 0;'}">
         <h1 style="margin:0;color:#fff;font-size:19px;">✅ Βρέθηκαν διαθέσιμα προγράμματα</h1>
       </div>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
@@ -79,11 +95,15 @@ export function buildEligibilityViberText(params: {
 
   // Viber (via Chatwoot) supports simple *bold* markup, same convention as
   // WhatsApp — used here for program titles and the accountant's office name
-  // so they stand out in a plain-text message.
-  const lines = [`🎯 ${intro}`, '']
-  if (accountantInfo) {
-    lines.push(`(σε συνεργασία με το λογιστικό σας γραφείο${accountantInfo.officeName ? ` *${accountantInfo.officeName}*` : ''})`, '')
+  // so they stand out in a plain-text message. The office name leads the
+  // whole message (not a parenthetical further down) when accountant-branded,
+  // matching the email's logo-first header — Viber has no image support, so
+  // the bolded name is the only way to make the branding stand out there.
+  const lines: string[] = []
+  if (accountantInfo?.officeName) {
+    lines.push(`🏢 *${accountantInfo.officeName}* × I-MENTOR`, '')
   }
+  lines.push(`🎯 ${intro}`, '')
   programs.forEach((p, i) => {
     lines.push(`${i + 1}. *${p.title}*`)
     lines.push(`🤖 Δωρεάν έλεγχος με τον Ερμή: ${p.ermisUrl}`, '')

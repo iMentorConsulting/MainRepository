@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { sendEligibilityMessages } from '@/lib/eligibility-message'
+import { sendEligibilityMessages, sendEligibilityMessageTest } from '@/lib/eligibility-message'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,8 +34,12 @@ export async function POST(request: NextRequest) {
   // admin has no "own" clients, so there's no bare "all my clients" for them.
   const allMyClients = body.allMyClients === true && isAccountant
   const targetAccountantId: string | null = isAdmin && typeof body.targetAccountantId === 'string' ? body.targetAccountantId : null
+  // Admin-only: businesses that are direct I-MENTOR clients with no λογιστής
+  // at all. Mutually exclusive with targetAccountantId — both target a bulk
+  // set, so either one on its own counts as a "bulk" target below.
+  const noAccountant = isAdmin && body.noAccountant === true
   const businessIds: string[] = Array.isArray(body.businessIds) ? body.businessIds.filter((id: any) => typeof id === 'string') : []
-  const hasBulkTarget = allMyClients || !!targetAccountantId
+  const hasBulkTarget = allMyClients || !!targetAccountantId || noAccountant
   if (!hasBulkTarget && businessIds.length === 0) return NextResponse.json({ error: 'Δεν επιλέχθηκαν επιχειρήσεις' }, { status: 400 })
   if (!hasBulkTarget && businessIds.length > MAX_BUSINESSES) {
     return NextResponse.json({ error: `Μέγιστο ${MAX_BUSINESSES} επιχειρήσεις ανά αποστολή` }, { status: 400 })
@@ -48,14 +52,17 @@ export async function POST(request: NextRequest) {
   // Accountants can only ever message their own clients, and the message
   // always mentions their own office — there's no "send as I-MENTOR direct"
   // option for them, since they're the one initiating it for their own
-  // business relationship. Only admin can choose 'direct'.
-  const mode: 'direct' | 'accountant' = isAccountant ? 'accountant' : (body.mode === 'accountant' ? 'accountant' : 'direct')
+  // business relationship. Only admin can choose 'direct'. A business with no
+  // accountant has nothing to mention, so it's forced to 'direct' regardless.
+  const mode: 'direct' | 'accountant' = noAccountant ? 'direct' : isAccountant ? 'accountant' : (body.mode === 'accountant' ? 'accountant' : 'direct')
 
   const where: any = allMyClients
     ? { accountantId: session.user.accountantId }
     : targetAccountantId
       ? { accountantId: targetAccountantId }
-      : { id: { in: businessIds } }
+      : noAccountant
+        ? { accountantId: null }
+        : { id: { in: businessIds } }
   if (!hasBulkTarget && isAccountant) where.accountantId = session.user.accountantId
 
   const targets = await prisma.business.findMany({
@@ -65,7 +72,25 @@ export async function POST(request: NextRequest) {
 
   const skippedNotOwned = !hasBulkTarget && isAccountant ? businessIds.length - targets.length : 0
 
-  const outcome = await sendEligibilityMessages(targets, { mode, channels })
+  // Test send: fires ONE real message (real eligibility data, from the first
+  // currently-eligible business in the target set) to an explicit
+  // email/phone instead of any real business's own contact — lets an admin
+  // or accountant confirm delivery end-to-end before touching the real list.
+  // Nothing is marked as sent and no bulk sending happens on this branch.
+  const testEmail: string | undefined = typeof body.testEmail === 'string' && body.testEmail.trim() ? body.testEmail.trim() : undefined
+  const testPhone: string | undefined = typeof body.testPhone === 'string' && body.testPhone.trim() ? body.testPhone.trim() : undefined
+  if (testEmail || testPhone) {
+    const testResult = await sendEligibilityMessageTest(targets, { mode, channels, testEmail, testPhone })
+    return NextResponse.json({ test: true, ...testResult })
+  }
+
+  // Dry run: runs the real eligibility check against every target so the
+  // counts are accurate, but never actually sends anything or writes to the
+  // DB — used to show "this will send X emails / Y Viber" before the real,
+  // irreversible send.
+  const dryRun = body.dryRun === true
+
+  const outcome = await sendEligibilityMessages(targets, { mode, channels, dryRun })
 
   return NextResponse.json({ ...outcome, skippedNotOwned })
 }
