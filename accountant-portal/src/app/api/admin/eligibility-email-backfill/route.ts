@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { checkEligibilityForAfm } from '@/lib/eligibility-check-core'
-import { buildEligibilitySubject, buildEligibilityEmailHtml } from '@/lib/eligibility-email'
+import { buildEligibilitySubject, buildEligibilityEmailHtml, buildEligibilityViberText, AccountantMentionInfo } from '@/lib/eligibility-email'
 import { sendEmail } from '@/lib/email'
+import { sendViberMessage } from '@/lib/viber'
 import { mapWithConcurrency } from '@/lib/concurrency'
 
 export const dynamic = 'force-dynamic'
@@ -31,8 +32,17 @@ export async function POST(request: NextRequest) {
   const dateFrom: string | null = body.dateFrom || null
   const dateTo: string | null = body.dateTo || null
   const search: string = (body.search || '').trim()
+  // 'direct' (default): always sent as a plain I-MENTOR message.
+  // 'accountant': mentions the business's accountant by office name, when it
+  // has one — a business with no assigned accountant still gets the direct
+  // wording regardless of this setting, since there's nothing to mention.
+  const mode: 'direct' | 'accountant' = body.mode === 'accountant' ? 'accountant' : 'direct'
+  const channels: Set<string> = new Set(Array.isArray(body.channels) && body.channels.length > 0 ? body.channels : ['email'])
 
-  const where: any = { eligibilityEmailSentAt: null, email: { not: null } }
+  const where: any = {
+    eligibilityEmailSentAt: null,
+    OR: [{ email: { not: null } }, { phone: { not: null } }, { viberPhone: { not: null } }],
+  }
   if (sources.length) where.source = { in: sources }
   if (accountantIds.length) where.accountantId = { in: accountantIds }
   if (dateFrom || dateTo) {
@@ -41,10 +51,18 @@ export async function POST(request: NextRequest) {
     if (dateTo) where.createdAt.lte = new Date(new Date(dateTo).setHours(23, 59, 59, 999))
   }
   if (search) {
-    where.OR = [
-      { afm: { contains: search, mode: 'insensitive' } },
-      { onomasia: { contains: search, mode: 'insensitive' } },
+    // This route's own OR (email/phone/viberPhone presence) and the search
+    // OR would otherwise collide — AND them together explicitly.
+    where.AND = [
+      { OR: where.OR },
+      {
+        OR: [
+          { afm: { contains: search, mode: 'insensitive' } },
+          { onomasia: { contains: search, mode: 'insensitive' } },
+        ],
+      },
     ]
+    delete where.OR
   }
 
   const totalRemaining = await prisma.business.count({ where })
@@ -52,23 +70,46 @@ export async function POST(request: NextRequest) {
     where,
     orderBy: { createdAt: 'asc' },
     take: BATCH_SIZE,
-    select: { id: true, afm: true, email: true, phone: true },
+    select: { id: true, afm: true, email: true, phone: true, viberPhone: true, accountantId: true },
   })
 
-  let sent = 0
+  const accountantCache = new Map<string, AccountantMentionInfo | null>()
+  async function getAccountantInfo(accountantId: string | null): Promise<AccountantMentionInfo | null> {
+    if (mode !== 'accountant' || !accountantId) return null
+    if (accountantCache.has(accountantId)) return accountantCache.get(accountantId)!
+    const acc = await prisma.accountant.findUnique({ where: { id: accountantId }, select: { officeName: true, contactPerson: true } })
+    const info = acc ? { officeName: acc.officeName, contactPerson: acc.contactPerson } : null
+    accountantCache.set(accountantId, info)
+    return info
+  }
+
+  let sentEmail = 0
+  let sentViber = 0
   let ineligible = 0
   let failed = 0
 
   await mapWithConcurrency(batch, 5, async (b) => {
     try {
       const result = await checkEligibilityForAfm(b.afm, b.email, b.phone)
-      if (!result.notFound && !result.inactive && result.programs.length > 0 && b.email) {
-        await sendEmail({
-          to: b.email,
-          subject: buildEligibilitySubject(result.businessName, result.programs.length),
-          html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails }),
-        })
-        sent++
+      if (!result.notFound && !result.inactive && result.programs.length > 0) {
+        const accountantInfo = await getAccountantInfo(b.accountantId)
+        if (channels.has('email') && b.email) {
+          await sendEmail({
+            to: b.email,
+            subject: buildEligibilitySubject(result.businessName, result.programs.length),
+            html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo }),
+          })
+          sentEmail++
+        }
+        const viberNumber = b.viberPhone || b.phone
+        if (channels.has('viber') && viberNumber) {
+          const viberResult = await sendViberMessage({
+            to: viberNumber,
+            text: buildEligibilityViberText({ businessName: result.businessName, programs: result.programs, accountantInfo }),
+            senderName: 'I-MENTOR',
+          })
+          if (viberResult.ok) sentViber++
+        }
       } else {
         ineligible++
       }
@@ -84,7 +125,8 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     processed: batch.length,
-    sent,
+    sentEmail,
+    sentViber,
     ineligible,
     failed,
     remaining: Math.max(0, totalRemaining - batch.length),

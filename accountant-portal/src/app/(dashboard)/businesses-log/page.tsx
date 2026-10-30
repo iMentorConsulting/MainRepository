@@ -48,6 +48,8 @@ export default function BusinessesLogPage() {
   const [dateTo, setDateTo] = useState('')
   const [backfilling, setBackfilling] = useState(false)
   const [backfillStatus, setBackfillStatus] = useState('')
+  const [backfillMode, setBackfillMode] = useState<'direct' | 'accountant'>('direct')
+  const [backfillChannels, setBackfillChannels] = useState<{ email: boolean; viber: boolean }>({ email: true, viber: false })
 
   useEffect(() => {
     const t = setTimeout(() => setDebouncedSearch(search), 350)
@@ -71,11 +73,19 @@ export default function BusinessesLogPage() {
   useEffect(() => { fetchData() }, [fetchData])
 
   async function runEligibilityBackfill() {
+    const channels = Object.entries(backfillChannels).filter(([, v]) => v).map(([k]) => k)
+    if (channels.length === 0) {
+      setBackfillStatus('Επιλέξτε τουλάχιστον ένα κανάλι (Email ή Viber).')
+      return
+    }
+    const channelLabel = channels.map(c => c === 'email' ? 'Email' : 'Viber').join(' + ')
+    const modeLabel = backfillMode === 'accountant' ? 'μέσω λογιστή (αναφέρεται το γραφείο)' : 'απευθείας από I-MENTOR'
     if (!confirm(
-      'Θα σταλεί το email "Βρέθηκαν διαθέσιμα προγράμματα" σε κάθε επιχείρηση που ταιριάζει με τα τρέχοντα φίλτρα και δεν έχει ήδη επεξεργαστεί (πραγματικά emails σε πραγματικούς παραλήπτες). Συνέχεια;'
+      `Θα σταλεί το μήνυμα "Βρέθηκαν διαθέσιμα προγράμματα" (${channelLabel}, ${modeLabel}) σε κάθε επιχείρηση που ταιριάζει με τα τρέχοντα φίλτρα και δεν έχει ήδη επεξεργαστεί (πραγματικά μηνύματα σε πραγματικούς παραλήπτες). Συνέχεια;`
     )) return
     setBackfilling(true)
-    let totalSent = 0
+    let totalSentEmail = 0
+    let totalSentViber = 0
     let totalProcessed = 0
     try {
       while (true) {
@@ -88,6 +98,8 @@ export default function BusinessesLogPage() {
             dateFrom: dateFrom || undefined,
             dateTo: dateTo || undefined,
             search: debouncedSearch || undefined,
+            mode: backfillMode,
+            channels,
           }),
         })
         if (!res.ok) {
@@ -96,11 +108,16 @@ export default function BusinessesLogPage() {
           break
         }
         const d = await res.json()
-        totalSent += d.sent
+        totalSentEmail += d.sentEmail
+        totalSentViber += d.sentViber
         totalProcessed += d.processed
-        setBackfillStatus(`${totalProcessed} επεξεργάστηκαν, ${totalSent} emails εστάλησαν — απομένουν ${d.remaining}...`)
+        const sentSummary = [
+          channels.includes('email') ? `${totalSentEmail} emails` : null,
+          channels.includes('viber') ? `${totalSentViber} Viber` : null,
+        ].filter(Boolean).join(', ')
+        setBackfillStatus(`${totalProcessed} επεξεργάστηκαν, ${sentSummary} εστάλησαν — απομένουν ${d.remaining}...`)
         if (d.processed === 0 || d.remaining === 0) {
-          setBackfillStatus(`Ολοκληρώθηκε: ${totalProcessed} επεξεργάστηκαν, ${totalSent} emails εστάλησαν.`)
+          setBackfillStatus(`Ολοκληρώθηκε: ${totalProcessed} επεξεργάστηκαν, ${sentSummary} εστάλησαν.`)
           break
         }
       }
@@ -138,15 +155,35 @@ export default function BusinessesLogPage() {
             Ιστορικό δημιουργίας επιχειρήσεων — πηγή, ώρα και χρήστης
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={runEligibilityBackfill} loading={backfilling} className="flex items-center gap-2">
-            <Mail size={14} />
-            Αποστολή emails επιλεξιμότητας
-          </Button>
-          <Button variant="outline" onClick={fetchData} className="flex items-center gap-2">
-            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
-            Ανανέωση
-          </Button>
+        <div className="flex flex-col items-end gap-2">
+          <div className="flex items-center gap-2 text-xs">
+            <select
+              value={backfillMode}
+              onChange={e => setBackfillMode(e.target.value as 'direct' | 'accountant')}
+              className="rounded-lg border border-slate-300 px-2 py-1.5 text-slate-700"
+            >
+              <option value="direct">Απευθείας από I-MENTOR</option>
+              <option value="accountant">Μέσω λογιστή (αναφέρεται το γραφείο)</option>
+            </select>
+            <label className="flex items-center gap-1.5 text-slate-600">
+              <input type="checkbox" checked={backfillChannels.email} onChange={e => setBackfillChannels(c => ({ ...c, email: e.target.checked }))} />
+              Email
+            </label>
+            <label className="flex items-center gap-1.5 text-slate-600">
+              <input type="checkbox" checked={backfillChannels.viber} onChange={e => setBackfillChannels(c => ({ ...c, viber: e.target.checked }))} />
+              Viber
+            </label>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={runEligibilityBackfill} loading={backfilling} className="flex items-center gap-2">
+              <Mail size={14} />
+              Αποστολή μηνυμάτων επιλεξιμότητας
+            </Button>
+            <Button variant="outline" onClick={fetchData} className="flex items-center gap-2">
+              <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+              Ανανέωση
+            </Button>
+          </div>
         </div>
       </div>
 

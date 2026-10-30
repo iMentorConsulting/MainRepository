@@ -13,12 +13,22 @@ export function buildEligibilitySubject(businessName: string | null, programCoun
     : `${name} — Βρέθηκαν ${programCount} προγράμματα επιχορήγησης για εσάς`
 }
 
+// When mode === 'accountant' and the business has an assigned accountant,
+// the message frames this as a joint effort with their accountant's office
+// instead of I-MENTOR reaching out alone. Null/omitted means the admin chose
+// (or the business has no accountant) to send it as a direct I-MENTOR message.
+export interface AccountantMentionInfo {
+  officeName: string
+  contactPerson?: string | null
+}
+
 export function buildEligibilityEmailHtml(params: {
   businessName: string | null
   programs: EligibilityProgramResult[]
   businessDetails?: EligibilityBusinessDetails
+  accountantInfo?: AccountantMentionInfo | null
 }): string {
-  const { businessName, programs, businessDetails } = params
+  const { businessName, programs, businessDetails, accountantInfo } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
   const cards = programs.map(p => `
@@ -30,6 +40,12 @@ export function buildEligibilityEmailHtml(params: {
       </a>
     </div>`).join('')
 
+  const accountantNote = accountantInfo
+    ? `<p style="margin:0 0 20px;font-size:13px;color:#6b7280;line-height:1.6;">
+         Η ενημέρωση αυτή σας αποστέλλεται σε συνεργασία με το λογιστικό σας γραφείο${accountantInfo.officeName ? ` <strong>${accountantInfo.officeName}</strong>` : ''}.
+       </p>`
+    : ''
+
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
       <div style="background:#1e3a8a;padding:24px 28px;border-radius:12px 12px 0 0;">
@@ -40,9 +56,36 @@ export function buildEligibilityEmailHtml(params: {
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
           Ελέγξαμε τα στοιχεία της επιχείρησής σας και εντοπίσαμε ${programs.length === 1 ? 'το παρακάτω πρόγραμμα' : `τα παρακάτω ${programs.length} προγράμματα`} για τα οποία είστε πιθανώς επιλέξιμοι:
         </p>
+        ${accountantNote}
         ${buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${cards}
         <p style="margin:20px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
       </div>
     </div>`
+}
+
+// Condensed, link-based plain-text version for Viber — no HTML/buttons.
+export function buildEligibilityViberText(params: {
+  businessName: string | null
+  programs: EligibilityProgramResult[]
+  accountantInfo?: AccountantMentionInfo | null
+}): string {
+  const { businessName, programs, accountantInfo } = params
+  const name = businessName || 'Αγαπητέ/ή πελάτη'
+
+  const intro = programs.length === 1
+    ? `${name}, εντοπίσαμε 1 πρόγραμμα επιχορήγησης για το οποίο είστε πιθανώς επιλέξιμοι:`
+    : `${name}, εντοπίσαμε ${programs.length} προγράμματα επιχορήγησης για τα οποία είστε πιθανώς επιλέξιμοι:`
+
+  const lines = [`🎯 ${intro}`, '']
+  if (accountantInfo) {
+    lines.push(`(σε συνεργασία με το λογιστικό σας γραφείο${accountantInfo.officeName ? ` ${accountantInfo.officeName}` : ''})`, '')
+  }
+  programs.forEach((p, i) => {
+    lines.push(`${i + 1}. ${p.title}`)
+    lines.push(`🤖 Δωρεάν έλεγχος με τον Ερμή: ${p.ermisUrl}`, '')
+  })
+  lines.push('iMentor Consulting')
+
+  return lines.join('\n')
 }
