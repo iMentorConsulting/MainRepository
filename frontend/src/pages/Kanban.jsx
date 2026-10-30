@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
 import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
-import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions, getPipelines } from '../api'
+import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions, getPipelines, getMessageTemplates } from '../api'
 import { PIPELINES } from '../pipelines'
 import {
   ClockIcon,
@@ -171,10 +171,17 @@ function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
 
 function QuickNotifyButton({ caseItem }) {
   const [open, setOpen] = useState(false)
+  const [channel, setChannel] = useState('viber')
   const [msg, setMsg] = useState('')
+  const [subject, setSubject] = useState(`Ενημέρωση υπόθεσης - ${caseItem.client_name}`)
   const [sending, setSending] = useState(false)
+  const [templates, setTemplates] = useState([])
   const ref = useRef(null)
   const portalRef = useRef(null)
+
+  useEffect(() => {
+    getMessageTemplates().then(setTemplates).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const handler = (e) => {
@@ -187,17 +194,28 @@ function QuickNotifyButton({ caseItem }) {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  const prog = (caseItem.program_category || caseItem.service_type || '').toUpperCase()
+  const visibleTemplates = templates.filter(t =>
+    !t.programs?.length || t.programs.some(p => prog.includes(p))
+  )
+
   const handleSend = async (e) => {
     e.preventDefault(); e.stopPropagation()
     if (!msg.trim()) return
     setSending(true)
     try {
-      await sendNotification(caseItem.id, { notification_type: 'email', message: msg })
+      await sendNotification(caseItem.id, { notification_type: channel, message: msg, subject })
       toast.success('Ειδοποίηση εστάλη')
       setMsg(''); setOpen(false)
     } catch { toast.error('Σφάλμα') }
     finally { setSending(false) }
   }
+
+  const CHANNELS = [
+    { id: 'viber', label: 'Viber' },
+    { id: 'email', label: 'Email' },
+    { id: 'both',  label: 'Και τα δύο' },
+  ]
 
   return (
     <div className="relative" ref={ref}>
@@ -211,19 +229,63 @@ function QuickNotifyButton({ caseItem }) {
       {open && createPortal(
         <div
           ref={portalRef}
-          className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 w-60 p-3 space-y-2"
-          style={{ top: ref.current?.getBoundingClientRect().bottom + 4, left: ref.current?.getBoundingClientRect().left }}
+          className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 w-80 p-4 space-y-3"
+          style={{ top: ref.current?.getBoundingClientRect().bottom + 4, left: Math.min(ref.current?.getBoundingClientRect().left ?? 0, window.innerWidth - 340) }}
           onClick={e => e.stopPropagation()}
         >
-          <div className="text-xs font-medium text-gray-700 truncate">{caseItem.client_name}</div>
-          <textarea rows={3} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
-            placeholder="Κείμενο ειδοποίησης..."
-            className="w-full border rounded-lg px-2 py-1.5 text-xs resize-none focus:ring-1 focus:ring-blue-500" />
+          {/* Header */}
+          <div className="font-semibold text-sm text-gray-800 truncate">Αποστολή σε {caseItem.client_name}</div>
+
+          {/* Channel tabs */}
+          <div className="flex gap-1.5">
+            {CHANNELS.map(c => (
+              <button key={c.id} onClick={() => setChannel(c.id)}
+                className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors border ${channel === c.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                {c.label}
+              </button>
+            ))}
+          </div>
+
+          {/* Subject (email/both) */}
+          {(channel === 'email' || channel === 'both') && (
+            <input value={subject} onChange={e => setSubject(e.target.value)}
+              className="w-full border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              placeholder="Θέμα email" />
+          )}
+
+          {/* Template chips */}
+          {visibleTemplates.length > 0 && (
+            <div>
+              <div className="text-[10px] text-gray-400 mb-1">Πρότυπα μηνυμάτων:</div>
+              <div className="flex flex-wrap gap-1.5">
+                {visibleTemplates.map(t => (
+                  <button key={t.id} onClick={() => setMsg(t.text)}
+                    className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-700 truncate max-w-[140px]"
+                    title={t.label}>
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Message textarea */}
+          <textarea rows={4} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
+            placeholder="Κείμενο μηνύματος..."
+            className="w-full border rounded-lg px-2.5 py-2 text-xs resize-none focus:ring-1 focus:ring-blue-500 focus:outline-none" />
+
+          {/* Footer note */}
+          {channel !== 'email' && (
+            <div className="text-[10px] text-gray-400">Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email).</div>
+          )}
+
+          {/* Actions */}
           <div className="flex gap-2">
-            <button onClick={e => { e.stopPropagation(); setOpen(false) }} className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
+            <button onClick={e => { e.stopPropagation(); setOpen(false) }}
+              className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
             <button onClick={handleSend} disabled={!msg.trim() || sending}
-              className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
-              {sending ? '...' : 'Αποστολή'}
+              className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
+              {sending ? 'Αποστολή…' : '➤ Αποστολή'}
             </button>
           </div>
         </div>,
