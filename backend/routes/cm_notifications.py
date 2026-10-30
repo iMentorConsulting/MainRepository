@@ -40,7 +40,7 @@ from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
 from database import get_db, fmt_dt
-from models_cases import CMCase, CMNotificationLog, CMUser, CMStatusSLA
+from models_cases import CMCase, CMNotificationLog, CMUser, CMStatusSLA, CMMessage
 from auth_cases import get_current_user
 
 router = APIRouter(prefix="/api/cm/notifications", tags=["cm-notifications"])
@@ -880,6 +880,21 @@ def send_notification_to_case(
             results.append({"type": "email", "to": email, "status": status, "error": err if not ok else None})
         else:
             results.append({"type": "email", "status": "skipped", "error": "Δεν υπάρχει email ή μήνυμα"})
+
+    # Log sent messages into the case's Messages tab
+    sent_channels = [r["type"].capitalize() for r in results if r.get("status") == "sent"]
+    if sent_channels:
+        channels_label = " & ".join(sent_channels)
+        prog_note = f" [{prog_display}]" if prog_display else ""
+        msg_preview = req.message[:300] + ("…" if len(req.message) > 300 else "")
+        log_content = f"📤 Εστάλη μήνυμα μέσω {channels_label}{prog_note}:\n{msg_preview}"
+        db.add(CMMessage(
+            case_id=c.id,
+            user_id=current_user.id,
+            content=log_content,
+            is_internal=False,
+            author_name=consultant,
+        ))
 
     db.commit()
     return {"results": results}
