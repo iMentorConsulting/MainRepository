@@ -176,12 +176,18 @@ function QuickNotifyButton({ caseItem }) {
   const [subject, setSubject] = useState(`Ενημέρωση υπόθεσης - ${caseItem.client_name}`)
   const [sending, setSending] = useState(false)
   const [templates, setTemplates] = useState([])
+  const [tplLoading, setTplLoading] = useState(false)
   const ref = useRef(null)
   const portalRef = useRef(null)
 
   useEffect(() => {
-    getMessageTemplates().then(setTemplates).catch(() => {})
-  }, [])
+    if (!open || templates.length > 0) return
+    setTplLoading(true)
+    getMessageTemplates()
+      .then(setTemplates)
+      .catch(err => console.error('QuickNotify: failed to load templates', err))
+      .finally(() => setTplLoading(false))
+  }, [open])
 
   useEffect(() => {
     const handler = (e) => {
@@ -196,7 +202,7 @@ function QuickNotifyButton({ caseItem }) {
 
   const prog = (caseItem.program_category || caseItem.service_type || '').toUpperCase()
   const visibleTemplates = templates.filter(t =>
-    !t.programs?.length || t.programs.some(p => prog.includes(p))
+    !prog || !t.programs?.length || t.programs.some(p => prog.includes(p))
   )
 
   const handleSend = async (e) => {
@@ -266,10 +272,12 @@ function QuickNotifyButton({ caseItem }) {
           )}
 
           {/* Template chips */}
-          {visibleTemplates.length > 0 && (
+          {tplLoading ? (
+            <div className="text-[10px] text-gray-400">Φόρτωση προτύπων…</div>
+          ) : visibleTemplates.length > 0 ? (
             <div>
               <div className="text-[10px] text-gray-400 mb-1">Πρότυπα μηνυμάτων:</div>
-              <div className="flex flex-wrap gap-1.5">
+              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
                 {visibleTemplates.map(t => (
                   <button key={t.id} onClick={() => setMsg(t.text)}
                     className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-700 truncate max-w-[140px]"
@@ -279,7 +287,7 @@ function QuickNotifyButton({ caseItem }) {
                 ))}
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Message textarea */}
           <textarea rows={4} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
