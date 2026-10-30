@@ -767,7 +767,7 @@ export default function NewCampaignPage() {
           <StepChoosePath
             onDiy={() => { setPath('diy'); setStep(1) }}
             onWithIMentor={() => { setPath('imentor'); setStep(1) }}
-            onEligibilityMessage={(session?.user as any)?.role === 'ACCOUNTANT' ? () => setEligibilityMessageOpen(true) : undefined}
+            onEligibilityMessage={['ACCOUNTANT', 'ADMIN'].includes((session?.user as any)?.role) ? () => setEligibilityMessageOpen(true) : undefined}
           />
         )}
 
@@ -815,7 +815,8 @@ export default function NewCampaignPage() {
 
       {eligibilityMessageOpen && (
         <EligibilityMessageModal
-          allMyClients
+          allMyClients={(session?.user as any)?.role === 'ACCOUNTANT'}
+          allowAdminAccountantPicker={(session?.user as any)?.role === 'ADMIN'}
           businessCountLabel="σε όλους τους πελάτες σας που είναι αυτή τη στιγμή επιλέξιμοι για κάποιο πρόγραμμα"
           onClose={() => setEligibilityMessageOpen(false)}
         />

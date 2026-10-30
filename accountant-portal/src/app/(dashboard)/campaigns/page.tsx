@@ -214,7 +214,7 @@ export default function CampaignsPage() {
       </div>
 
       {/* ── Quick-start wizard cards ────────────────────────────────────── */}
-      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${isAccountant ? 'lg:grid-cols-3' : ''}`}>
+      <div className={`grid grid-cols-1 sm:grid-cols-2 gap-4 ${(isAccountant || isAdmin) ? 'lg:grid-cols-3' : ''}`}>
         <Link href="/campaigns/new?path=diy">
           <div className="group p-5 rounded-2xl border-2 border-indigo-200 bg-indigo-50 hover:border-indigo-400 hover:bg-indigo-100 transition-all cursor-pointer">
             <div className="flex items-start gap-4">
@@ -249,7 +249,7 @@ export default function CampaignsPage() {
           </div>
         </Link>
 
-        {isAccountant && (
+        {(isAccountant || isAdmin) && (
           <div
             onClick={() => setEligibilityMessageOpen(true)}
             className="group p-5 rounded-2xl border-2 border-emerald-200 bg-emerald-50 hover:border-emerald-400 hover:bg-emerald-100 transition-all cursor-pointer"
@@ -259,7 +259,9 @@ export default function CampaignsPage() {
                 <Target size={20} className="text-emerald-600" />
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-gray-900 text-base">Email/Viber Επιλεξιμότητας σε όλους τους πελάτες μου</h3>
+                <h3 className="font-bold text-gray-900 text-base">
+                  {isAccountant ? 'Email/Viber Επιλεξιμότητας σε όλους τους πελάτες μου' : 'Email/Viber Επιλεξιμότητας σε όλους τους πελάτες ενός γραφείου'}
+                </h3>
                 <p className="text-sm text-gray-500 mt-0.5">Ένα μήνυμα ανά πελάτη, με όλα τα προγράμματα για τα οποία είναι αυτή τη στιγμή επιλέξιμος — όχι ξεχωριστό ανά πρόγραμμα.</p>
                 <span className="mt-2 inline-flex items-center gap-1 text-sm text-emerald-700 font-semibold">
                   Αποστολή τώρα <ArrowRight size={14} />
@@ -272,7 +274,8 @@ export default function CampaignsPage() {
 
       {eligibilityMessageOpen && (
         <EligibilityMessageModal
-          allMyClients
+          allMyClients={isAccountant}
+          allowAdminAccountantPicker={isAdmin}
           businessCountLabel="σε όλους τους πελάτες σας που είναι αυτή τη στιγμή επιλέξιμοι για κάποιο πρόγραμμα"
           onClose={() => setEligibilityMessageOpen(false)}
         />

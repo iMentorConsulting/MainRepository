@@ -1,5 +1,5 @@
 'use client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useSession } from 'next-auth/react'
 import { X, Send, CheckCircle2 } from 'lucide-react'
 
@@ -8,6 +8,10 @@ interface EligibilityMessageModalProps {
   // Accountant-only convenience: send to every one of their own clients
   // without needing to pass every business id from the browser.
   allMyClients?: boolean
+  // Admin-only: show an accountant picker and send to every client of
+  // whichever office is chosen — admin has no "own" clients, so there's no
+  // bare allMyClients equivalent for them.
+  allowAdminAccountantPicker?: boolean
   businessCount?: number
   businessCountLabel?: string
   onClose: () => void
@@ -18,19 +22,31 @@ interface EligibilityMessageModalProps {
 // currently-eligible program in one email/Viber, not one per program) to an
 // explicit set of businesses. Used from the Matches page bulk action, a
 // single business's own page, and the Campaigns page.
-export function EligibilityMessageModal({ businessIds, allMyClients, businessCount, businessCountLabel, onClose, onSent }: EligibilityMessageModalProps) {
+export function EligibilityMessageModal({ businessIds, allMyClients, allowAdminAccountantPicker, businessCount, businessCountLabel, onClose, onSent }: EligibilityMessageModalProps) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const needsAccountantPick = isAdmin && allowAdminAccountantPicker
 
   const [channels, setChannels] = useState<{ email: boolean; viber: boolean }>({ email: true, viber: false })
   const [mode, setMode] = useState<'direct' | 'accountant'>('accountant')
   const [sending, setSending] = useState(false)
   const [result, setResult] = useState<{ sentEmail: number; sentViber: number; ineligible: number; failed: number; skippedNotOwned: number } | null>(null)
   const [error, setError] = useState('')
+  const [accountants, setAccountants] = useState<{ id: string; officeName: string }[]>([])
+  const [targetAccountantId, setTargetAccountantId] = useState('')
+
+  useEffect(() => {
+    if (!needsAccountantPick) return
+    fetch('/api/accountants').then(r => r.json()).then(d => setAccountants(d.accountants || [])).catch(() => {})
+  }, [needsAccountantPick])
 
   const count = businessCount ?? businessIds?.length ?? 0
 
   async function send() {
+    if (needsAccountantPick && !targetAccountantId) {
+      setError('Επιλέξτε λογιστικό γραφείο.')
+      return
+    }
     const selectedChannels = Object.entries(channels).filter(([, v]) => v).map(([k]) => k)
     if (selectedChannels.length === 0) {
       setError('Επιλέξτε τουλάχιστον ένα κανάλι (Email ή Viber).')
@@ -43,7 +59,7 @@ export function EligibilityMessageModal({ businessIds, allMyClients, businessCou
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          ...(allMyClients ? { allMyClients: true } : { businessIds }),
+          ...(needsAccountantPick ? { targetAccountantId } : allMyClients ? { allMyClients: true } : { businessIds }),
           channels: selectedChannels,
           mode: isAdmin ? mode : undefined,
         }),
@@ -86,8 +102,24 @@ export function EligibilityMessageModal({ businessIds, allMyClients, businessCou
           ) : (
             <>
               <p className="text-sm text-gray-600">
-                Θα σταλεί {businessCountLabel || `σε ${count} επιχείρηση${count === 1 ? '' : 'εις'}`} ένα μήνυμα με <strong>όλα τα προγράμματα</strong> για τα οποία είναι αυτή τη στιγμή επιλέξιμ{count === 1 ? 'η' : 'ες'} — αντί για ξεχωριστό μήνυμα ανά πρόγραμμα.
+                {needsAccountantPick
+                  ? <>Θα σταλεί σε <strong>όλους τους πελάτες</strong> του λογιστικού γραφείου που θα επιλέξετε ένα μήνυμα με <strong>όλα τα προγράμματα</strong> για τα οποία είναι αυτή τη στιγμή επιλέξιμοι — αντί για ξεχωριστό μήνυμα ανά πρόγραμμα.</>
+                  : <>Θα σταλεί {businessCountLabel || `σε ${count} επιχείρηση${count === 1 ? '' : 'εις'}`} ένα μήνυμα με <strong>όλα τα προγράμματα</strong> για τα οποία είναι αυτή τη στιγμή επιλέξιμ{count === 1 ? 'η' : 'ες'} — αντί για ξεχωριστό μήνυμα ανά πρόγραμμα.</>}
               </p>
+
+              {needsAccountantPick && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Λογιστικό γραφείο</label>
+                  <select
+                    value={targetAccountantId}
+                    onChange={e => setTargetAccountantId(e.target.value)}
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Επιλέξτε γραφείο...</option>
+                    {accountants.map(a => <option key={a.id} value={a.id}>{a.officeName}</option>)}
+                  </select>
+                </div>
+              )}
 
               {isAdmin && (
                 <div>

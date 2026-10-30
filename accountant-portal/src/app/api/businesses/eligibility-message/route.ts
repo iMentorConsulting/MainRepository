@@ -29,11 +29,15 @@ export async function POST(request: NextRequest) {
   // 'allMyClients' (accountant only) sends to every one of the accountant's
   // own businesses without the client needing to list/pass every id —
   // avoids both a huge request payload and the MAX_BUSINESSES cap below for
-  // an office with a large pelatologio.
+  // an office with a large pelatologio. Admin has the equivalent via
+  // 'targetAccountantId': every client of ONE specific office they pick —
+  // admin has no "own" clients, so there's no bare "all my clients" for them.
   const allMyClients = body.allMyClients === true && isAccountant
+  const targetAccountantId: string | null = isAdmin && typeof body.targetAccountantId === 'string' ? body.targetAccountantId : null
   const businessIds: string[] = Array.isArray(body.businessIds) ? body.businessIds.filter((id: any) => typeof id === 'string') : []
-  if (!allMyClients && businessIds.length === 0) return NextResponse.json({ error: 'Δεν επιλέχθηκαν επιχειρήσεις' }, { status: 400 })
-  if (!allMyClients && businessIds.length > MAX_BUSINESSES) {
+  const hasBulkTarget = allMyClients || !!targetAccountantId
+  if (!hasBulkTarget && businessIds.length === 0) return NextResponse.json({ error: 'Δεν επιλέχθηκαν επιχειρήσεις' }, { status: 400 })
+  if (!hasBulkTarget && businessIds.length > MAX_BUSINESSES) {
     return NextResponse.json({ error: `Μέγιστο ${MAX_BUSINESSES} επιχειρήσεις ανά αποστολή` }, { status: 400 })
   }
 
@@ -47,15 +51,19 @@ export async function POST(request: NextRequest) {
   // business relationship. Only admin can choose 'direct'.
   const mode: 'direct' | 'accountant' = isAccountant ? 'accountant' : (body.mode === 'accountant' ? 'accountant' : 'direct')
 
-  const where: any = allMyClients ? { accountantId: session.user.accountantId } : { id: { in: businessIds } }
-  if (!allMyClients && isAccountant) where.accountantId = session.user.accountantId
+  const where: any = allMyClients
+    ? { accountantId: session.user.accountantId }
+    : targetAccountantId
+      ? { accountantId: targetAccountantId }
+      : { id: { in: businessIds } }
+  if (!hasBulkTarget && isAccountant) where.accountantId = session.user.accountantId
 
   const targets = await prisma.business.findMany({
     where,
     select: { id: true, afm: true, email: true, phone: true, viberPhone: true, accountantId: true },
   })
 
-  const skippedNotOwned = !allMyClients && isAccountant ? businessIds.length - targets.length : 0
+  const skippedNotOwned = !hasBulkTarget && isAccountant ? businessIds.length - targets.length : 0
 
   const outcome = await sendEligibilityMessages(targets, { mode, channels })
 
