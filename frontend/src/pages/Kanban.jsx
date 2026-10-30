@@ -205,9 +205,8 @@ function QuickNotifyButton({ caseItem }) {
     !prog || !t.programs?.length || t.programs.some(p => prog.includes(p))
   )
 
-  const handleSend = async (e) => {
-    e.preventDefault(); e.stopPropagation()
-    if (!msg.trim()) return
+  const handleSend = async () => {
+    if (!msg.trim() || sending) return
     setSending(true)
     try {
       const res = await sendNotification(caseItem.id, { notification_type: channel, message: msg, subject })
@@ -225,8 +224,10 @@ function QuickNotifyButton({ caseItem }) {
       } else {
         toast.error('Δεν υπάρχουν στοιχεία επικοινωνίας για αυτή την υπόθεση')
       }
-    } catch (e) { toast.error(e?.response?.data?.detail || 'Σφάλμα αποστολής') }
-    finally { setSending(false) }
+    } catch (err) {
+      console.error('QuickNotify send error:', err)
+      toast.error(err?.response?.data?.detail || 'Σφάλμα αποστολής')
+    } finally { setSending(false) }
   }
 
   const CHANNELS = [
@@ -301,9 +302,9 @@ function QuickNotifyButton({ caseItem }) {
 
           {/* Actions */}
           <div className="flex gap-2">
-            <button onClick={e => { e.stopPropagation(); setOpen(false) }}
+            <button type="button" onClick={() => setOpen(false)}
               className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
-            <button onClick={handleSend} disabled={!msg.trim() || sending}
+            <button type="button" onClick={handleSend} disabled={!msg.trim() || sending}
               className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
               {sending ? 'Αποστολή…' : '➤ Αποστολή'}
             </button>
