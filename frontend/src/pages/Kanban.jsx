@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react'
-import { createPortal } from 'react-dom'
 import { Link } from 'react-router-dom'
 import { getCases, updateCase, getUsers, sendNotification, getCaseFilterOptions, getPipelines, getMessageTemplates } from '../api'
 import { PIPELINES } from '../pipelines'
@@ -169,35 +168,39 @@ function MoveDropdown({ caseItem, currentStatus, onMoved, pipeline }) {
   )
 }
 
-function QuickNotifyButton({ caseItem }) {
-  const [open, setOpen] = useState(false)
+// Simple trigger button — opens modal at Kanban page level (avoids Link interaction)
+function QuickNotifyButton({ caseItem, onOpen }) {
+  return (
+    <button
+      type="button"
+      onClick={e => { e.preventDefault(); e.stopPropagation(); onOpen(caseItem) }}
+      className="p-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-500 hover:text-amber-600 transition-colors border border-amber-200"
+      title="Γρήγορη Ειδοποίηση"
+    >
+      <BoltIcon className="w-3.5 h-3.5" />
+    </button>
+  )
+}
+
+const CHANNELS = [
+  { id: 'viber', label: 'Viber' },
+  { id: 'email', label: 'Email' },
+  { id: 'both',  label: 'Και τα δύο' },
+]
+
+function QuickNotifyModal({ caseItem, onClose }) {
   const [channel, setChannel] = useState('viber')
   const [msg, setMsg] = useState('')
   const [subject, setSubject] = useState(`Ενημέρωση υπόθεσης - ${caseItem.client_name}`)
   const [sending, setSending] = useState(false)
   const [templates, setTemplates] = useState([])
-  const [tplLoading, setTplLoading] = useState(false)
-  const ref = useRef(null)
-  const portalRef = useRef(null)
+  const [tplLoading, setTplLoading] = useState(true)
 
   useEffect(() => {
-    if (!open || templates.length > 0) return
-    setTplLoading(true)
     getMessageTemplates()
       .then(setTemplates)
       .catch(err => console.error('QuickNotify: failed to load templates', err))
       .finally(() => setTplLoading(false))
-  }, [open])
-
-  useEffect(() => {
-    const handler = (e) => {
-      if (ref.current && !ref.current.contains(e.target) &&
-          portalRef.current && !portalRef.current.contains(e.target)) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
   }, [])
 
   const prog = (caseItem.program_category || caseItem.service_type || '').toUpperCase()
@@ -216,7 +219,7 @@ function QuickNotifyButton({ caseItem }) {
       const skipped = results.filter(r => r.status === 'skipped')
       if (ok) {
         toast.success('Ειδοποίηση εστάλη')
-        setMsg(''); setOpen(false)
+        onClose()
       } else if (failed.length) {
         toast.error(`Αποτυχία: ${failed[0].error || 'Άγνωστο σφάλμα bridge'}`)
       } else if (skipped.length) {
@@ -230,93 +233,71 @@ function QuickNotifyButton({ caseItem }) {
     } finally { setSending(false) }
   }
 
-  const CHANNELS = [
-    { id: 'viber', label: 'Viber' },
-    { id: 'email', label: 'Email' },
-    { id: 'both',  label: 'Και τα δύο' },
-  ]
-
   return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={e => { e.preventDefault(); e.stopPropagation(); setOpen(o => !o) }}
-        className="p-1 rounded-md bg-amber-50 hover:bg-amber-100 text-amber-500 hover:text-amber-600 transition-colors border border-amber-200"
-        title="Γρήγορη Ειδοποίηση"
-      >
-        <BoltIcon className="w-3.5 h-3.5" />
-      </button>
-      {open && createPortal(
-        <div
-          ref={portalRef}
-          className="fixed z-[9999] bg-white rounded-xl shadow-2xl border border-gray-200 w-80 p-4 space-y-3"
-          style={{ top: ref.current?.getBoundingClientRect().bottom + 4, left: Math.min(ref.current?.getBoundingClientRect().left ?? 0, window.innerWidth - 340) }}
-          onClick={e => e.stopPropagation()}
-        >
-          {/* Header */}
-          <div className="font-semibold text-sm text-gray-800 truncate">Αποστολή σε {caseItem.client_name}</div>
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/30" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-96 p-5 space-y-3" onClick={e => e.stopPropagation()}>
+        <div className="font-semibold text-sm text-gray-800 truncate">Αποστολή σε {caseItem.client_name}</div>
 
-          {/* Channel tabs */}
-          <div className="flex gap-1.5">
-            {CHANNELS.map(c => (
-              <button key={c.id} onClick={() => setChannel(c.id)}
-                className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors border ${channel === c.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                {c.label}
-              </button>
-            ))}
-          </div>
-
-          {/* Subject (email/both) */}
-          {(channel === 'email' || channel === 'both') && (
-            <input value={subject} onChange={e => setSubject(e.target.value)}
-              className="w-full border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-              placeholder="Θέμα email" />
-          )}
-
-          {/* Template chips */}
-          {tplLoading ? (
-            <div className="text-[10px] text-gray-400">Φόρτωση προτύπων…</div>
-          ) : visibleTemplates.length > 0 ? (
-            <div>
-              <div className="text-[10px] text-gray-400 mb-1">Πρότυπα μηνυμάτων:</div>
-              <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
-                {visibleTemplates.map(t => (
-                  <button key={t.id} onClick={() => setMsg(t.text)}
-                    className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-700 truncate max-w-[140px]"
-                    title={t.label}>
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : null}
-
-          {/* Message textarea */}
-          <textarea rows={4} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
-            placeholder="Κείμενο μηνύματος..."
-            className="w-full border rounded-lg px-2.5 py-2 text-xs resize-none focus:ring-1 focus:ring-blue-500 focus:outline-none" />
-
-          {/* Footer note */}
-          {channel !== 'email' && (
-            <div className="text-[10px] text-gray-400">Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email).</div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-2">
-            <button type="button" onClick={() => setOpen(false)}
-              className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
-            <button type="button" onClick={handleSend} disabled={!msg.trim() || sending}
-              className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
-              {sending ? 'Αποστολή…' : '➤ Αποστολή'}
+        {/* Channel tabs */}
+        <div className="flex gap-1.5">
+          {CHANNELS.map(c => (
+            <button type="button" key={c.id} onClick={() => setChannel(c.id)}
+              className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition-colors border ${channel === c.id ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+              {c.label}
             </button>
+          ))}
+        </div>
+
+        {/* Subject (email/both) */}
+        {(channel === 'email' || channel === 'both') && (
+          <input value={subject} onChange={e => setSubject(e.target.value)}
+            className="w-full border rounded-lg px-2.5 py-1.5 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+            placeholder="Θέμα email" />
+        )}
+
+        {/* Template chips */}
+        {tplLoading ? (
+          <div className="text-[10px] text-gray-400">Φόρτωση προτύπων…</div>
+        ) : visibleTemplates.length > 0 ? (
+          <div>
+            <div className="text-[10px] text-gray-400 mb-1">Πρότυπα μηνυμάτων:</div>
+            <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+              {visibleTemplates.map(t => (
+                <button type="button" key={t.id} onClick={() => setMsg(t.text)}
+                  className="text-[11px] px-2 py-1 rounded-full border border-gray-200 bg-gray-50 hover:bg-blue-50 hover:border-blue-300 transition-colors text-gray-700 truncate max-w-[150px]"
+                  title={t.label}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
           </div>
-        </div>,
-        document.body
-      )}
+        ) : null}
+
+        {/* Message textarea */}
+        <textarea rows={4} value={msg} onChange={e => setMsg(e.target.value)} autoFocus
+          placeholder="Κείμενο μηνύματος..."
+          className="w-full border rounded-lg px-2.5 py-2 text-xs resize-none focus:ring-1 focus:ring-blue-500 focus:outline-none" />
+
+        {/* Footer note */}
+        {channel !== 'email' && (
+          <div className="text-[10px] text-gray-400">Στο Viber προστίθεται αυτόματα η υπογραφή i-Mentor (τηλ, site, email).</div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-2">
+          <button type="button" onClick={onClose}
+            className="flex-1 text-xs py-1.5 border rounded-lg hover:bg-gray-50">Άκυρο</button>
+          <button type="button" onClick={handleSend} disabled={!msg.trim() || sending}
+            className="flex-1 text-xs py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium">
+            {sending ? 'Αποστολή…' : '➤ Αποστολή'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
 
-function CaseCard({ caseItem, onMoved, pipeline }) {
+function CaseCard({ caseItem, onMoved, pipeline, onQuickNotify }) {
   const urgent = caseItem.days_to_deadline !== null && caseItem.days_to_deadline <= 14 && caseItem.days_to_deadline >= 0
   return (
     <Link
@@ -343,7 +324,7 @@ function CaseCard({ caseItem, onMoved, pipeline }) {
               <ClipboardDocumentListIcon className="w-2.5 h-2.5" />{caseItem.open_tasks}
             </span>
           )}
-          <QuickNotifyButton caseItem={caseItem} />
+          <QuickNotifyButton caseItem={caseItem} onOpen={onQuickNotify} />
         </div>
       </div>
       {caseItem.pending_count > 0 && (
@@ -359,7 +340,7 @@ function CaseCard({ caseItem, onMoved, pipeline }) {
 }
 
 // A sub-section within a phase column for one specific status
-function StatusSection({ status, cases, onMoved, pipeline, colors }) {
+function StatusSection({ status, cases, onMoved, pipeline, colors, onQuickNotify }) {
   const [collapsed, setCollapsed] = useState(false)
   if (cases.length === 0) return null
   return (
@@ -376,14 +357,14 @@ function StatusSection({ status, cases, onMoved, pipeline, colors }) {
       </button>
       {!collapsed && (
         <div className="mt-1 space-y-1">
-          {cases.map(c => <CaseCard key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} />)}
+          {cases.map(c => <CaseCard key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} onQuickNotify={onQuickNotify} />)}
         </div>
       )}
     </div>
   )
 }
 
-function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
+function PhaseColumn({ phase, casesByStatus, onMoved, pipeline, onQuickNotify }) {
   const [collapsed, setCollapsed] = useState(false)
   const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.gray
   const totalInPhase = phase.statuses
@@ -425,6 +406,7 @@ function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
                 onMoved={onMoved}
                 pipeline={pipeline}
                 colors={colors}
+                onQuickNotify={onQuickNotify}
               />
             ))
           ) : (
@@ -432,7 +414,7 @@ function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
             extraCases.length === 0 ? (
               <div className="text-center py-6 text-xs text-gray-400">Καμία υπόθεση</div>
             ) : (
-              extraCases.map(c => <CaseCard key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} />)
+              extraCases.map(c => <CaseCard key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} onQuickNotify={onQuickNotify} />)
             )
           )}
           {statusList.length > 0 && totalInPhase === 0 && (
@@ -444,7 +426,7 @@ function PhaseColumn({ phase, casesByStatus, onMoved, pipeline }) {
   )
 }
 
-function CaseRow({ caseItem, onMoved, pipeline, agentsMap }) {
+function CaseRow({ caseItem, onMoved, pipeline, agentsMap, onQuickNotify }) {
   const urgent = caseItem.days_to_deadline !== null && caseItem.days_to_deadline <= 14 && caseItem.days_to_deadline >= 0
 
   return (
@@ -480,13 +462,13 @@ function CaseRow({ caseItem, onMoved, pipeline, agentsMap }) {
           Άνοιγμα
         </Link>
         <MoveDropdown caseItem={caseItem} currentStatus={caseItem.status} onMoved={onMoved} pipeline={pipeline} />
-        <QuickNotifyButton caseItem={caseItem} />
+        <QuickNotifyButton caseItem={caseItem} onOpen={onQuickNotify} />
       </div>
     </div>
   )
 }
 
-function ListPhaseSection({ phase, casesByStatus, onMoved, pipeline, agentsMap }) {
+function ListPhaseSection({ phase, casesByStatus, onMoved, pipeline, agentsMap, onQuickNotify }) {
   const [collapsed, setCollapsed] = useState(false)
   const colors = PHASE_COLORS[phase.color] || PHASE_COLORS.gray
   const statusList = phase.statuses || []
@@ -522,14 +504,14 @@ function ListPhaseSection({ phase, casesByStatus, onMoved, pipeline, agentsMap }
                     {status} <span className="ml-1 font-bold">({statusCases.length})</span>
                   </div>
                   {statusCases.map(c => (
-                    <CaseRow key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} agentsMap={agentsMap} />
+                    <CaseRow key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} agentsMap={agentsMap} onQuickNotify={onQuickNotify} />
                   ))}
                 </div>
               )
             })
           ) : (
             allCases.map(c => (
-              <CaseRow key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} agentsMap={agentsMap} />
+              <CaseRow key={c.id} caseItem={c} onMoved={onMoved} pipeline={pipeline} agentsMap={agentsMap} onQuickNotify={onQuickNotify} />
             ))
           )}
         </div>
@@ -538,7 +520,7 @@ function ListPhaseSection({ phase, casesByStatus, onMoved, pipeline, agentsMap }
   )
 }
 
-function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMoved, agentsMap, programLabel }) {
+function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMoved, agentsMap, programLabel, onQuickNotify }) {
   const handlePrint = () => window.print()
 
   return (
@@ -579,6 +561,7 @@ function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMov
           onMoved={onMoved}
           pipeline={pipeline}
           agentsMap={agentsMap}
+          onQuickNotify={onQuickNotify}
         />
       ))}
       {extraCases.length > 0 && (
@@ -588,6 +571,7 @@ function PipelineListView({ pipeline, filtered, casesByStatus, extraCases, onMov
           onMoved={onMoved}
           pipeline={pipeline}
           agentsMap={agentsMap}
+          onQuickNotify={onQuickNotify}
         />
       )}
     </div>
@@ -610,6 +594,7 @@ export default function Kanban() {
   const [filterHasDocs, setFilterHasDocs] = useState(false)
   const [filterStatus, setFilterStatus] = useState(new Set())
   const [viewMode, setViewMode] = useState('kanban')
+  const [quickNotifyCase, setQuickNotifyCase] = useState(null)
 
   const pipeline = pipelinesData[activeProgram] || PIPELINES[activeProgram]
 
@@ -769,6 +754,7 @@ export default function Kanban() {
           onMoved={handleMoved}
           agentsMap={agentsMap}
           programLabel={PROGRAM_LABELS[activeProgram]}
+          onQuickNotify={setQuickNotifyCase}
         />
       ) : (
         <div className="flex gap-3 overflow-x-auto pb-4 flex-1">
@@ -779,6 +765,7 @@ export default function Kanban() {
               casesByStatus={casesByStatus}
               onMoved={handleMoved}
               pipeline={pipeline}
+              onQuickNotify={setQuickNotifyCase}
             />
           ))}
           <PhaseColumn
@@ -787,12 +774,14 @@ export default function Kanban() {
             casesByStatus={{ __extra__: extraCases }}
             onMoved={handleMoved}
             pipeline={pipeline}
+            onQuickNotify={setQuickNotifyCase}
           />
         </div>
       )}
 
       {showPendingTemplates && <PendingTemplatesPanel onClose={() => setShowPendingTemplates(false)} />}
       {showSLA && <SLAConfigPanel onClose={() => setShowSLA(false)} />}
+      {quickNotifyCase && <QuickNotifyModal caseItem={quickNotifyCase} onClose={() => setQuickNotifyCase(null)} />}
     </div>
   )
 }
