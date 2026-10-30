@@ -815,27 +815,71 @@ def send_notification_to_case(
         raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
 
     results = []
+    consultant = current_user.full_name or ""
+    name = (c.client_name or "").split()[0] or c.client_name or "Πελάτη"
+    prog_display = c.service_type or c.program_category or ""
+    prog_label = f"«{prog_display}»" if prog_display else ""
     subject = req.subject or f"Ενημέρωση υπόθεσης - {c.client_name}"
-
-    if req.notification_type in ("email", "both"):
-        email = req.recipient_override or c.email
-        if email:
-            ok, err = _send_email(email, subject, req.message)
-            status = "sent" if ok else "failed"
-            _log_notification(db, c.id, "email", c.client_name, email, subject, req.message, status, current_user.full_name)
-            results.append({"type": "email", "to": email, "status": status, "error": err if not ok else None})
-        else:
-            results.append({"type": "email", "status": "skipped", "error": "Δεν υπάρχει email"})
 
     if req.notification_type in ("viber", "both"):
         phone = req.recipient_override or c.phone
-        if phone:
-            ok, err = _send_viber(phone, req.message, c.client_name, current_user.full_name, c.service_type or "")
+        if phone and req.message:
+            consultant_line = f"\n👤 {consultant}" if consultant else ""
+            viber_footer = (
+                f"{consultant_line}\n"
+                "━━━━━━━━━━━━━━━\n"
+                "i-Mentor Consulting\n"
+                "📞 2810 363007\n"
+                "🌐 www.i-mentor.gr · 📧 info@i-mentor.gr"
+            )
+            prog_header = f"📋 {prog_display}\n\n" if prog_display else ""
+            full_viber = prog_header + req.message.rstrip() + viber_footer
+            ok, err = _send_viber(phone, full_viber, c.client_name, consultant, c.service_type or "")
             status = "sent" if ok else "failed"
-            _log_notification(db, c.id, "viber", c.client_name, phone, subject, req.message, status, current_user.full_name)
+            _log_notification(db, c.id, "viber", c.client_name, phone, subject, full_viber, status, consultant)
             results.append({"type": "viber", "to": phone, "status": status, "error": err if not ok else None})
         else:
-            results.append({"type": "viber", "status": "skipped", "error": "Δεν υπάρχει τηλέφωνο"})
+            results.append({"type": "viber", "status": "skipped", "error": "Δεν υπάρχει τηλέφωνο ή μήνυμα"})
+
+    if req.notification_type in ("email", "both"):
+        email = req.recipient_override or c.email
+        if email and req.message:
+            body_text = req.message.replace("\n", "<br>")
+            consultant_html = (
+                f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
+            ) if consultant else ""
+            prog_header_html = (
+                f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
+                f'<b style="color:#1e3a5f;">{prog_label}</b></p>'
+            ) if prog_label else ""
+            email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
+<div style="max-width:600px;margin:0 auto;">
+  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+  </div>
+  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
+    <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{c.client_name}</b>,</p>
+    {prog_header_html}
+    <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
+    <div style="font-size:15px;line-height:1.7;margin:0 0 20px;">{body_text}</div>
+    <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
+    {consultant_html}
+    <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0;font-size:12px;color:#6b7280;">
+        i-Mentor Consulting ·
+        <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
+        <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a>
+      </p>
+    </div>
+  </div>
+</div></body></html>"""
+            ok, err = _send_email(email, subject, req.message, html_override=email_html)
+            status = "sent" if ok else "failed"
+            _log_notification(db, c.id, "email", c.client_name, email, subject, req.message, status, consultant)
+            results.append({"type": "email", "to": email, "status": status, "error": err if not ok else None})
+        else:
+            results.append({"type": "email", "status": "skipped", "error": "Δεν υπάρχει email ή μήνυμα"})
 
     db.commit()
     return {"results": results}

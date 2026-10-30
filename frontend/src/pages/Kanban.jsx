@@ -204,10 +204,18 @@ function QuickNotifyButton({ caseItem }) {
     if (!msg.trim()) return
     setSending(true)
     try {
-      await sendNotification(caseItem.id, { notification_type: channel, message: msg, subject })
-      toast.success('Ειδοποίηση εστάλη')
-      setMsg(''); setOpen(false)
-    } catch { toast.error('Σφάλμα') }
+      const res = await sendNotification(caseItem.id, { notification_type: channel, message: msg, subject })
+      const ok = (res.results || []).some(r => r.status === 'sent')
+      const failed = (res.results || []).filter(r => r.status === 'failed')
+      if (ok) {
+        toast.success('Ειδοποίηση εστάλη')
+        setMsg(''); setOpen(false)
+      } else if (failed.length) {
+        toast.error(failed[0].error || 'Αποτυχία αποστολής')
+      } else {
+        toast.error('Δεν υπάρχουν στοιχεία επικοινωνίας')
+      }
+    } catch (e) { toast.error(e?.response?.data?.detail || 'Σφάλμα αποστολής') }
     finally { setSending(false) }
   }
 
