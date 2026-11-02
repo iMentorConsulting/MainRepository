@@ -1445,61 +1445,6 @@ export default function ClientPortal() {
               </div>
             )}
 
-            {/* 7: Εκκρεμεί Πληρωμή */}
-            {data.anakainizw?.inspection_fee_paid === false && (
-              <div className="relative overflow-hidden rounded-2xl border-2 border-amber-400 bg-amber-50 p-5 shadow-sm">
-                <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-amber-400/10" />
-                <div className="absolute -bottom-4 -left-4 w-16 h-16 rounded-full bg-amber-400/10" />
-                <div className="relative">
-                  <div className="flex items-start gap-4 mb-4">
-                    <div className="flex-shrink-0 w-12 h-12 rounded-2xl bg-amber-400 text-white flex items-center justify-center text-2xl shadow">🏦</div>
-                    <div className="flex-1">
-                      <div className="text-xs font-bold uppercase tracking-widest text-amber-600 mb-0.5">Εκκρεμεί Πληρωμή</div>
-                      <h3 className="text-base font-extrabold text-amber-900">Έλεγχος Ακινήτου &amp; Εισοδηματικών Κριτηρίων</h3>
-                      <p className="text-sm text-amber-700 mt-1">Απαιτείται εφάπαξ πληρωμή για τον αρχικό έλεγχο επιλεξιμότητας.</p>
-                    </div>
-                  </div>
-                  <div className="bg-white border border-amber-200 rounded-xl p-4 mb-4 flex items-center justify-between">
-                    <div>
-                      <div className="text-xs text-amber-600 font-medium mb-0.5">Ποσό πληρωμής</div>
-                      <div className="text-2xl font-black text-amber-900">60 €</div>
-                      <div className="text-xs text-amber-500 mt-0.5">48,38 € + ΦΠΑ 24%</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-xs text-gray-500">Δικαιούχος</div>
-                      <div className="text-sm font-bold text-gray-800">I MENTOR IKE</div>
-                    </div>
-                  </div>
-                  <div className="space-y-2 mb-4">
-                    <div className="text-xs font-bold uppercase tracking-wide text-amber-700 mb-2">Τραπεζικοί Λογαριασμοί</div>
-                    {[
-                      { bank: 'Πειραιώς', iban: 'GR4501714330006433164381388' },
-                      { bank: 'Eurobank', iban: 'GR5802601680000060201330648' },
-                      { bank: 'Alpha Bank', iban: 'GR2401407750775002330002138' },
-                    ].map(({ bank, iban }) => (
-                      <div key={bank} className="bg-white border border-amber-100 rounded-xl px-4 py-3 flex items-center justify-between gap-3">
-                        <span className="text-sm font-bold text-gray-700 flex-shrink-0">{bank}</span>
-                        <span className="text-xs font-mono text-gray-600 break-all text-right">{iban}</span>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="bg-amber-100 border border-amber-300 rounded-xl px-4 py-3 text-sm text-amber-800 flex items-start gap-2">
-                    <span className="flex-shrink-0 text-base">📲</span>
-                    <span>Μετά την πληρωμή, <strong>στείλτε την απόδειξη</strong> στον σύμβουλό σας μέσω της φόρμας επικοινωνίας παρακάτω ή με email.</span>
-                  </div>
-                </div>
-              </div>
-            )}
-            {data.anakainizw?.inspection_fee_paid === true && (
-              <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-4 shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-green-500 text-white flex items-center justify-center text-2xl shadow flex-shrink-0">✅</div>
-                <div>
-                  <div className="text-sm font-bold text-green-800">Πληρωμή Ελέγχου — Εξοφλημένο</div>
-                  <div className="text-xs text-green-600 mt-0.5">Ο έλεγχος ακινήτου &amp; εισοδηματικών κριτηρίων έχει καλυφθεί.</div>
-                </div>
-              </div>
-            )}
-
             {/* 7: Κατάσταση Εγγράφων */}
             <AnaDocChecklist caseData={data} />
 

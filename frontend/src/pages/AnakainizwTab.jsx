@@ -653,7 +653,6 @@ export default function AnakainizwTab({ caseId }) {
 
   return (
     <div className="p-4 space-y-4">
-      <InspectionFeeCard data={data} onSave={save} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         <PropertyCard data={data} onSave={save} />
         <div className="space-y-4">
