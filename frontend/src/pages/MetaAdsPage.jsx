@@ -59,7 +59,12 @@ function PageForm({ page, agents, onSave, onCancel }) {
       onSave(saved)
       toast.success(page ? 'Αποθηκεύτηκε' : 'Η σελίδα προστέθηκε')
     } catch (e) {
-      toast.error(e.response?.data?.detail || 'Σφάλμα αποθήκευσης')
+      console.error('[MetaAds save]', e.response?.status, e.response?.data, e)
+      const detail = e.response?.data?.detail
+      let msg = 'Σφάλμα αποθήκευσης'
+      if (typeof detail === 'string') msg = detail
+      else if (Array.isArray(detail)) msg = detail.map(d => d.msg || JSON.stringify(d)).join(' | ')
+      toast.error(msg)
     } finally { setSaving(false) }
   }
 

@@ -293,6 +293,17 @@ class PageConfigIn(BaseModel):
     enabled: bool = True
 
 
+class PageConfigUpdate(BaseModel):
+    page_id: Optional[str] = None
+    page_name: Optional[str] = None
+    page_access_token: Optional[str] = None  # omit to keep existing token
+    verify_token: Optional[str] = None
+    default_program: Optional[str] = None
+    default_program_title: Optional[str] = None
+    assigned_agent_id: Optional[int] = None
+    enabled: Optional[bool] = None
+
+
 @router_admin.get("")
 def list_meta_pages(
     current_user: CMUser = Depends(get_current_user),
@@ -312,17 +323,23 @@ def create_meta_page(
 ):
     if not current_user.is_admin:
         raise HTTPException(status_code=403)
-    cfg = CMMetaPageConfig(**body.dict())
-    db.add(cfg)
-    db.commit()
-    db.refresh(cfg)
-    return _cfg_to_dict(cfg)
+    try:
+        cfg = CMMetaPageConfig(**body.model_dump())
+        db.add(cfg)
+        db.commit()
+        db.refresh(cfg)
+        print(f"[meta] Created page config id={cfg.id} page_id={cfg.page_id}", flush=True)
+        return _cfg_to_dict(cfg)
+    except Exception as exc:
+        db.rollback()
+        print(f"[meta] create_meta_page error: {exc}", flush=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router_admin.put("/{cfg_id}")
 def update_meta_page(
     cfg_id: int,
-    body: PageConfigIn,
+    body: PageConfigUpdate,
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -331,11 +348,21 @@ def update_meta_page(
     cfg = db.query(CMMetaPageConfig).filter(CMMetaPageConfig.id == cfg_id).first()
     if not cfg:
         raise HTTPException(status_code=404)
-    for k, v in body.dict().items():
-        setattr(cfg, k, v)
-    db.commit()
-    db.refresh(cfg)
-    return _cfg_to_dict(cfg)
+    try:
+        updates = body.model_dump(exclude_unset=True)
+        # Never overwrite token with None/empty — omit to keep existing
+        if "page_access_token" in updates and not updates["page_access_token"]:
+            del updates["page_access_token"]
+        for k, v in updates.items():
+            setattr(cfg, k, v)
+        db.commit()
+        db.refresh(cfg)
+        print(f"[meta] Updated page config id={cfg.id}", flush=True)
+        return _cfg_to_dict(cfg)
+    except Exception as exc:
+        db.rollback()
+        print(f"[meta] update_meta_page error: {exc}", flush=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router_admin.delete("/{cfg_id}")
