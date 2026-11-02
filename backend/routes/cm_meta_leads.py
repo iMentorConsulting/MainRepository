@@ -25,8 +25,9 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user
-from database import get_db
+from database import get_db, engine
 from models_cases import CMMetaPageConfig, CMMetaLeadLog, CMLead, CMUser
+from sqlalchemy import text as _sql
 
 log = logging.getLogger(__name__)
 
@@ -35,6 +36,44 @@ GRAPH_API = "https://graph.facebook.com/v19.0"
 router_public = APIRouter(prefix="/api/meta", tags=["meta-leads"])
 router_admin  = APIRouter(prefix="/api/cm/meta-pages", tags=["meta-leads-admin"])
 router_log    = APIRouter(prefix="/api/cm/meta-leads-log", tags=["meta-leads-admin"])
+
+# Ensure tables exist (idempotent — runs once at import time)
+try:
+    with engine.connect() as _c:
+        _c.execute(_sql("""
+            CREATE TABLE IF NOT EXISTS cm_meta_page_configs (
+                id SERIAL PRIMARY KEY,
+                page_id VARCHAR(50) NOT NULL,
+                page_name VARCHAR(200),
+                page_access_token TEXT NOT NULL,
+                verify_token VARCHAR(200) NOT NULL,
+                default_program VARCHAR(100),
+                default_program_title VARCHAR(300),
+                assigned_agent_id INTEGER REFERENCES cm_users(id),
+                enabled BOOLEAN DEFAULT TRUE,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _c.execute(_sql("""
+            CREATE TABLE IF NOT EXISTS cm_meta_lead_logs (
+                id SERIAL PRIMARY KEY,
+                page_id VARCHAR(50),
+                form_id VARCHAR(50),
+                leadgen_id VARCHAR(50) NOT NULL UNIQUE,
+                ad_name VARCHAR(300),
+                campaign_name VARCHAR(300),
+                raw_payload JSONB,
+                field_data JSONB,
+                lead_id INTEGER REFERENCES cm_leads(id),
+                status VARCHAR(30),
+                error TEXT,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _c.commit()
+    print("[meta] Tables ensured.", flush=True)
+except Exception as _te:
+    print(f"[meta] Table ensure error: {_te}", flush=True)
 
 
 # ── Field mapping ─────────────────────────────────────────────────────────────
