@@ -350,7 +350,7 @@ def list_meta_pages(
     db: Session = Depends(get_db),
 ):
     try:
-        if not current_user.is_admin:
+        if current_user.role != "admin":
             raise HTTPException(status_code=403)
         # Raw SQL sanity check
         raw = db.execute(__import__('sqlalchemy').text("SELECT COUNT(*) FROM cm_meta_page_configs")).scalar()
@@ -371,7 +371,7 @@ def create_meta_page(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     try:
         cfg = CMMetaPageConfig(**body.model_dump())
@@ -394,7 +394,7 @@ def update_meta_page(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     cfg = db.query(CMMetaPageConfig).filter(CMMetaPageConfig.id == cfg_id).first()
     if not cfg:
@@ -422,7 +422,7 @@ def delete_meta_page(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     cfg = db.query(CMMetaPageConfig).filter(CMMetaPageConfig.id == cfg_id).first()
     if not cfg:
@@ -438,7 +438,7 @@ def get_meta_lead_log(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
+    if current_user.role != "admin":
         raise HTTPException(status_code=403)
     rows = db.query(CMMetaLeadLog).order_by(CMMetaLeadLog.id.desc()).limit(limit).all()
     return [_log_to_dict(r) for r in rows]
