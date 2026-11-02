@@ -30,5 +30,3 @@ dist/
 *.swo
 .DS_Store
 
-# Bank Monitor local data
-bank-monitor/data/
