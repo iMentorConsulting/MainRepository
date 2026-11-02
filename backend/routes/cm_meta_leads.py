@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import logging
 import os
+import traceback
 from datetime import datetime
 from typing import Optional
 
@@ -348,10 +349,20 @@ def list_meta_pages(
     current_user: CMUser = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    if not current_user.is_admin:
-        raise HTTPException(status_code=403)
-    cfgs = db.query(CMMetaPageConfig).order_by(CMMetaPageConfig.id).all()
-    return [_cfg_to_dict(c) for c in cfgs]
+    try:
+        if not current_user.is_admin:
+            raise HTTPException(status_code=403)
+        # Raw SQL sanity check
+        raw = db.execute(__import__('sqlalchemy').text("SELECT COUNT(*) FROM cm_meta_page_configs")).scalar()
+        print(f"[meta] list raw SQL ok count={raw}", flush=True)
+        cfgs = db.query(CMMetaPageConfig).order_by(CMMetaPageConfig.id).all()
+        return [_cfg_to_dict(c) for c in cfgs]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        print(f"[meta] list_meta_pages error: {exc}", flush=True)
+        print(traceback.format_exc(), flush=True)
+        raise HTTPException(status_code=500, detail=str(exc))
 
 
 @router_admin.post("")
@@ -372,6 +383,7 @@ def create_meta_page(
     except Exception as exc:
         db.rollback()
         print(f"[meta] create_meta_page error: {exc}", flush=True)
+        print(traceback.format_exc(), flush=True)
         raise HTTPException(status_code=500, detail=str(exc))
 
 
