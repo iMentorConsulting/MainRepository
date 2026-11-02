@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bank Monitor</title>
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --ink:#1c2430; --mute:#6b7685; --line:#e3e7ee; --accent:#1f5fbf;
+          --green:#157a3c; --red:#b3261e; --amber:#b26a00; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#12161c; --card:#1a2029; --ink:#e7ebf1; --mute:#93a0b2; --line:#2b3340; --accent:#6aa3ff;
+            --green:#4cc27a; --red:#ff7b72; --amber:#e0a030; } }
+  * { box-sizing: border-box; }
+  body { margin:0; font:14px/1.45 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+  header { padding:14px 16px; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+  h1 { font-size:18px; margin:0 8px 0 0; }
+  .chip { background:var(--card); border:1px solid var(--line); border-radius:99px; padding:3px 10px; color:var(--mute); }
+  .chip b { color:var(--ink); }
+  .bar { display:flex; gap:8px; padding:0 16px 12px; flex-wrap:wrap; align-items:center; }
+  button, select, input { font:inherit; color:inherit; background:var(--card); border:1px solid var(--line);
+          border-radius:8px; padding:6px 10px; }
+  button { cursor:pointer; } button.on { background:var(--accent); color:#fff; border-color:var(--accent); }
+  .wrap { margin:0 16px 24px; background:var(--card); border:1px solid var(--line); border-radius:10px; overflow:auto; }
+  table { border-collapse:collapse; width:100%; min-width:860px; }
+  th, td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { color:var(--mute); font-weight:600; position:sticky; top:0; background:var(--card); }
+  tr.new td:first-child { box-shadow: inset 3px 0 var(--amber); }
+  .amt { text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; font-weight:600; }
+  .credit { color:var(--green); } .debit { color:var(--red); }
+  .sub { color:var(--mute); font-size:12px; }
+  td input.note, td input.cat { width:100%; min-width:140px; }
+  .empty { padding:28px; color:var(--mute); text-align:center; }
+  #msg { padding:0 16px 8px; color:var(--mute); min-height:20px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Bank Monitor</h1>
+  <span class="chip">Νέες πιστώσεις: <b id="s-new">–</b></span>
+  <span class="chip">Πιστώσεις χωρίς τιμολόγιο: <b id="s-noinv">–</b></span>
+</header>
+<div class="bar">
+  <button id="t-credit" class="on">Πιστώσεις</button>
+  <button id="t-debit">Χρεώσεις</button>
+  <select id="f-bank"><option value="">Όλες οι τράπεζες</option></select>
+  <button id="f-unseen">Μόνο νέες</button>
+  <button id="f-noinv">Χωρίς τιμολόγιο</button>
+  <input id="f-q" type="search" placeholder="Αναζήτηση…">
+  <button id="seen-all">Όλες ως διαβασμένες</button>
+  <span style="flex:1"></span>
+  <select id="up-bank"></select>
+  <input id="up-file" type="file" accept=".csv,.txt,.sta,.mt940,.940,.tsv">
+  <button id="up-go">Εισαγωγή αρχείου</button>
+</div>
+<div id="msg"></div>
+<div class="wrap"><table>
+  <thead><tr><th>Ημ/νία</th><th>Τράπεζα</th><th style="text-align:right">Ποσό</th><th>Αντισυμβαλλόμενος / Περιγραφή</th>
+    <th>Κατηγορία</th><th id="th-inv">Τιμολόγιο</th><th>Σημείωση</th></tr></thead>
+  <tbody id="rows"></tbody>
+</table></div>
+<script>
+const state = { direction:'credit', bank:'', unseen:false, noinv:false, q:'' };
+let BANKS = {};
+const $ = id => document.getElementById(id);
+const eur = c => (c<0?'-':'') + (Math.abs(c)/100).toLocaleString('el-GR',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' €';
+const api = async (url, opt) => { const r = await fetch(url, opt);
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || r.statusText); return r.json(); };
+const patch = (id, body) => api('/api/transactions/'+id, {method:'PATCH', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+const el = (tag, props={}, ...kids) => { const e = Object.assign(document.createElement(tag), props); kids.forEach(k => e.append(k)); return e; };
+const say = t => $('msg').textContent = t;
+
+async function load() {
+  const p = new URLSearchParams({direction:state.direction, bank:state.bank, q:state.q});
+  if (state.unseen) p.set('unseen','true'); if (state.noinv) p.set('no_invoice','true');
+  const [rows, sum] = await Promise.all([api('/api/transactions?'+p), api('/api/summary')]);
+  $('s-new').textContent = sum.new_credits; $('s-noinv').textContent = sum.credits_without_invoice;
+  $('th-inv').style.visibility = state.direction==='credit' ? 'visible' : 'hidden';
+  const tb = $('rows'); tb.replaceChildren();
+  if (!rows.length) tb.append(el('tr',{},el('td',{colSpan:7,className:'empty',textContent:'Καμία κίνηση.'})));
+  for (const t of rows) {
+    const tr = el('tr', {className: t.seen ? '' : 'new'});
+    tr.append(el('td',{textContent:t.tx_date}), el('td',{textContent:BANKS[t.bank]||t.bank}),
+      el('td',{className:'amt '+t.direction, textContent:eur(t.amount_cents)}));
+    const who = el('td'); who.append(el('div',{textContent:t.counterparty||t.description}));
+    if (t.counterparty && t.description) who.append(el('div',{className:'sub',textContent:t.description}));
+    tr.append(who);
+    const cat = el('input',{className:'cat',value:t.category,placeholder:'—'});
+    cat.onchange = () => patch(t.id,{category:cat.value});
+    tr.append(el('td',{},cat));
+    const inv = el('td');
+    if (t.direction==='credit') {
+      const sel = el('select'); [['','—'],['1','Εκδόθηκε'],['0','Δεν εκδόθηκε']].forEach(([v,l]) => sel.append(el('option',{value:v,textContent:l})));
+      sel.value = t.invoice_issued===null ? '' : String(t.invoice_issued);
+      sel.onchange = () => patch(t.id,{invoice_issued: sel.value==='' ? null : sel.value==='1'});
+      inv.append(sel);
+    }
+    tr.append(inv);
+    const note = el('input',{className:'note',value:t.note,placeholder:'Σημείωση…'});
+    note.onchange = () => patch(t.id,{note:note.value, seen:true});
+    tr.append(el('td',{},note));
+    tr.onclick = e => { if (!t.seen && e.target.tagName==='TD') patch(t.id,{seen:true}).then(load); };
+    tb.append(tr);
+  }
+}
+function toggle(btn, key) { btn.onclick = () => { state[key] = !state[key]; btn.classList.toggle('on', state[key]); load(); }; }
+toggle($('f-unseen'),'unseen'); toggle($('f-noinv'),'noinv');
+for (const d of ['credit','debit']) $('t-'+d).onclick = () => { state.direction=d;
+  $('t-credit').classList.toggle('on',d==='credit'); $('t-debit').classList.toggle('on',d==='debit'); load(); };
+$('f-bank').onchange = e => { state.bank = e.target.value; load(); };
+let qt; $('f-q').oninput = e => { clearTimeout(qt); qt = setTimeout(() => { state.q = e.target.value; load(); }, 250); };
+$('seen-all').onclick = () => api('/api/mark-seen?direction='+state.direction,{method:'POST'}).then(load);
+$('up-go').onclick = async () => {
+  const f = $('up-file').files[0]; if (!f) return say('Επιλέξτε αρχείο.');
+  const fd = new FormData(); fd.append('bank',$('up-bank').value); fd.append('file',f);
+  try { const r = await api('/api/import',{method:'POST',body:fd});
+    say(`Νέες: ${r.new}, διπλές: ${r.duplicates}, ειδοποιήσεις: ${r.notified}` + (r.notify_error ? ` (σφάλμα Viber: ${r.notify_error})` : ''));
+    load();
+  } catch (e) { say('Σφάλμα: '+e.message); }
+};
+api('/api/banks').then(b => { BANKS = b;
+  for (const [k,v] of Object.entries(b)) { $('f-bank').append(el('option',{value:k,textContent:v})); $('up-bank').append(el('option',{value:k,textContent:v})); }
+  load(); });
+setInterval(load, 60000);
+</script>
+</body>
+</html>
