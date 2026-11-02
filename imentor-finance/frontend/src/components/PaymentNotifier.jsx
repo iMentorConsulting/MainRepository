@@ -92,6 +92,13 @@ export default function PaymentNotifier() {
       );
     });
 
+    es.addEventListener('new_bank_transactions', (e) => {
+      const { bank_label, count, total_cents } = JSON.parse(e.data);
+      const total = (total_cents / 100).toLocaleString('el-GR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      toast(`🏦 ${bank_label}: ${count === 1 ? 'νέα κίνηση' : count + ' νέες κινήσεις'}${total_cents ? ' · +' + total + ' €' : ''}`,
+        { duration: 10000 });
+    });
+
     es.onerror = () => {};
 
     return () => es.close();

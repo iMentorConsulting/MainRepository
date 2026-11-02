@@ -13,6 +13,7 @@ require('./models/RecurringExpense');
 require('./models/AppSetting');
 require('./models/PayrollEmployeeSetting');
 require('./models/IncomingLead');
+require('./models/BankTransaction');
 
 const authMiddleware = require('./middleware/auth');
 
@@ -60,6 +61,8 @@ app.use('/api/import',     authMiddleware, require('./routes/importData'));
 app.use('/api/customers',          authMiddleware, require('./routes/customers'));
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
 app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
+// Bank movements (CSV/MT940 import → new-credit Viber alert, notes, categories, invoice flag)
+app.use('/api/bank',     authMiddleware, require('./routes/bank'));
 // Case management sync — own API-key auth, no user auth middleware
 app.use('/api/cm-sync',  require('./routes/cmSync'));
 // Pull case data from consult.i-mentor.gr (requires CM_APP_URL + FINANCE_API_KEY env vars)

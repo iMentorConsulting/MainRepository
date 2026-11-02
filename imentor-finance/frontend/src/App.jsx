@@ -15,6 +15,7 @@ import ImportPage from './pages/Import/ImportPage';
 import ServiceAgreementsPage from './pages/ServiceAgreements/ServiceAgreementsPage';
 import CustomersPage from './pages/Customers/CustomersPage';
 import RecurringExpensesPage from './pages/Expenses/RecurringExpensesPage';
+import BankPage from './pages/Bank/BankPage';
 import LeadIntakePage from './pages/LeadIntake/LeadIntakePage';
 import PaymentNotifier from './components/PaymentNotifier';
 
@@ -31,6 +32,7 @@ function AppRoutes() {
       <Route path="/" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
       <Route path="/income" element={<ProtectedRoute><IncomeList /></ProtectedRoute>} />
       <Route path="/expenses" element={<ProtectedRoute><ExpensesList /></ProtectedRoute>} />
+      <Route path="/bank" element={<ProtectedRoute><BankPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
       <Route path="/bonus" element={<ProtectedRoute><BonusReport /></ProtectedRoute>} />
       <Route path="/invoices" element={<ProtectedRoute><InvoicesPage /></ProtectedRoute>} />
