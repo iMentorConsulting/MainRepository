@@ -153,7 +153,7 @@ const DEFAULT_HTML = `<!DOCTYPE html>
     <tr>
       <td style="background:#1e293b;padding:24px 40px;border-radius:0 0 16px 16px;">
         <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#f1f5f9;">i-MENTOR Λογιστικές &amp; Επιχειρηματικές Υπηρεσίες</p>
-        <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">Τα στοιχεία επικοινωνίας σας αντλήθηκαν από το Γενικό Εμπορικό Μητρώο (ΓΕΜΗ) μέσω του επίσημου Open Data API του Ελληνικού Δημοσίου, υπό την άδεια ανοιχτών δεδομένων ODC-BY-1.0, η οποία επιτρέπει ρητά την εμπορική χρήση. Πρόκειται για δημόσια διαθέσιμα εταιρικά στοιχεία (gemi.gov.gr).</p>
+        <p style="margin:0;font-size:11px;color:#94a3b8;line-height:1.6;">Τα στοιχεία επικοινωνίας σας αντλήθηκαν από το Γενικό Εμπορικό Μητρώο (ΓΕΜΗ) μέσω του επίσημου Open Data API του Ελληνικού Δημοσίου, υπό την άδεια ανοιχτών δεδομένων ODC-BY-1.0. Πρόκειται για δημόσια διαθέσιμα εταιρικά στοιχεία (gemi.gov.gr).</p>
         <p style="margin:12px 0 0;font-size:11px;color:#64748b;">Δεν επιθυμείτε να λαμβάνετε ενημερώσεις; <a href="{{unsubscribe_link}}" style="color:#94a3b8;text-decoration:underline;">Κατάργηση εγγραφής</a></p>
       </td>
     </tr>
