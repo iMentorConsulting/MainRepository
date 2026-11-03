@@ -580,6 +580,12 @@ def update_case(
             push_portal_status_update(c, note=f"Νέο στάδιο: {new_status}")
         except Exception as e:
             log.warning("[portal integration] status push failed for case %s: %s", case_id, e)
+        if new_status == "ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ":
+            try:
+                from routes.cm_meta_leads import send_capi_conversion
+                send_capi_conversion(c, "CompleteRegistration", db)
+            except Exception as e:
+                log.warning("[capi] send failed for case %s: %s", case_id, e)
     return case_to_dict(c)
 
 

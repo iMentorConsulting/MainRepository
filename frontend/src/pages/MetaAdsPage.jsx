@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { getMetaPages, createMetaPage, updateMetaPage, deleteMetaPage, getMetaLeadLog, getUsers } from '../api'
+import { getMetaPages, createMetaPage, updateMetaPage, deleteMetaPage, getMetaLeadLog, getUsers, getMetaCapiSettings, updateMetaCapiSettings } from '../api'
 import toast from 'react-hot-toast'
 
 const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ']
@@ -137,6 +137,93 @@ function StatusDot({ ok }) {
   return <span className={`inline-block w-2 h-2 rounded-full ${ok ? 'bg-green-500' : 'bg-gray-300'}`} />
 }
 
+function CapiSettingsSection() {
+  const [cfg, setCfg] = useState({ pixel_id: '', capi_token: '', enabled: false })
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [form, setForm] = useState({ pixel_id: '', capi_token: '', enabled: true })
+
+  useEffect(() => {
+    getMetaCapiSettings()
+      .then(c => { setCfg(c); setForm({ pixel_id: c.pixel_id || '', capi_token: '', enabled: c.enabled ?? true }) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const handleSave = async () => {
+    setSaving(true)
+    try {
+      const payload = { enabled: form.enabled }
+      if (form.pixel_id) payload.pixel_id = form.pixel_id
+      if (form.capi_token) payload.capi_token = form.capi_token
+      const updated = await updateMetaCapiSettings(payload)
+      setCfg(updated)
+      setEditing(false)
+      toast.success('Ρυθμίσεις CAPI αποθηκεύτηκαν')
+    } catch (e) {
+      const detail = e.response?.data?.detail
+      toast.error(typeof detail === 'string' ? detail : 'Σφάλμα αποθήκευσης')
+    } finally { setSaving(false) }
+  }
+
+  if (loading) return null
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-xl p-5 space-y-3">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-gray-800">Meta Conversions API (CAPI)</h2>
+          <p className="text-xs text-gray-500 mt-0.5">Στέλνει αυτόματα conversion event στη Meta όταν μια υπόθεση γίνει «ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ».</p>
+        </div>
+        {!editing && (
+          <button onClick={() => setEditing(true)} className="text-sm text-blue-600 hover:underline shrink-0">Επεξεργασία</button>
+        )}
+      </div>
+
+      {!editing ? (
+        <div className="text-xs text-gray-600 space-y-1">
+          <div className="flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${cfg.enabled && cfg.pixel_id ? 'bg-green-500' : 'bg-gray-300'}`} />
+            <span>{cfg.enabled && cfg.pixel_id ? 'Ενεργό' : 'Ανενεργό / Μη διαμορφωμένο'}</span>
+          </div>
+          {cfg.pixel_id && <div>Pixel ID: <code className="bg-gray-100 px-1 rounded">{cfg.pixel_id}</code></div>}
+          {cfg.capi_token && <div>Token: <code className="bg-gray-100 px-1 rounded">{cfg.capi_token}</code></div>}
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Pixel ID</label>
+              <input value={form.pixel_id} onChange={e => setForm(f => ({ ...f, pixel_id: e.target.value }))}
+                className="w-full border rounded px-2 py-1.5 text-sm font-mono focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                placeholder="1152400940658328" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">CAPI Access Token <span className="text-gray-400">(άφησε κενό για να κρατήσεις το υπάρχον)</span></label>
+              <input type="password" value={form.capi_token} onChange={e => setForm(f => ({ ...f, capi_token: e.target.value }))}
+                className="w-full border rounded px-2 py-1.5 text-sm font-mono focus:ring-2 focus:ring-blue-400 focus:outline-none"
+                placeholder="EAAXY6qvKZ..." />
+            </div>
+          </div>
+          <label className="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" checked={form.enabled} onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))} className="rounded accent-blue-600" />
+            <span>Ενεργό</span>
+          </label>
+          <p className="text-[11px] text-gray-400">Τα δεδομένα (email, τηλέφωνο, όνομα) αποστέλλονται κρυπτογραφημένα (SHA-256) στη Meta για αντιστοίχιση.</p>
+          <div className="flex gap-2">
+            <button onClick={handleSave} disabled={saving}
+              className="px-4 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+            </button>
+            <button onClick={() => setEditing(false)} className="px-4 py-1.5 text-sm border rounded-lg hover:bg-gray-50">Άκυρο</button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function MetaAdsPage() {
   const [pages, setPages] = useState([])
   const [agents, setAgents] = useState([])
@@ -255,6 +342,9 @@ export default function MetaAdsPage() {
           </div>
         ))}
       </div>
+
+      {/* CAPI settings */}
+      <CapiSettingsSection />
 
       {/* Lead log */}
       <div>

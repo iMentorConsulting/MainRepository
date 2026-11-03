@@ -16,6 +16,7 @@ import hashlib
 import hmac
 import logging
 import os
+import time
 import traceback
 from datetime import datetime
 from typing import Optional
@@ -37,6 +38,7 @@ GRAPH_API = "https://graph.facebook.com/v19.0"
 router_public = APIRouter(prefix="/api/meta", tags=["meta-leads"])
 router_admin  = APIRouter(prefix="/api/cm/meta-pages", tags=["meta-leads-admin"])
 router_log    = APIRouter(prefix="/api/cm/meta-leads-log", tags=["meta-leads-admin"])
+router_capi   = APIRouter(prefix="/api/cm/meta-capi", tags=["meta-capi"])
 
 # Ensure tables exist (idempotent — runs once at import time)
 try:
@@ -71,6 +73,18 @@ try:
                 created_at TIMESTAMP DEFAULT NOW()
             )
         """))
+        _c.execute(_sql("""
+            CREATE TABLE IF NOT EXISTS cm_meta_capi_settings (
+                id INTEGER PRIMARY KEY DEFAULT 1,
+                pixel_id VARCHAR(50),
+                capi_token TEXT,
+                enabled BOOLEAN DEFAULT TRUE,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _c.execute(_sql(
+            "INSERT INTO cm_meta_capi_settings (id) VALUES (1) ON CONFLICT DO NOTHING"
+        ))
         _c.commit()
     print("[meta] Tables ensured.", flush=True)
 except Exception as _te:
@@ -473,3 +487,126 @@ def _log_to_dict(r: CMMetaLeadLog) -> dict:
         "field_data": r.field_data,
         "created_at": r.created_at.isoformat() if r.created_at else None,
     }
+
+
+# ── CAPI (Conversions API) settings & sender ──────────────────────────────────
+
+class CapiSettingsIn(BaseModel):
+    pixel_id: Optional[str] = None
+    capi_token: Optional[str] = None
+    enabled: Optional[bool] = None
+
+
+def _sha256(value: str) -> str:
+    return hashlib.sha256(value.strip().lower().encode()).hexdigest()
+
+
+def _normalize_phone_e164(phone: str) -> Optional[str]:
+    """Return phone in E.164 format without '+', e.g. 306912345678."""
+    if not phone:
+        return None
+    digits = "".join(c for c in phone if c.isdigit())
+    if digits.startswith("0030"):
+        digits = digits[4:]
+    elif digits.startswith("30") and len(digits) == 12:
+        digits = digits[2:]
+    if len(digits) == 10 and digits.startswith("6"):
+        digits = "30" + digits
+    return digits or None
+
+
+def _get_capi_settings(db: Session) -> dict:
+    row = db.execute(_sql("SELECT pixel_id, capi_token, enabled FROM cm_meta_capi_settings WHERE id=1")).fetchone()
+    if not row:
+        return {"pixel_id": None, "capi_token": None, "enabled": False}
+    return {"pixel_id": row[0], "capi_token": row[1], "enabled": row[2]}
+
+
+def send_capi_conversion(case, event_name: str, db: Session) -> bool:
+    """Send a CAPI conversion event to Meta for a given case. Returns True on success."""
+    try:
+        cfg = _get_capi_settings(db)
+        if not cfg.get("enabled") or not cfg.get("pixel_id") or not cfg.get("capi_token"):
+            log.info("[capi] CAPI not configured or disabled — skipping")
+            return False
+
+        user_data: dict = {}
+        if getattr(case, "email", None):
+            user_data["em"] = [_sha256(case.email)]
+        if getattr(case, "phone", None):
+            norm = _normalize_phone_e164(case.phone)
+            if norm:
+                user_data["ph"] = [_sha256(norm)]
+        name = getattr(case, "client_name", None) or ""
+        parts = name.strip().split()
+        if parts:
+            user_data["fn"] = [_sha256(parts[0])]
+        if len(parts) > 1:
+            user_data["ln"] = [_sha256(" ".join(parts[1:]))]
+
+        payload = {
+            "data": [{
+                "event_name": event_name,
+                "event_time": int(time.time()),
+                "action_source": "system_generated",
+                "event_id": f"cm_case_{case.id}_{event_name}_{int(time.time())}",
+                "user_data": user_data,
+            }]
+        }
+
+        url = f"{GRAPH_API}/{cfg['pixel_id']}/events"
+        r = _requests.post(url, params={"access_token": cfg["capi_token"]}, json=payload, timeout=15)
+        result = r.json()
+        if r.ok:
+            log.info("[capi] Sent %s for case id=%s: %s", event_name, case.id, result)
+            return True
+        else:
+            log.error("[capi] Failed %s for case id=%s: %s %s", event_name, case.id, r.status_code, result)
+            return False
+    except Exception as exc:
+        log.exception("[capi] Exception sending %s for case id=%s: %s", event_name, getattr(case, "id", "?"), exc)
+        return False
+
+
+@router_capi.get("")
+def get_capi_settings(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403)
+    cfg = _get_capi_settings(db)
+    token = cfg.get("capi_token") or ""
+    return {
+        "pixel_id": cfg.get("pixel_id"),
+        "capi_token": "****" + token[-6:] if token else "",
+        "enabled": cfg.get("enabled", False),
+    }
+
+
+@router_capi.put("")
+def update_capi_settings(
+    body: CapiSettingsIn,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403)
+    try:
+        updates = body.model_dump(exclude_unset=True)
+        if not updates:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        if "capi_token" in updates and not updates["capi_token"]:
+            del updates["capi_token"]
+        set_clauses = ", ".join(f"{k} = :{k}" for k in updates)
+        updates["updated_at"] = datetime.utcnow()
+        set_clauses += ", updated_at = :updated_at"
+        db.execute(_sql(f"UPDATE cm_meta_capi_settings SET {set_clauses} WHERE id = 1"), updates)
+        db.commit()
+        return get_capi_settings(current_user=current_user, db=db)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        db.rollback()
+        print(f"[capi] update error: {exc}", flush=True)
+        raise HTTPException(status_code=500, detail=str(exc))

@@ -36,7 +36,7 @@ from routes.cm_leads_sync import router as cm_leads_sync_router
 from routes.cm_leads_ermis import router as cm_leads_ermis_router
 from routes.cm_dypa_hiring import router as cm_dypa_hiring_router
 from routes.cm_webhook import router_public as cm_webhook_public_router, router_admin as cm_webhook_admin_router
-from routes.cm_meta_leads import router_public as cm_meta_public_router, router_admin as cm_meta_admin_router, router_log as cm_meta_log_router
+from routes.cm_meta_leads import router_public as cm_meta_public_router, router_admin as cm_meta_admin_router, router_log as cm_meta_log_router, router_capi as cm_meta_capi_router
 from routes.cm_message_templates import router as cm_message_templates_router
 
 load_dotenv()
@@ -1076,6 +1076,7 @@ app.include_router(cm_webhook_admin_router)
 app.include_router(cm_meta_public_router)
 app.include_router(cm_meta_admin_router)
 app.include_router(cm_meta_log_router)
+app.include_router(cm_meta_capi_router)
 app.include_router(cm_message_templates_router)
 
 
