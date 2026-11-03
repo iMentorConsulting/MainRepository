@@ -21,7 +21,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Μη έγκυρο ΑΦΜ' }, { status: 400 })
   }
 
-  const realData = await lookupAfm(afm)
+  // Admin-only escape hatch for the 7-day same-ΑΦΜ valve (see lib/gsis.ts) —
+  // needed e.g. when re-adding a business that was deleted and looked up
+  // again within the window, where a stale/null lookup would otherwise block
+  // recreating it with real AADE data.
+  const bypassValve = session.user.role === 'ADMIN' && request.nextUrl.searchParams.get('bypassValve') === '1'
+
+  const realData = await lookupAfm(afm, { bypassValve })
   if (realData) return NextResponse.json(realData)
 
   return NextResponse.json(

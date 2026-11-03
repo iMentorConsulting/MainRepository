@@ -1,5 +1,6 @@
 'use client'
 import { useState } from 'react'
+import { useSession } from 'next-auth/react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { Search, CheckCircle, AlertCircle } from 'lucide-react'
@@ -36,12 +37,14 @@ interface AfmLookupProps {
 }
 
 export function AfmLookup({ onResult, onNotFound, defaultAfm }: AfmLookupProps) {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
   const [afm, setAfm] = useState(defaultAfm || '')
   const [loading, setLoading] = useState(false)
   const [status, setStatus] = useState<'idle' | 'success' | 'error' | 'not-found' | 'pending-approval'>('idle')
   const [errorMessage, setErrorMessage] = useState('')
 
-  async function handleLookup() {
+  async function handleLookup(bypassValve = false) {
     if (!afm || afm.length !== 9) {
       setErrorMessage('Εισάγετε έγκυρο ΑΦΜ (9 ψηφία)')
       setStatus('error')
@@ -51,7 +54,7 @@ export function AfmLookup({ onResult, onNotFound, defaultAfm }: AfmLookupProps) 
     setStatus('idle')
     setErrorMessage('')
     try {
-      const res = await fetch(`/api/afm?afm=${afm}`)
+      const res = await fetch(`/api/afm?afm=${afm}${bypassValve ? '&bypassValve=1' : ''}`)
       const data = await res.json()
       if (!res.ok) {
         if (res.status === 403 && data?.pendingApproval) {
@@ -59,7 +62,10 @@ export function AfmLookup({ onResult, onNotFound, defaultAfm }: AfmLookupProps) 
           setErrorMessage(data.error || '')
           return
         }
-        // No record found in GSIS — most likely an individual, not a registered business
+        // No record found in GSIS — could genuinely be an individual, or
+        // could be the 7-day same-ΑΦΜ valve (see lib/gsis.ts) blocking a
+        // fresh call after a stale/failed lookup, e.g. when re-adding a
+        // business that was deleted and looked up again within the window.
         setStatus('not-found')
         onNotFound?.(afm)
         return
@@ -87,7 +93,7 @@ export function AfmLookup({ onResult, onNotFound, defaultAfm }: AfmLookupProps) 
           onKeyDown={e => e.key === 'Enter' && handleLookup()}
           maxLength={9}
         />
-        <Button onClick={handleLookup} loading={loading} size="md">
+        <Button onClick={() => handleLookup()} loading={loading} size="md">
           <Search size={16} className="mr-1" />
           Αναζήτηση
         </Button>
@@ -99,9 +105,21 @@ export function AfmLookup({ onResult, onNotFound, defaultAfm }: AfmLookupProps) 
         </div>
       )}
       {status === 'not-found' && (
-        <div className="mt-2 flex items-center gap-1 text-amber-700 text-xs">
-          <AlertCircle size={14} />
-          <span>Δεν βρέθηκε επιχείρηση στο ΓΓΠΣ — συμπληρώθηκε ως «ΙΔΙΩΤΗΣ»</span>
+        <div className="mt-2 space-y-1">
+          <div className="flex items-center gap-1 text-amber-700 text-xs">
+            <AlertCircle size={14} />
+            <span>Δεν βρέθηκε επιχείρηση στο ΓΓΠΣ — συμπληρώθηκε ως «ΙΔΙΩΤΗΣ»</span>
+          </div>
+          {isAdmin && (
+            <button
+              type="button"
+              onClick={() => handleLookup(true)}
+              disabled={loading}
+              className="text-xs text-blue-700 hover:underline disabled:opacity-50"
+            >
+              Ίσως είναι ο έλεγχος 7 ημερών (valve) — δοκιμάστε ξανά με παράκαμψη
+            </button>
+          )}
         </div>
       )}
       {status === 'pending-approval' && (
