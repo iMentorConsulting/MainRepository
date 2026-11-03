@@ -31,9 +31,26 @@ class HashingTests(unittest.TestCase):
 
     def test_names(self):
         self.assertEqual(meta_capi.hash_name("  Δημήτρης "), sha("δημήτρης"))
-        self.assertEqual(meta_capi.split_name("Dimitris Papadatos"), ("Dimitris", "Papadatos"))
         self.assertEqual(meta_capi.split_name("Ιωάννης"), ("Ιωάννης", ""))
         self.assertEqual(meta_capi.split_name(""), ("", ""))
+
+    def test_name_order(self):
+        # agent-typed, ALL-CAPS: surname first
+        self.assertEqual(meta_capi.split_name("ΠΑΠΑΔΟΠΟΥΛΟΣ ΓΙΩΡΓΟΣ"), ("ΓΙΩΡΓΟΣ", "ΠΑΠΑΔΟΠΟΥΛΟΣ"))
+        # Facebook-style «first last»
+        self.assertEqual(meta_capi.split_name("Dimitris Papadatos"), ("Dimitris", "Papadatos"))
+        self.assertEqual(meta_capi.split_name("Γιώργος Παπαδόπουλος"), ("Γιώργος", "Παπαδόπουλος"))
+
+    def test_explicit_first_last_win(self):
+        lead = SimpleNamespace(name="ΠΑΠΑΔΟΠΟΥΛΟΣ ΓΙΩΡΓΟΣ", first_name="Γιώργος", last_name="Παπαδόπουλος", email="", phone="")
+        ud = meta_capi.build_user_data(lead)
+        self.assertEqual(ud["fn"], [sha("γιώργος")])
+        self.assertEqual(ud["ln"], [sha("παπαδόπουλος")])
+        lead2 = SimpleNamespace(name="ΠΑΠΑΔΟΠΟΥΛΟΣ ΓΙΩΡΓΟΣ", email="", phone="")   # no explicit columns → heuristic
+        ud2 = meta_capi.build_user_data(lead2)
+        # ALL-CAPS Greek has no accents, so the lowercase form is «γιωργος» (final sigma handled by Python)
+        self.assertEqual(ud2["fn"], [sha("γιωργος")])
+        self.assertEqual(ud2["ln"], [sha("παπαδοπουλος")])
 
     def test_user_data_omits_missing_fields(self):
         lead = SimpleNamespace(name="Ιωάννης", email="", phone="6912345678")

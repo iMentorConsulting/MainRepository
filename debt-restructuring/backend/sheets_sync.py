@@ -234,11 +234,13 @@ def _build_sheet_fields(row: dict) -> dict:
     raw_status = row.get("status", "").strip()
     # Build name: prefer Επωνυμία, fallback to First + Last
     name = row.get("name", "").strip()
+    first = row.get("first_name_sheet", "").strip()
+    last = row.get("last_name_sheet", "").strip()
     if not name:
-        first = row.get("first_name_sheet", "").strip()
-        last = row.get("last_name_sheet", "").strip()
         name = f"{first} {last}".strip()
     return dict(
+        first_name=first,
+        last_name=last,
         sheet_row_num=row["_row_num"],
         status=_normalize_status(raw_status),
         status_raw=raw_status,

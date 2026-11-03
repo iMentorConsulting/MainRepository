@@ -101,6 +101,8 @@ class Lead(Base):
     date = Column(String, default="")
     month_sheet = Column(String, default="")   # ΜΗΝΑΣ column
     name = Column(String, default="", index=True)
+    first_name = Column(String, default="")   # when the sheet has separate First / Last columns (used for Meta CAPI)
+    last_name = Column(String, default="")
     sheet_comments = Column(Text, default="")
     next_call_sheet = Column(String, default="")
     total_debt = Column(String, default="")

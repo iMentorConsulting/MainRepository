@@ -51,20 +51,29 @@ def hash_name(name) -> str | None:
 
 
 def split_name(full_name) -> tuple[str, str]:
-    """'Dimitris Papadatos' → ('dimitris', 'papadatos'). Single word → first name only.
-    Assumes «όνομα επώνυμο» order; the middle words (if any) go to the last name."""
-    parts = re.split(r"\s+", (full_name or "").strip())
-    parts = [p for p in parts if p]
+    """Return (first_name, last_name) from a single free-text name.
+
+    The `name` of a lead is mixed: names typed by the agents are ALL-CAPS with the surname first
+    («ΠΑΠΑΔΟΠΟΥΛΟΣ ΓΙΩΡΓΟΣ»), while names that come from the Facebook form («First» + «Last» columns) are
+    «first last». Rule: an ALL-CAPS name is read surname-first (fn = last token, ln = the rest);
+    anything else is read first-last (fn = first token, ln = the rest). One word → first name only."""
+    parts = [p for p in re.split(r"\s+", (full_name or "").strip()) if p]
     if not parts:
         return "", ""
     if len(parts) == 1:
         return parts[0], ""
+    if full_name.strip().upper() == full_name.strip() and any(c.isalpha() for c in full_name):
+        return parts[-1], " ".join(parts[:-1])
     return parts[0], " ".join(parts[1:])
 
 
 def build_user_data(lead) -> dict:
     """Only the fields we have — missing ones are omitted."""
-    first, last = split_name(getattr(lead, "name", ""))
+    # explicit First / Last from the sheet win over guessing from the free-text name
+    first = (getattr(lead, "first_name", "") or "").strip()
+    last = (getattr(lead, "last_name", "") or "").strip()
+    if not first and not last:
+        first, last = split_name(getattr(lead, "name", ""))
     data = {
         "em": [hash_email(getattr(lead, "email", ""))],
         "ph": [hash_phone(getattr(lead, "phone", ""))],
