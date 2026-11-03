@@ -20,7 +20,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { programId, send } = await request.json().catch(() => ({}))
+  const { programId, send, customMessage } = await request.json().catch(() => ({}))
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
@@ -33,14 +33,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const match = await prisma.programMatch.findUnique({
     where: { programId_businessId: { programId, businessId: business.id } },
-    include: { program: true },
+    include: {
+      program: { include: { requiredDocuments: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] } } },
+    },
   })
   if (!match || match.status === 'REJECTED') {
     return NextResponse.json({ error: 'Η επιχείρηση δεν είναι επιλέξιμη για αυτό το πρόγραμμα' }, { status: 400 })
   }
 
   const businessDetails = buildAadeBusinessDetails(business)
-  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const [appSetting, extraCriteria] = await Promise.all([
+    prisma.appSetting.findUnique({ where: { id: 'main' } }),
+    match.program.extraCriteriaIds.length > 0
+      ? prisma.eligibilityCriterion.findMany({ where: { id: { in: match.program.extraCriteriaIds } }, select: { label: true } })
+      : Promise.resolve([]),
+  ])
 
   const subject = buildProspectProgramEmailSubject(business.onomasia, match.program.title)
   const html = buildProspectProgramEmailHtml({
@@ -48,6 +55,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     businessDetails,
     program: match.program,
     matchReasons: match.matchReason,
+    extraCriteriaLabels: extraCriteria.map(c => c.label),
+    requiredDocuments: match.program.requiredDocuments,
+    customMessage: typeof customMessage === 'string' && customMessage.trim() ? customMessage.trim() : null,
     imentorLogoUrl: appSetting?.imentorLogoUrl,
   })
 

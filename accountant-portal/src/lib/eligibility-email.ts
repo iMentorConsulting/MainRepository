@@ -125,13 +125,53 @@ interface ProspectProgramFull {
   websiteUrl: string | null
   attachmentUrls: string[]
   attachmentNames: string[]
+  videoUrls: string[]
+  internalNotes: string | null
+  startDate: Date | string | null
+  endDate: Date | string | null
+}
+
+// Greek typographic convention drops the tonos (accent) when a word is
+// written in all caps — CSS text-transform:uppercase does NOT do this (it
+// keeps the accented capital per the Unicode casing algorithm), so section
+// titles are pre-uppercased with accents stripped here instead of relying
+// on CSS.
+function greekCaps(str: string): string {
+  return str.toUpperCase().normalize('NFD').replace(/[̀-ͯ]/g, '').normalize('NFC')
 }
 
 function section(title: string, bodyHtml: string): string {
   return `<div style="margin:0 0 18px;">
-    <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.3px;">${title}</p>
+    <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1e3a8a;letter-spacing:.3px;">${greekCaps(title)}</p>
     ${bodyHtml}
   </div>`
+}
+
+function formatProspectDate(date: Date | string | null): string | null {
+  if (!date) return null
+  const d = typeof date === 'string' ? new Date(date) : date
+  if (Number.isNaN(d.getTime())) return null
+  return d.toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit', year: 'numeric' })
+}
+
+// When a program has no fixed endDate, each category closes differently in
+// practice — reflect that instead of showing a bare "-".
+function deadlineFallbackByCategory(category: string): string | null {
+  switch (category) {
+    case 'MICROCREDITS':
+    case 'ESPA':
+    case 'LEADER':
+      return 'έως εξάντληση των κονδυλίων'
+    case 'DYPA':
+      return 'έως κάλυψη των θέσεων'
+    default:
+      return null
+  }
+}
+
+const DOCUMENT_CATEGORY_LABELS: Record<string, string> = {
+  SELF_SERVICE: 'Αυτοεξυπηρέτηση',
+  VIA_ACCOUNTANT: 'Μέσω λογιστή',
 }
 
 export function buildProspectProgramEmailHtml(params: {
@@ -139,9 +179,12 @@ export function buildProspectProgramEmailHtml(params: {
   businessDetails?: EligibilityBusinessDetails
   program: ProspectProgramFull
   matchReasons: string[]
+  extraCriteriaLabels?: string[]
+  requiredDocuments?: { name: string; category: string; instructions: string | null }[]
+  customMessage?: string | null
   imentorLogoUrl?: string | null
 }): string {
-  const { businessName, businessDetails, program, matchReasons, imentorLogoUrl } = params
+  const { businessName, businessDetails, program, matchReasons, extraCriteriaLabels = [], requiredDocuments = [], customMessage, imentorLogoUrl } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
   const brandLeft = imentorLogoUrl
@@ -193,6 +236,25 @@ export function buildProspectProgramEmailHtml(params: {
       </table>`))
   }
 
+  const deadlineRows: Array<[string, string]> = []
+  const startStr = formatProspectDate(program.startDate)
+  if (startStr) deadlineRows.push(['Υποβολή αιτήσεων από', startStr])
+  const endStr = formatProspectDate(program.endDate) || deadlineFallbackByCategory(program.category)
+  if (endStr) deadlineRows.push(['Προθεσμία υποβολής αιτήσεων', endStr])
+  if (deadlineRows.length > 0) {
+    sections.push(section('Προθεσμίες', `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;">
+        ${deadlineRows.map(([k, v]) => `<tr><td style="padding:4px 0;color:#6b7280;width:55%;">${k}</td><td style="padding:4px 0;color:#111827;font-weight:600;">${v}</td></tr>`).join('')}
+      </table>`))
+  }
+
+  if (extraCriteriaLabels.length > 0) {
+    sections.push(section('Πρόσθετες Προϋποθέσεις', `
+      <p style="margin:0;">
+        ${extraCriteriaLabels.map(label => `<span style="display:inline-block;background:#eef2ff;color:#3730a3;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;margin:0 6px 6px 0;">${label}</span>`).join('')}
+      </p>`))
+  }
+
   if (program.beneficiaries) {
     sections.push(section('Ποιους αφορά', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.beneficiaries}</p>`))
   }
@@ -237,6 +299,17 @@ export function buildProspectProgramEmailHtml(params: {
     sections.push(section('Λοιπές Προϋποθέσεις', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.otherRequirements}</p>`))
   }
 
+  if (requiredDocuments.length > 0) {
+    sections.push(section('Απαιτούμενα Έγγραφα', `
+      <ul style="margin:0;padding-left:18px;">
+        ${requiredDocuments.map(d => `<li style="font-size:13.5px;color:#374151;line-height:1.8;">
+          <strong>${d.name}</strong>
+          ${DOCUMENT_CATEGORY_LABELS[d.category] ? ` <span style="color:#9ca3af;">(${DOCUMENT_CATEGORY_LABELS[d.category]})</span>` : ''}
+          ${d.instructions ? `<br/><span style="color:#6b7280;">${d.instructions}</span>` : ''}
+        </li>`).join('')}
+      </ul>`))
+  }
+
   // Service cost — shown here because this email goes straight to a
   // prospect an admin/consultant is actively talking to, not the generic
   // public page (pricingNote is otherwise chat-agent-only, see schema).
@@ -247,11 +320,27 @@ export function buildProspectProgramEmailHtml(params: {
       </div>`))
   }
 
+  if (program.internalNotes) {
+    sections.push(section('Εσωτερικές Σημειώσεις', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.internalNotes}</p>`))
+  }
+
+  // Only real hosted URLs belong in an email link — a data: URI (a file
+  // stored as inline base64 instead of being uploaded somewhere) can be
+  // hundreds of KB, which pushes the whole message over Gmail's ~102KB clip
+  // threshold and breaks the HTML mid-tag until the recipient clicks "View
+  // entire message". Any such attachment is silently skipped here instead.
+  const isEmailSafeUrl = (url: string) => /^https?:\/\//i.test(url)
+
   const links: string[] = []
   if (program.websiteUrl) links.push(`<a href="${program.websiteUrl}" style="color:#4f46e5;text-decoration:underline;">Σελίδα προγράμματος</a>`)
   program.attachmentUrls.forEach((url, i) => {
+    if (!isEmailSafeUrl(url)) return
     const docName = program.attachmentNames[i] || `Έγγραφο ${i + 1}`
     links.push(`<a href="${url}" style="color:#4f46e5;text-decoration:underline;">${docName}</a>`)
+  })
+  program.videoUrls.forEach((url, i) => {
+    if (!isEmailSafeUrl(url)) return
+    links.push(`<a href="${url}" style="color:#4f46e5;text-decoration:underline;">Βίντεο ${i + 1}</a>`)
   })
   if (links.length > 0) {
     sections.push(section('Χρήσιμοι Σύνδεσμοι', `<p style="margin:0;font-size:13.5px;line-height:2;">${links.join(' &nbsp;·&nbsp; ')}</p>`))
@@ -268,6 +357,9 @@ export function buildProspectProgramEmailHtml(params: {
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
           Χάρηκα για τη συζήτησή μας — ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:
         </p>
+        ${customMessage ? `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin:0 0 20px;">
+          <p style="margin:0;font-size:14px;color:#3730a3;line-height:1.7;white-space:pre-line;">${customMessage}</p>
+        </div>` : ''}
         ${buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${reasonsBlock}
         <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:22px 24px;margin-bottom:16px;">

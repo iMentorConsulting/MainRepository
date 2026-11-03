@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { X, Send, CheckCircle2, Eye } from 'lucide-react'
+import { X, Send, CheckCircle2, Eye, RefreshCw } from 'lucide-react'
 
 interface ProspectProgramEmailModalProps {
   businessId: string
@@ -13,7 +13,8 @@ interface ProspectProgramEmailModalProps {
 
 // Admin/consultant tool for a prospect conversation: preview, then send, one
 // focused email about ONE program — the business's own data, why it
-// specifically qualifies, and that program's info. See
+// specifically qualifies, that program's info, and an optional custom note
+// (e.g. "Απαντήστε μας με το Ε3 2025"). See
 // src/lib/eligibility-email.ts buildProspectProgramEmailHtml.
 export function ProspectProgramEmailModal({ businessId, programId, programTitle, businessHasEmail, onClose, onSent }: ProspectProgramEmailModalProps) {
   const [loading, setLoading] = useState(true)
@@ -21,30 +22,35 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const [customMessage, setCustomMessage] = useState('')
+  const [previewStale, setPreviewStale] = useState(false)
+
+  async function loadPreview(message: string) {
+    setLoading(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/businesses/${businessId}/program-email`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId, send: false, customMessage: message || undefined }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setPreview({ subject: data.subject, html: data.html })
+        setPreviewStale(false)
+      } else {
+        setError(data.error || 'Σφάλμα δημιουργίας προεπισκόπησης.')
+      }
+    } catch {
+      setError('Σφάλμα δικτύου.')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    let cancelled = false
-    async function loadPreview() {
-      setLoading(true)
-      setError('')
-      try {
-        const res = await fetch(`/api/businesses/${businessId}/program-email`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ programId, send: false }),
-        })
-        const data = await res.json().catch(() => ({}))
-        if (cancelled) return
-        if (res.ok) setPreview({ subject: data.subject, html: data.html })
-        else setError(data.error || 'Σφάλμα δημιουργίας προεπισκόπησης.')
-      } catch {
-        if (!cancelled) setError('Σφάλμα δικτύου.')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
-    loadPreview()
-    return () => { cancelled = true }
+    loadPreview('')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, programId])
 
   async function send() {
@@ -54,7 +60,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
       const res = await fetch(`/api/businesses/${businessId}/program-email`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: true }),
+        body: JSON.stringify({ programId, send: true, customMessage: customMessage || undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.sent) {
@@ -89,6 +95,17 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
             </div>
           ) : (
             <>
+              <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Προσωπικό μήνυμα (προαιρετικό)</label>
+                <textarea
+                  value={customMessage}
+                  onChange={e => { setCustomMessage(e.target.value); setPreviewStale(true) }}
+                  placeholder="π.χ. Απαντήστε μας με το Ε3 2025"
+                  rows={2}
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none"
+                />
+              </div>
+
               {loading && <p className="text-sm text-gray-500">Δημιουργία προεπισκόπησης...</p>}
               {!loading && preview && (
                 <>
@@ -97,7 +114,17 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
                     <p className="text-sm text-gray-800 font-medium">{preview.subject}</p>
                   </div>
                   <div>
-                    <label className="text-xs font-medium text-gray-500 block mb-1">Περιεχόμενο</label>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-xs font-medium text-gray-500">Περιεχόμενο</label>
+                      {previewStale && (
+                        <button
+                          onClick={() => loadPreview(customMessage)}
+                          className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
+                        >
+                          <RefreshCw size={11} /> Ανανέωση προεπισκόπησης
+                        </button>
+                      )}
+                    </div>
                     <iframe
                       title="Προεπισκόπηση email"
                       srcDoc={preview.html}
@@ -117,6 +144,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
                 <button
                   onClick={send}
                   disabled={sending || loading || !preview || !businessHasEmail}
+                  title={previewStale ? 'Θα σταλεί με το τελευταίο προσωπικό μήνυμα, ανανεώστε την προεπισκόπηση για να το δείτε' : undefined}
                   className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
                 >
                   <Send size={14} />
