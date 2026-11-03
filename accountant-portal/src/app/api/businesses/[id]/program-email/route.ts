@@ -3,7 +3,6 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { buildAadeBusinessDetails } from '@/lib/business-profile'
 import { buildProspectProgramEmailSubject, buildProspectProgramEmailHtml } from '@/lib/eligibility-email'
-import { getOrCreateErmisLink } from '@/lib/ermis'
 import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -41,7 +40,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   const businessDetails = buildAadeBusinessDetails(business)
-  const ermisUrl = await getOrCreateErmisLink(business.id, match.program.id)
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
 
   const subject = buildProspectProgramEmailSubject(business.onomasia, match.program.title)
@@ -50,7 +48,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     businessDetails,
     program: match.program,
     matchReasons: match.matchReason,
-    ermisUrl,
     imentorLogoUrl: appSetting?.imentorLogoUrl,
   })
 

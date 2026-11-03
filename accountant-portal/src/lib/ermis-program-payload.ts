@@ -19,14 +19,14 @@ export const CM_CATEGORY_LABEL: Record<string, string> = {
   OTHER: 'ΑΛΛΟ',
 }
 
-function formatEuroRange(min: number | null, max: number | null): string | null {
+export function formatEuroRange(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null
   const fmt = (n: number) => `${n.toLocaleString('el-GR')}€`
   if (min != null && max != null) return min === max ? fmt(min) : `${fmt(min)} — ${fmt(max)}`
   return fmt((min ?? max) as number)
 }
 
-function formatPctRange(min: number | null, max: number | null): string | null {
+export function formatPctRange(min: number | null, max: number | null): string | null {
   if (min == null && max == null) return null
   const fmt = (n: number) => `${n}%`
   if (min != null && max != null) return min === max ? fmt(min) : `${fmt(min)} — ${fmt(max)}`

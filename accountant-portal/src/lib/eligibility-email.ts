@@ -1,4 +1,4 @@
-import { buildProgramDescription } from './ermis-program-payload'
+import { buildProgramDescription, formatEuroRange, formatPctRange } from './ermis-program-payload'
 import type { EligibilityProgramResult, EligibilityBusinessDetails } from './eligibility-check-core'
 import { buildAadeBusinessDetailsCardHtml } from './business-profile'
 
@@ -99,15 +99,49 @@ export function buildProspectProgramEmailSubject(businessName: string | null, pr
   return `${name} — Είστε επιλέξιμοι για το πρόγραμμα «${programTitle}»`
 }
 
+interface ProspectProgramFull {
+  title: string
+  category: string
+  description: string | null
+  minSubsidyPct: number | null
+  maxSubsidyPct: number | null
+  subsidyNote: string | null
+  minInvestment: number | null
+  maxInvestment: number | null
+  minInterestRate: number | null
+  maxInterestRate: number | null
+  monthlyAmount: string | null
+  subsidyMonths: string | null
+  totalBenefit: string | null
+  beneficiaries: string | null
+  regions: string | null
+  otherRequirements: string | null
+  totalBudgetEur: number | null
+  implementationMonths: number | null
+  keyPoints: string[]
+  fundedActions: unknown
+  expenseCategories: unknown
+  pricingNote: string | null
+  websiteUrl: string | null
+  attachmentUrls: string[]
+  attachmentNames: string[]
+}
+
+function section(title: string, bodyHtml: string): string {
+  return `<div style="margin:0 0 18px;">
+    <p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1e3a8a;text-transform:uppercase;letter-spacing:.3px;">${title}</p>
+    ${bodyHtml}
+  </div>`
+}
+
 export function buildProspectProgramEmailHtml(params: {
   businessName: string | null
   businessDetails?: EligibilityBusinessDetails
-  program: Pick<EligibilityProgramResult, 'title' | 'category' | 'description' | 'minSubsidyPct' | 'maxSubsidyPct' | 'subsidyNote' | 'minInvestment' | 'maxInvestment' | 'minInterestRate' | 'maxInterestRate' | 'monthlyAmount' | 'subsidyMonths' | 'totalBenefit'>
+  program: ProspectProgramFull
   matchReasons: string[]
-  ermisUrl: string
   imentorLogoUrl?: string | null
 }): string {
-  const { businessName, businessDetails, program, matchReasons, ermisUrl, imentorLogoUrl } = params
+  const { businessName, businessDetails, program, matchReasons, imentorLogoUrl } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
   const brandLeft = imentorLogoUrl
@@ -123,6 +157,106 @@ export function buildProspectProgramEmailHtml(params: {
        </div>`
     : ''
 
+  // Every program-specific figure/section we have, laid out so each category
+  // (ΔΥΠΑ / ΕΣΠΑ-ΛΕΑΝΤΕΡ-Αναπτυξιακός / Μικροπιστώσεις) shows what's
+  // actually relevant to it — never the raw matching-rule lists (eligible
+  // ΚΑΔ/ΤΚ/νομικές μορφές), only human-readable program content.
+  const sections: string[] = []
+
+  if (program.description) {
+    sections.push(section('Περιγραφή', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.description}</p>`))
+  }
+
+  const figureRows: Array<[string, string]> = []
+  if (program.category === 'DYPA') {
+    if (program.monthlyAmount) figureRows.push(['Μηνιαία επιχορήγηση', program.monthlyAmount])
+    if (program.subsidyMonths) figureRows.push(['Μήνες επιχορήγησης', program.subsidyMonths])
+    if (program.totalBenefit) figureRows.push(['Συνολικό όφελος', program.totalBenefit])
+  } else {
+    const invest = formatEuroRange(program.minInvestment, program.maxInvestment)
+    if (invest) figureRows.push(['Ποσό επένδυσης', invest])
+    if (program.category === 'MICROCREDITS') {
+      const rate = formatPctRange(program.minInterestRate, program.maxInterestRate)
+      if (rate) figureRows.push(['Επιτόκιο', rate])
+    } else {
+      const subsidy = formatPctRange(program.minSubsidyPct, program.maxSubsidyPct)
+      if (subsidy) figureRows.push(['% Επιχορήγησης', subsidy + (program.subsidyNote ? ` (${program.subsidyNote})` : '')])
+    }
+  }
+  if (program.totalBudgetEur) figureRows.push(['Συνολικός προϋπολογισμός προγράμματος', formatEuroRange(program.totalBudgetEur, program.totalBudgetEur) || ''])
+  if (program.implementationMonths) figureRows.push(['Διάρκεια υλοποίησης', `${program.implementationMonths} μήνες`])
+  if (program.regions) figureRows.push(['Περιοχές', program.regions])
+  if (figureRows.length > 0) {
+    sections.push(section('Βασικά Στοιχεία', `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;">
+        ${figureRows.map(([k, v]) => `<tr><td style="padding:4px 0;color:#6b7280;width:55%;">${k}</td><td style="padding:4px 0;color:#111827;font-weight:600;">${v}</td></tr>`).join('')}
+      </table>`))
+  }
+
+  if (program.beneficiaries) {
+    sections.push(section('Ποιους αφορά', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.beneficiaries}</p>`))
+  }
+
+  if (program.keyPoints?.length > 0) {
+    sections.push(section('Σημεία που ξεχωρίζουν', `
+      <ul style="margin:0;padding-left:18px;">
+        ${program.keyPoints.map(p => `<li style="font-size:13.5px;color:#374151;line-height:1.8;">${p}</li>`).join('')}
+      </ul>`))
+  }
+
+  const fundedActions = Array.isArray(program.fundedActions) ? program.fundedActions as { title?: string; description?: string }[] : []
+  if (fundedActions.length > 0) {
+    sections.push(section('Τι χρηματοδοτείται', `
+      <ul style="margin:0;padding-left:18px;">
+        ${fundedActions.map(a => `<li style="font-size:13.5px;color:#374151;line-height:1.8;"><strong>${a.title || ''}</strong>${a.description ? ` — ${a.description}` : ''}</li>`).join('')}
+      </ul>`))
+  }
+
+  const expenseCategories = Array.isArray(program.expenseCategories)
+    ? program.expenseCategories as { code?: string; category?: string; expense?: string; limit?: string }[]
+    : []
+  if (expenseCategories.length > 0) {
+    sections.push(section('Επιλέξιμες Κατηγορίες Δαπανών', `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:12.5px;border-collapse:collapse;">
+        <tr style="background:#f3f4f6;">
+          <td style="padding:6px 8px;font-weight:700;color:#374151;">Κωδικός</td>
+          <td style="padding:6px 8px;font-weight:700;color:#374151;">Κατηγορία</td>
+          <td style="padding:6px 8px;font-weight:700;color:#374151;">Δαπάνη</td>
+          <td style="padding:6px 8px;font-weight:700;color:#374151;">Όριο</td>
+        </tr>
+        ${expenseCategories.map(c => `<tr style="border-top:1px solid #e5e7eb;">
+          <td style="padding:6px 8px;color:#4b5563;">${c.code || ''}</td>
+          <td style="padding:6px 8px;color:#4b5563;">${c.category || ''}</td>
+          <td style="padding:6px 8px;color:#4b5563;">${c.expense || ''}</td>
+          <td style="padding:6px 8px;color:#4b5563;">${c.limit || ''}</td>
+        </tr>`).join('')}
+      </table>`))
+  }
+
+  if (program.otherRequirements) {
+    sections.push(section('Λοιπές Προϋποθέσεις', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.otherRequirements}</p>`))
+  }
+
+  // Service cost — shown here because this email goes straight to a
+  // prospect an admin/consultant is actively talking to, not the generic
+  // public page (pricingNote is otherwise chat-agent-only, see schema).
+  if (program.pricingNote) {
+    sections.push(section('Κόστος Υπηρεσίας I-MENTOR', `
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;">
+        <p style="margin:0;font-size:13.5px;color:#92400e;line-height:1.7;white-space:pre-line;">${program.pricingNote}</p>
+      </div>`))
+  }
+
+  const links: string[] = []
+  if (program.websiteUrl) links.push(`<a href="${program.websiteUrl}" style="color:#4f46e5;text-decoration:underline;">Σελίδα προγράμματος</a>`)
+  program.attachmentUrls.forEach((url, i) => {
+    const docName = program.attachmentNames[i] || `Έγγραφο ${i + 1}`
+    links.push(`<a href="${url}" style="color:#4f46e5;text-decoration:underline;">${docName}</a>`)
+  })
+  if (links.length > 0) {
+    sections.push(section('Χρήσιμοι Σύνδεσμοι', `<p style="margin:0;font-size:13.5px;line-height:2;">${links.join(' &nbsp;·&nbsp; ')}</p>`))
+  }
+
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
       <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;border-radius:12px 12px 0 0;">
@@ -132,16 +266,13 @@ export function buildProspectProgramEmailHtml(params: {
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
-          Χάρηκα για τη συζήτησή μας — ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα:
+          Χάρηκα για τη συζήτησή μας — ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:
         </p>
         ${buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${reasonsBlock}
-        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
-          <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${program.title}</p>
-          <p style="margin:0 0 16px;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${buildProgramDescription(program)}</p>
-          <a href="${ermisUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:11px 26px;border-radius:8px;">
-            🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος
-          </a>
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:22px 24px;margin-bottom:16px;">
+          <p style="margin:0 0 16px;font-size:17px;font-weight:700;color:#111827;">${program.title}</p>
+          ${sections.join('')}
         </div>
         <p style="margin:20px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
       </div>
