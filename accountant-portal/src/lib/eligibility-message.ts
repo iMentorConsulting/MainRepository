@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { checkEligibilityForAfm } from '@/lib/eligibility-check-core'
+import { checkEligibilityForBusiness } from '@/lib/eligibility-check-core'
 import { buildEligibilitySubject, buildEligibilityEmailHtml, buildEligibilityViberText, AccountantMentionInfo } from '@/lib/eligibility-email'
 import { sendEmail } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
@@ -55,7 +55,7 @@ export async function sendEligibilityMessages(
 
   await mapWithConcurrency(targets, 5, async (b) => {
     try {
-      const result = await checkEligibilityForAfm(b.afm, b.email, b.phone)
+      const result = await checkEligibilityForBusiness(b.id)
       if (!result.notFound && !result.inactive && result.programs.length > 0) {
         // dryRun still runs the real eligibility check (so the preview count
         // is accurate) but never actually calls the email/Viber providers or
@@ -122,7 +122,7 @@ export async function sendEligibilityMessageTest(
   for (const b of targets) {
     let result
     try {
-      result = await checkEligibilityForAfm(b.afm, b.email, b.phone)
+      result = await checkEligibilityForBusiness(b.id)
     } catch {
       continue
     }

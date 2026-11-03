@@ -8,6 +8,7 @@ import { lookupAfm } from './gsis'
 import { runMatchingForGemi, loadActivePrograms } from './gemi-matching'
 import { runMatchingForBusiness } from './matching'
 import { getOrCreateGemiErmisLink } from './gemi-ermis'
+import { getOrCreateErmisLink } from './ermis'
 import { buildAadeBusinessDetails, type AadeBusinessDetails } from './business-profile'
 
 export interface EligibilityProgramResult {
@@ -334,4 +335,93 @@ export async function checkEligibilityForAfm(cleanAfm: string, email?: string | 
     : `${appUrl}/gemi-entry/g/${gemiId}?type=themis`
 
   return { gemiId, businessName: gemi!.onomasia || gemi!.afm, programs: programsWithLinks, themisUrl, businessDetails }
+}
+
+// Same result shape as checkEligibilityForAfm, but for an EXISTING Business
+// record — sourced from the Business's own ProgramMatch rows (matching.ts
+// runMatchingForBusiness), the same data every other admin-facing screen
+// (business detail page, Matches page) reads. checkEligibilityForAfm reads
+// the separate GEMI-lead matching pipeline (GemiLookup/GemiProgramMatch via
+// gemi-matching.ts) instead, which can disagree with the Business's real
+// ProgramMatch rows — e.g. no corresponding GemiLookup record exists at all,
+// or its matching ran under different data — so any flow that already has a
+// businessId (eligibility-message.ts bulk/single sends) must use this
+// function instead, not checkEligibilityForAfm, to avoid previewing/sending
+// "0 eligible" for a business the rest of the app shows as matched.
+export async function checkEligibilityForBusiness(businessId: string): Promise<EligibilityCheckResult> {
+  const business = await prisma.business.findUnique({
+    where: { id: businessId },
+    include: { activities: true },
+  })
+  if (!business) return { gemiId: null, businessName: null, notFound: true, programs: [], themisUrl: null }
+
+  const businessDetails = buildAadeBusinessDetails(business)
+
+  if (business.deactivationFlag === 'Y' || !!business.stopDate) {
+    return { gemiId: null, businessName: business.onomasia || business.afm, inactive: true, programs: [], themisUrl: null, businessDetails }
+  }
+
+  // Always re-run matching fresh — same rationale as checkEligibilityForAfm:
+  // this result can trigger a real, externally-visible email, so it must
+  // reflect current program criteria, not a stale ProgramMatch set.
+  await runMatchingForBusiness(businessId)
+
+  const matches = await prisma.programMatch.findMany({
+    where: { businessId, status: { not: 'REJECTED' }, matchScore: { gt: 0 } },
+    include: {
+      program: {
+        select: {
+          id: true, title: true, category: true, description: true,
+          minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
+          minInvestment: true, maxInvestment: true,
+          minInterestRate: true, maxInterestRate: true,
+          otherRequirements: true, keyPoints: true,
+          monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
+          beneficiaries: true, regions: true,
+          heroImageUrl: true, websiteUrl: true, active: true,
+        },
+      },
+    },
+    orderBy: { matchScore: 'desc' },
+  })
+
+  type Match = typeof matches[0]
+  const activeMatches = matches.filter((m: Match) => m.program.active)
+
+  if (activeMatches.length === 0) {
+    return { gemiId: null, businessName: business.onomasia || business.afm, programs: [], themisUrl: null, businessDetails }
+  }
+
+  const programsWithLinks: EligibilityProgramResult[] = await Promise.all(
+    activeMatches.map(async (m: Match) => {
+      const ermisUrl = await getOrCreateErmisLink(businessId, m.programId)
+      return {
+        programId: m.programId,
+        category: m.program.category,
+        title: m.program.title,
+        description: m.program.description,
+        minSubsidyPct: m.program.minSubsidyPct,
+        maxSubsidyPct: m.program.maxSubsidyPct,
+        subsidyNote: m.program.subsidyNote,
+        minInvestment: m.program.minInvestment,
+        maxInvestment: m.program.maxInvestment,
+        minInterestRate: m.program.minInterestRate,
+        maxInterestRate: m.program.maxInterestRate,
+        otherRequirements: m.program.otherRequirements,
+        keyPoints: m.program.keyPoints,
+        monthlyAmount: m.program.monthlyAmount,
+        subsidyMonths: m.program.subsidyMonths,
+        totalBenefit: m.program.totalBenefit,
+        beneficiaries: m.program.beneficiaries,
+        regions: m.program.regions,
+        heroImageUrl: m.program.heroImageUrl,
+        websiteUrl: m.program.websiteUrl,
+        matchScore: m.matchScore,
+        matchReasons: m.matchReason,
+        ermisUrl,
+      }
+    })
+  )
+
+  return { gemiId: null, businessName: business.onomasia || business.afm, programs: programsWithLinks, themisUrl: null, businessDetails }
 }
