@@ -191,12 +191,17 @@ export default function BusinessesPage() {
     const ids = Array.from(selected)
     if (ids.length === 0) return
     if (!confirm(`Επανέλεγχος κατάστασης ${ids.length} επιχειρήσεων στην ΑΑΔΕ;`)) return
+    // Single-business selection only: offer to bypass the 7-day same-ΑΦΜ
+    // valve (see lib/gsis.ts) — a deliberate one-off escape hatch, not
+    // something to expose for bulk refreshes where the valve is protecting
+    // AADE's shared, quota-limited service from repeat hits.
+    const bypassValve = ids.length === 1 && confirm('Παράκαμψη του ελέγχου 7 ημερών για αυτή την επιχείρηση και αναζήτηση τώρα στην ΑΑΔΕ;')
     setRefreshingStatus(true)
     try {
       const res = await fetch('/api/businesses/refresh-status', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ ids, bypassValve }),
       })
       if (res.ok) {
         const data = await res.json()

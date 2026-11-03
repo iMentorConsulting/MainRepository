@@ -13,10 +13,13 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { ids } = await request.json().catch(() => ({}))
+  const { ids, bypassValve } = await request.json().catch(() => ({}))
   if (!Array.isArray(ids) || ids.length === 0) {
     return NextResponse.json({ error: 'Δεν επιλέχθηκαν επιχειρήσεις' }, { status: 400 })
   }
+  // Admin-only escape hatch for the 7-day same-ΑΦΜ valve (see lib/gsis.ts) —
+  // lets an admin force a fresh AADE call right now for a specific business
+  // instead of waiting out the window, without touching the valve itself.
 
   const businesses = await prisma.business.findMany({ where: { id: { in: ids } }, select: { id: true, afm: true } })
 
@@ -26,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   for (const business of businesses) {
     try {
-      const data = await lookupAfm(business.afm)
+      const data = await lookupAfm(business.afm, { bypassValve: !!bypassValve })
       if (!data) { failed++; continue }
       await prisma.business.update({
         where: { id: business.id },
