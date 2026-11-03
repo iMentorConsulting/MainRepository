@@ -305,7 +305,6 @@ export function buildProspectProgramEmailHtml(params: {
         ${requiredDocuments.map(d => `<li style="font-size:13.5px;color:#374151;line-height:1.8;">
           <strong>${d.name}</strong>
           ${DOCUMENT_CATEGORY_LABELS[d.category] ? ` <span style="color:#9ca3af;">(${DOCUMENT_CATEGORY_LABELS[d.category]})</span>` : ''}
-          ${d.instructions ? `<br/><span style="color:#6b7280;">${d.instructions}</span>` : ''}
         </li>`).join('')}
       </ul>`))
   }
@@ -321,7 +320,7 @@ export function buildProspectProgramEmailHtml(params: {
   }
 
   if (program.internalNotes) {
-    sections.push(section('Εσωτερικές Σημειώσεις', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.internalNotes}</p>`))
+    sections.push(section('Σημειώσεις', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.internalNotes}</p>`))
   }
 
   // Only real hosted URLs belong in an email link — a data: URI (a file
