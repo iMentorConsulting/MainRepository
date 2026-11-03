@@ -88,6 +88,66 @@ export function buildEligibilityEmailHtml(params: {
     </div>`
 }
 
+// Sent by an admin/consultant directly to a prospect they're actively
+// talking to, about ONE specific program — not the multi-program "we scanned
+// your ΑΦΜ" blast above. Leads with the business's own AADE data and the
+// *specific* reasons this business qualifies (its actual ΚΑΔ/region/ΤΚ/
+// founding date, pulled from the stored ProgramMatch.matchReason), never the
+// program's full eligible-ΚΑΔ/ΤΚ/legal-form rule lists.
+export function buildProspectProgramEmailSubject(businessName: string | null, programTitle: string): string {
+  const name = businessName || 'Η επιχείρησή σας'
+  return `${name} — Είστε επιλέξιμοι για το πρόγραμμα «${programTitle}»`
+}
+
+export function buildProspectProgramEmailHtml(params: {
+  businessName: string | null
+  businessDetails?: EligibilityBusinessDetails
+  program: Pick<EligibilityProgramResult, 'title' | 'category' | 'description' | 'minSubsidyPct' | 'maxSubsidyPct' | 'subsidyNote' | 'minInvestment' | 'maxInvestment' | 'minInterestRate' | 'maxInterestRate' | 'monthlyAmount' | 'subsidyMonths' | 'totalBenefit'>
+  matchReasons: string[]
+  ermisUrl: string
+  imentorLogoUrl?: string | null
+}): string {
+  const { businessName, businessDetails, program, matchReasons, ermisUrl, imentorLogoUrl } = params
+  const name = businessName || 'Αγαπητέ/ή πελάτη'
+
+  const brandLeft = imentorLogoUrl
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+
+  const reasonsBlock = matchReasons.length > 0
+    ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+         <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#166534;">✔️ Γιατί είστε επιλέξιμοι</p>
+         <ul style="margin:0;padding-left:18px;">
+           ${matchReasons.map(r => `<li style="font-size:13.5px;color:#166534;line-height:1.8;">${r}</li>`).join('')}
+         </ul>
+       </div>`
+    : ''
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
+      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;border-radius:12px 12px 0 0;">
+        ${brandLeft}
+        <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">✅ Είστε επιλέξιμοι για επιχορήγηση</h1>
+      </div>
+      <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+        <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
+        <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
+          Χάρηκα για τη συζήτησή μας — ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα:
+        </p>
+        ${buildAadeBusinessDetailsCardHtml(businessDetails)}
+        ${reasonsBlock}
+        <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
+          <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${program.title}</p>
+          <p style="margin:0 0 16px;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${buildProgramDescription(program)}</p>
+          <a href="${ermisUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:11px 26px;border-radius:8px;">
+            🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος
+          </a>
+        </div>
+        <p style="margin:20px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
+      </div>
+    </div>`
+}
+
 // Condensed, link-based plain-text version for Viber — no HTML/buttons.
 export function buildEligibilityViberText(params: {
   businessName: string | null

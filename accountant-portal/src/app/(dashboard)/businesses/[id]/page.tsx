@@ -9,6 +9,7 @@ import { KadTable } from '@/components/businesses/kad-table'
 import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
 import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
+import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
@@ -75,6 +76,7 @@ export default function BusinessDetailPage() {
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
   const [eligibilityMessage, setEligibilityMessage] = useState(false)
+  const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string } | null>(null)
   // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
   const [newCase, setNewCase] = useState(
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('newCase') === '1'
@@ -82,6 +84,7 @@ export default function BusinessDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
+  const isStaff = isAdmin || session?.user?.role === 'CONSULTANT'
   const [tagOptions, setTagOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
   const [tagSelect, setTagSelect] = useState('')
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
@@ -296,6 +299,16 @@ export default function BusinessDetailPage() {
         />
       )}
 
+      {prospectEmailProgram && (
+        <ProspectProgramEmailModal
+          businessId={business.id}
+          programId={prospectEmailProgram.id}
+          programTitle={prospectEmailProgram.title}
+          businessHasEmail={!!business.email}
+          onClose={() => setProspectEmailProgram(null)}
+        />
+      )}
+
       <NewCaseModal
         open={newCase}
         onClose={() => setNewCase(false)}
@@ -436,6 +449,7 @@ export default function BusinessDetailPage() {
                       matchReason={m.matchReason}
                       status={m.status}
                       extraCriteria={(m.program?.extraCriteriaIds || []).map((cid: string) => criteriaMap[cid] || cid)}
+                      onEmailProspect={isStaff ? () => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '' }) : undefined}
                     />
                   ))}
                 </div>

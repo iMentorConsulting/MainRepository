@@ -1,5 +1,5 @@
 import { Badge } from '@/components/ui/badge'
-import { CheckCircle, Clock, XCircle, ThumbsUp, Send } from 'lucide-react'
+import { CheckCircle, Clock, XCircle, ThumbsUp, Send, Mail } from 'lucide-react'
 
 type MatchStatus = 'POTENTIAL' | 'REVIEWED' | 'REJECTED' | 'INTERESTED' | 'SUBMITTED'
 
@@ -13,6 +13,9 @@ interface MatchCardProps {
   accountantName?: string | null
   extraCriteria?: string[]
   onStatusChange?: (status: MatchStatus) => void
+  // Admin/consultant only: when provided, shows a button to preview/send a
+  // focused single-program email straight to the prospect.
+  onEmailProspect?: () => void
 }
 
 const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any }> = {
@@ -23,7 +26,7 @@ const statusConfig: Record<MatchStatus, { label: string; variant: any; icon: any
   SUBMITTED: { label: 'Υποβλήθηκε', variant: 'warning', icon: Send },
 }
 
-export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName, extraCriteria }: MatchCardProps) {
+export function MatchCard({ businessName, afm, programTitle, matchScore, matchReason, status, accountantName, extraCriteria, onEmailProspect }: MatchCardProps) {
   const conf = statusConfig[status]
   const Icon = conf.icon
   return (
@@ -61,6 +64,17 @@ export function MatchCard({ businessName, afm, programTitle, matchScore, matchRe
               <Badge key={i} variant="secondary" className="text-[10px]">{label}</Badge>
             ))}
           </div>
+        </div>
+      )}
+      {onEmailProspect && (
+        <div className="mt-3 pt-2 border-t border-gray-100">
+          <button
+            onClick={onEmailProspect}
+            className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
+          >
+            <Mail size={12} />
+            Προεπισκόπηση &amp; Αποστολή Email
+          </button>
         </div>
       )}
     </div>
