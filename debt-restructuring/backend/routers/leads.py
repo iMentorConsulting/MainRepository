@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import or_, cast, String
 from typing import Optional, List
@@ -330,6 +330,8 @@ def _lead_to_dict(lead: Lead) -> dict:
         "sheet_row_num": lead.sheet_row_num,
         "status": lead.status or "",
         "status_raw": lead.status_raw or "",
+        "capi_sent_at": lead.capi_sent_at.isoformat() if getattr(lead, "capi_sent_at", None) else None,
+        "capi_error": getattr(lead, "capi_error", "") or "",
         "assigned_to": lead.assigned_to or "",
         "date": lead.date or "",
         "month_sheet": getattr(lead, "month_sheet", "") or "",
@@ -873,15 +875,19 @@ def get_lead(lead_id: int, db: Session = Depends(get_db)):
 
 
 @router.patch("/{lead_id}")
-def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
+def patch_lead(lead_id: int, data: LeadPatch, background: BackgroundTasks, db: Session = Depends(get_db)):
     lead = db.query(Lead).filter(Lead.id == lead_id).first()
     if not lead:
         raise HTTPException(status_code=404, detail="Lead not found")
 
+    became_deal = False
     if data.status is not None:
         from sheets_sync import _normalize_status
+        previous_status = lead.status
         lead.status = _normalize_status(data.status)
         lead.status_raw = data.status  # keep what user typed
+        # Conversion milestone: status changes to DEAL → ONE server-side event to Meta (Conversions API)
+        became_deal = lead.status == "DEAL" and previous_status != "DEAL" and not lead.capi_sent_at
     if data.assigned_to is not None:
         lead.assigned_to = data.assigned_to
     if data.sheet_comments is not None:
@@ -933,7 +939,22 @@ def patch_lead(lead_id: int, data: LeadPatch, db: Session = Depends(get_db)):
 
     lead.updated_at = _now()
     db.commit()
+    if became_deal:
+        from meta_capi import send_lead_conversion
+        background.add_task(send_lead_conversion, lead.id)
     return _lead_to_dict(lead)
+
+
+@router.post("/{lead_id}/capi-resend")
+def resend_capi_event(lead_id: int, user: str = Depends(get_current_user)):
+    """Admin: retry the Meta Conversions API event of a DEAL lead whose first attempt failed."""
+    if (user or "").upper() != "HARIS":
+        raise HTTPException(status_code=403, detail="Μόνο ο διαχειριστής")
+    from meta_capi import send_lead_conversion
+    result = send_lead_conversion(lead_id)
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result.get("error") or "Meta CAPI error")
+    return result
 
 
 @router.delete("/{lead_id}")

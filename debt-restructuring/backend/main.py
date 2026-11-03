@@ -165,6 +165,9 @@ def run_migrations():
             "ALTER TABLE leads ADD COLUMN taxisnet_password_2 VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN phone2 VARCHAR DEFAULT ''",
             "ALTER TABLE leads ADD COLUMN themis_token VARCHAR",
+            "ALTER TABLE leads ADD COLUMN capi_event_id VARCHAR DEFAULT ''",
+            "ALTER TABLE leads ADD COLUMN capi_sent_at DATETIME",
+            "ALTER TABLE leads ADD COLUMN capi_error TEXT DEFAULT ''",
         ]:
             try:
                 conn.execute(text(col_ddl))

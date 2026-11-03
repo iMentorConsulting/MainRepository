@@ -136,6 +136,11 @@ class Lead(Base):
     # Public token for the Θέμις AI screening chat link
     themis_token = Column(String, unique=True, index=True, default=lambda: secrets.token_urlsafe(24))
 
+    # Meta Conversions API — DEAL conversion event (sent once per lead)
+    capi_event_id = Column(String, default="")
+    capi_sent_at = Column(DateTime, nullable=True)
+    capi_error = Column(Text, default="")
+
     # Timestamps
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
