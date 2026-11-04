@@ -524,16 +524,16 @@ export default function BusinessesPage() {
         ) : (
           <>
             {businesses.length > 0 && selected.size === businesses.length && businesses.length < total && (
-              <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 text-sm text-indigo-800 flex items-center justify-between">
+              <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 text-sm text-indigo-800 flex items-center gap-3">
                 {allFilteredBusinesses ? (
                   <span>Επιλέχθηκαν και οι {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
                 ) : (
                   <>
-                    <span>Επιλέχθηκαν οι {businesses.length} από τις {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
+                    <span className="flex-1">Επιλέχθηκαν οι {businesses.length} από τις {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
                     <button
                       onClick={selectAllFiltered}
                       disabled={selectAllLoading}
-                      className="font-semibold hover:underline disabled:opacity-60"
+                      className="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-semibold hover:bg-indigo-700 disabled:opacity-60"
                     >
                       {selectAllLoading ? 'Φόρτωση...' : `Επιλογή και των ${total} εγγραφών`}
                     </button>
