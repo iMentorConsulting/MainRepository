@@ -45,12 +45,27 @@ function getDrive(): { drive: ReturnType<typeof google.drive> } | { error: strin
   return { drive: google.drive({ version: 'v3', auth }) }
 }
 
-// pg_dump is unavailable in the Railway nixpacks image. The JSON-dump-of-all-
-// tables fallback caused OOM crashes (GemiLookup alone is hundreds of MB).
-//
-// Instead we export only the unsubscriber list — the one piece of data that
-// is legally/ethically critical and cannot be reconstructed from the GEMI API.
-// GemiLookup business records are re-importable via the admin CSV export.
+// Full database dump via pg_dump, piped straight into gzip by the shell —
+// pg_dump streams rows out via COPY rather than materializing the whole
+// database in memory, so (unlike the earlier JSON-dump-of-every-table
+// approach, which OOM'd because it built giant in-process arrays/strings)
+// this doesn't load the data into this Node process at all; Node only waits
+// for the two child processes to finish writing the file. Requires the
+// `postgresql` nix package (see nixpacks.toml) for the pg_dump binary —
+// without it this throws and the caller falls back to the unsubscriber-only
+// CSV export below.
+function dumpDatabaseGz(filePath: string): void {
+  const dbUrl = process.env.DATABASE_URL
+  if (!dbUrl) throw new Error('DATABASE_URL is not set')
+  execSync(`pg_dump "${dbUrl}" | gzip > "${filePath}"`, { stdio: 'pipe', timeout: 280_000, shell: '/bin/sh' })
+}
+
+// Fallback export used only if pg_dump itself fails (e.g. missing binary,
+// version mismatch, connection issue) — the one dataset that is legally/
+// ethically critical and cannot be reconstructed from the GEMI API.
+// GemiLookup business records are otherwise re-importable via the admin CSV
+// export, so this alone is not a full safety net; it exists so a failed
+// full dump doesn't silently lose this specific list for the night.
 async function dumpUnsubscribersGz(): Promise<Buffer> {
   const rows = await prisma.gemiLookup.findMany({
     where: { unsubscribedAt: { not: null } },
@@ -115,22 +130,34 @@ export async function POST(request: NextRequest) {
   const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
   const results: Record<string, unknown> = {}
 
-  // ── 1. UNSUBSCRIBER LIST (critical safety backup) ────────────────────
-  // pg_dump is not available in the Railway nixpacks image. A full JSON dump
-  // of all tables caused OOM crashes. We back up only the unsubscriber list —
-  // the one dataset that is legally critical and cannot be reconstructed.
-  // GemiLookup business records are re-importable via the admin CSV export.
-  const dbFileName = `${BACKUP_PREFIX}${timestamp}-unsubscribers.csv.gz`
-  const dbFilePath = path.join(os.tmpdir(), dbFileName)
+  // ── 1. DATABASE BACKUP — full pg_dump, falling back to the unsubscriber
+  // list alone only if pg_dump itself fails ────────────────────────────
+  let dbFileName = `${BACKUP_PREFIX}${timestamp}.sql.gz`
+  let dbFilePath = path.join(os.tmpdir(), dbFileName)
   let dbExported = false
   try {
-    const gz = await dumpUnsubscribersGz()
-    fs.writeFileSync(dbFilePath, gz)
-    results.dbMethod = 'unsubscribers-csv'
+    dumpDatabaseGz(dbFilePath)
+    if (!fs.existsSync(dbFilePath) || fs.statSync(dbFilePath).size === 0) {
+      throw new Error('pg_dump produced no output')
+    }
+    results.dbMethod = 'pg_dump-full'
     dbExported = true
   } catch (err) {
-    console.error('[Backup] unsubscriber export failed:', err instanceof Error ? err.message : err)
-    results.dbError = err instanceof Error ? err.message : String(err)
+    console.error('[Backup] pg_dump failed, falling back to unsubscribers-only:', err instanceof Error ? err.message : err)
+    results.dbPgDumpError = err instanceof Error ? err.message : String(err)
+    if (fs.existsSync(dbFilePath)) fs.unlinkSync(dbFilePath)
+
+    dbFileName = `${BACKUP_PREFIX}${timestamp}-unsubscribers.csv.gz`
+    dbFilePath = path.join(os.tmpdir(), dbFileName)
+    try {
+      const gz = await dumpUnsubscribersGz()
+      fs.writeFileSync(dbFilePath, gz)
+      results.dbMethod = 'unsubscribers-csv-fallback'
+      dbExported = true
+    } catch (fallbackErr) {
+      console.error('[Backup] unsubscriber fallback export also failed:', fallbackErr instanceof Error ? fallbackErr.message : fallbackErr)
+      results.dbError = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr)
+    }
   }
 
   if (dbExported) {

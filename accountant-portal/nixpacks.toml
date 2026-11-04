@@ -1,5 +1,9 @@
 [phases.setup]
-nixPkgs = ["nodejs_20", "openssl"]
+# postgresql here is only for its client tools (pg_dump) — used by the
+# nightly backup job (src/app/api/cron/backup/route.ts) to take a real,
+# full database dump. Without it the backup previously fell back to
+# exporting just the unsubscriber list, since pg_dump wasn't on the image.
+nixPkgs = ["nodejs_20", "openssl", "postgresql"]
 
 [phases.install]
 cmds = ["npm ci"]
