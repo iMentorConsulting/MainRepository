@@ -26,6 +26,8 @@ import {
   ExternalLink,
   Check,
 } from 'lucide-react'
+import { AccountantContractCard } from '@/components/accountant-contract-card'
+import { AccountantContractsAdminList } from '@/components/accountant-contracts-admin-list'
 
 function formatEur(cents: number) {
   return (cents / 100).toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
@@ -357,6 +359,9 @@ export default function CommissionsPage() {
           </p>
         </div>
       )}
+
+      {!isAdmin && <AccountantContractCard />}
+      {isAdmin && <AccountantContractsAdminList />}
 
       {/* Commission Policies compact panel */}
       {policies.length > 0 && (

@@ -132,6 +132,7 @@ model Accountant {
   ptoxeusiCases       PtoxeusiCase[]
   matchActionTokens   MatchActionToken[]
   onboardingEmails    OnboardingEmail[]
+  contract            AccountantContract?
 }
 
 model Business {
@@ -494,6 +495,29 @@ model MessageLog {
   @@index([businessId])
   @@index([accountantId])
   @@index([createdAt])
+}
+
+// One signature per accountant office — the commission/collaboration
+// agreement between I-MENTOR and the λογιστής for registering client
+// businesses on the platform. Office tax details are snapshotted at signing
+// time (not re-read live later) so a signed contract never silently changes
+// if the office's own data is edited afterwards. templateVersion ties each
+// signature to the exact contract wording it agreed to — see
+// src/lib/accountant-contract-template.ts.
+model AccountantContract {
+  id                String   @id @default(cuid())
+  accountantId      String   @unique
+  accountant        Accountant @relation(fields: [accountantId], references: [id])
+  officeOnomasia    String?
+  officeAfm         String?
+  officeAddress     String?
+  officeLegalStatus String?
+  officeDoy         String?
+  signerName        String
+  uniqueCode        String   @unique
+  templateVersion   Int
+  signedAt          DateTime @default(now())
+  createdAt         DateTime @default(now())
 }
 
 model ImentorRequest {
