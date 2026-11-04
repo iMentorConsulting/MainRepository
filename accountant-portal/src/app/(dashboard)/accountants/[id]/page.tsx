@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { LogoUploader } from '@/components/shared/logo-uploader'
-import { ArrowLeft, Building2, Trash2, Mail, Send, RotateCcw, CheckCircle, Clock } from 'lucide-react'
+import { ArrowLeft, Building2, Trash2, Mail, Send, RotateCcw, CheckCircle, Clock, Search } from 'lucide-react'
 import { DeleteRequestForm } from '@/components/shared/delete-request-form'
 import Link from 'next/link'
 import { useSession } from 'next-auth/react'
@@ -37,11 +37,14 @@ export default function AccountantDetailPage() {
   const [onboarding, setOnboarding] = useState<any[]>([])
   const [onboardingLoading, setOnboardingLoading] = useState(false)
   const [onboardingMsg, setOnboardingMsg] = useState('')
+  const [afmInput, setAfmInput] = useState('')
+  const [afmLookupLoading, setAfmLookupLoading] = useState(false)
+  const [afmLookupError, setAfmLookupError] = useState('')
   const { register, handleSubmit, reset, formState: { errors, isSubmitting } } = useForm<FormData>({
     resolver: zodResolver(schema)
   })
 
-  useEffect(() => {
+  function fetchAccountant() {
     fetch(`/api/accountants/${id}`)
       .then(async r => {
         if (!r.ok) { setAccountant(null); return null }
@@ -51,6 +54,7 @@ export default function AccountantDetailPage() {
         if (!data) return
         setAccountant(data)
         setLogoUrl(data.logoUrl || null)
+        setAfmInput(data.afm || '')
         reset({
           officeName: data.officeName,
           contactPerson: data.contactPerson,
@@ -62,7 +66,35 @@ export default function AccountantDetailPage() {
         })
       })
       .finally(() => setLoading(false))
-  }, [id])
+  }
+
+  useEffect(() => { fetchAccountant() }, [id])
+
+  async function handleAfmLookup() {
+    if (!/^\d{9}$/.test(afmInput)) {
+      setAfmLookupError('Μη έγκυρο ΑΦΜ (9 ψηφία)')
+      return
+    }
+    setAfmLookupLoading(true)
+    setAfmLookupError('')
+    try {
+      const res = await fetch(`/api/accountants/${id}/refresh-afm`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ afm: afmInput }),
+      })
+      if (res.ok) {
+        fetchAccountant()
+      } else {
+        const data = await res.json()
+        setAfmLookupError(data.error || 'Σφάλμα αναζήτησης')
+      }
+    } catch {
+      setAfmLookupError('Σφάλμα δικτύου')
+    } finally {
+      setAfmLookupLoading(false)
+    }
+  }
 
   useEffect(() => {
     if (!isAdmin || !id) return
@@ -167,10 +199,31 @@ export default function AccountantDetailPage() {
         </div>
 
         <div className="space-y-4">
-          {(accountant.afm || ownBusiness) && (
+          {(accountant.afm || ownBusiness || isAdmin) && (
             <Card>
               <CardHeader><CardTitle className="flex items-center gap-2"><Building2 size={18} className="text-indigo-500" />Στοιχεία ΑΑΔΕ Γραφείου</CardTitle></CardHeader>
               <CardContent className="space-y-2 text-sm">
+                {isAdmin && (
+                  <div className="pb-3 mb-1 border-b border-gray-100 space-y-2">
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={afmInput}
+                        onChange={e => setAfmInput(e.target.value.replace(/\D/g, '').slice(0, 9))}
+                        placeholder="ΑΦΜ γραφείου (9 ψηφία)"
+                        maxLength={9}
+                        className="flex-1 rounded-lg border border-gray-300 px-2.5 py-1.5 text-sm"
+                      />
+                      <Button type="button" size="sm" onClick={handleAfmLookup} loading={afmLookupLoading}>
+                        <Search size={13} className="mr-1" />Αναζήτηση ΑΑΔΕ
+                      </Button>
+                    </div>
+                    {afmLookupError && <p className="text-xs text-red-600">{afmLookupError}</p>}
+                    <p className="text-xs text-gray-400">
+                      {ownBusiness ? 'Αν το ΑΦΜ λείπει ή είναι λάθος, εισάγετε το σωστό και πατήστε αναζήτηση για να ενημερωθούν τα στοιχεία.' : 'Το γραφείο δεν έχει καταχωρημένο ΑΦΜ — εισάγετέ το εδώ για να αντληθούν τα στοιχεία από την ΑΑΔΕ.'}
+                    </p>
+                  </div>
+                )}
                 <div className="flex justify-between"><span className="text-gray-500">ΑΦΜ</span><span className="font-medium">{accountant.afm || '—'}</span></div>
                 {ownBusiness ? (
                   <>
