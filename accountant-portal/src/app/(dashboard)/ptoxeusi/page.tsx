@@ -8,6 +8,11 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { MultiSelect } from '@/components/ui/multi-select'
 import { Plus, ExternalLink, Gavel, Trash2, Sparkles, Handshake, Coins } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { VideoThumbnailGrid } from '@/components/video-thumbnail-grid'
+
+const ONBOARDING_VIDEOS: { title: string; videoId: string }[] = [
+  { title: 'Τι είναι η πτώχευση — επεξήγηση', videoId: 'E4rFW1m5faM' },
+]
 
 const STATUS_LABELS: Record<string, string> = {
   SUBMITTED: 'Υποβλήθηκε', IN_ASSESSMENT: 'Σε Εκτίμηση', REPORT_READY: 'Έτοιμη Αναφορά',
@@ -145,6 +150,8 @@ export default function PtoxeusiPage() {
           </div>
         </div>
       </div>
+
+      <VideoThumbnailGrid videos={ONBOARDING_VIDEOS} heading="Σύντομο βίντεο ενημέρωσης" />
 
       {isAdmin && (
         <div className="flex flex-wrap gap-3 items-end">
