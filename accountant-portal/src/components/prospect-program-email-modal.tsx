@@ -7,6 +7,12 @@ interface ProspectProgramEmailModalProps {
   programId: string
   programTitle: string
   businessHasEmail: boolean
+  // 'business' (default) hits /api/businesses/[id]/program-email, for a
+  // claimed Business with its own ProgramMatch rows. 'gemi' hits
+  // /api/gemi/businesses/[id]/program-email, for an unclaimed ΓΕΜΗ lead
+  // (GemiLookup/GemiProgramMatch) — same modal, same email template, only
+  // the data source differs.
+  kind?: 'business' | 'gemi'
   onClose: () => void
   onSent?: () => void
 }
@@ -16,7 +22,7 @@ interface ProspectProgramEmailModalProps {
 // specifically qualifies, that program's info, and an optional custom note
 // (e.g. "Απαντήστε μας με το Ε3 2025"). See
 // src/lib/eligibility-email.ts buildProspectProgramEmailHtml.
-export function ProspectProgramEmailModal({ businessId, programId, programTitle, businessHasEmail, onClose, onSent }: ProspectProgramEmailModalProps) {
+export function ProspectProgramEmailModal({ businessId, programId, programTitle, businessHasEmail, kind = 'business', onClose, onSent }: ProspectProgramEmailModalProps) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null)
@@ -25,11 +31,15 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
   const [customMessage, setCustomMessage] = useState('')
   const [previewStale, setPreviewStale] = useState(false)
 
+  const endpoint = kind === 'gemi'
+    ? `/api/gemi/businesses/${businessId}/program-email`
+    : `/api/businesses/${businessId}/program-email`
+
   async function loadPreview(message: string) {
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/program-email`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ programId, send: false, customMessage: message || undefined }),
@@ -57,7 +67,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
     setSending(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/program-email`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ programId, send: true, customMessage: customMessage || undefined }),

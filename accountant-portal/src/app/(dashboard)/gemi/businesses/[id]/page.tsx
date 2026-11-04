@@ -10,6 +10,7 @@ import { CategoryBadge } from '@/components/businesses/category-badge'
 import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale, Gavel, Plus, Trash2, Zap } from 'lucide-react'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
+import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
 
 const STATUS_LABELS: Record<string, string> = {
   POTENTIAL: 'Πιθανό', REVIEWED: 'Ελέγχθηκε', REJECTED: 'Απορρίφθηκε',
@@ -46,6 +47,7 @@ export default function GemiBusinessDetailPage() {
   const [saving, setSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
   const [rematching, setRematching] = useState(false)
+  const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string } | null>(null)
 
   const isAdmin = ['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role ?? '')
 
@@ -485,19 +487,30 @@ export default function GemiBusinessDetailPage() {
           </div>
           <div className="divide-y">
             {business.programMatches.map((m: any) => (
-              <div key={m.id} className="py-3 flex items-center justify-between gap-4">
-                <div className="flex-1 min-w-0">
-                  <Link href={`/programs/${m.programId}`} className="text-sm font-medium text-blue-700 hover:underline truncate block">{m.program?.title}</Link>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {m.matchReason?.slice(0, 3).map((r: string, i: number) => (
-                      <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r}</span>
-                    ))}
+              <div key={m.id} className="py-3 space-y-2">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <Link href={`/programs/${m.programId}`} className="text-sm font-medium text-blue-700 hover:underline truncate block">{m.program?.title}</Link>
+                    <div className="flex flex-wrap gap-1 mt-1">
+                      {m.matchReason?.slice(0, 3).map((r: string, i: number) => (
+                        <span key={i} className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">{r}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="text-sm font-bold text-green-700">{m.matchScore}%</span>
+                    <Badge variant={STATUS_VARIANT[m.status] ?? 'secondary'}>{STATUS_LABELS[m.status] ?? m.status}</Badge>
                   </div>
                 </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className="text-sm font-bold text-green-700">{m.matchScore}%</span>
-                  <Badge variant={STATUS_VARIANT[m.status] ?? 'secondary'}>{STATUS_LABELS[m.status] ?? m.status}</Badge>
-                </div>
+                {m.status !== 'REJECTED' && (
+                  <button
+                    onClick={() => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '' })}
+                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
+                  >
+                    <Mail size={12} />
+                    Προεπισκόπηση &amp; Αποστολή Email
+                  </button>
+                )}
               </div>
             ))}
           </div>
@@ -559,6 +572,17 @@ export default function GemiBusinessDetailPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {prospectEmailProgram && (
+        <ProspectProgramEmailModal
+          businessId={business.id}
+          kind="gemi"
+          programId={prospectEmailProgram.id}
+          programTitle={prospectEmailProgram.title}
+          businessHasEmail={!!business.email}
+          onClose={() => setProspectEmailProgram(null)}
+        />
       )}
     </div>
   )
