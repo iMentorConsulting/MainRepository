@@ -283,7 +283,9 @@ export function EligibilityMessageModal({ businessIds, allMyClients, allowAdminA
                     <AlertTriangle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
                     <p className="text-sm text-amber-800">
                       Θα σταλούν πραγματικά <strong>{preview.sentEmail} email{preview.sentEmail === 1 ? '' : 's'}</strong> και <strong>{preview.sentViber} μήνυμα{preview.sentViber === 1 ? '' : 'τα'} Viber</strong>.
-                      {' '}({preview.ineligible} μη επιλέξιμες αυτή τη στιγμή{preview.failed > 0 ? `, ${preview.failed} αποτυχίες ελέγχου` : ''})
+                      {(preview.ineligible > 0 || preview.failed > 0) && (
+                        <> {' '}({preview.ineligible > 0 ? `${preview.ineligible} μη επιλέξιμες αυτή τη στιγμή` : ''}{preview.ineligible > 0 && preview.failed > 0 ? ', ' : ''}{preview.failed > 0 ? `${preview.failed} αποτυχίες ελέγχου` : ''})</>
+                      )}
                     </p>
                   </div>
                 )}

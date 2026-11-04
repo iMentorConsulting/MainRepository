@@ -214,6 +214,8 @@ function MatchesPageInner() {
   const [accountantOptions, setAccountantOptions] = useState<{ value: string; label: string }[]>([])
   const [programOptions, setProgramOptions] = useState<{ value: string; label: string }[]>([])
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [allFilteredBusinesses, setAllFilteredBusinesses] = useState<{ id: string; afm: string; onomasia: string | null; accountantId: string | null; accountantOfficeName: string | null }[] | null>(null)
+  const [selectAllLoading, setSelectAllLoading] = useState(false)
   const [quickSendOpen, setQuickSendOpen] = useState(false)
   const [eligibilityMessageOpen, setEligibilityMessageOpen] = useState(false)
   const [caseFor, setCaseFor] = useState<{ businessId: string; programId: string } | null>(null)
@@ -288,7 +290,7 @@ function MatchesPageInner() {
 
   useEffect(() => { fetchMatches() }, [fetchMatches])
   useEffect(() => { setPage(1) }, [accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search, sortBy, sortDir, hideUnsuitable, websiteFormOnly])
-  useEffect(() => { setSelected(new Set()) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search])
+  useEffect(() => { setSelected(new Set()); setAllFilteredBusinesses(null) }, [page, accountantFilter, programFilter, legalStatusFilter, categoryFilter, perifereiaFilter, tagFilter, excludeTagFilter, campaignSentFilter, search])
 
   useEffect(() => {
     const fromUrl = searchParams.get('programIds')
@@ -311,6 +313,7 @@ function MatchesPageInner() {
   }
 
   function toggleSelect(id: string) {
+    setAllFilteredBusinesses(null)
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -320,14 +323,47 @@ function MatchesPageInner() {
   }
 
   function toggleSelectAll() {
+    setAllFilteredBusinesses(null)
     setSelected(prev => prev.size === matches.length ? new Set() : new Set(matches.map(m => m.id)))
+  }
+
+  // "Select all N matches matching the current filters", not just the
+  // visible page — fetches a lightweight id/business list with the same
+  // filters as fetchMatches() and overrides the per-page-derived selection
+  // below until the user changes anything.
+  async function selectAllFiltered() {
+    setSelectAllLoading(true)
+    try {
+      const params = new URLSearchParams({ sortBy, sortDir, idsOnly: '1' })
+      if (accountantFilter.length) params.set('accountantIds', accountantFilter.join(','))
+      if (programFilter.length) params.set('programIds', programFilter.join(','))
+      if (legalStatusFilter.length) params.set('legalStatuses', legalStatusFilter.join(','))
+      if (categoryFilter.length) params.set('categories', categoryFilter.join(','))
+      if (perifereiaFilter.length) params.set('perifereies', perifereiaFilter.join(','))
+      if (tagFilter.length) params.set('tags', tagFilter.join(','))
+      if (excludeTagFilter.length) params.set('excludeTags', excludeTagFilter.join(','))
+      if (campaignSentFilter) params.set('campaignSent', campaignSentFilter)
+      if (search) params.set('search', search)
+      if (hideUnsuitable) params.set('hideUnsuitable', 'true')
+      if (websiteFormOnly) params.set('websiteFormOnly', '1')
+      const res = await fetch(`/api/matches?${params}`)
+      const data = await res.json()
+      setSelected(new Set(data.matchIds || []))
+      setAllFilteredBusinesses(data.businesses || [])
+    } finally {
+      setSelectAllLoading(false)
+    }
   }
 
   const isUnsuitable = (m: any) => !!m.rejectionReasonId || (m.criterionChecks || []).some((c: any) => c.value === 'FAIL')
   const visibleMatches = matches
 
   const selectedMatches = matches.filter(m => selected.has(m.id))
-  const selectedBusinesses = selectedMatches.map(m => ({
+  // When "select all N matching filters" was used, selected ids extend well
+  // beyond the current page — selectAllFiltered() already fetched the full
+  // deduped business list, so prefer that over deriving from `matches`
+  // (which only ever holds the current page's rows).
+  const selectedBusinesses = allFilteredBusinesses ?? selectedMatches.map(m => ({
     id: m.business?.id,
     onomasia: m.business?.onomasia,
     afm: m.business?.afm,
@@ -515,13 +551,31 @@ function MatchesPageInner() {
           </div>
         ) : (
           <>
+            {matches.length > 0 && selected.size === matches.length && matches.length < total && (
+              <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 text-sm text-indigo-800 flex items-center justify-between">
+                {allFilteredBusinesses ? (
+                  <span>Επιλέχθηκαν και οι {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
+                ) : (
+                  <>
+                    <span>Επιλέχθηκαν οι {matches.length} από τις {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
+                    <button
+                      onClick={selectAllFiltered}
+                      disabled={selectAllLoading}
+                      className="font-semibold hover:underline disabled:opacity-60"
+                    >
+                      {selectAllLoading ? 'Φόρτωση...' : `Επιλογή και των ${total} εγγραφών`}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <Table>
               <TableHead>
                 <TableRow>
                   <Th className="w-10">
                     <input
                       type="checkbox"
-                      checked={matches.length > 0 && selected.size === matches.length}
+                      checked={matches.length > 0 && (selected.size === matches.length || !!allFilteredBusinesses)}
                       onChange={toggleSelectAll}
                       className="rounded"
                     />

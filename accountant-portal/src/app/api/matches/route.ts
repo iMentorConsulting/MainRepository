@@ -150,6 +150,37 @@ export async function GET(request: NextRequest) {
   const where = withProgramExclusions(programIds.length > 0 ? { ...baseWhere, programId: { in: programIds } } : baseWhere)
   const whereWithHidden = withProgramExclusions(programIds.length > 0 ? { ...baseWhereWithHidden, programId: { in: programIds } } : baseWhereWithHidden)
 
+  // "Select all N matches matching these filters" (not just the current
+  // page) — a lightweight id-only query, ignoring pagination/the 200 cap,
+  // so the UI can select every match the current filters resolve to without
+  // pulling full rows with their business/program/criterion relations.
+  if (searchParams.get('idsOnly') === '1') {
+    const allMatches = await prisma.programMatch.findMany({
+      where: whereWithHidden,
+      select: {
+        id: true,
+        businessId: true,
+        business: { select: { id: true, afm: true, onomasia: true, accountantId: true, accountant: { select: { officeName: true } } } },
+      },
+    })
+    const businessById = new Map<string, { id: string; afm: string; onomasia: string | null; accountantId: string | null; accountantOfficeName: string | null }>()
+    for (const m of allMatches) {
+      if (m.business && !businessById.has(m.business.id)) {
+        businessById.set(m.business.id, {
+          id: m.business.id,
+          afm: m.business.afm,
+          onomasia: m.business.onomasia,
+          accountantId: m.business.accountantId,
+          accountantOfficeName: m.business.accountant?.officeName ?? null,
+        })
+      }
+    }
+    return NextResponse.json({
+      matchIds: allMatches.map(m => m.id),
+      businesses: Array.from(businessById.values()),
+    })
+  }
+
   // The program facet (dropdown counts below) spans every program regardless
   // of the current program filter, so it needs the full, unscoped rule set —
   // but each affected program is recounted individually below with the

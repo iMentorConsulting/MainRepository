@@ -72,6 +72,8 @@ export default function BusinessesPage() {
   const [searchInput, setSearchInput] = useState('')
   const [loading, setLoading] = useState(true)
   const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [allFilteredBusinesses, setAllFilteredBusinesses] = useState<{ id: string; afm: string; onomasia: string | null; accountantId: string | null; accountantOfficeName: string | null }[] | null>(null)
+  const [selectAllLoading, setSelectAllLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [refreshingStatus, setRefreshingStatus] = useState(false)
 
@@ -128,7 +130,7 @@ export default function BusinessesPage() {
   }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
 
   useEffect(() => { fetchData() }, [fetchData])
-  useEffect(() => { setSelected(new Set()) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
+  useEffect(() => { setSelected(new Set()); setAllFilteredBusinesses(null) }, [page, search, accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
   useEffect(() => { setPage(1) }, [accountantFilter, legalStatusFilter, regionFilter, categoryFilter, perifereiaFilter, sort, includeIndividuals, inactiveOnly, websiteFormOnly])
 
   useEffect(() => {
@@ -151,6 +153,7 @@ export default function BusinessesPage() {
   }
 
   function toggleSelect(id: string) {
+    setAllFilteredBusinesses(null)
     setSelected(prev => {
       const next = new Set(prev)
       if (next.has(id)) next.delete(id)
@@ -160,7 +163,35 @@ export default function BusinessesPage() {
   }
 
   function toggleSelectAll() {
+    setAllFilteredBusinesses(null)
     setSelected(prev => prev.size === businesses.length ? new Set() : new Set(businesses.map(b => b.id)))
+  }
+
+  // "Select all N businesses matching the current filters", not just the
+  // visible page.
+  async function selectAllFiltered() {
+    setSelectAllLoading(true)
+    try {
+      const [sortBy, sortDir] = sort.split(':')
+      const params = new URLSearchParams({
+        sortBy, sortDir, idsOnly: '1',
+        ...(search ? { search } : {}),
+        ...(accountantFilter.length ? { accountantIds: accountantFilter.join(',') } : {}),
+        ...(legalStatusFilter.length ? { legalStatuses: legalStatusFilter.join(',') } : (includeIndividuals ? { excludeIndividualLike: '0' } : {})),
+        ...(regionFilter.length ? { regions: regionFilter.join(',') } : {}),
+        ...(categoryFilter.length ? { categories: categoryFilter.join(',') } : {}),
+        ...(perifereiaFilter.length ? { perifereies: perifereiaFilter.join(',') } : {}),
+        ...(inactiveOnly ? { inactiveOnly: '1' } : {}),
+        ...(websiteFormOnly ? { websiteFormOnly: '1' } : {}),
+      })
+      const res = await fetch(`/api/businesses?${params}`)
+      const data = await res.json()
+      const all = data.businesses || []
+      setAllFilteredBusinesses(all)
+      setSelected(new Set(all.map((b: { id: string }) => b.id)))
+    } finally {
+      setSelectAllLoading(false)
+    }
   }
 
   async function handleBulkDelete() {
@@ -492,13 +523,31 @@ export default function BusinessesPage() {
           </div>
         ) : (
           <>
+            {businesses.length > 0 && selected.size === businesses.length && businesses.length < total && (
+              <div className="px-4 py-2 bg-indigo-50 border-b border-indigo-100 text-sm text-indigo-800 flex items-center justify-between">
+                {allFilteredBusinesses ? (
+                  <span>Επιλέχθηκαν και οι {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
+                ) : (
+                  <>
+                    <span>Επιλέχθηκαν οι {businesses.length} από τις {total} εγγραφές με τα τρέχοντα φίλτρα.</span>
+                    <button
+                      onClick={selectAllFiltered}
+                      disabled={selectAllLoading}
+                      className="font-semibold hover:underline disabled:opacity-60"
+                    >
+                      {selectAllLoading ? 'Φόρτωση...' : `Επιλογή και των ${total} εγγραφών`}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
             <Table>
               <TableHead>
                 <TableRow>
                   <Th className="w-10">
                     <input
                       type="checkbox"
-                      checked={businesses.length > 0 && selected.size === businesses.length}
+                      checked={businesses.length > 0 && (selected.size === businesses.length || !!allFilteredBusinesses)}
                       onChange={toggleSelectAll}
                       className="rounded"
                     />
@@ -621,7 +670,7 @@ export default function BusinessesPage() {
 
       {quickSendOpen && (
         <QuickSendModal
-          businesses={businesses.filter(b => selected.has(b.id)).map(b => ({ id: b.id, onomasia: b.onomasia, afm: b.afm, accountantId: b.accountantId, accountantOfficeName: b.accountant?.officeName }))}
+          businesses={allFilteredBusinesses ?? businesses.filter(b => selected.has(b.id)).map(b => ({ id: b.id, onomasia: b.onomasia, afm: b.afm, accountantId: b.accountantId, accountantOfficeName: b.accountant?.officeName }))}
           onClose={() => setQuickSendOpen(false)}
           onSent={() => setSelected(new Set())}
         />

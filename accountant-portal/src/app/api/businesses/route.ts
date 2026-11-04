@@ -106,6 +106,25 @@ export async function GET(request: NextRequest) {
   let orderBy: any = sortableFields.includes(sortBy) ? { [sortBy]: sortDir } : { createdAt: 'desc' as const }
   if (sortBy === 'accountant.officeName') orderBy = { accountant: { officeName: sortDir } }
 
+  // "Select all N businesses matching these filters" (not just the current
+  // page) — a lightweight query, ignoring pagination, so the UI can select
+  // every business the current filters resolve to.
+  if (searchParams.get('idsOnly') === '1') {
+    const allBusinesses = await prisma.business.findMany({
+      where,
+      select: { id: true, afm: true, onomasia: true, accountantId: true, accountant: { select: { officeName: true } } },
+    })
+    return NextResponse.json({
+      businesses: allBusinesses.map(b => ({
+        id: b.id,
+        afm: b.afm,
+        onomasia: b.onomasia,
+        accountantId: b.accountantId,
+        accountantOfficeName: b.accountant?.officeName ?? null,
+      })),
+    })
+  }
+
   const [businesses, total] = await Promise.all([
     prisma.business.findMany({
       where,
