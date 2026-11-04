@@ -4,6 +4,7 @@ import { useSession } from 'next-auth/react'
 import { StatCard } from '@/components/dashboard/stat-card'
 import { ChartCard } from '@/components/dashboard/chart-card'
 import { MatchesHero } from '@/components/dashboard/matches-hero'
+import { AccountantContractCard } from '@/components/accountant-contract-card'
 import { Users, Building2, Target, Zap, Send, Inbox, Upload, Mail, ChevronRight, CheckCircle2 } from 'lucide-react'
 import Link from 'next/link'
 import {
@@ -210,6 +211,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Commission contract — shown first so it's seen right at login */}
+      {!isAdmin && <AccountantContractCard />}
 
       {/* Matches hero — the core value of the app */}
       <MatchesHero accountantId={accountantFilter || undefined} />

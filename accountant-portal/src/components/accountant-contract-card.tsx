@@ -27,7 +27,7 @@ export function AccountantContractCard() {
             {contract ? 'Υπογεγραμμένη Σύμβαση Συνεργασίας' : 'Υπογραφή Σύμβασης Συνεργασίας'}
           </p>
           <p className={`text-xs ${contract ? 'text-emerald-700/80' : 'text-indigo-700/80'}`}>
-            {contract ? `Κωδικός ${contract.uniqueCode} — δείτε ή κατεβάστε την` : 'Απαιτείται για τη συνεργασία με την I-MENTOR'}
+            {contract ? `Κωδικός ${contract.uniqueCode} — δείτε ή κατεβάστε την` : 'Συνιστάται για την ομαλή απόδοση των προμηθειών σας'}
           </p>
         </div>
       </div>
