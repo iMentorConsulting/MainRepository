@@ -4,6 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { buildAadeBusinessDetails } from '@/lib/business-profile'
 import { buildProspectProgramEmailSubject, buildProspectProgramEmailHtml } from '@/lib/eligibility-email'
 import { sendEmail } from '@/lib/email'
+import { logMessage } from '@/lib/message-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -70,6 +71,19 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       return NextResponse.json({ error: 'Η επιχείρηση δεν έχει καταχωρημένο email' }, { status: 400 })
     }
     const ok = await sendEmail({ to: gemi.email, subject, html })
+    logMessage({
+      kind: 'PROGRAM_EMAIL',
+      channel: 'EMAIL',
+      businessId: gemi.claimedBusinessId,
+      businessName: gemi.onomasia,
+      afm: gemi.afm,
+      accountantId: gemi.claimedAccountantId,
+      subject,
+      recipient: gemi.email,
+      success: ok,
+      sentByUserId: session.user.id,
+      sentByName: session.user.name,
+    })
     return NextResponse.json({ subject, html, sent: ok, hasEmail: true })
   }
 

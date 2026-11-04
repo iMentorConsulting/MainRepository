@@ -467,6 +467,35 @@ model CampaignRecipient {
   errorMessage String?
 }
 
+// Unified log of every individual/ad-hoc send that happens OUTSIDE the
+// formal Campaign system (which already logs itself via CampaignRecipient):
+// Quick Send, the combined eligibility email/Viber, and the single-program
+// prospect email. Lets the Campaigns page show "every send, mass or
+// individual, campaign or not" in one place. Loose string references
+// (no FK) on purpose — a log should survive the referenced business/
+// accountant being deleted later.
+model MessageLog {
+  id             String   @id @default(cuid())
+  kind           String   // QUICK_SEND | ELIGIBILITY | PROGRAM_EMAIL
+  channel        String   // EMAIL | VIBER
+  businessId     String?
+  businessName   String?
+  afm            String?
+  accountantId   String?
+  accountantName String?
+  subject        String?
+  recipient      String?
+  success        Boolean
+  errorMessage   String?
+  sentByUserId   String?
+  sentByName     String?
+  createdAt      DateTime @default(now())
+
+  @@index([businessId])
+  @@index([accountantId])
+  @@index([createdAt])
+}
+
 model ImentorRequest {
   id             String        @id @default(cuid())
   accountantId   String

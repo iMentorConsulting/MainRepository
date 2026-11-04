@@ -7,6 +7,7 @@ import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/t
 import { Plus, Mail, MessageCircle, Send, Users, FileText, CheckCircle2, Sparkles, ArrowRight, AlertTriangle, Eye, MousePointerClick, Filter, X, Search, Target } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
 import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
+import { AllSendsSection } from '@/components/all-sends-section'
 import { useSession } from 'next-auth/react'
 
 const statusVariant: Record<string, any> = { DRAFT: 'secondary', SCHEDULED: 'warning', SENT: 'success' }
@@ -505,6 +506,8 @@ export default function CampaignsPage() {
           </Table>
         )}
       </div>
+
+      <AllSendsSection accountantOptions={isAdmin ? accountants : undefined} />
     </div>
   )
 }

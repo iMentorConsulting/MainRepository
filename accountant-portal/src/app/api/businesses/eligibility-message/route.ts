@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
   // irreversible send.
   const dryRun = body.dryRun === true
 
-  const outcome = await sendEligibilityMessages(targets, { mode, channels, dryRun })
+  const outcome = await sendEligibilityMessages(targets, { mode, channels, dryRun, sentByUserId: session.user.id, sentByName: session.user.name })
 
   return NextResponse.json({ ...outcome, skippedNotOwned })
 }

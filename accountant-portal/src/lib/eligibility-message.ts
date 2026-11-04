@@ -4,6 +4,7 @@ import { buildEligibilitySubject, buildEligibilityEmailHtml, buildEligibilityVib
 import { sendEmail } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
 import { mapWithConcurrency } from '@/lib/concurrency'
+import { logMessage } from '@/lib/message-log'
 
 export interface EligibilityMessageTarget {
   id: string
@@ -31,9 +32,9 @@ export interface EligibilityMessageOutcome {
 // current eligibility.
 export async function sendEligibilityMessages(
   targets: EligibilityMessageTarget[],
-  options: { mode: 'direct' | 'accountant'; channels: Set<'email' | 'viber'>; markSent?: boolean; dryRun?: boolean }
+  options: { mode: 'direct' | 'accountant'; channels: Set<'email' | 'viber'>; markSent?: boolean; dryRun?: boolean; sentByUserId?: string | null; sentByName?: string | null }
 ): Promise<EligibilityMessageOutcome> {
-  const { mode, channels, markSent = true, dryRun = false } = options
+  const { mode, channels, markSent = true, dryRun = false, sentByUserId = null, sentByName = null } = options
 
   const appSetting = dryRun ? null : await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const imentorLogoUrl = appSetting?.imentorLogoUrl || null
@@ -64,10 +65,16 @@ export async function sendEligibilityMessages(
         if (channels.has('email') && b.email) {
           if (!dryRun) {
             const accountantInfo = await getAccountantInfo(b.accountantId)
-            await sendEmail({
+            const subject = buildEligibilitySubject(result.businessName, result.programs.length, accountantInfo)
+            const ok = await sendEmail({
               to: b.email,
-              subject: buildEligibilitySubject(result.businessName, result.programs.length, accountantInfo),
+              subject,
               html: buildEligibilityEmailHtml({ businessName: result.businessName, programs: result.programs, businessDetails: result.businessDetails, accountantInfo, imentorLogoUrl }),
+            })
+            logMessage({
+              kind: 'ELIGIBILITY', channel: 'EMAIL', businessId: b.id, businessName: result.businessName, afm: b.afm,
+              accountantId: b.accountantId, accountantName: accountantInfo?.officeName, subject, recipient: b.email,
+              success: ok, sentByUserId, sentByName,
             })
           }
           sentEmail++
@@ -80,6 +87,11 @@ export async function sendEligibilityMessages(
               to: viberNumber,
               text: buildEligibilityViberText({ businessName: result.businessName, programs: result.programs, accountantInfo }),
               senderName: 'I-MENTOR',
+            })
+            logMessage({
+              kind: 'ELIGIBILITY', channel: 'VIBER', businessId: b.id, businessName: result.businessName, afm: b.afm,
+              accountantId: b.accountantId, accountantName: accountantInfo?.officeName, recipient: viberNumber,
+              success: viberResult.ok, errorMessage: viberResult.ok ? null : viberResult.reason, sentByUserId, sentByName,
             })
             if (viberResult.ok) sentViber++
           } else {

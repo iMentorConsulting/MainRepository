@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail, renderCampaignEmailHtml } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
+import { logMessage } from '@/lib/message-log'
 
 export const dynamic = 'force-dynamic'
 
@@ -31,6 +32,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   let viberOk = false
   let viberReason = ''
 
+  const logBase = {
+    kind: 'QUICK_SEND' as const,
+    businessId: business.id,
+    businessName: business.onomasia,
+    afm: business.afm,
+    accountantId: business.accountantId,
+    accountantName: business.accountant?.officeName,
+    sentByUserId: session.user.id,
+    sentByName: session.user.name,
+  }
+
   if ((channel === 'EMAIL' || channel === 'EMAIL_AND_VIBER') && business.email) {
     const cleanBody = message.replace(/\*([^*]*)\*/g, (_match: string, inner: string) => inner.trim() ? `<strong>${inner}</strong>` : '')
     emailOk = await sendEmail({
@@ -45,6 +57,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         accountantLogoUrl: business.accountant?.logoUrl || '',
       }),
     })
+    logMessage({ ...logBase, channel: 'EMAIL', subject: subject || 'Ενημέρωση από το λογιστικό σας γραφείο', recipient: business.email, success: emailOk })
   }
 
   if ((channel === 'VIBER' || channel === 'EMAIL_AND_VIBER') && (business.viberPhone || business.phone)) {
@@ -54,6 +67,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const viberResult = await sendViberMessage({ to: phone, text: cleanViber, senderName: business.onomasia || business.afm })
     viberOk = viberResult.ok
     viberReason = viberResult.reason
+    logMessage({ ...logBase, channel: 'VIBER', recipient: phone, success: viberOk, errorMessage: viberOk ? null : viberReason })
   }
 
   const success = emailOk || viberOk

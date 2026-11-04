@@ -69,7 +69,7 @@ export async function POST(request: NextRequest) {
     select: { id: true, afm: true, email: true, phone: true, viberPhone: true, accountantId: true },
   })
 
-  const outcome = await sendEligibilityMessages(batch, { mode, channels: channels as Set<'email' | 'viber'> })
+  const outcome = await sendEligibilityMessages(batch, { mode, channels: channels as Set<'email' | 'viber'>, sentByUserId: session.user.id, sentByName: session.user.name })
 
   return NextResponse.json({
     ...outcome,
