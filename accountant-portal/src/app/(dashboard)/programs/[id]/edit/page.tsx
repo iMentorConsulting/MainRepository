@@ -411,7 +411,12 @@ export default function EditProgramPage() {
   }, [id, reset])
 
   async function onSubmit(data: FormData) {
-    const maxRegdateFinal = maxRegdateMode === 'relative' ? `TODAY-${relativeMaxYears}Y` : (data.maxRegdate || undefined)
+    // Always include maxRegdate in the request, even when blank — sending
+    // `undefined` here drops the key from the JSON body entirely, so the
+    // API's `{...data}` spread never touches the field and a stale value
+    // from an earlier save (e.g. the AI-extraction default) can never be
+    // cleared through this form.
+    const maxRegdateFinal = maxRegdateMode === 'relative' ? `TODAY-${relativeMaxYears}Y` : (data.maxRegdate || '')
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
