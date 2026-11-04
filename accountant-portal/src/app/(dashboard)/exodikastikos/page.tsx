@@ -6,8 +6,9 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
 import { MultiSelect } from '@/components/ui/multi-select'
-import { Plus, ExternalLink, Scale, Trash2, Sparkles, Handshake, Coins, PlayCircle } from 'lucide-react'
+import { Plus, ExternalLink, Scale, Trash2, Sparkles, Handshake, Coins } from 'lucide-react'
 import { formatDateTime } from '@/lib/utils'
+import { VideoThumbnailGrid } from '@/components/video-thumbnail-grid'
 
 // Σύντομα ενημερωτικά βίντεο (YouTube) για την υπηρεσία και τη μεθοδολογία εκτίμησης.
 // Συμπληρώστε το videoId (το κομμάτι μετά το v= ή youtu.be/) για να εμφανιστεί το βίντεο.
@@ -175,32 +176,7 @@ export default function ExodikastikosPage() {
       </div>
 
       {/* ─── Onboarding videos ───────────────────────────────────────────── */}
-      <div>
-        <h3 className="text-sm font-bold text-gray-600 mb-3 flex items-center gap-2">
-          <PlayCircle size={15} className="text-indigo-500" />
-          Σύντομα βίντεο ενημέρωσης
-        </h3>
-        <div className="flex flex-wrap gap-3">
-          {ONBOARDING_VIDEOS.map((v, i) => (
-            <div key={i} className="w-36 shrink-0">
-              <div className="aspect-[9/16] rounded-xl border border-gray-200 bg-gray-50 overflow-hidden">
-                {v.videoId ? (
-                  <iframe
-                    className="w-full h-full"
-                    src={`https://www.youtube.com/embed/${v.videoId}`}
-                    title={v.title}
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center"><PlayCircle size={24} className="text-gray-300" /></div>
-                )}
-              </div>
-              <p className="text-[11px] text-gray-400 mt-1.5 text-center leading-tight">{v.title}</p>
-            </div>
-          ))}
-        </div>
-      </div>
+      <VideoThumbnailGrid videos={ONBOARDING_VIDEOS} heading="Σύντομα βίντεο ενημέρωσης" />
 
       {isAdmin && (
         <div className="flex flex-wrap gap-3 items-end">
