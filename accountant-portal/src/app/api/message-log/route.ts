@@ -9,6 +9,7 @@ const KIND_LABELS: Record<string, string> = {
   QUICK_SEND: 'Γρήγορη Αποστολή',
   ELIGIBILITY: 'Email/Viber Επιλεξιμότητας',
   PROGRAM_EMAIL: 'Email Προγράμματος',
+  MICROCREDITS: 'Ανάλυση Μικροπιστώσεων',
 }
 
 // "Όλες οι Αποστολές" on the Campaigns page — merges two separate send

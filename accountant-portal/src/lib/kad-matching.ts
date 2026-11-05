@@ -93,6 +93,24 @@ export interface KadCriterionResult {
 // those codes, it does not silently skip ΚΑΔ checking altogether.
 // A business is never rejected outright for having one excluded/secondary
 // ΚΑΔ as long as another of its activity codes clears both steps.
+// Same two-step eligible/excluded logic as evaluateKadCriterion, but for
+// ONE activity code in isolation — used wherever every single ΚΑΔ of a
+// business needs its own pass/fail against a program (e.g. a per-ΚΑΔ
+// breakdown shown to a consultant), not just "does at least one pass".
+export function isKadCodeEligible(rawCode: string, program: KadCriterionProgram): boolean {
+  const allKad = program.kadRules.length === 0 || program.kadRules.includes('*')
+  const activityCode = normalizeKadLegacy(rawCode)
+
+  const eligibleBase = allKad || program.kadRules.some(rule => ruleMatches(activityCode, rule))
+  if (!eligibleBase) return false
+
+  const excludedMatch = program.excludedKadRules.some(rule => ruleMatches(activityCode, rule))
+  if (!excludedMatch) return true
+
+  const exceptionCodes = program.excludedKadExceptions.map(normalizeKadForComparison)
+  return exceptionCodes.includes(normalizeKadForComparison(activityCode))
+}
+
 export function evaluateKadCriterion(activityCodes: string[], program: KadCriterionProgram): KadCriterionResult {
   const allKad = program.kadRules.length === 0 || program.kadRules.includes('*')
   const exceptionCodes = program.excludedKadExceptions.map(normalizeKadForComparison)

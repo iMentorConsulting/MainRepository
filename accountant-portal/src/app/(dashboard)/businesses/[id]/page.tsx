@@ -10,7 +10,8 @@ import { MatchCard } from '@/components/matching/match-card'
 import { QuickSendModal } from '@/components/quick-send-modal'
 import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database } from 'lucide-react'
+import { MicrocreditsEligibilityModal } from '@/components/microcredits-eligibility-modal'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database, Calculator } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -77,6 +78,7 @@ export default function BusinessDetailPage() {
   const [quickSend, setQuickSend] = useState(false)
   const [eligibilityMessage, setEligibilityMessage] = useState(false)
   const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string } | null>(null)
+  const [microcreditsProgramId, setMicrocreditsProgramId] = useState<string | null>(null)
   // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
   const [newCase, setNewCase] = useState(
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('newCase') === '1'
@@ -309,6 +311,15 @@ export default function BusinessDetailPage() {
         />
       )}
 
+      {microcreditsProgramId && (
+        <MicrocreditsEligibilityModal
+          businessId={business.id}
+          programId={microcreditsProgramId}
+          businessHasEmail={!!business.email}
+          onClose={() => setMicrocreditsProgramId(null)}
+        />
+      )}
+
       <NewCaseModal
         open={newCase}
         onClose={() => setNewCase(false)}
@@ -440,17 +451,27 @@ export default function BusinessDetailPage() {
               <CardContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                   {business.programMatches.filter((m: any) => m.status !== 'REJECTED').map((m: any) => (
-                    <MatchCard
-                      key={m.id}
-                      businessName={business.onomasia || ''}
-                      afm={business.afm}
-                      programTitle={m.program?.title || ''}
-                      matchScore={m.matchScore}
-                      matchReason={m.matchReason}
-                      status={m.status}
-                      extraCriteria={(m.program?.extraCriteriaIds || []).map((cid: string) => criteriaMap[cid] || cid)}
-                      onEmailProspect={isStaff ? () => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '' }) : undefined}
-                    />
+                    <div key={m.id} className="space-y-1.5">
+                      <MatchCard
+                        businessName={business.onomasia || ''}
+                        afm={business.afm}
+                        programTitle={m.program?.title || ''}
+                        matchScore={m.matchScore}
+                        matchReason={m.matchReason}
+                        status={m.status}
+                        extraCriteria={(m.program?.extraCriteriaIds || []).map((cid: string) => criteriaMap[cid] || cid)}
+                        onEmailProspect={isStaff ? () => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '' }) : undefined}
+                      />
+                      {isStaff && m.program?.category === 'MICROCREDITS' && (
+                        <button
+                          onClick={() => setMicrocreditsProgramId(m.programId)}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50"
+                        >
+                          <Calculator size={12} />
+                          Ανάλυση Επιλεξιμότητας Μικροπιστώσεων
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               </CardContent>
