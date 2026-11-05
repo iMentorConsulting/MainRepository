@@ -362,6 +362,45 @@ def _num(v) -> Optional[float]:
         return None
 
 
+_CURRENT_KEYS = ("discountedPrice", "discounted_price", "finalPrice", "final_price", "priceAfterDiscount",
+                 "salePrice", "currentPrice", "discountPrice")
+_ORIGINAL_KEYS = ("originalPrice", "original_price", "strikethroughPrice", "priceBeforeDiscount", "oldPrice",
+                  "crossedOutPrice", "regularPrice", "priceWithoutDiscount")
+
+
+def _amounts(v) -> list:
+    """Every money amount in a string (e.g. "€1,569 €1,458" when a strikethrough price is shown)."""
+    if not isinstance(v, str):
+        return []
+    return [n for n in (_num(m) for m in re.findall(r"\d[\d.,]*", v)) if n and n >= 20]
+
+
+def _prices(item: dict):
+    """
+    (current, original) stay price. Platforms show a crossed-out price next to the discounted one;
+    the guest pays — and the ranking compares — the discounted price.
+    """
+    raw = item.get("price") or item.get("pricing")
+    primary = _num(raw)
+    if not primary:
+        return None, None
+    nested = raw if isinstance(raw, dict) else {}
+    current = [primary]
+    original = []
+    for src in (item, nested):
+        current += [n for n in (_num(src.get(k)) for k in _CURRENT_KEYS) if n]
+        original += [n for n in (_num(src.get(k)) for k in _ORIGINAL_KEYS) if n]
+    for text in [raw] + [v for v in nested.values() if isinstance(v, str)]:
+        found = _amounts(text)
+        if len(found) >= 2:  # strikethrough + discounted in one label
+            current.append(min(found))
+            original.append(max(found))
+    same_scale = lambda n: 0.5 * primary <= n <= 1.5 * primary  # ignore per-night vs total mix-ups
+    cur = min(n for n in current if same_scale(n))
+    orig = max([n for n in current + original if same_scale(n)], default=cur)
+    return cur, (orig if orig > cur * 1.005 else None)
+
+
 LUX_SIGNALS = {
     "private pool": ("private pool", "ιδιωτική πισίνα", "piscina privata"),
     "pool": ("pool", "πισίνα"),
@@ -431,7 +470,8 @@ def _normalize(item: dict, platform: str) -> dict:
     out = {
         "url": item.get("url") or item.get("link") or "",
         "name": item.get("name") or item.get("title") or "",
-        "price": _num(item.get("price") or item.get("pricing")),
+        "price": _prices(item)[0],
+        "original_price": _prices(item)[1],
         "rating": _num(rating),
         "reviews": int(_num(reviews) or 0),
         "type": item.get("type") or item.get("roomType") or item.get("propertyType") or "",
@@ -540,7 +580,8 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
             + f"Listings πάνω από εμάς (με τη σειρά της αναζήτησης):\n"
             + "\n".join(
                 f"- #{c.get('position', '?')} {c['name']} | {_tier(c.get('score', 0), my_score).upper()} "
-                f"(score {c.get('score')}) | {c.get('type','')} | τιμή {c.get('price') or '?'}€ | "
+                f"(score {c.get('score')}) | {c.get('type','')} | τιμή {c.get('price') or '?'}€"
+                + (f" (έκπτωση πλατφόρμας από {c['original_price']}€)" if c.get("original_price") else "") + " | "
                 f"βαθμ. {c.get('rating') or '?'} ({c.get('reviews', 0)} κριτικές) | "
                 f"{', '.join(c.get('signals') or []) or '—'}"
                 + (" | Superhost/Guest fav." if c.get("superhost") else "")
@@ -964,6 +1005,7 @@ def _snap_dict(s: ListingSnapshot, cfg: dict) -> dict:
         "lux_rank": lux_rank, "lux_total": lux_total, "adults": s.adults,
         "search_url": _search_url(s.platform, s.search_location or "", s.check_in, s.check_out, s.adults or 2, cfg),
         "my_score": next((c.get("score") for c in all_comps if c.get("mine")), None),
+        "my_original_price": next((c.get("original_price") for c in all_comps if c.get("mine")), None),
         "better_cheaper": [{"name": c["name"], "url": c.get("url"), "price": c.get("price"),
                             "rating": c.get("rating"), "score": c.get("score"), "position": c.get("position")}
                            for c in _better_cheaper(all_comps, s.rank)],

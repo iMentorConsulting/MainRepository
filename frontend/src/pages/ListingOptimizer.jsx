@@ -531,6 +531,11 @@ export default function ListingOptimizer() {
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
                       {eur(s.my_price)}
+                      {s.my_original_price && s.my_price && (
+                        <span className="block text-[11px] text-green-700 whitespace-nowrap" title="Τιμή πριν την έκπτωση της πλατφόρμας">
+                          −{Math.round((1 - s.my_price / s.my_original_price) * 100)}% από <s>{eur(s.my_original_price)}</s>
+                        </span>
+                      )}
                       {s.my_score != null && <span className="block text-[11px] text-gray-500">score {s.my_score}/100</span>}
                     </td>
                     <td className="px-4 py-3 text-xs min-w-[170px]">
@@ -554,7 +559,11 @@ export default function ListingOptimizer() {
                             <span className={`shrink-0 px-1.5 rounded border text-[10px] ${TIER[tierOf(c.score, s.my_score)].cls}`}>{TIER[tierOf(c.score, s.my_score)].label}</span>
                           )}
                           {/* Price and rating first, so a long name or a narrow screen never hides them */}
-                          <span className="shrink-0 tabular-nums font-semibold text-gray-800 min-w-[3.5rem] text-right whitespace-nowrap">{eur(c.price)}</span>
+                          <span className="shrink-0 tabular-nums font-semibold text-gray-800 min-w-[3.5rem] text-right whitespace-nowrap"
+                            title={c.original_price ? `Πριν την έκπτωση: ${eur(c.original_price)}` : undefined}>
+                            {eur(c.price)}
+                            {c.original_price ? <span className="text-green-700 font-normal text-[10px]"> −{Math.round((1 - c.price / c.original_price) * 100)}%</span> : null}
+                          </span>
                           <span className="shrink-0 tabular-nums text-amber-600 min-w-[5.5rem] whitespace-nowrap">{c.rating ? <>★{c.rating}{c.reviews ? <span className="text-gray-400"> ({c.reviews})</span> : null}</> : '—'}</span>
                           <span className="truncate min-w-0" title={c.name}>{c.position || i + 1}. {c.name}</span>
                         </a>
