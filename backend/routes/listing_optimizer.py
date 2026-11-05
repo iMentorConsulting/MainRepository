@@ -744,8 +744,13 @@ def run_optimizer(db_factory, tenant: str):
 
         # Each platform gets its own earliest bookable windows (min stays can differ per platform)
         searches = []  # (ci, co, guests, platform, units) — one per distinct guest count, like real guests
+        for u in units:
+            missing = [p for p in cfg["platforms"] if not unit_cfgs.get(str(u.id), {}).get(f"{p}_url")]
+            if missing:
+                log(f"{u.name}: λείπει link {', '.join('Airbnb' if p == 'airbnb' else 'Booking' for p in missing)} "
+                    f"στις ρυθμίσεις — δεν αναλύεται εκεί")
         for platform in cfg["platforms"]:
-            chosen_p = []
+            chosen_p: dict = {}  # window -> units measured in it
             for ri, (ra, rb, label) in enumerate(ranges):
                 # Per range (each analysis period, or the horizon): its earliest bookable windows
                 in_range = sorted(w for w, by_p in windows.items() if platform in by_p and window_range[w] == ri)
@@ -757,10 +762,21 @@ def run_optimizer(db_factory, tenant: str):
                     elif (in_range[0][0] - ra).days > 7:
                         log(f"{platform}: {span} — πρώτο διαθέσιμο check-in {in_range[0][0]:%d/%m/%Y}; "
                             f"οι νωρίτερες ημερομηνίες είναι κλεισμένες ή δεν καλύπτουν την ελάχιστη διαμονή")
-                chosen_p += in_range[: int(cfg.get("max_periods", 1))]
-            for (ci, co) in chosen_p:
+                # Every unit gets its own earliest bookable windows: a booked unit cannot appear in a search,
+                # so a window only measures the units free on it. Units sharing a window share the search.
+                per_unit = int(cfg.get("max_periods", 1))
+                for u in units:
+                    if not unit_cfgs.get(str(u.id), {}).get(f"{platform}_url"):
+                        continue
+                    mine = [w for w in in_range if u in windows[w][platform]][:per_unit]
+                    if not mine:
+                        log(f"{u.name} ({platform}): {label or 'ορίζοντας'} — καμία ελεύθερη ημερομηνία που να "
+                            f"καλύπτει την ελάχιστη διαμονή· δεν αναλύεται εδώ")
+                    for w in mine:
+                        chosen_p.setdefault(w, []).append(u)
+            for (ci, co), chosen_units in chosen_p.items():
                 by_guests: dict = {}
-                for u in windows[(ci, co)][platform]:
+                for u in chosen_units:
                     by_guests.setdefault(guests_for(u), []).append(u)
                 searches += [(ci, co, g, platform, gu) for g, gu in sorted(by_guests.items())]
         searches.sort(key=lambda x: (x[0], x[3]))
