@@ -375,6 +375,29 @@ def _amounts(v) -> list:
     return [n for n in (_num(m) for m in re.findall(r"\d[\d.,]*", v)) if n and n >= 20]
 
 
+_PRICE_KEY = re.compile(r"price|total|amount|cost|charge|discount|deal|strike|crossed", re.I)
+_NOT_PRICE = re.compile(r"rating|score|review|currency|percent|pct|(^|_)count|Count$|nights$|qualifier", re.I)
+_ORIGINAL_HINT = re.compile(r"original|strike|before|old|crossed|regular|without|initial|full|undiscounted|was", re.I)
+
+
+def _price_fields(obj, path: str = "", depth: int = 0, out=None) -> list:
+    """[(path, value)] for every price-like leaf, e.g. ("rooms.0.price.discounted", 1458)."""
+    out = [] if out is None else out
+    if depth > 5 or len(out) > 60:
+        return out
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            p = f"{path}.{k}" if path else str(k)
+            if isinstance(v, (dict, list)):
+                _price_fields(v, p, depth + 1, out)
+            elif _PRICE_KEY.search(p) and not _NOT_PRICE.search(str(k)) and isinstance(v, (int, float, str)):
+                out.append((p, v))
+    elif isinstance(obj, list):
+        for i, v in enumerate(obj[:10]):
+            _price_fields(v, f"{path}.{i}", depth + 1, out)
+    return out
+
+
 def _prices(item: dict):
     """
     (current, original) stay price. Platforms show a crossed-out price next to the discounted one;
@@ -395,6 +418,12 @@ def _prices(item: dict):
         if len(found) >= 2:  # strikethrough + discounted in one label
             current.append(min(found))
             original.append(max(found))
+    # Scrapers nest prices (rooms → blocks → price…) under varying names: walk every price-like field
+    for path, value in _price_fields(item):
+        n = _num(value)
+        if not n or n < 20:
+            continue
+        (original if _ORIGINAL_HINT.search(path) else current).append(n)
     same_scale = lambda n: 0.5 * primary <= n <= 1.5 * primary  # ignore per-night vs total mix-ups
     cur = min(n for n in current if same_scale(n))
     orig = max([n for n in current + original if same_scale(n)], default=cur)
@@ -472,6 +501,7 @@ def _normalize(item: dict, platform: str) -> dict:
         "name": item.get("name") or item.get("title") or "",
         "price": _prices(item)[0],
         "original_price": _prices(item)[1],
+        "price_fields": [f"{p}={str(v)[:40]}" for p, v in _price_fields(item)[:15]],
         "rating": _num(rating),
         "reviews": int(_num(reviews) or 0),
         "type": item.get("type") or item.get("roomType") or item.get("propertyType") or "",
@@ -888,6 +918,12 @@ def run_optimizer(db_factory, tenant: str):
                     bc = _better_cheaper(entries, rank)
                     log(f"  {u.name}: " + (f"θέση #{rank}/{len(listings)}" if rank else f"εκτός top {len(listings)}")
                         + f" · score {own['score']}" + (f" · {len(bc)} ισάξια/καλύτερα & φθηνότερα" if bc else ""))
+                    if mine:
+                        # What the platform's data says about our price — to check discounts are picked up
+                        log(f"    τιμή {u.name}: €{round(mine['price'] or 0)}"
+                            + (f" (πριν έκπτωση €{round(mine['original_price'])})" if mine.get("original_price")
+                               else " (καμία έκπτωση στα δεδομένα)")
+                            + f" · πεδία: {'; '.join(mine.get('price_fields') or []) or '—'}")
         db.commit()
 
         for u in units:
