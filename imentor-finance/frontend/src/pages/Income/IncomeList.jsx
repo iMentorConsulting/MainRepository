@@ -178,6 +178,17 @@ export default function IncomeList() {
     setModal({ open: true, record: copy, isDuplicate: true });
   };
 
+  const handleMarkAsMet = async (row) => {
+    if (!window.confirm(`Να οριστεί η εγγραφή "${row.customer_name}" ως ΜΕΤ (χωρίς τιμολόγιο);`)) return;
+    try {
+      await api.put(`/income/${row.id}`, { invoice_type: 'ΑΝΕΥ' });
+      toast.success('Ορίστηκε ως ΜΕΤ');
+      load();
+    } catch (e) {
+      toast.error('Σφάλμα: ' + (e.response?.data?.error || e.message));
+    }
+  };
+
   const clearFilters = () => {
     setFilters({ service_type: '', search: '', page: 1 });
     setSelectedYears([String(now.getFullYear())]);
@@ -421,6 +432,9 @@ export default function IncomeList() {
                   <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px' }}>ΜΕΤ</span>
                 )}
                 <ElorusActionsButton record={r} onRefresh={load} />
+                {!r.invoice_number && r.invoice_type !== 'ΑΝΕΥ' && (
+                  <button title="Σήμανση ως ΜΕΤ" onClick={() => handleMarkAsMet(r)} style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap', cursor: 'pointer' }}>→ΜΕΤ</button>
+                )}
                 <button className="btn-secondary text-xs py-1 px-2" onClick={() => handleDuplicate(r)}>📋</button>
                 <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg">
                   <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
@@ -488,6 +502,9 @@ export default function IncomeList() {
                         <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>ΜΕΤ</span>
                       )}
                       <ElorusActionsButton record={r} onRefresh={load} />
+                      {!r.invoice_number && r.invoice_type !== 'ΑΝΕΥ' && (
+                        <button title="Σήμανση ως ΜΕΤ" onClick={() => handleMarkAsMet(r)} style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap', cursor: 'pointer' }}>→ΜΕΤ</button>
+                      )}
                       <button className="btn-secondary text-xs py-1 px-2" onClick={() => handleDuplicate(r)}>📋</button>
                       <button onClick={() => openEdit(r)} className="btn-ghost btn-sm p-2 rounded-lg">
                         <svg viewBox="0 0 16 16" fill="currentColor" className="w-3.5 h-3.5"><path d="M13.488 2.513a1.75 1.75 0 0 0-2.475 0L6.75 6.774a2.75 2.75 0 0 0-.596.892l-.633 1.73a.75.75 0 0 0 .963.963l1.73-.633a2.75 2.75 0 0 0 .892-.596l4.261-4.262a1.75 1.75 0 0 0 0-2.475ZM4.75 3.5c-.69 0-1.25.56-1.25 1.25v6.5c0 .69.56 1.25 1.25 1.25h6.5c.69 0 1.25-.56 1.25-1.25V9A.75.75 0 0 1 14 9v2.25A2.75 2.75 0 0 1 11.25 14h-6.5A2.75 2.75 0 0 1 2 11.25v-6.5A2.75 2.75 0 0 1 4.75 2H7a.75.75 0 0 1 0 1.5H4.75Z"/></svg>
