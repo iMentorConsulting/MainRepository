@@ -164,11 +164,12 @@ const DATE_FIELDS = ['approval_date', 'completion_deadline', 'sale_date'];
 const sanitize = body => {
   const clean = { ...body };
   for (const f of NUMERIC_FIELDS) {
+    if (!Object.prototype.hasOwnProperty.call(clean, f)) continue;
     if (clean[f] === '' || clean[f] === undefined) clean[f] = null;
     else if (clean[f] !== null) clean[f] = parseFloat(clean[f]) || null;
   }
   for (const f of DATE_FIELDS) {
-    if (!clean[f] || clean[f] === '') clean[f] = null;
+    if (Object.prototype.hasOwnProperty.call(clean, f) && (!clean[f] || clean[f] === '')) clean[f] = null;
   }
   if (clean.sales_agent) clean.sales_agent = normalizeSalesAgent(clean.sales_agent);
   return clean;
