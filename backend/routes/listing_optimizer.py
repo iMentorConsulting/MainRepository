@@ -949,7 +949,7 @@ def _snap_dict(s: ListingSnapshot, cfg: dict) -> dict:
         "search_url": _search_url(s.platform, s.search_location or "", s.check_in, s.check_out, s.adults or 2, cfg),
         "my_score": next((c.get("score") for c in all_comps if c.get("mine")), None),
         "better_cheaper": [{"name": c["name"], "url": c.get("url"), "price": c.get("price"),
-                            "score": c.get("score"), "position": c.get("position")}
+                            "rating": c.get("rating"), "score": c.get("score"), "position": c.get("position")}
                            for c in _better_cheaper(all_comps, s.rank)],
         "competitors": comps[:5], "error": s.error, "created_at": s.created_at.isoformat(),
     }

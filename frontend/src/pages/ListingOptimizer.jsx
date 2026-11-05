@@ -538,8 +538,10 @@ export default function ListingOptimizer() {
                         <div className="text-amber-700">
                           <p className="font-semibold">Ναι — {s.better_cheaper.length} ισάξιο/ανώτερο φθηνότερο</p>
                           {s.better_cheaper.slice(0, 2).map((b, i) => (
-                            <a key={i} href={b.url} target="_blank" rel="noreferrer" className="block hover:underline truncate max-w-[200px]">
-                              #{b.position} {b.name} · {eur(b.price)}
+                            <a key={i} href={b.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:underline max-w-[230px]">
+                              <span className="shrink-0 tabular-nums font-semibold">{eur(b.price)}</span>
+                              {b.rating ? <span className="shrink-0 tabular-nums">★{b.rating}</span> : null}
+                              <span className="truncate min-w-0" title={b.name}>#{b.position} {b.name}</span>
                             </a>
                           ))}
                         </div>
@@ -547,11 +549,14 @@ export default function ListingOptimizer() {
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600 space-y-0.5 min-w-[220px]">
                       {s.competitors.slice(0, 3).map((c, i) => (
-                        <a key={i} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-blue-600 max-w-[320px]">
+                        <a key={i} href={c.url} target="_blank" rel="noreferrer" className="flex items-center gap-1.5 hover:text-blue-600 max-w-[360px]">
                           {tierOf(c.score, s.my_score) && (
                             <span className={`shrink-0 px-1.5 rounded border text-[10px] ${TIER[tierOf(c.score, s.my_score)].cls}`}>{TIER[tierOf(c.score, s.my_score)].label}</span>
                           )}
-                          <span className="truncate">{c.position || i + 1}. {c.name} · {eur(c.price)}{c.rating ? ` · ★${c.rating}` : ''}</span>
+                          {/* Price and rating first, so a long name or a narrow screen never hides them */}
+                          <span className="shrink-0 tabular-nums font-semibold text-gray-800 min-w-[3.5rem] text-right whitespace-nowrap">{eur(c.price)}</span>
+                          <span className="shrink-0 tabular-nums text-amber-600 min-w-[5.5rem] whitespace-nowrap">{c.rating ? <>★{c.rating}{c.reviews ? <span className="text-gray-400"> ({c.reviews})</span> : null}</> : '—'}</span>
+                          <span className="truncate min-w-0" title={c.name}>{c.position || i + 1}. {c.name}</span>
                         </a>
                       ))}
                     </td>
