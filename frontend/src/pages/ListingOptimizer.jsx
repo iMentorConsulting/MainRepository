@@ -517,7 +517,16 @@ export default function ListingOptimizer() {
                 {latest.snapshots.map(s => (
                   <tr key={s.id} className="align-top">
                     <td className="px-4 py-3 font-medium">{unitName(s.unit_id)}</td>
-                    <td className="px-4 py-3"><Chip cls={PLATFORM[s.platform]?.cls}>{PLATFORM[s.platform]?.label}</Chip></td>
+                    <td className="px-4 py-3">
+                      <Chip cls={PLATFORM[s.platform]?.cls}>{PLATFORM[s.platform]?.label}</Chip>
+                      {/* Our own rating on this platform, as guests see it in the search */}
+                      <span className="block mt-1 text-xs tabular-nums whitespace-nowrap" title="Η βαθμολογία σας σε αυτή την πλατφόρμα">
+                        {s.my_rating ? (
+                          <><span className="text-amber-600 font-semibold">★{s.my_rating}</span>
+                          {s.my_reviews ? <span className="text-gray-500"> ({s.my_reviews} {s.my_reviews === 1 ? 'κριτική' : 'κριτικές'})</span> : null}</>
+                        ) : <span className="text-gray-400">★ —</span>}
+                      </span>
+                    </td>
                     <td className="px-4 py-3 tabular-nums whitespace-nowrap">
                       {fmtD(s.check_in)} – {fmtD(s.check_out)}
                       <span className="block text-[11px] text-gray-500">{s.adults} επισκέπτες</span>

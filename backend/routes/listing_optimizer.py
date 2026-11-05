@@ -1006,6 +1006,7 @@ def _snap_dict(s: ListingSnapshot, cfg: dict) -> dict:
         "search_url": _search_url(s.platform, s.search_location or "", s.check_in, s.check_out, s.adults or 2, cfg),
         "my_score": next((c.get("score") for c in all_comps if c.get("mine")), None),
         "my_original_price": next((c.get("original_price") for c in all_comps if c.get("mine")), None),
+        "my_reviews": next((c.get("reviews") for c in all_comps if c.get("mine")), None),
         "better_cheaper": [{"name": c["name"], "url": c.get("url"), "price": c.get("price"),
                             "rating": c.get("rating"), "score": c.get("score"), "position": c.get("position")}
                            for c in _better_cheaper(all_comps, s.rank)],
@@ -1023,8 +1024,19 @@ def latest(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
         ListingSnapshot.tenant == tenant, ListingSnapshot.run_id == last.run_id
     ).all()
     cfg = _load_config(db, tenant)
-    return {"run_id": last.run_id, "created_at": last.created_at.isoformat(),
-            "snapshots": [_snap_dict(s, cfg) for s in snaps]}
+    out = [_snap_dict(s, cfg) for s in snaps]
+    # Not in this search's results → show the latest rating seen for that unit on that platform
+    for d in out:
+        if not d["my_rating"]:
+            prev = db.query(ListingSnapshot).filter(
+                ListingSnapshot.tenant == tenant, ListingSnapshot.unit_id == d["unit_id"],
+                ListingSnapshot.platform == d["platform"], ListingSnapshot.my_rating.isnot(None),
+            ).order_by(ListingSnapshot.id.desc()).first()
+            if prev:
+                d["my_rating"] = prev.my_rating
+                d["my_reviews"] = next((c.get("reviews") for c in json.loads(prev.competitors or "[]")
+                                        if c.get("mine")), None)
+    return {"run_id": last.run_id, "created_at": last.created_at.isoformat(), "snapshots": out}
 
 
 @router.get("/history")
