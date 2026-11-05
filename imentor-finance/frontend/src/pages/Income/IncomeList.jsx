@@ -179,9 +179,9 @@ export default function IncomeList() {
   };
 
   const handleMarkAsMet = async (row) => {
-    if (!window.confirm(`Να αφαιρεθεί το τιμολόγιο "${row.invoice_number}" και η εγγραφή να οριστεί ως ΜΕΤ;`)) return;
+    if (!window.confirm(`Να οριστεί η εγγραφή "${row.customer_name}" ως ΜΕΤ (χωρίς τιμολόγιο);`)) return;
     try {
-      await api.put(`/income/${row.id}`, { invoice_number: null, invoice_type: 'ΑΝΕΥ', elorus_invoice_id: null });
+      await api.put(`/income/${row.id}`, { invoice_type: 'ΑΝΕΥ' });
       toast.success('Ορίστηκε ως ΜΕΤ');
       load();
     } catch (e) {
@@ -432,7 +432,7 @@ export default function IncomeList() {
                   <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px' }}>ΜΕΤ</span>
                 )}
                 <ElorusActionsButton record={r} onRefresh={load} />
-                {r.invoice_number && (
+                {!r.invoice_number && r.invoice_type !== 'ΑΝΕΥ' && (
                   <button title="Σήμανση ως ΜΕΤ" onClick={() => handleMarkAsMet(r)} style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap', cursor: 'pointer' }}>→ΜΕΤ</button>
                 )}
                 <button className="btn-secondary text-xs py-1 px-2" onClick={() => handleDuplicate(r)}>📋</button>
@@ -502,7 +502,7 @@ export default function IncomeList() {
                         <span style={{ fontSize: 11, fontWeight: 700, background: '#64748b', color: '#fff', borderRadius: 6, padding: '3px 8px', whiteSpace: 'nowrap' }}>ΜΕΤ</span>
                       )}
                       <ElorusActionsButton record={r} onRefresh={load} />
-                      {r.invoice_number && (
+                      {!r.invoice_number && r.invoice_type !== 'ΑΝΕΥ' && (
                         <button title="Σήμανση ως ΜΕΤ" onClick={() => handleMarkAsMet(r)} style={{ fontSize: 11, fontWeight: 700, background: '#fef3c7', color: '#92400e', border: '1px solid #fcd34d', borderRadius: 6, padding: '3px 7px', whiteSpace: 'nowrap', cursor: 'pointer' }}>→ΜΕΤ</button>
                       )}
                       <button className="btn-secondary text-xs py-1 px-2" onClick={() => handleDuplicate(r)}>📋</button>
