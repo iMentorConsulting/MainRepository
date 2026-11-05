@@ -109,6 +109,7 @@ export const deleteAllExpenses = () => api.delete('/expenses/all')
 export const bulkAssignExpenseUnit = (data) => api.post('/expenses/bulk-assign-unit', data)
 export const getExpenseCategories = () => api.get('/expenses/categories')
 export const getExpenseUnitTypes = () => api.get('/expenses/unit-types')
+export const getExpenseVendors = () => api.get('/expenses/vendors')
 export const getExpenseSummary = (params) => api.get('/expenses/summary', { params })
 export const downloadExpensesTemplate = () => api.get('/expenses/template/excel', { responseType: 'blob' })
 export const importExpenses = (file) => {

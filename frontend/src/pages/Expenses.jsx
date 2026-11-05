@@ -1,7 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react'
 import {
   getExpenses, createExpense, updateExpense, deleteExpense, deleteAllExpenses,
-  getExpenseCategories, getExpenseUnitTypes, getUnits,
+  getExpenseCategories, getExpenseUnitTypes, getExpenseVendors, getUnits,
   downloadExpensesTemplate, importExpenses, bulkAssignExpenseUnit,
 } from '../api'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, FunnelIcon, ArrowDownTrayIcon, ArrowUpTrayIcon, DocumentDuplicateIcon, ExclamationTriangleIcon } from '@heroicons/react/24/outline'
@@ -327,6 +327,8 @@ export default function Expenses() {
   const [filterYear, setFilterYear] = useState(now.getFullYear())
   const [filterCat, setFilterCat] = useState('')
   const [filterUnit, setFilterUnit] = useState('')
+  const [filterVendor, setFilterVendor] = useState('')
+  const [vendors, setVendors] = useState([])
 
   const [modal, setModal] = useState(null) // null | {} (new) | expense obj (edit)
   const [deleting, setDeleting] = useState(null)
@@ -349,6 +351,7 @@ export default function Expenses() {
         params.to_date = `${filterYear}-12-31`
       }
       if (filterCat) params.category = filterCat
+      if (filterVendor) params.vendor = filterVendor
       if (filterUnit) {
         const uid = parseInt(filterUnit)
         if (isNaN(uid)) params.unit_type = filterUnit
@@ -365,6 +368,7 @@ export default function Expenses() {
   useEffect(() => {
     getExpenseCategories().then(r => setCategories(r.data))
     getExpenseUnitTypes().then(r => setUnitTypes(r.data))
+    getExpenseVendors().then(r => setVendors(r.data)).catch(() => {})
     getUnits({ active_only: false }).then(r => setUnits(r.data))
   }, [])
 
@@ -376,7 +380,7 @@ export default function Expenses() {
     else { setSortKey(key); setSortDir('asc') }
   }
 
-  useEffect(() => { load() }, [filterMonth, filterYear, filterCat, filterUnit, filterMode])
+  useEffect(() => { load() }, [filterMonth, filterYear, filterCat, filterUnit, filterVendor, filterMode])
 
   const handleDownloadTemplate = async () => {
     try {
@@ -525,8 +529,12 @@ export default function Expenses() {
           <option value="">Όλες οι μονάδες</option>
           {filterUnitOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
         </select>
-        {(filterCat || filterUnit) && (
-          <button onClick={() => { setFilterCat(''); setFilterUnit('') }}
+        <select className="input w-auto text-sm" value={filterVendor} onChange={e => setFilterVendor(e.target.value)}>
+          <option value="">Όλοι οι προμηθευτές</option>
+          {vendors.map(v => <option key={v} value={v}>{v}</option>)}
+        </select>
+        {(filterCat || filterUnit || filterVendor) && (
+          <button onClick={() => { setFilterCat(''); setFilterUnit(''); setFilterVendor('') }}
             className="text-xs text-gray-400 hover:text-red-500">✕ Καθαρισμός</button>
         )}
       </div>
@@ -536,6 +544,7 @@ export default function Expenses() {
         <span className="text-sm font-medium text-gray-600">
           {filterMode === 'all' ? 'Σύνολο εξόδων' : filterMode === 'year' ? `Σύνολο έτους ${filterYear}` : `Σύνολο ${filterMonth.replace('-', '/')}`}
           {filterCat && <span className="ml-2 text-gray-400">· {filterCat}</span>}
+          {filterVendor && <span className="ml-2 text-gray-400">· {filterVendor}</span>}
         </span>
         <span className="text-2xl font-bold text-red-700">€{fmt(total)}</span>
       </div>

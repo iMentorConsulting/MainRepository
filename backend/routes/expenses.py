@@ -61,11 +61,30 @@ def get_unit_types(db: Session = Depends(get_db), tenant: str = Depends(get_tena
     return sorted(set(r[0] for r in types if r[0]))
 
 
+def _vendor_key(v: Optional[str]) -> str:
+    # Ignore case, spacing and accents (Βαμβακάς = ΒΑΜΒΑΚΑΣ); SQLite's lower() only folds ASCII
+    import unicodedata
+    text = unicodedata.normalize("NFD", " ".join((v or "").split()).casefold())
+    return "".join(ch for ch in text if not unicodedata.combining(ch))
+
+
+@router.get("/vendors")
+def list_vendors(db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
+    """Distinct suppliers, merging spelling variants that differ only in case/spacing."""
+    seen = {}
+    for (v,) in db.query(Expense.vendor).filter(Expense.tenant == tenant, Expense.vendor.isnot(None)).all():
+        k = _vendor_key(v)
+        if k and k not in seen:
+            seen[k] = " ".join(v.split())
+    return sorted(seen.values(), key=_vendor_key)
+
+
 @router.get("/")
 def list_expenses(
     from_date: Optional[date] = None,
     to_date: Optional[date] = None,
     category: Optional[str] = None,
+    vendor: Optional[str] = None,
     unit_id: Optional[int] = None,
     unit_type: Optional[str] = None,
     db: Session = Depends(get_db),
@@ -84,6 +103,9 @@ def list_expenses(
         q = q.filter(Expense.unit_type == unit_type)
 
     expenses = q.order_by(Expense.date.desc(), Expense.id.desc()).all()
+    if vendor:
+        key = _vendor_key(vendor)
+        expenses = [e for e in expenses if _vendor_key(e.vendor) == key]
     total = round(sum(e.amount for e in expenses), 2)
     return {"expenses": [_serialize(e) for e in expenses], "total": total}
 
