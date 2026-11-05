@@ -572,16 +572,18 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
             f"({nights} νύχτες, {s.adults} ενήλικες)\n"
             f"Θέση μας: {rank_txt}"
             + (f" · στα luxury listings: #{lux_rank} από {lux_total}" if lux_rank else "")
-            + f". Δική μας τιμή διαμονής: {my_total or 'άγνωστη'} €. Δικό μας quality score: {my_score}/100 "
+            + f". Δική μας τιμή: {f'{round(my_total / nights)}€/νύχτα ({round(my_total)}€ σύνολο)' if my_total else 'άγνωστη'}. "
+            f"Δικό μας quality score: {my_score}/100 "
             f"(χαρακτηριστικά: {', '.join(me.get('signals') or []) or '—'}).\n"
             + (f"ΙΣΑΞΙΑ/ΑΝΩΤΕΡΑ ΚΑΙ ΦΘΗΝΟΤΕΡΑ ΠΟΥ ΜΑΣ ΞΕΠΕΡΝΟΥΝ: "
-               + "; ".join(f"#{c.get('position')} {c['name']} {round(c['price'])}€ (score {c.get('score')})" for c in bc)
+               + "; ".join(f"#{c.get('position')} {c['name']} {round(c['price'] / nights)}€/νύχτα (score {c.get('score')})" for c in bc)
                + "\n" if bc else "Κανένα ισάξιο/ανώτερο φθηνότερο listing δεν μας ξεπερνά → ΟΧΙ μείωση τιμής.\n")
             + f"Listings πάνω από εμάς (με τη σειρά της αναζήτησης):\n"
             + "\n".join(
                 f"- #{c.get('position', '?')} {c['name']} | {_tier(c.get('score', 0), my_score).upper()} "
-                f"(score {c.get('score')}) | {c.get('type','')} | τιμή {c.get('price') or '?'}€"
-                + (f" (έκπτωση πλατφόρμας από {c['original_price']}€)" if c.get("original_price") else "") + " | "
+                f"(score {c.get('score')}) | {c.get('type','')} | "
+                + (f"τιμή {round(c['price'] / nights)}€/νύχτα" if c.get("price") else "τιμή ?")
+                + (f" (έκπτωση πλατφόρμας από {round(c['original_price'] / nights)}€/νύχτα)" if c.get("original_price") else "") + " | "
                 f"βαθμ. {c.get('rating') or '?'} ({c.get('reviews', 0)} κριτικές) | "
                 f"{', '.join(c.get('signals') or []) or '—'}"
                 + (" | Superhost/Guest fav." if c.get("superhost") else "")
@@ -606,7 +608,7 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
 quality score και η ετικέτα SUPERIOR / COMPARABLE / INFERIOR σε βοηθούν, αλλά χρησιμοποίησε και την κρίση σου
 από ονόματα/περιγραφές.
 
-ΚΑΝΟΝΑΣ ΤΙΜΗΣ:
+ΚΑΝΟΝΑΣ ΤΙΜΗΣ (όταν αναφέρεις τιμές, γράψε τες ΑΝΑ ΝΥΧΤΑ, όπως στα δεδομένα):
 - Πρότεινε μείωση τιμής ΜΟΝΟ όταν ισάξιο ή ανώτερο listing είναι φθηνότερο ΚΑΙ μας ξεπερνά στην κατάταξη.
   Τότε η μείωση να φέρνει την τιμή μας κοντά σε αυτό το listing (όχι χαμηλότερα), με συγκεκριμένο ποσό/% και ημερομηνίες.
 - Φθηνότερα INFERIOR listings (απλά σπίτια, διαμερίσματα χωρίς πισίνα κλπ.) τα ΑΓΝΟΟΥΜΕ για την τιμή.

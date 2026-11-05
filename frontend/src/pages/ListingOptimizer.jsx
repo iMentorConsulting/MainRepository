@@ -35,6 +35,9 @@ const tierOf = (score, mine) => mine == null || score == null ? null
 
 const fmtD = (iso) => iso ? new Date(iso).toLocaleDateString('el-GR', { day: '2-digit', month: '2-digit' }) : ''
 const eur = (v) => v == null ? '—' : `€${Math.round(v).toLocaleString('el-GR')}`
+// Search results carry the whole stay's price; show it per night so stays of any length compare
+const nightsOf = (s) => Math.max(1, Math.round((new Date(s.check_out) - new Date(s.check_in)) / 86400000))
+const pn = (s, v) => v == null ? null : v / nightsOf(s)
 
 function Chip({ cls, children }) {
   return <span className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium ${cls}`}>{children}</span>
@@ -509,9 +512,9 @@ export default function ListingOptimizer() {
                 <th className="text-left px-4 py-3">Κενή περίοδος</th>
                 <th className="text-right px-4 py-3">Θέση</th>
                 <th className="text-right px-4 py-3">Θέση στα luxury</th>
-                <th className="text-right px-4 py-3">Δική σας τιμή</th>
+                <th className="text-right px-4 py-3">Δική σας τιμή /νύχτα</th>
                 <th className="text-left px-4 py-3">Μείωση τιμής;</th>
-                <th className="text-left px-4 py-3">Πρώτοι στην αναζήτηση</th>
+                <th className="text-left px-4 py-3">Πρώτοι στην αναζήτηση <span className="normal-case font-normal">(τιμή/νύχτα)</span></th>
               </tr></thead>
               <tbody className="divide-y divide-gray-50">
                 {latest.snapshots.map(s => (
@@ -539,10 +542,10 @@ export default function ListingOptimizer() {
                       {s.lux_rank ? <RankBadge rank={s.lux_rank} total={s.lux_total} /> : <span className="text-gray-400">—</span>}
                     </td>
                     <td className="px-4 py-3 text-right tabular-nums">
-                      {eur(s.my_price)}
+                      {eur(pn(s, s.my_price))}
                       {s.my_original_price && s.my_price && (
                         <span className="block text-[11px] text-green-700 whitespace-nowrap" title="Τιμή πριν την έκπτωση της πλατφόρμας">
-                          −{Math.round((1 - s.my_price / s.my_original_price) * 100)}% από <s>{eur(s.my_original_price)}</s>
+                          −{Math.round((1 - s.my_price / s.my_original_price) * 100)}% από <s>{eur(pn(s, s.my_original_price))}</s>
                         </span>
                       )}
                       {s.my_score != null && <span className="block text-[11px] text-gray-500">score {s.my_score}/100</span>}
@@ -553,7 +556,7 @@ export default function ListingOptimizer() {
                           <p className="font-semibold">Ναι — {s.better_cheaper.length} ισάξιο/ανώτερο φθηνότερο</p>
                           {s.better_cheaper.slice(0, 2).map((b, i) => (
                             <a key={i} href={b.url} target="_blank" rel="noreferrer" className="flex items-center gap-1 hover:underline max-w-[230px]">
-                              <span className="shrink-0 tabular-nums font-semibold">{eur(b.price)}</span>
+                              <span className="shrink-0 tabular-nums font-semibold">{eur(pn(s, b.price))}</span>
                               {b.rating ? <span className="shrink-0 tabular-nums">★{b.rating}</span> : null}
                               <span className="truncate min-w-0" title={b.name}>#{b.position} {b.name}</span>
                             </a>
@@ -569,8 +572,8 @@ export default function ListingOptimizer() {
                           )}
                           {/* Price and rating first, so a long name or a narrow screen never hides them */}
                           <span className="shrink-0 tabular-nums font-semibold text-gray-800 min-w-[3.5rem] text-right whitespace-nowrap"
-                            title={c.original_price ? `Πριν την έκπτωση: ${eur(c.original_price)}` : undefined}>
-                            {eur(c.price)}
+                            title={`${eur(c.price)} για ${nightsOf(s)} νύχτες${c.original_price ? ` · πριν την έκπτωση ${eur(pn(s, c.original_price))}/νύχτα` : ''}`}>
+                            {eur(pn(s, c.price))}
                             {c.original_price ? <span className="text-green-700 font-normal text-[10px]"> −{Math.round((1 - c.price / c.original_price) * 100)}%</span> : null}
                           </span>
                           <span className="shrink-0 tabular-nums text-amber-600 min-w-[5.5rem] whitespace-nowrap">{c.rating ? <>★{c.rating}{c.reviews ? <span className="text-gray-400"> ({c.reviews})</span> : null}</> : '—'}</span>
