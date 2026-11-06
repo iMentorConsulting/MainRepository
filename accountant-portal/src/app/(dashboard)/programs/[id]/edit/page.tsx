@@ -48,6 +48,12 @@ const schema = z.object({
   leadIntake: z.boolean().default(false),
   internalNotes: z.string().optional(),
   pricingNote: z.string().optional(),
+  feeApplicationPct: z.coerce.number(),
+  feeApplicationMin: z.coerce.number(),
+  feeApplicationMax: z.coerce.number(),
+  feeImplementationPct: z.coerce.number(),
+  feeImplementationMin: z.coerce.number(),
+  feeImplementationMax: z.coerce.number(),
   ermisInstructions: z.string().optional(),
   monthlyAmount: z.string().optional(),
   subsidyMonths: z.string().optional(),
@@ -399,6 +405,12 @@ export default function EditProgramPage() {
           leadIntake: program.leadIntake ?? false,
           internalNotes: program.internalNotes || '',
           pricingNote: program.pricingNote || '',
+          feeApplicationPct: program.feeApplicationPct ?? 0.8,
+          feeApplicationMin: program.feeApplicationMin ?? 800,
+          feeApplicationMax: program.feeApplicationMax ?? 2000,
+          feeImplementationPct: program.feeImplementationPct ?? 4,
+          feeImplementationMin: program.feeImplementationMin ?? 3000,
+          feeImplementationMax: program.feeImplementationMax ?? 8000,
           ermisInstructions: program.ermisInstructions || '',
           monthlyAmount: program.monthlyAmount || '',
           subsidyMonths: program.subsidyMonths || '',
@@ -831,6 +843,20 @@ export default function EditProgramPage() {
                 Κατά προσέγγιση κόστος/αμοιβή που θα αναφέρει ο Ερμής στον πελάτη όταν ρωτηθεί. Δεν εμφανίζεται πουθενά δημόσια εκτός από τη συνομιλία.
               </p>
               <Textarea {...register('pricingNote')} rows={2} placeholder="π.χ. Αμοιβή σύνταξης φακέλου: 800-1500€ + 5% επί εγκριθέντος προϋπολογισμού" />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Τιμολόγηση ανά Ποσό Επένδυσης (ΕΣΠΑ / LEADER / ΔΥΠΑ)</label>
+              <p className="text-sm text-gray-500 mb-2">
+                Προσυμπληρωμένα με το τυπικό τιμολόγιο της I-MENTOR — αλλάξτε τα μόνο αν αυτό το πρόγραμμα έχει διαφορετικούς όρους. Κόστος υποβολής αίτησης = clamp(% × ποσό επένδυσης, ελάχιστο, μέγιστο). Αμοιβή παρακολούθησης υλοποίησης = ίδιος τύπος, άλλα ποσοστά/όρια. Χρησιμοποιούνται στο email προεπισκόπησης προγράμματος (όταν συμπληρωθεί ποσό επένδυσης) και από τον Ερμή.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Input label="Κόστος Αίτησης %" type="number" step="0.1" {...register('feeApplicationPct')} />
+                <Input label="Ελάχιστο (€)" type="number" step="1" {...register('feeApplicationMin')} />
+                <Input label="Μέγιστο (€)" type="number" step="1" {...register('feeApplicationMax')} />
+                <Input label="Αμοιβή Παρακολούθησης %" type="number" step="0.1" {...register('feeImplementationPct')} />
+                <Input label="Ελάχιστο (€)" type="number" step="1" {...register('feeImplementationMin')} />
+                <Input label="Μέγιστο (€)" type="number" step="1" {...register('feeImplementationMax')} />
+              </div>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ειδικές οδηγίες για τον Ερμή (AI chat)</label>

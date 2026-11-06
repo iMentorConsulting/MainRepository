@@ -47,7 +47,7 @@ export default function GemiBusinessDetailPage() {
   const [saving, setSaving] = useState(false)
   const [editMsg, setEditMsg] = useState('')
   const [rematching, setRematching] = useState(false)
-  const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string } | null>(null)
+  const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string; category?: string } | null>(null)
 
   const isAdmin = ['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role ?? '')
 
@@ -504,7 +504,7 @@ export default function GemiBusinessDetailPage() {
                 </div>
                 {m.status !== 'REJECTED' && (
                   <button
-                    onClick={() => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '' })}
+                    onClick={() => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '', category: m.program?.category })}
                     className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
                   >
                     <Mail size={12} />
@@ -580,6 +580,7 @@ export default function GemiBusinessDetailPage() {
           kind="gemi"
           programId={prospectEmailProgram.id}
           programTitle={prospectEmailProgram.title}
+          programCategory={prospectEmailProgram.category}
           businessHasEmail={!!business.email}
           onClose={() => setProspectEmailProgram(null)}
         />

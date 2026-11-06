@@ -18,7 +18,7 @@ export async function GET(
     where: { id },
     include: {
       programMatches: {
-        include: { program: { select: { id: true, title: true } } },
+        include: { program: { select: { id: true, title: true, category: true } } },
         orderBy: { matchScore: 'desc' },
       },
       campaignRecipients: {

@@ -217,6 +217,8 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
         minInterestRate: true, maxInterestRate: true,
         otherRequirements: true, pricingNote: true, internalNotes: true, ermisInstructions: true,
+        feeApplicationPct: true, feeApplicationMin: true, feeApplicationMax: true,
+        feeImplementationPct: true, feeImplementationMin: true, feeImplementationMax: true,
         extraCriteriaIds: true, eligibilityQuestions: true,
         minRegdate: true, maxRegdate: true,
         requiredDocuments: { select: { name: true, category: true, instructions: true }, orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] },

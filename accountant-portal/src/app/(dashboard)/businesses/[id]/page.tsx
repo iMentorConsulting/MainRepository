@@ -77,7 +77,7 @@ export default function BusinessDetailPage() {
   const [notes, setNotes] = useState('')
   const [quickSend, setQuickSend] = useState(false)
   const [eligibilityMessage, setEligibilityMessage] = useState(false)
-  const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string } | null>(null)
+  const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string; category?: string } | null>(null)
   const [microcreditsProgramId, setMicrocreditsProgramId] = useState<string | null>(null)
   // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
   const [newCase, setNewCase] = useState(
@@ -306,6 +306,7 @@ export default function BusinessDetailPage() {
           businessId={business.id}
           programId={prospectEmailProgram.id}
           programTitle={prospectEmailProgram.title}
+          programCategory={prospectEmailProgram.category}
           businessHasEmail={!!business.email}
           onClose={() => setProspectEmailProgram(null)}
         />
@@ -460,7 +461,7 @@ export default function BusinessDetailPage() {
                         matchReason={m.matchReason}
                         status={m.status}
                         extraCriteria={(m.program?.extraCriteriaIds || []).map((cid: string) => criteriaMap[cid] || cid)}
-                        onEmailProspect={isStaff ? () => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '' }) : undefined}
+                        onEmailProspect={isStaff ? () => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '', category: m.program?.category }) : undefined}
                       />
                       {isStaff && m.program?.category === 'MICROCREDITS' && (
                         <button

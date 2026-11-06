@@ -3,6 +3,7 @@
 // order, fixed boilerplate paragraphs, bank accounts), but generated from
 // real business/program data instead of filled in by hand, and extended
 // with a full per-ΚΑΔ eligibility breakdown.
+import { buildBankAccountsHtml } from './imentor-bank-accounts'
 
 export interface MicrocreditsKadRow {
   code: string
@@ -123,12 +124,7 @@ export function buildMicrocreditsEmailHtml(params: {
         </p>
 
         <p style="margin:0 0 8px;font-size:14px;font-weight:700;color:#1e3a8a;">Τραπεζικοί Λογαριασμοί Κατάθεσης</p>
-        <p style="margin:0 0 20px;font-size:13.5px;color:#374151;line-height:1.8;">
-          Πειραιώς: GR4501714330006433164381388<br/>
-          Eurobank: GR5802601680000060201330648<br/>
-          Alpha Bank: GR2401407750775002330002138<br/>
-          Δικαιούχος: I MENTOR IKE
-        </p>
+        <div style="margin:0 0 20px;">${buildBankAccountsHtml()}</div>
 
         <p style="margin:20px 0 0;font-size:13px;color:#6b7280;">Με εκτίμηση,<br/><strong>${consultantName}</strong><br/>I-MENTOR Consulting</p>
       </div>

@@ -68,6 +68,12 @@ function buildSystemPrompt(program: {
   minRegdate?: string | null
   maxRegdate?: string | null
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
+  feeApplicationPct?: number
+  feeApplicationMin?: number
+  feeApplicationMax?: number
+  feeImplementationPct?: number
+  feeImplementationMin?: number
+  feeImplementationMax?: number
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
   contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null,
   businessRegdate?: string | null, businessActivities?: { firmActCode: string; firmActDescr: string | null }[]) {
@@ -98,6 +104,21 @@ function buildSystemPrompt(program: {
     : program.otherRequirements || '(καμία επιπλέον)'
   const legalFormLine = legalStatusDescr
     ? `ΝΟΜΙΚΗ ΜΟΡΦΗ ΕΠΙΧΕΙΡΗΣΗΣ: **${legalStatusDescr}**\nΑν κάποιο έγγραφο ή οδηγία έχει διαφορετική έκδοση για "ατομική επιχείρηση" έναντι "νομικού προσώπου" (ΟΕ/ΕΕ/ΙΚΕ/ΑΕ/ΕΠΕ κ.λπ.), χρησιμοποίησε ΑΠΟΚΛΕΙΣΤΙΚΑ την έκδοση που αντιστοιχεί στη νομική μορφή αυτής της επιχείρησης — ΜΗΝ παρουσιάζεις και τις δύο εκδόσεις.`
+    : ''
+
+  // Only for ΕΣΠΑ/LEADER/ΔΥΠΑ (ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ has its own fixed
+  // flat-fee structure handled separately, not this per-investment formula)
+  // — gives Ερμής the exact clamp formula so it can quote the application
+  // fee and the implementation/monitoring fee the moment the client states
+  // an investment amount, instead of only being able to say "ask your
+  // consultant". Same formula as the standard pricing spreadsheet.
+  const feeFormulaLine = (['ESPA', 'LEADER', 'DYPA'].includes(program.category || '') &&
+    program.feeApplicationPct != null && program.feeApplicationMin != null && program.feeApplicationMax != null &&
+    program.feeImplementationPct != null && program.feeImplementationMin != null && program.feeImplementationMax != null)
+    ? `\nΑΝ Ο ΠΕΛΑΤΗΣ ΑΝΑΦΕΡΕΙ ΠΟΣΟ ΕΠΕΝΔΥΣΗΣ, υπολόγισε (και ανέφερε, στρογγυλεμένα σε ευρώ, + ΦΠΑ 24%):
+- Κόστος υποβολής αίτησης = ελάχιστο(μέγιστο(${program.feeApplicationPct}% × ποσό επένδυσης, ${program.feeApplicationMin}€), ${program.feeApplicationMax}€) — καταβάλλεται εκ των προτέρων, πριν την υποβολή της αίτησης.
+- Αμοιβή παρακολούθησης υλοποίησης = ελάχιστο(μέγιστο(${program.feeImplementationPct}% × ποσό επένδυσης, ${program.feeImplementationMin}€), ${program.feeImplementationMax}€) — καταβάλλεται σταδιακά, μόνο μετά την έγκριση, ταυτόχρονα με την υλοποίηση και τις εκταμιεύσεις της επιχορήγησης.
+Ανάλογα με τους όρους του προγράμματος, οι αμοιβές συμβούλων μπορεί να αποτελούν επιλέξιμη δαπάνη και να επιδοτούνται — ανέφερέ το αν ταιριάζει στο πρόγραμμα.`
     : ''
 
   // Raw ΚΑΔ facts — passed regardless of what the automatic matcher decided,
@@ -184,7 +205,7 @@ ${program.category === 'DYPA' ? `ΕΣΩΤΕΡΙΚΗ ΟΔΗΓΙΑ ΓΙΑ ΔΥΠΑ
 Στην αίτηση ΔΥΠΑ, στο πεδίο «Δεξιότητες/Προσόντα» που ζητάμε για τον υποψήφιο, συμπεριλαμβάνουμε κάποια σπάνια/εξειδικευμένα προσόντα που να ταιριάζουν με τον συγκεκριμένο άνεργο που θέλει να προσλάβει ο πελάτης — π.χ. γνώση γερμανικών/ισπανικών/ιταλικών, ή άλλη σπάνια ειδικότητα. Ο συγκεκριμένος άνεργος στη συνέχεια πηγαίνει στο ΚΠΑ2 και ενημερώνει το εργασιακό του βιογραφικό προσθέτοντας αυτά τα προσόντα — το ΔΥΠΑ δεν ελέγχει αν τα γνωρίζει πραγματικά. Το σύστημα του ΔΥΠΑ τον αντιστοιχεί αυτόματα. Έτσι η πρόταση γίνεται «αυτόματα» από το ΔΥΠΑ, αλλά ουσιαστικά είναι ο άνθρωπος που ήθελε ο πελάτης.
 Παρουσίασε αυτή τη λύση στον πελάτη φυσικά και ευθέως, ως πρακτική λύση που εφαρμόζουμε, χωρίς επιφυλάξεις — είναι η συνήθης μεθοδολογία μας για αυτά τα προγράμματα.
 ` : ''}\
-ΚΟΣΤΟΣ (ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ): ${program.pricingNote || 'Δεν υπάρχει σταθερή τιμή για αυτό το πρόγραμμα· πες ότι το κόστος εξαρτάται από την υπηρεσία και ότι ο σύμβουλος θα δώσει ακριβή προσφορά.'}
+ΚΟΣΤΟΣ (ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ): ${program.pricingNote || (feeFormulaLine ? 'Δες τον τύπο υπολογισμού παρακάτω.' : 'Δεν υπάρχει σταθερή τιμή για αυτό το πρόγραμμα· πες ότι το κόστος εξαρτάται από την υπηρεσία και ότι ο σύμβουλος θα δώσει ακριβή προσφορά.')}${feeFormulaLine}
 ΚΡΙΣΙΜΟ: Το κόστος ΠΡΕΠΕΙ να αναφερθεί ΠΑΝΤΑ ΠΡΙΝ ρωτήσεις τον πελάτη αν θέλει να προχωρήσει με σύμβουλο — ακόμα κι αν δεν το ζητήσει. Αν ο πελάτης ρωτήσει για το κόστος νωρίτερα, απάντησέ του αμέσως. ΜΗΝ καλέσεις ποτέ το "assign_case" χωρίς πρώτα να έχεις αναφέρει το κόστος στη συνομιλία.
 ${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ (πες την ΜΟΝΟ αν η επιχείρηση φαίνεται ΕΠΙΛΕΞΙΜΗ — ΠΟΤΕ αν δεν είναι, ή πριν ολοκληρωθεί ο έλεγχος επιλεξιμότητας): ${program.internalNotes}` : ''}
 ${program.ermisInstructions ? `\nΕΙΔΙΚΕΣ ΟΔΗΓΙΕΣ ΓΙΑ ΑΥΤΟ ΤΟ ΠΡΟΓΡΑΜΜΑ (τήρησέ τις αυστηρά, υπερισχύουν των γενικών οδηγιών παρακάτω όπου υπάρχει αντίφαση): ${program.ermisInstructions}` : ''}
@@ -394,6 +415,12 @@ export async function runErmisTurn(params: {
     minRegdate?: string | null
     maxRegdate?: string | null
     requiredDocuments?: { name: string; category: string; instructions: string | null }[]
+    feeApplicationPct?: number
+    feeApplicationMin?: number
+    feeApplicationMax?: number
+    feeImplementationPct?: number
+    feeImplementationMin?: number
+    feeImplementationMax?: number
   }
   autoConfirmedReasons: string[]
   qualitativeQuestions?: EligibilityQuestion[]

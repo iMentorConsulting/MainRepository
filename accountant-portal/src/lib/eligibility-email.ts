@@ -1,6 +1,8 @@
 import { buildProgramDescription, formatEuroRange, formatPctRange } from './ermis-program-payload'
 import type { EligibilityProgramResult, EligibilityBusinessDetails } from './eligibility-check-core'
 import { buildAadeBusinessDetailsCardHtml } from './business-profile'
+import { computeInvestmentFees } from './investment-pricing'
+import { buildBankAccountsHtml } from './imentor-bank-accounts'
 
 // When mode === 'accountant' and the business has an assigned accountant,
 // the message frames this as a joint effort with their accountant's office
@@ -129,6 +131,12 @@ interface ProspectProgramFull {
   internalNotes: string | null
   startDate: Date | string | null
   endDate: Date | string | null
+  feeApplicationPct: number
+  feeApplicationMin: number
+  feeApplicationMax: number
+  feeImplementationPct: number
+  feeImplementationMin: number
+  feeImplementationMax: number
 }
 
 // Greek typographic convention drops the tonos (accent) when a word is
@@ -182,9 +190,10 @@ export function buildProspectProgramEmailHtml(params: {
   extraCriteriaLabels?: string[]
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
   customMessage?: string | null
+  investmentAmount?: number | null
   imentorLogoUrl?: string | null
 }): string {
-  const { businessName, businessDetails, program, matchReasons, extraCriteriaLabels = [], requiredDocuments = [], customMessage, imentorLogoUrl } = params
+  const { businessName, businessDetails, program, matchReasons, extraCriteriaLabels = [], requiredDocuments = [], customMessage, investmentAmount, imentorLogoUrl } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
   const brandLeft = imentorLogoUrl
@@ -321,6 +330,28 @@ export function buildProspectProgramEmailHtml(params: {
 
   if (program.internalNotes) {
     sections.push(section('Σημειώσεις', `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;white-space:pre-line;">${program.internalNotes}</p>`))
+  }
+
+  // Only for ΕΣΠΑ/LEADER/ΔΥΠΑ, and only when the consultant explicitly
+  // entered an investment amount — otherwise there's nothing to compute the
+  // fees from. ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ has its own separate, flat-fee email
+  // (microcredits-eligibility-email.ts) and is deliberately excluded here.
+  // Uses this program's own fee-schedule fields (defaulted on every
+  // program, editable per-program — see schema.prisma), same formula as the
+  // standard pricing spreadsheet: clamp(pct% of investment, min, max).
+  if (investmentAmount && investmentAmount > 0 && ['ESPA', 'LEADER', 'DYPA'].includes(program.category)) {
+    const fees = computeInvestmentFees(investmentAmount, program)
+    const fmtEur = (n: number) => n.toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
+    const fmtEurVat = (n: number) => `${fmtEur(n)} + ΦΠΑ = ${fmtEur(n * 1.24)}`
+    sections.push(section('Κόστος για Υποβολή Αίτησης &amp; Αμοιβή για Παρακολούθηση της Επένδυσης', `
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;margin-bottom:10px;">
+        <tr><td style="padding:4px 0;color:#6b7280;width:55%;">Κόστος υποβολής αίτησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.applicationFee)}</td></tr>
+        <tr><td style="padding:4px 0;color:#6b7280;">Αμοιβή παρακολούθησης υλοποίησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.implementationFee)}</td></tr>
+      </table>
+      <p style="margin:0 0 10px;font-size:13px;color:#4b5563;line-height:1.7;">
+        Το κόστος υποβολής αίτησης καταβάλλεται εκ των προτέρων, για την υποβολή της αίτησης στο πρόγραμμα. Η αμοιβή παρακολούθησης καταβάλλεται μόνο μετά την έγκριση, σταδιακά, ταυτόχρονα με την υλοποίηση του προγράμματος και τις εκταμιεύσεις της επιχορήγησης. Ανάλογα με τους όρους κάθε προγράμματος, οι αμοιβές συμβούλων μπορεί να αποτελούν επιλέξιμη δαπάνη και να επιδοτούνται.
+      </p>
+      ${buildBankAccountsHtml()}`))
   }
 
   // Only real hosted URLs belong in an email link — a data: URI (a file

@@ -2,10 +2,13 @@
 import { useEffect, useState } from 'react'
 import { X, Send, CheckCircle2, Eye, RefreshCw } from 'lucide-react'
 
+const INVESTMENT_FEE_CATEGORIES = new Set(['ESPA', 'LEADER', 'DYPA'])
+
 interface ProspectProgramEmailModalProps {
   businessId: string
   programId: string
   programTitle: string
+  programCategory?: string
   businessHasEmail: boolean
   // 'business' (default) hits /api/businesses/[id]/program-email, for a
   // claimed Business with its own ProgramMatch rows. 'gemi' hits
@@ -22,14 +25,17 @@ interface ProspectProgramEmailModalProps {
 // specifically qualifies, that program's info, and an optional custom note
 // (e.g. "Απαντήστε μας με το Ε3 2025"). See
 // src/lib/eligibility-email.ts buildProspectProgramEmailHtml.
-export function ProspectProgramEmailModal({ businessId, programId, programTitle, businessHasEmail, kind = 'business', onClose, onSent }: ProspectProgramEmailModalProps) {
+export function ProspectProgramEmailModal({ businessId, programId, programTitle, programCategory, businessHasEmail, kind = 'business', onClose, onSent }: ProspectProgramEmailModalProps) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState<{ subject: string; html: string } | null>(null)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [customMessage, setCustomMessage] = useState('')
+  const [investmentAmount, setInvestmentAmount] = useState('')
   const [previewStale, setPreviewStale] = useState(false)
+
+  const showInvestmentField = !!programCategory && INVESTMENT_FEE_CATEGORIES.has(programCategory)
 
   const endpoint = kind === 'gemi'
     ? `/api/gemi/businesses/${businessId}/program-email`
@@ -42,7 +48,12 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: false, customMessage: message || undefined }),
+        body: JSON.stringify({
+          programId,
+          send: false,
+          customMessage: message || undefined,
+          investmentAmount: showInvestmentField && investmentAmount ? Number(investmentAmount) : undefined,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -70,7 +81,12 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: true, customMessage: customMessage || undefined }),
+        body: JSON.stringify({
+          programId,
+          send: true,
+          customMessage: customMessage || undefined,
+          investmentAmount: showInvestmentField && investmentAmount ? Number(investmentAmount) : undefined,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.sent) {
@@ -105,6 +121,19 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
             </div>
           ) : (
             <>
+              {showInvestmentField && (
+                <div>
+                  <label className="text-xs font-medium text-gray-500 block mb-1">Ποσό επένδυσης € (προαιρετικό — αν συμπληρωθεί, προστίθεται στο email το κόστος υποβολής αίτησης &amp; η αμοιβή παρακολούθησης)</label>
+                  <input
+                    type="number"
+                    value={investmentAmount}
+                    onChange={e => { setInvestmentAmount(e.target.value); setPreviewStale(true) }}
+                    placeholder="π.χ. 150000"
+                    className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                  />
+                </div>
+              )}
+
               <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Προσωπικό μήνυμα (προαιρετικό)</label>
                 <textarea
