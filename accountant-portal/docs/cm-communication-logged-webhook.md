@@ -46,7 +46,7 @@ Content-Type: application/json
 | `channel` | string | Always `EMAIL` today. |
 | `subject` | string\|null | The email's subject line. |
 | `comment` | string | Human-readable one-liner to append as a note/activity on the lead. |
-| `leadStatus` | string\|null | One of `NEW` \| `WORKED` \| `CALL` \| `HOT` \| `ACTIVE` \| `DEAL` \| `CANCELLED`, or `null`/absent = don't change the lead's status. **Update (this matches CM's actual lead-status dropdown exactly now — NEW LEAD / WORKED / CALL / HOT / ACTIVE / DEAL / CANCEL):** the existing mapper (`NEW→NEW LEAD`, `HOT→HOT`, `CALL→CALL`, `ACTIVE→ACTIVE`, `CANCELLED→CANCEL`) needs two more identity entries added: `WORKED→WORKED` and `DEAL→DEAL`. |
+| `leadStatus` | string\|null | **Important update — no mapping, send/apply these verbatim.** Exactly one of CM's own 7 lead-status strings: `NEW LEAD` \| `WORKED` \| `CALL` \| `HOT` \| `ACTIVE` \| `DEAL` \| `CANCEL` (or `null`/absent = don't change the lead's status). These are CM's existing values, byte-for-byte — Logistis's consultant-facing dropdown now shows exactly these 7 and nothing else, so CM should set the lead's status field directly to whatever string arrives here, with **no translation table in between**. Please remove the earlier `NEW→NEW LEAD` / `CANCELLED→CANCEL` mapping if it was already built — it's no longer needed and would now double-translate (e.g. a literal `"CANCEL"` run through a mapper expecting `"CANCELLED"` would fail to match). |
 | `reminderDate` | string\|null | `YYYY-MM-DD`, or `null`/absent = don't change. Set/replace the lead's follow-up/reminder date. |
 | `sentByName` | string\|null | The consultant who sent it. |
 | `loggedAt` | string | ISO timestamp. |
@@ -59,7 +59,7 @@ Content-Type: application/json
    for this program.
 2. **Append `comment`** as a new note/activity on that lead (authored as
    "Logistis" / the given `sentByName`).
-3. If `leadStatus` is present, **update the lead's status**.
+3. If `leadStatus` is present, **set the lead's status to that exact string** — it's already one of CM's own 7 values, no lookup/translation needed.
 4. If `reminderDate` is present, **set the lead's reminder/follow-up date**.
 5. If no matching lead exists, it's fine to no-op (or create one, CM's
    call).
