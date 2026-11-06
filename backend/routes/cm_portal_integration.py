@@ -497,15 +497,6 @@ def _handle_document_uploaded(payload: DocumentUploadedWebhook, db: Session) -> 
     return {"message": "OK", "matched": True, "saved": True, "case_id": case.id}
 
 
-_LOGISTIS_LEAD_STATUS_MAP = {
-    "NEW": "NEW LEAD",
-    "ACTIVE": "ACTIVE",
-    "HOT": "HOT",
-    "CALL": "CALL",
-    "CANCELLED": "CANCEL",
-}
-
-
 def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Session) -> dict:
     from models_cases import CMLead
     afm = (payload.afm or "").strip()
@@ -550,11 +541,13 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         content=payload.comment,
     ))
 
-    # Optionally update status
+    # Optionally update status — Logistis sends CM's own status strings verbatim
     if payload.leadStatus:
-        mapped = _LOGISTIS_LEAD_STATUS_MAP.get(payload.leadStatus.upper())
-        if mapped:
-            lead.status = mapped
+        from models_cases import LEAD_STATUSES
+        if payload.leadStatus in LEAD_STATUSES:
+            lead.status = payload.leadStatus
+        else:
+            log.warning("[portal-webhook] communication.logged: unknown leadStatus=%r", payload.leadStatus)
 
     # Optionally update reminder/follow-up date
     if payload.reminderDate:
