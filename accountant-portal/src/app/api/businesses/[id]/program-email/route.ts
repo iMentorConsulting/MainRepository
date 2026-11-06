@@ -5,6 +5,7 @@ import { buildAadeBusinessDetails } from '@/lib/business-profile'
 import { buildProspectProgramEmailSubject, buildProspectProgramEmailHtml } from '@/lib/eligibility-email'
 import { sendEmail } from '@/lib/email'
 import { logMessage } from '@/lib/message-log'
+import { notifyCaseManagementCommunication, type CmLeadStatus } from '@/lib/case-management-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +22,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { programId, send, customMessage, investmentAmount } = await request.json().catch(() => ({}))
+  const { programId, send, customMessage, investmentAmount, cmNotify, cmLeadStatus, cmReminderDate } = await request.json().catch(() => ({}))
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
@@ -82,7 +83,22 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       sentByUserId: session.user.id,
       sentByName: session.user.name,
     })
-    return NextResponse.json({ subject, html, sent: ok, hasEmail: true })
+    let cmSync: { delivered: boolean; found?: boolean } | null = null
+    if (ok && cmNotify !== false) {
+      cmSync = await notifyCaseManagementCommunication({
+        afm: business.afm,
+        onomasia: business.onomasia,
+        programTitle: match.program.title,
+        kind: 'PROGRAM_EMAIL',
+        channel: 'EMAIL',
+        subject,
+        comment: `Εστάλη αναλυτικό email για το πρόγραμμα «${match.program.title}».`,
+        leadStatus: (cmLeadStatus || null) as CmLeadStatus | null,
+        reminderDate: cmReminderDate || null,
+        sentByName: session.user.name,
+      })
+    }
+    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, cmSync })
   }
 
   return NextResponse.json({ subject, html, sent: false, hasEmail: !!business.email })

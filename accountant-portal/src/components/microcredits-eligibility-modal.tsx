@@ -2,6 +2,7 @@
 import { useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { X, Send, CheckCircle2, Eye, Calculator } from 'lucide-react'
+import { CmSyncControls, CmSyncResult, CM_SYNC_DEFAULT, type CmSyncValue } from '@/components/cm-sync-controls'
 
 interface MicrocreditsEligibilityModalProps {
   businessId: string
@@ -29,6 +30,8 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
+  const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
+  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean } | null>(null)
 
   function markStale() { setPreviewStale(true) }
 
@@ -39,6 +42,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
       consultantName: consultantName.trim(),
       customMessage: customMessage || undefined,
       send: sendNow,
+      ...(sendNow ? { cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined } : {}),
     }
   }
 
@@ -81,6 +85,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.sent) {
         setSent(true)
+        setCmSyncResult(data.cmSync ?? null)
         onSent?.()
       } else {
         setError(data.error || 'Η αποστολή απέτυχε.')
@@ -107,6 +112,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
           {sent ? (
             <div className="space-y-2">
               <p className="text-sm text-emerald-700 flex items-center gap-1.5"><CheckCircle2 size={16} /> Το email εστάλη.</p>
+              <CmSyncResult cmSync={cmSyncResult} />
               <button onClick={onClose} className="text-sm text-indigo-600 hover:underline">Κλείσιμο</button>
             </div>
           ) : (
@@ -172,6 +178,8 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
               )}
 
               {error && <p className="text-xs text-red-600">{error}</p>}
+
+              <CmSyncControls value={cmSync} onChange={setCmSync} />
 
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Ακύρωση</button>

@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { X, Send, CheckCircle2, Eye, RefreshCw, MessageSquare, ChevronDown, ChevronUp, CornerDownLeft } from 'lucide-react'
+import { CmSyncControls, CmSyncResult, CM_SYNC_DEFAULT, type CmSyncValue } from '@/components/cm-sync-controls'
 
 interface EligibilityAdviceModalProps {
   businessId: string
@@ -22,6 +23,8 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState<{ subject: string; html: string; detectedAmount: number | null; ermisChatLog: ErmisChatMsg[] } | null>(null)
   const [sent, setSent] = useState(false)
+  const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
+  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean } | null>(null)
   const [error, setError] = useState('')
   const [customMessage, setCustomMessage] = useState('')
   const [includeErmisAmount, setIncludeErmisAmount] = useState(true)
@@ -64,11 +67,16 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
       const res = await fetch(`/api/businesses/${businessId}/eligibility-advice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: true, customMessage: customMessage || undefined, includeErmisAmount, investmentAmount: investmentAmount ? Number(investmentAmount) : undefined }),
+        body: JSON.stringify({
+          programId, send: true, customMessage: customMessage || undefined, includeErmisAmount,
+          investmentAmount: investmentAmount ? Number(investmentAmount) : undefined,
+          cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.sent) {
         setSent(true)
+        setCmSyncResult(data.cmSync ?? null)
         onSent?.()
       } else {
         setError(data.error || 'Η αποστολή απέτυχε.')
@@ -95,6 +103,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
           {sent ? (
             <div className="space-y-2">
               <p className="text-sm text-emerald-700 flex items-center gap-1.5"><CheckCircle2 size={16} /> Το email εστάλη.</p>
+              <CmSyncResult cmSync={cmSyncResult} />
               <button onClick={onClose} className="text-sm text-indigo-600 hover:underline">Κλείσιμο</button>
             </div>
           ) : (
@@ -197,6 +206,8 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
                 </>
               )}
               {error && <p className="text-xs text-red-600">{error}</p>}
+
+              <CmSyncControls value={cmSync} onChange={setCmSync} />
 
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Ακύρωση</button>

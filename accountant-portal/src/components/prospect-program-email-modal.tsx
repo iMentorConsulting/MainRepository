@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
 import { X, Send, CheckCircle2, Eye, RefreshCw } from 'lucide-react'
+import { CmSyncControls, CmSyncResult, CM_SYNC_DEFAULT, type CmSyncValue } from '@/components/cm-sync-controls'
 
 const INVESTMENT_FEE_CATEGORIES = new Set(['ESPA', 'LEADER', 'DYPA'])
 
@@ -34,6 +35,8 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
   const [customMessage, setCustomMessage] = useState('')
   const [investmentAmount, setInvestmentAmount] = useState('')
   const [previewStale, setPreviewStale] = useState(false)
+  const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
+  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean } | null>(null)
 
   const showInvestmentField = !!programCategory && INVESTMENT_FEE_CATEGORIES.has(programCategory)
 
@@ -86,11 +89,13 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
           send: true,
           customMessage: customMessage || undefined,
           investmentAmount: showInvestmentField && investmentAmount ? Number(investmentAmount) : undefined,
+          ...(kind === 'business' ? { cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined } : {}),
         }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.sent) {
         setSent(true)
+        setCmSyncResult(data.cmSync ?? null)
         onSent?.()
       } else {
         setError(data.error || 'Η αποστολή απέτυχε.')
@@ -117,6 +122,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
           {sent ? (
             <div className="space-y-2">
               <p className="text-sm text-emerald-700 flex items-center gap-1.5"><CheckCircle2 size={16} /> Το email εστάλη.</p>
+              {kind === 'business' && <CmSyncResult cmSync={cmSyncResult} />}
               <button onClick={onClose} className="text-sm text-indigo-600 hover:underline">Κλείσιμο</button>
             </div>
           ) : (
@@ -177,6 +183,8 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
                 </>
               )}
               {error && <p className="text-xs text-red-600">{error}</p>}
+
+              {kind === 'business' && <CmSyncControls value={cmSync} onChange={setCmSync} />}
 
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Ακύρωση</button>

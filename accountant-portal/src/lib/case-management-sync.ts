@@ -137,3 +137,80 @@ export async function notifyCaseManagementDocument(data: {
     return false
   }
 }
+
+// Lead statuses the consultant can set on a CM lead from inside Logistis,
+// right when logging a communication. CM owns the actual mapping to its own
+// UI labels/enum — this is the fixed vocabulary both sides agree on.
+export type CmLeadStatus = 'NEW' | 'ACTIVE' | 'HOT' | 'CALL' | 'CANCELLED'
+
+// Fired every time a consultant sends one of the client-facing emails from a
+// business's program match (program-info email, microcredits eligibility
+// analysis, "Ενημέρωση & Επόμενα Βήματα" advisory email) with "Ενημέρωση
+// Case Management" left checked. CM is expected to:
+//   1. Find the lead matching this ΑΦΜ + program (program_category/
+//      program_exact_title, same fields as case.created) — the most recent
+//      non-cancelled one if several exist for the same client.
+//   2. Append `comment` as a new note/activity on that lead.
+//   3. If `leadStatus` is present, update the lead's status to match.
+//   4. If `reminderDate` is present (YYYY-MM-DD), set/replace the lead's
+//      follow-up/reminder date.
+// If no matching lead exists, CM should no-op (or create one — its call) and
+// may optionally reply { found: boolean } so Logistis can surface that back
+// to the consultant; a response with no `found` field is treated as unknown
+// (assume delivered, don't warn). Same env/auth as notifyCaseManagement;
+// no-op (returns {delivered:false}) if unset.
+export async function notifyCaseManagementCommunication(data: {
+  afm: string
+  onomasia?: string | null
+  programTitle?: string | null
+  kind: string // ADVICE | PROGRAM_EMAIL | MICROCREDITS
+  channel: 'EMAIL' | 'VIBER'
+  subject?: string | null
+  comment: string
+  leadStatus?: CmLeadStatus | null
+  reminderDate?: string | null
+  sentByName?: string | null
+}): Promise<{ delivered: boolean; found?: boolean }> {
+  const url = process.env.CASE_MGMT_WEBHOOK_URL
+  const apiKey = process.env.CASES_API_KEY
+  if (!url || !apiKey) return { delivered: false }
+
+  const program_category = deriveProgramCategory(data.programTitle)
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      body: JSON.stringify({
+        event: 'communication.logged',
+        afm: data.afm,
+        onomasia: data.onomasia ?? null,
+        programTitle: data.programTitle ?? null,
+        program_category,
+        kind: data.kind,
+        channel: data.channel,
+        subject: data.subject ?? null,
+        comment: data.comment,
+        leadStatus: data.leadStatus ?? null,
+        reminderDate: data.reminderDate ?? null,
+        sentByName: data.sentByName ?? null,
+        loggedAt: new Date().toISOString(),
+      }),
+    })
+    const responseText = await res.text().catch(() => '')
+    if (!res.ok) {
+      console.error(`[CaseManagement] communication.logged failed for ΑΦΜ ${data.afm}: HTTP ${res.status} ${responseText}`)
+      return { delivered: false }
+    }
+    let found: boolean | undefined
+    try {
+      const body = JSON.parse(responseText)
+      if (typeof body?.found === 'boolean') found = body.found
+    } catch { /* non-JSON response, ignore */ }
+    console.log(`[CaseManagement] communication.logged OK for ΑΦΜ ${data.afm}${found === false ? ' (no matching lead found)' : ''}`)
+    return { delivered: true, found }
+  } catch (err: any) {
+    console.error(`[CaseManagement] communication.logged error for ΑΦΜ ${data.afm}:`, err?.message || err)
+    return { delivered: false }
+  }
+}
