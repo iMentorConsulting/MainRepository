@@ -25,17 +25,18 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
   const [error, setError] = useState('')
   const [customMessage, setCustomMessage] = useState('')
   const [includeErmisAmount, setIncludeErmisAmount] = useState(true)
+  const [investmentAmount, setInvestmentAmount] = useState('')
   const [previewStale, setPreviewStale] = useState(false)
   const [showChat, setShowChat] = useState(false)
 
-  async function loadPreview(message: string, includeAmount: boolean) {
+  async function loadPreview(message: string, includeAmount: boolean, invAmount: string) {
     setLoading(true)
     setError('')
     try {
       const res = await fetch(`/api/businesses/${businessId}/eligibility-advice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: false, customMessage: message || undefined, includeErmisAmount: includeAmount }),
+        body: JSON.stringify({ programId, send: false, customMessage: message || undefined, includeErmisAmount: includeAmount, investmentAmount: invAmount ? Number(invAmount) : undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -52,7 +53,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
   }
 
   useEffect(() => {
-    loadPreview('', true)
+    loadPreview('', true, '')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [businessId, programId])
 
@@ -63,7 +64,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
       const res = await fetch(`/api/businesses/${businessId}/eligibility-advice`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: true, customMessage: customMessage || undefined, includeErmisAmount }),
+        body: JSON.stringify({ programId, send: true, customMessage: customMessage || undefined, includeErmisAmount, investmentAmount: investmentAmount ? Number(investmentAmount) : undefined }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok && data.sent) {
@@ -144,6 +145,17 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
               )}
 
               <div>
+                <label className="text-xs font-medium text-gray-500 block mb-1">Ποσό επένδυσης € (προαιρετικό — αν συμπληρωθεί, προστίθεται στο email το δικό μας κοστολόγιο για το ποσό αυτό)</label>
+                <input
+                  type="number"
+                  value={investmentAmount}
+                  onChange={e => { setInvestmentAmount(e.target.value); setPreviewStale(true) }}
+                  placeholder="π.χ. 150000"
+                  className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
+                />
+              </div>
+
+              <div>
                 <label className="text-xs font-medium text-gray-500 block mb-1">Προσωπικό μήνυμα (προαιρετικό)</label>
                 <textarea
                   value={customMessage}
@@ -165,7 +177,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
                       <label className="text-xs font-medium text-gray-500">Περιεχόμενο</label>
                       {previewStale && (
                         <button
-                          onClick={() => loadPreview(customMessage, includeErmisAmount)}
+                          onClick={() => loadPreview(customMessage, includeErmisAmount, investmentAmount)}
                           className="flex items-center gap-1 text-xs text-indigo-600 hover:underline"
                         >
                           <RefreshCw size={11} /> Ανανέωση προεπισκόπησης

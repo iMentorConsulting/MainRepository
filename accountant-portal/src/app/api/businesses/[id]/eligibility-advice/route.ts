@@ -18,7 +18,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { programId, send, customMessage, includeErmisAmount } = await request.json().catch(() => ({}))
+  const { programId, send, customMessage, includeErmisAmount, investmentAmount } = await request.json().catch(() => ({}))
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
             minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
             minInvestment: true, maxInvestment: true,
             monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
-            expenseCategories: true,
+            expenseCategories: true, investmentPricingBrackets: true,
           },
         },
       },
@@ -63,6 +63,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     program: match.program,
     matchReasons: match.matchReason,
     ermisDiscussedAmount,
+    investmentAmount: typeof investmentAmount === 'number' && investmentAmount > 0 ? investmentAmount : null,
     customMessage: typeof customMessage === 'string' && customMessage.trim() ? customMessage.trim() : null,
     imentorLogoUrl: appSetting?.imentorLogoUrl,
   })

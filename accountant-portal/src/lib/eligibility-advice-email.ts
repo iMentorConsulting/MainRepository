@@ -1,3 +1,6 @@
+import { computeInvestmentFees } from './investment-pricing'
+import { buildBankAccountsHtml } from './imentor-bank-accounts'
+
 // "Ενημέρωση & Επόμενα Βήματα" — a short, friendly advisory email an
 // admin/consultant sends to a prospect right after confirming eligibility
 // (distinct from the full program-info dump in eligibility-email.ts).
@@ -21,6 +24,7 @@ export interface AdviceProgram {
   subsidyMonths: string | null
   totalBenefit: string | null
   expenseCategories: unknown
+  investmentPricingBrackets: unknown
 }
 
 function fmtEur0(n: number): string {
@@ -76,10 +80,11 @@ export function buildEligibilityAdviceEmailHtml(params: {
   program: AdviceProgram
   matchReasons: string[]
   ermisDiscussedAmount?: number | null
+  investmentAmount?: number | null
   customMessage?: string | null
   imentorLogoUrl?: string | null
 }): string {
-  const { businessName, program, matchReasons, ermisDiscussedAmount, customMessage, imentorLogoUrl } = params
+  const { businessName, program, matchReasons, ermisDiscussedAmount, investmentAmount, customMessage, imentorLogoUrl } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
   const isDypa = program.category === 'DYPA'
 
@@ -144,6 +149,26 @@ export function buildEligibilityAdviceEmailHtml(params: {
   const sectionA4 = section('4. Πώς λειτουργεί η διαδικασία', `
     <p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">${processText}</p>`)
 
+  // Optional — only rendered when the consultant entered an investment
+  // amount: looks up this program's own bracket table (or the standard
+  // default — see investment-pricing.ts) and shows our own cost for it.
+  let sectionCost = ''
+  if (investmentAmount && investmentAmount > 0 && !isDypa) {
+    const fees = computeInvestmentFees(investmentAmount, program.investmentPricingBrackets as any)
+    if (fees) {
+      const fmtEurVat = (n: number) => `${fmtEur0(n)} + ΦΠΑ = ${fmtEur0(Math.round(n * 1.24))}`
+      sectionCost = section('Το Κοστολόγιό μας για Επένδυση ' + fmtEur0(investmentAmount), `
+        <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;margin-bottom:10px;">
+          <tr><td style="padding:4px 0;color:#6b7280;width:55%;">Κόστος υποβολής αίτησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.applicationFee)}</td></tr>
+          <tr><td style="padding:4px 0;color:#6b7280;">Αμοιβή παρακολούθησης υλοποίησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.implementationFee)}</td></tr>
+        </table>
+        <p style="margin:0 0 10px;font-size:13px;color:#4b5563;line-height:1.7;">
+          Το κόστος υποβολής αίτησης καταβάλλεται εκ των προτέρων, για την υποβολή της αίτησης στο πρόγραμμα. Η αμοιβή παρακολούθησης καταβάλλεται μόνο μετά την έγκριση, σταδιακά, ταυτόχρονα με την υλοποίηση του προγράμματος και τις εκταμιεύσεις της επιχορήγησης.
+        </p>
+        ${buildBankAccountsHtml()}`)
+    }
+  }
+
   const ermisNote = ermisDiscussedAmount
     ? `<p style="margin:0 0 14px;font-size:13.5px;color:#4b5563;line-height:1.7;">
          Από τη συζήτησή σας με τον 🤖 Ερμή καταλάβαμε ότι σκέφτεστε επένδυση ύψους περίπου <strong>${fmtEur0(ermisDiscussedAmount)}</strong> — θα θέλαμε να το επιβεβαιώσουμε μαζί σας παρακάτω.
@@ -189,6 +214,7 @@ export function buildEligibilityAdviceEmailHtml(params: {
         ${sectionA2}
         ${sectionA3}
         ${sectionA4}
+        ${sectionCost}
         ${sectionB}
         <p style="margin:20px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
       </div>
