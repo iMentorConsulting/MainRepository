@@ -18,7 +18,7 @@ export interface PricingBracket {
 // investment amount) — the default for every program that hasn't been
 // given its own custom bracket table.
 export const DEFAULT_INVESTMENT_PRICING_BRACKETS: PricingBracket[] = [
-  { minAmount: 0, maxAmount: 70000, applicationFee: 800, implementationFee: 3000 },
+  { minAmount: 0, maxAmount: 70000, applicationFee: 950, implementationFee: 4000 },
   { minAmount: 70001, maxAmount: 90000, applicationFee: 800, implementationFee: 3600 },
   { minAmount: 90001, maxAmount: 110000, applicationFee: 880, implementationFee: 4400 },
   { minAmount: 110001, maxAmount: 130000, applicationFee: 1040, implementationFee: 5200 },

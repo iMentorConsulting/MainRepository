@@ -17,6 +17,7 @@ import { parseRequirementsList } from '@/lib/requirements-list'
 import { EligibilityQuestionsEditor } from '@/components/programs/eligibility-questions-editor'
 import { ProgramQA } from '@/components/programs/program-qa'
 import type { ExpenseCategory } from '@/components/programs/expense-categories-editor'
+import { DEFAULT_INVESTMENT_PRICING_BRACKETS, type PricingBracket } from '@/lib/investment-pricing'
 
 function formatEuro(value: number | null | undefined) {
   if (value === null || value === undefined) return null
@@ -442,6 +443,39 @@ export default function ProgramDetailPage() {
                     </tbody>
                   </table>
                 </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {['ESPA', 'LEADER', 'DYPA'].includes(program.category) && (
+            <Card>
+              <CardHeader><CardTitle>Τιμολόγηση ανά Κλιμάκιο Επένδυσης</CardTitle></CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm border border-gray-200 rounded-lg">
+                    <thead>
+                      <tr className="bg-gray-50">
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Ποσό Επένδυσης</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Κόστος Αίτησης</th>
+                        <th className="px-3 py-2 text-left font-medium text-gray-600">Αμοιβή Παρακολούθησης</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {((Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0
+                        ? program.investmentPricingBrackets
+                        : DEFAULT_INVESTMENT_PRICING_BRACKETS) as PricingBracket[]).map((b, i) => (
+                        <tr key={i} className="border-t border-gray-200">
+                          <td className="px-3 py-2 text-gray-700">
+                            {formatEuro(b.minAmount)} {b.maxAmount != null ? `— ${formatEuro(b.maxAmount)}` : 'και άνω'}
+                          </td>
+                          <td className="px-3 py-2 text-gray-700">{formatEuro(b.applicationFee)}</td>
+                          <td className="px-3 py-2 text-gray-700">{formatEuro(b.implementationFee)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">Τα ποσά δεν περιλαμβάνουν ΦΠΑ.</p>
               </CardContent>
             </Card>
           )}
