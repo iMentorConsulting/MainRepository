@@ -26,7 +26,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const business = await prisma.business.findUnique({
     where: { id: params.id },
-    select: { id: true, onomasia: true, afm: true, email: true, accountantId: true, accountant: { select: { officeName: true } } },
+    select: { id: true, onomasia: true, afm: true, email: true, phone: true, accountantId: true, accountant: { select: { officeName: true } } },
   })
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
 
@@ -93,6 +93,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       cmSync = await notifyCaseManagementCommunication({
         afm: business.afm,
         onomasia: business.onomasia,
+        email: business.email,
+        phone: business.phone,
         programTitle: match.program.title,
         kind: 'ADVICE',
         channel: 'EMAIL',

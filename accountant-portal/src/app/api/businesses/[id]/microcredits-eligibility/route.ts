@@ -95,6 +95,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       cmSync = await notifyCaseManagementCommunication({
         afm: business.afm,
         onomasia: business.onomasia,
+        email: business.email,
+        phone: business.phone,
         programTitle: program.title,
         kind: 'MICROCREDITS',
         channel: 'EMAIL',

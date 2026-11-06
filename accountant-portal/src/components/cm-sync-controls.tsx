@@ -72,14 +72,18 @@ export function CmSyncControls({ value, onChange }: { value: CmSyncValue; onChan
 }
 
 // Small post-send status line — shown once `cmSync` comes back from the API
-// so the consultant knows whether CM actually got the update.
-export function CmSyncResult({ cmSync }: { cmSync?: { delivered: boolean; found?: boolean } | null }) {
+// so the consultant knows whether CM actually got the update, and whether it
+// landed on an existing lead or a brand new one got created for it.
+export function CmSyncResult({ cmSync }: { cmSync?: { delivered: boolean; found?: boolean; created?: boolean } | null }) {
   if (!cmSync) return null
   if (!cmSync.delivered) {
     return <p className="text-xs text-amber-600">⚠️ Δεν ήταν δυνατή η ενημέρωση του Case Management (δεν είναι συνδεδεμένο ή απέτυχε η αποστολή).</p>
   }
+  if (cmSync.created) {
+    return <p className="text-xs text-emerald-600">✔️ Δεν υπήρχε lead — δημιουργήθηκε νέο στο Case Management.</p>
+  }
   if (cmSync.found === false) {
-    return <p className="text-xs text-amber-600">⚠️ Το Case Management δεν βρήκε αντίστοιχο lead για αυτόν τον πελάτη/πρόγραμμα.</p>
+    return <p className="text-xs text-amber-600">⚠️ Το Case Management δεν βρήκε (ούτε δημιούργησε) lead για αυτόν τον πελάτη/πρόγραμμα.</p>
   }
   return <p className="text-xs text-emerald-600">✔️ Ενημερώθηκε το Case Management.</p>
 }

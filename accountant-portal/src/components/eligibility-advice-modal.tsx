@@ -24,7 +24,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
   const [preview, setPreview] = useState<{ subject: string; html: string; detectedAmount: number | null; ermisChatLog: ErmisChatMsg[] } | null>(null)
   const [sent, setSent] = useState(false)
   const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
-  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean } | null>(null)
+  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean; created?: boolean } | null>(null)
   const [error, setError] = useState('')
   const [customMessage, setCustomMessage] = useState('')
   const [includeErmisAmount, setIncludeErmisAmount] = useState(true)

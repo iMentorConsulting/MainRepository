@@ -36,7 +36,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
   const [investmentAmount, setInvestmentAmount] = useState('')
   const [previewStale, setPreviewStale] = useState(false)
   const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
-  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean } | null>(null)
+  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean; created?: boolean } | null>(null)
 
   const showInvestmentField = !!programCategory && INVESTMENT_FEE_CATEGORIES.has(programCategory)
 

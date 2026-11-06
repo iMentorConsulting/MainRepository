@@ -23,6 +23,8 @@ Content-Type: application/json
   "event": "communication.logged",
   "afm": "123456789",
   "onomasia": "ΔΟΚΙΜΗ ΕΠΕ",
+  "email": "info@dokimi.gr",
+  "phone": "2810123456",
   "programTitle": "ΕΣΠΑ Ψηφιακός Μετασχηματισμός",
   "program_category": "ΕΣΠΑ",
   "kind": "ADVICE",
@@ -40,6 +42,8 @@ Content-Type: application/json
 |---|---|---|
 | `afm` | string | Always present. |
 | `onomasia` | string\|null | Business name. |
+| `email` | string\|null | New — business's email, in case a lead needs to be created (see below). |
+| `phone` | string\|null | New — business's phone, same reason. |
 | `programTitle` | string\|null | Exact program title in Logistis. |
 | `program_category` | string | Same coarse categories already used in `case.created` (ΕΣΠΑ / ΔΥΠΑ / ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ / ΑΝΑΚΑΙΝΙΖΩ), derived the same way. |
 | `kind` | string | `PROGRAM_EMAIL` \| `MICROCREDITS` \| `ADVICE` |
@@ -57,23 +61,34 @@ Content-Type: application/json
    `program_category`, same identifying fields `case.created` already sends)
    — if the client has more than one, use the most recent non-cancelled one
    for this program.
-2. **Append `comment`** as a new note/activity on that lead (authored as
-   "Logistis" / the given `sentByName`).
-3. If `leadStatus` is present, **set the lead's status to that exact string** — it's already one of CM's own 7 values, no lookup/translation needed.
-4. If `reminderDate` is present, **set the lead's reminder/follow-up date**.
-5. If no matching lead exists, it's fine to no-op (or create one, CM's
-   call).
+2. **If none exists, create one.** This is not optional — every
+   `communication.logged` event must end up attached to some lead. Create it
+   using `onomasia` / `email` / `phone` / `programTitle` / `program_category`,
+   with status `NEW LEAD` (or `leadStatus` if one was sent with this event).
+3. **Append `comment`** as a new note/activity on that lead — whether it was
+   just found or just created (authored as "Logistis" / the given
+   `sentByName`).
+4. If `leadStatus` is present, **set the lead's status to that exact
+   string** — it's already one of CM's own 7 values, no lookup/translation
+   needed. (Skip this step for a lead you just created with that same
+   status in step 2 — no need to set it twice.)
+5. If `reminderDate` is present, **set the lead's reminder/follow-up date**.
 
 ## Response (optional but helpful)
 
 ```json
-{ "found": true }
+{ "found": true, "created": false }
 ```
 
-If CM can report whether a matching lead was actually found, Logistis
-surfaces that back to the consultant as a small warning ("δεν βρέθηκε
-αντίστοιχο lead") when `found: false`. Any other 2xx response (with or
-without a body) is otherwise treated as a successful delivery.
+So Logistis can tell the consultant what actually happened:
+- `found: true, created: false` — landed on an existing lead.
+- `found: false, created: true` — no lead existed, one was created.
+- `found: false, created: false` (or `found` omitted) — nothing happened on
+  the CM side; Logistis shows this as a warning. Given step 2 above this
+  should no longer occur in normal operation.
+
+Any 2xx response (with or without a body) is otherwise treated as a
+successful delivery even without these fields.
 
 ## Logistis-side implementation
 

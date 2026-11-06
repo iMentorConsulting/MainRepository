@@ -88,6 +88,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       cmSync = await notifyCaseManagementCommunication({
         afm: business.afm,
         onomasia: business.onomasia,
+        email: business.email,
+        phone: business.phone,
         programTitle: match.program.title,
         kind: 'PROGRAM_EMAIL',
         channel: 'EMAIL',

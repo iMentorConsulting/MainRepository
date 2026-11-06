@@ -31,7 +31,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
-  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean } | null>(null)
+  const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean; created?: boolean } | null>(null)
 
   function markStale() { setPreviewStale(true) }
 

@@ -151,18 +151,23 @@ export type CmLeadStatus = 'NEW LEAD' | 'WORKED' | 'CALL' | 'HOT' | 'ACTIVE' | '
 //   1. Find the lead matching this ΑΦΜ + program (program_category/
 //      program_exact_title, same fields as case.created) — the most recent
 //      non-cancelled one if several exist for the same client.
-//   2. Append `comment` as a new note/activity on that lead.
-//   3. If `leadStatus` is present, update the lead's status to match.
-//   4. If `reminderDate` is present (YYYY-MM-DD), set/replace the lead's
+//   2. If none exists, CREATE one (status NEW LEAD, or `leadStatus` if
+//      given) using onomasia/email/phone/programTitle — this is not
+//      optional, every communication must end up logged on some lead.
+//   3. Append `comment` as a new note/activity on that lead (new or found).
+//   4. If `leadStatus` is present, set the lead's status to match.
+//   5. If `reminderDate` is present (YYYY-MM-DD), set/replace the lead's
 //      follow-up/reminder date.
-// If no matching lead exists, CM should no-op (or create one — its call) and
-// may optionally reply { found: boolean } so Logistis can surface that back
-// to the consultant; a response with no `found` field is treated as unknown
-// (assume delivered, don't warn). Same env/auth as notifyCaseManagement;
-// no-op (returns {delivered:false}) if unset.
+// Reply { found: boolean, created?: boolean } so Logistis can tell the
+// consultant whether this landed on an existing lead or a new one was
+// created; a response with no `found` field is treated as unknown (assume
+// delivered, don't warn). Same env/auth as notifyCaseManagement; no-op
+// (returns {delivered:false}) if unset.
 export async function notifyCaseManagementCommunication(data: {
   afm: string
   onomasia?: string | null
+  email?: string | null
+  phone?: string | null
   programTitle?: string | null
   kind: string // ADVICE | PROGRAM_EMAIL | MICROCREDITS
   channel: 'EMAIL' | 'VIBER'
@@ -171,7 +176,7 @@ export async function notifyCaseManagementCommunication(data: {
   leadStatus?: CmLeadStatus | null
   reminderDate?: string | null
   sentByName?: string | null
-}): Promise<{ delivered: boolean; found?: boolean }> {
+}): Promise<{ delivered: boolean; found?: boolean; created?: boolean }> {
   const url = process.env.CASE_MGMT_WEBHOOK_URL
   const apiKey = process.env.CASES_API_KEY
   if (!url || !apiKey) return { delivered: false }
@@ -186,6 +191,8 @@ export async function notifyCaseManagementCommunication(data: {
         event: 'communication.logged',
         afm: data.afm,
         onomasia: data.onomasia ?? null,
+        email: data.email ?? null,
+        phone: data.phone ?? null,
         programTitle: data.programTitle ?? null,
         program_category,
         kind: data.kind,
@@ -204,12 +211,14 @@ export async function notifyCaseManagementCommunication(data: {
       return { delivered: false }
     }
     let found: boolean | undefined
+    let created: boolean | undefined
     try {
       const body = JSON.parse(responseText)
       if (typeof body?.found === 'boolean') found = body.found
+      if (typeof body?.created === 'boolean') created = body.created
     } catch { /* non-JSON response, ignore */ }
-    console.log(`[CaseManagement] communication.logged OK for ΑΦΜ ${data.afm}${found === false ? ' (no matching lead found)' : ''}`)
-    return { delivered: true, found }
+    console.log(`[CaseManagement] communication.logged OK for ΑΦΜ ${data.afm}${created ? ' (new lead created)' : found === false ? ' (no matching lead found)' : ''}`)
+    return { delivered: true, found, created }
   } catch (err: any) {
     console.error(`[CaseManagement] communication.logged error for ΑΦΜ ${data.afm}:`, err?.message || err)
     return { delivered: false }
