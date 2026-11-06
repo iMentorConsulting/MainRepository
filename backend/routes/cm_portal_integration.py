@@ -260,6 +260,22 @@ class DocumentUploadedWebhook(BaseModel):
     uploadedByRole: Optional[str] = None
 
 
+class CommunicationLoggedWebhook(BaseModel):
+    event: str
+    afm: str
+    onomasia: Optional[str] = None
+    programTitle: Optional[str] = None
+    program_category: Optional[str] = None
+    kind: Optional[str] = None
+    channel: Optional[str] = None
+    subject: Optional[str] = None
+    comment: str
+    leadStatus: Optional[str] = None
+    reminderDate: Optional[str] = None
+    sentByName: Optional[str] = None
+    loggedAt: Optional[str] = None
+
+
 # ── Business profile cache (AFM → ΑΑΔΕ data, sourced from LOGISTIS) ─────────
 def _business_profile_to_dict(b: CMBusinessProfile) -> dict:
     return {
@@ -481,6 +497,77 @@ def _handle_document_uploaded(payload: DocumentUploadedWebhook, db: Session) -> 
     return {"message": "OK", "matched": True, "saved": True, "case_id": case.id}
 
 
+_LOGISTIS_LEAD_STATUS_MAP = {
+    "NEW": "NEW LEAD",
+    "ACTIVE": "ACTIVE",
+    "HOT": "HOT",
+    "CALL": "CALL",
+    "CANCELLED": "CANCEL",
+}
+
+
+def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Session) -> dict:
+    from models_cases import CMLead
+    afm = (payload.afm or "").strip()
+    if not afm:
+        return {"found": False, "reason": "missing afm"}
+
+    prog_cat = (payload.program_category or "").strip()
+
+    # Find the most recent non-cancelled lead for this AFM + program_category.
+    # If programTitle is supplied, prefer an exact title match first.
+    q = db.query(CMLead).filter(
+        CMLead.afm == afm,
+        CMLead.status != "CANCEL",
+    )
+    candidates = q.order_by(CMLead.id.desc()).all()
+
+    lead = None
+    if payload.programTitle and candidates:
+        pt = payload.programTitle.strip().lower()
+        by_title = [l for l in candidates if (l.program_title or "").strip().lower() == pt]
+        if by_title:
+            lead = by_title[0]
+
+    if lead is None and prog_cat and candidates:
+        by_cat = [l for l in candidates if (l.program or "") == prog_cat]
+        if by_cat:
+            lead = by_cat[0]
+
+    if lead is None and candidates:
+        lead = candidates[0]
+
+    if lead is None:
+        log.info("[portal-webhook] communication.logged: no lead found for afm=%s prog=%s", afm, prog_cat)
+        return {"found": False}
+
+    # Append comment/activity to the lead's timeline
+    author = payload.sentByName or "Logistis"
+    db.add(CMLeadComment(
+        lead_id=lead.id,
+        user_id=None,
+        author_name=author,
+        content=payload.comment,
+    ))
+
+    # Optionally update status
+    if payload.leadStatus:
+        mapped = _LOGISTIS_LEAD_STATUS_MAP.get(payload.leadStatus.upper())
+        if mapped:
+            lead.status = mapped
+
+    # Optionally update reminder/follow-up date
+    if payload.reminderDate:
+        try:
+            lead.next_call_date = datetime.strptime(payload.reminderDate[:10], "%Y-%m-%d").date()
+        except ValueError:
+            log.warning("[portal-webhook] communication.logged: invalid reminderDate=%s", payload.reminderDate)
+
+    db.commit()
+    log.info("[portal-webhook] communication.logged: updated lead_id=%s afm=%s", lead.id, afm)
+    return {"found": True, "lead_id": lead.id}
+
+
 # In-memory ring buffer of recent inbound webhook hits (diagnostic; lost on restart)
 _recent_webhook_hits: list = []
 
@@ -534,6 +621,16 @@ def receive_portal_webhook(
             log.error("[portal-webhook] document.uploaded invalid payload: %s", exc)
             raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
         return _handle_document_uploaded(data, db)
+    if ev in ("communication.logged", "communication.log", "communicationlogged"):
+        try:
+            data = CommunicationLoggedWebhook(**{**payload, "event": event or "communication.logged"})
+        except Exception as exc:
+            log.error("[portal-webhook] communication.logged invalid payload: %s", exc)
+            raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
+        res = _handle_communication_logged(data, db)
+        _record_hit(event=event, keys=list(payload.keys()), auth_ok=True,
+                    outcome=f"communication.logged found={res.get('found')}")
+        return res
     log.warning("[portal-webhook] UNSUPPORTED event=%r (keys=%s)", event, list(payload.keys()))
     _record_hit(event=event, keys=list(payload.keys()), auth_ok=True, outcome="400 unsupported event")
     raise HTTPException(status_code=400, detail=f"Μη υποστηριζόμενο event: {event!r}")
