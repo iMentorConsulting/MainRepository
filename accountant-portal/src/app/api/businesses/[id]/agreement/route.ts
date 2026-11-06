@@ -43,18 +43,29 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
   if (!program) return NextResponse.json({ error: 'Δεν βρέθηκε το πρόγραμμα' }, { status: 404 })
 
-  const buffer = await buildAgreementDocx({
-    business,
-    programTitle: program.title,
-    applicationFee: applicationFeeNum,
-    implementationFee: implementationFeeNum,
-  })
+  let buffer: Buffer
+  try {
+    buffer = await buildAgreementDocx({
+      business,
+      programTitle: program.title,
+      applicationFee: applicationFeeNum,
+      implementationFee: implementationFeeNum,
+    })
+  } catch (err: any) {
+    console.error('[Agreement] docx generation failed:', err?.message)
+    return NextResponse.json({ error: 'Η δημιουργία του εγγράφου απέτυχε.' }, { status: 500 })
+  }
 
-  const safeName = (business.onomasia || business.afm).replace(/[^a-zA-Z0-9Α-Ωα-ωΆ-Ώά-ώ]+/g, '_').slice(0, 60)
+  // Content-Disposition header values must be ASCII — Node throws
+  // ERR_INVALID_CHAR on a raw Greek filename. Give an ASCII fallback name
+  // plus the real (Greek) name via the RFC 5987 filename* parameter.
+  const rawName = business.onomasia || business.afm
+  const asciiName = rawName.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 60) || 'symfonitiko'
+  const utf8Name = encodeURIComponent(`Symfonitiko_${rawName}`.slice(0, 80))
   return new NextResponse(new Uint8Array(buffer), {
     headers: {
       'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'Content-Disposition': `attachment; filename="Symfonitiko_${safeName}.docx"`,
+      'Content-Disposition': `attachment; filename="Symfonitiko_${asciiName}.docx"; filename*=UTF-8''${utf8Name}.docx`,
     },
   })
 }
