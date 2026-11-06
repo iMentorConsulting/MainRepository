@@ -121,8 +121,7 @@ export function buildEligibilityAdviceEmailHtml(params: {
         <p style="margin:0 0 6px;font-size:14px;color:#374151;line-height:1.7;">
           Το πρόγραμμα προσφέρει επιχορήγηση${program.maxInvestment != null ? ` έως <strong>${fmtEur0(program.maxInvestment)}</strong> επί του επενδυτικού σας σχεδίου` : ''}${pctHeadline != null ? `, με ποσοστό επιχορήγησης <strong>${pctHeadline}%</strong>` : ''}.
         </p>
-        ${showMaxNote ? `<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;">Σε ορισμένες περιπτώσεις, ανάλογα με τα χαρακτηριστικά της επιχείρησης και της επένδυσης, το ποσοστό επιχορήγησης μπορεί να φτάσει έως ${program.maxSubsidyPct}%.</p>` : ''}
-        ${program.subsidyNote ? `<p style="margin:6px 0 0;font-size:12px;color:#9ca3af;line-height:1.6;">${program.subsidyNote}</p>` : ''}`)
+        ${showMaxNote ? `<p style="margin:0;font-size:12px;color:#9ca3af;line-height:1.6;">Σε ορισμένες περιπτώσεις, ανάλογα με τα χαρακτηριστικά της επιχείρησης και της επένδυσης, το ποσοστό επιχορήγησης μπορεί να φτάσει έως ${program.maxSubsidyPct}%.</p>` : ''}`)
     }
   }
 
@@ -165,6 +164,7 @@ export function buildEligibilityAdviceEmailHtml(params: {
         <p style="margin:0 0 10px;font-size:13px;color:#4b5563;line-height:1.7;">
           Το κόστος υποβολής αίτησης καταβάλλεται εκ των προτέρων, για την υποβολή της αίτησης στο πρόγραμμα. Η αμοιβή παρακολούθησης καταβάλλεται μόνο μετά την έγκριση, σταδιακά, ταυτόχρονα με την υλοποίηση του προγράμματος και τις εκταμιεύσεις της επιχορήγησης.
         </p>
+        <p style="margin:0 0 10px;font-size:12px;color:#9ca3af;line-height:1.6;">Το κόστος αυτό αντιστοιχεί στο παραπάνω ποσό επένδυσης — διαφοροποιείται (προς τα πάνω ή κάτω) αν το τελικό ποσό της επένδυσής σας αλλάξει.</p>
         ${buildBankAccountsHtml()}`)
     }
   }
