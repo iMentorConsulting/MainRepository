@@ -13,6 +13,7 @@ const KIND_OPTIONS = [
   { value: 'ELIGIBILITY', label: 'Email/Viber Επιλεξιμότητας' },
   { value: 'PROGRAM_EMAIL', label: 'Email Προγράμματος' },
   { value: 'MICROCREDITS', label: 'Ανάλυση Μικροπιστώσεων' },
+  { value: 'ADVICE', label: 'Ενημέρωση & Επόμενα Βήματα' },
 ]
 
 interface SendItem {

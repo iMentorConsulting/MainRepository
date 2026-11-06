@@ -1,6 +1,6 @@
 import { prisma } from './prisma'
 
-export type MessageLogKind = 'QUICK_SEND' | 'ELIGIBILITY' | 'PROGRAM_EMAIL' | 'MICROCREDITS'
+export type MessageLogKind = 'QUICK_SEND' | 'ELIGIBILITY' | 'PROGRAM_EMAIL' | 'MICROCREDITS' | 'ADVICE'
 export type MessageLogChannel = 'EMAIL' | 'VIBER'
 
 // Unified log for every send OUTSIDE the formal Campaign system (which

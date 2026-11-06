@@ -10,6 +10,7 @@ const KIND_LABELS: Record<string, string> = {
   ELIGIBILITY: 'Email/Viber Επιλεξιμότητας',
   PROGRAM_EMAIL: 'Email Προγράμματος',
   MICROCREDITS: 'Ανάλυση Μικροπιστώσεων',
+  ADVICE: 'Ενημέρωση & Επόμενα Βήματα',
 }
 
 // "Όλες οι Αποστολές" on the Campaigns page — merges two separate send
