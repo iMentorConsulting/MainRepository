@@ -10,6 +10,7 @@ import { notifyCaseManagement } from './case-management-sync'
 import { EligibilityQuestion } from './eligibility-questions'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from './business-profile'
 import { resolveRegdate } from './matching'
+import { DEFAULT_INVESTMENT_PRICING_BRACKETS, type PricingBracket } from './investment-pricing'
 
 // Human-readable label for a regdate value — resolves sentinels like "TODAY-1Y"
 // to a string like "Τουλάχιστον 1 έτος λειτουργίας (έως 12/08/2025)".
@@ -68,12 +69,7 @@ function buildSystemPrompt(program: {
   minRegdate?: string | null
   maxRegdate?: string | null
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
-  feeApplicationPct?: number
-  feeApplicationMin?: number
-  feeApplicationMax?: number
-  feeImplementationPct?: number
-  feeImplementationMin?: number
-  feeImplementationMax?: number
+  investmentPricingBrackets?: unknown
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
   contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null,
   businessRegdate?: string | null, businessActivities?: { firmActCode: string; firmActDescr: string | null }[]) {
@@ -107,17 +103,19 @@ function buildSystemPrompt(program: {
     : ''
 
   // Only for ΕΣΠΑ/LEADER/ΔΥΠΑ (ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ has its own fixed
-  // flat-fee structure handled separately, not this per-investment formula)
-  // — gives Ερμής the exact clamp formula so it can quote the application
-  // fee and the implementation/monitoring fee the moment the client states
-  // an investment amount, instead of only being able to say "ask your
-  // consultant". Same formula as the standard pricing spreadsheet.
-  const feeFormulaLine = (['ESPA', 'LEADER', 'DYPA'].includes(program.category || '') &&
-    program.feeApplicationPct != null && program.feeApplicationMin != null && program.feeApplicationMax != null &&
-    program.feeImplementationPct != null && program.feeImplementationMin != null && program.feeImplementationMax != null)
-    ? `\nΑΝ Ο ΠΕΛΑΤΗΣ ΑΝΑΦΕΡΕΙ ΠΟΣΟ ΕΠΕΝΔΥΣΗΣ, υπολόγισε (και ανέφερε, στρογγυλεμένα σε ευρώ, + ΦΠΑ 24%):
-- Κόστος υποβολής αίτησης = ελάχιστο(μέγιστο(${program.feeApplicationPct}% × ποσό επένδυσης, ${program.feeApplicationMin}€), ${program.feeApplicationMax}€) — καταβάλλεται εκ των προτέρων, πριν την υποβολή της αίτησης.
-- Αμοιβή παρακολούθησης υλοποίησης = ελάχιστο(μέγιστο(${program.feeImplementationPct}% × ποσό επένδυσης, ${program.feeImplementationMin}€), ${program.feeImplementationMax}€) — καταβάλλεται σταδιακά, μόνο μετά την έγκριση, ταυτόχρονα με την υλοποίηση και τις εκταμιεύσεις της επιχορήγησης.
+  // flat-fee structure handled separately, not this bracket table) — gives
+  // Ερμής the exact bracket table (fixed fees per investment-amount range,
+  // not a percentage formula) so it can quote the application fee and the
+  // implementation/monitoring fee the moment the client states an
+  // investment amount, instead of only being able to say "ask your
+  // consultant".
+  const investmentBrackets = Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0
+    ? program.investmentPricingBrackets as PricingBracket[]
+    : DEFAULT_INVESTMENT_PRICING_BRACKETS
+  const feeFormulaLine = ['ESPA', 'LEADER', 'DYPA'].includes(program.category || '')
+    ? `\nΑΝ Ο ΠΕΛΑΤΗΣ ΑΝΑΦΕΡΕΙ ΠΟΣΟ ΕΠΕΝΔΥΣΗΣ, βρες το κλιμάκιο που αντιστοιχεί στο ποσό από τον παρακάτω πίνακα και ανέφερε τα δύο κόστη (+ ΦΠΑ 24%):
+${investmentBrackets.map(b => `- ${b.minAmount.toLocaleString('el-GR')}€${b.maxAmount != null ? ` – ${b.maxAmount.toLocaleString('el-GR')}€` : '+'}: Κόστος υποβολής αίτησης ${b.applicationFee.toLocaleString('el-GR')}€, Αμοιβή παρακολούθησης υλοποίησης ${b.implementationFee.toLocaleString('el-GR')}€`).join('\n')}
+Το κόστος υποβολής αίτησης καταβάλλεται εκ των προτέρων, πριν την υποβολή της αίτησης. Η αμοιβή παρακολούθησης καταβάλλεται σταδιακά, μόνο μετά την έγκριση, ταυτόχρονα με την υλοποίηση και τις εκταμιεύσεις της επιχορήγησης.
 Ανάλογα με τους όρους του προγράμματος, οι αμοιβές συμβούλων μπορεί να αποτελούν επιλέξιμη δαπάνη και να επιδοτούνται — ανέφερέ το αν ταιριάζει στο πρόγραμμα.`
     : ''
 
@@ -415,12 +413,7 @@ export async function runErmisTurn(params: {
     minRegdate?: string | null
     maxRegdate?: string | null
     requiredDocuments?: { name: string; category: string; instructions: string | null }[]
-    feeApplicationPct?: number
-    feeApplicationMin?: number
-    feeApplicationMax?: number
-    feeImplementationPct?: number
-    feeImplementationMin?: number
-    feeImplementationMax?: number
+    investmentPricingBrackets?: unknown
   }
   autoConfirmedReasons: string[]
   qualitativeQuestions?: EligibilityQuestion[]

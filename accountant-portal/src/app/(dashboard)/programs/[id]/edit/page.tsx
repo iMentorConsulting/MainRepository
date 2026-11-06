@@ -16,6 +16,8 @@ import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink, Paperclip, Link2 } fro
 import Link from 'next/link'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 import { ExpenseCategoriesEditor, type ExpenseCategory } from '@/components/programs/expense-categories-editor'
+import { InvestmentPricingBracketsEditor } from '@/components/programs/investment-pricing-brackets-editor'
+import { DEFAULT_INVESTMENT_PRICING_BRACKETS, type PricingBracket } from '@/lib/investment-pricing'
 
 // Empty-string number inputs (e.g. an untouched/cleared "Επιτόκιο Από" field)
 // must become undefined before z.coerce.number() runs — otherwise Number('')
@@ -48,12 +50,6 @@ const schema = z.object({
   leadIntake: z.boolean().default(false),
   internalNotes: z.string().optional(),
   pricingNote: z.string().optional(),
-  feeApplicationPct: z.coerce.number(),
-  feeApplicationMin: z.coerce.number(),
-  feeApplicationMax: z.coerce.number(),
-  feeImplementationPct: z.coerce.number(),
-  feeImplementationMin: z.coerce.number(),
-  feeImplementationMax: z.coerce.number(),
   ermisInstructions: z.string().optional(),
   monthlyAmount: z.string().optional(),
   subsidyMonths: z.string().optional(),
@@ -318,6 +314,7 @@ export default function EditProgramPage() {
   const [requireTags, setRequireTags] = useState<string[]>([])
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
+  const [investmentPricingBrackets, setInvestmentPricingBrackets] = useState<PricingBracket[]>(DEFAULT_INVESTMENT_PRICING_BRACKETS)
   const [requiredDocumentIds, setRequiredDocumentIds] = useState<string[]>([])
   const [allDocuments, setAllDocuments] = useState<{ id: string; name: string; category: string; instructions: string | null }[]>([])
   // WordPress integration
@@ -373,6 +370,7 @@ export default function EditProgramPage() {
         setAttachmentUrls(program.attachmentUrls || [])
         setAttachmentNames(program.attachmentNames || [])
         setExpenseCategories(Array.isArray(program.expenseCategories) ? program.expenseCategories : [])
+        setInvestmentPricingBrackets(Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0 ? program.investmentPricingBrackets : DEFAULT_INVESTMENT_PRICING_BRACKETS)
         setRequiredDocumentIds((program.requiredDocuments || []).map((d: { id: string }) => d.id))
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
@@ -405,12 +403,6 @@ export default function EditProgramPage() {
           leadIntake: program.leadIntake ?? false,
           internalNotes: program.internalNotes || '',
           pricingNote: program.pricingNote || '',
-          feeApplicationPct: program.feeApplicationPct ?? 0.8,
-          feeApplicationMin: program.feeApplicationMin ?? 800,
-          feeApplicationMax: program.feeApplicationMax ?? 2000,
-          feeImplementationPct: program.feeImplementationPct ?? 4,
-          feeImplementationMin: program.feeImplementationMin ?? 3000,
-          feeImplementationMax: program.feeImplementationMax ?? 8000,
           ermisInstructions: program.ermisInstructions || '',
           monthlyAmount: program.monthlyAmount || '',
           subsidyMonths: program.subsidyMonths || '',
@@ -432,7 +424,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, excludedKadExceptions, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds }),
+      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, excludedKadExceptions, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds, investmentPricingBrackets }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -845,18 +837,11 @@ export default function EditProgramPage() {
               <Textarea {...register('pricingNote')} rows={2} placeholder="π.χ. Αμοιβή σύνταξης φακέλου: 800-1500€ + 5% επί εγκριθέντος προϋπολογισμού" />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Τιμολόγηση ανά Ποσό Επένδυσης (ΕΣΠΑ / LEADER / ΔΥΠΑ)</label>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Τιμολόγηση ανά Κλιμάκιο Επένδυσης (ΕΣΠΑ / LEADER / ΔΥΠΑ)</label>
               <p className="text-sm text-gray-500 mb-2">
-                Προσυμπληρωμένα με το τυπικό τιμολόγιο της I-MENTOR — αλλάξτε τα μόνο αν αυτό το πρόγραμμα έχει διαφορετικούς όρους. Κόστος υποβολής αίτησης = clamp(% × ποσό επένδυσης, ελάχιστο, μέγιστο). Αμοιβή παρακολούθησης υλοποίησης = ίδιος τύπος, άλλα ποσοστά/όρια. Χρησιμοποιούνται στο email προεπισκόπησης προγράμματος (όταν συμπληρωθεί ποσό επένδυσης) και από τον Ερμή.
+                Προσυμπληρωμένο με το τυπικό τιμολόγιο της I-MENTOR — αλλάξτε, προσθέστε ή διαγράψτε κλιμάκια μόνο αν αυτό το πρόγραμμα έχει διαφορετικούς όρους. Κάθε κλιμάκιο έχει το δικό του σταθερό κόστος υποβολής αίτησης και αμοιβή παρακολούθησης υλοποίησης. Χρησιμοποιούνται στο email προεπισκόπησης προγράμματος (όταν συμπληρωθεί ποσό επένδυσης) και από τον Ερμή.
               </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Input label="Κόστος Αίτησης %" type="number" step="0.1" {...register('feeApplicationPct')} />
-                <Input label="Ελάχιστο (€)" type="number" step="1" {...register('feeApplicationMin')} />
-                <Input label="Μέγιστο (€)" type="number" step="1" {...register('feeApplicationMax')} />
-                <Input label="Αμοιβή Παρακολούθησης %" type="number" step="0.1" {...register('feeImplementationPct')} />
-                <Input label="Ελάχιστο (€)" type="number" step="1" {...register('feeImplementationMin')} />
-                <Input label="Μέγιστο (€)" type="number" step="1" {...register('feeImplementationMax')} />
-              </div>
+              <InvestmentPricingBracketsEditor value={investmentPricingBrackets} onChange={setInvestmentPricingBrackets} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ειδικές οδηγίες για τον Ερμή (AI chat)</label>

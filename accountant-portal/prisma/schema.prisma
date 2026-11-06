@@ -293,23 +293,17 @@ model Program {
   // program (e.g. "Αμοιβή σύνταξης φακέλου: 800-1500€ + 5% επί εγκριθέντος
   // προϋπολογισμού"). Shown only to the chat agent, never on the public page.
   pricingNote        String?
-  // Default I-MENTOR fee schedule for investment-based programs, applied to
-  // every program automatically (see prisma defaults below) and editable
-  // per-program from the admin edit page. Mirrors the consultant's standard
-  // pricing spreadsheet: application fee = clamp(applicationPct% of the
-  // investment amount, applicationMin, applicationMax), paid upfront before
-  // submission; implementation/monitoring fee = clamp(implementationPct% of
-  // the investment amount, implementationMin, implementationMax), paid in
-  // stages alongside the program's own disbursements after approval. Used
-  // both by the prospect program-email tool (shown only when an investment
-  // amount is entered) and by Ερμής (quotes it once the client states an
-  // investment amount in chat). See src/lib/investment-pricing.ts.
-  feeApplicationPct      Float @default(0.8)
-  feeApplicationMin      Float @default(800)
-  feeApplicationMax      Float @default(2000)
-  feeImplementationPct   Float @default(4)
-  feeImplementationMin   Float @default(3000)
-  feeImplementationMax   Float @default(8000)
+  // I-MENTOR fee schedule for investment-based programs (ΕΣΠΑ/LEADER/ΔΥΠΑ):
+  // a flat list of investment-amount brackets, each with its own fixed
+  // application fee and implementation/monitoring fee — NOT computed from a
+  // percentage formula. Null/empty means "use the standard brackets"
+  // (DEFAULT_INVESTMENT_PRICING_BRACKETS in src/lib/investment-pricing.ts,
+  // mirroring the consultant's pricing spreadsheet); once an admin edits
+  // and saves brackets for a specific program, that program's own table
+  // takes over. Array of { minAmount, maxAmount (null = no upper bound),
+  // applicationFee, implementationFee }. Used by the prospect program-email
+  // tool (shown only when an investment amount is entered) and by Ερμής.
+  investmentPricingBrackets Json?
   minInterestRate    Float?
   maxInterestRate    Float?
   otherRequirements  String?
