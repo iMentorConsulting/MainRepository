@@ -315,6 +315,12 @@ export default function EditProgramPage() {
   const [tagOptions, setTagOptions] = useState<{ label: string }[]>([])
   const [expenseCategories, setExpenseCategories] = useState<ExpenseCategory[]>([])
   const [investmentPricingBrackets, setInvestmentPricingBrackets] = useState<PricingBracket[]>(DEFAULT_INVESTMENT_PRICING_BRACKETS)
+  // Only true once this program already has its OWN saved brackets, or the
+  // admin has actively edited the table in this session — otherwise we keep
+  // sending null on save so the program keeps inheriting the live default
+  // table (DEFAULT_INVESTMENT_PRICING_BRACKETS) instead of freezing a stale
+  // snapshot of it the moment anything else on the program is saved.
+  const [customPricingBrackets, setCustomPricingBrackets] = useState(false)
   const [requiredDocumentIds, setRequiredDocumentIds] = useState<string[]>([])
   const [allDocuments, setAllDocuments] = useState<{ id: string; name: string; category: string; instructions: string | null }[]>([])
   // WordPress integration
@@ -370,7 +376,9 @@ export default function EditProgramPage() {
         setAttachmentUrls(program.attachmentUrls || [])
         setAttachmentNames(program.attachmentNames || [])
         setExpenseCategories(Array.isArray(program.expenseCategories) ? program.expenseCategories : [])
-        setInvestmentPricingBrackets(Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0 ? program.investmentPricingBrackets : DEFAULT_INVESTMENT_PRICING_BRACKETS)
+        const hasOwnBrackets = Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0
+        setInvestmentPricingBrackets(hasOwnBrackets ? program.investmentPricingBrackets : DEFAULT_INVESTMENT_PRICING_BRACKETS)
+        setCustomPricingBrackets(hasOwnBrackets)
         setRequiredDocumentIds((program.requiredDocuments || []).map((d: { id: string }) => d.id))
         setWpPageId(program.wpPageId ?? null)
         setWpPageUrl(program.wpPageUrl ?? null)
@@ -424,7 +432,7 @@ export default function EditProgramPage() {
     const res = await fetch(`/api/programs/${id}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, excludedKadExceptions, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds, investmentPricingBrackets }),
+      body: JSON.stringify({ ...data, maxRegdate: maxRegdateFinal, heroImageUrl: heroImage || null, kadRules, excludedKadRules, excludedKadExceptions, regionRules, zipCodeRules, excludedLegalForms, extraCriteriaIds, excludeTags, requireTags, videoUrls, attachmentUrls, attachmentNames, expenseCategories, requiredDocumentIds, investmentPricingBrackets: customPricingBrackets ? investmentPricingBrackets : null }),
     })
     if (res.ok) {
       router.push(`/programs/${id}`)
@@ -839,9 +847,24 @@ export default function EditProgramPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Τιμολόγηση ανά Κλιμάκιο Επένδυσης (ΕΣΠΑ / LEADER / ΔΥΠΑ)</label>
               <p className="text-sm text-gray-500 mb-2">
-                Προσυμπληρωμένο με το τυπικό τιμολόγιο της I-MENTOR — αλλάξτε, προσθέστε ή διαγράψτε κλιμάκια μόνο αν αυτό το πρόγραμμα έχει διαφορετικούς όρους. Κάθε κλιμάκιο έχει το δικό του σταθερό κόστος υποβολής αίτησης και αμοιβή παρακολούθησης υλοποίησης. Χρησιμοποιούνται στο email προεπισκόπησης προγράμματος (όταν συμπληρωθεί ποσό επένδυσης) και από τον Ερμή.
+                {customPricingBrackets
+                  ? 'Αυτό το πρόγραμμα έχει δικό του, προσαρμοσμένο τιμολόγιο — δεν θα ακολουθεί πλέον αυτόματα αλλαγές στο τυπικό τιμολόγιο της I-MENTOR.'
+                  : 'Ακολουθεί αυτόματα το τυπικό τιμολόγιο της I-MENTOR παρακάτω — αν αλλάξει το τυπικό τιμολόγιο, θα ενημερωθεί και εδώ. Αλλάξτε κάποιο κλιμάκιο μόνο αν αυτό το πρόγραμμα έχει διαφορετικούς όρους.'}
+                {' '}Κάθε κλιμάκιο έχει το δικό του σταθερό κόστος υποβολής αίτησης και αμοιβή παρακολούθησης υλοποίησης. Χρησιμοποιούνται στο email προεπισκόπησης προγράμματος (όταν συμπληρωθεί ποσό επένδυσης) και από τον Ερμή.
               </p>
-              <InvestmentPricingBracketsEditor value={investmentPricingBrackets} onChange={setInvestmentPricingBrackets} />
+              {customPricingBrackets && (
+                <button
+                  type="button"
+                  onClick={() => { setCustomPricingBrackets(false); setInvestmentPricingBrackets(DEFAULT_INVESTMENT_PRICING_BRACKETS) }}
+                  className="text-xs text-indigo-600 hover:underline mb-2"
+                >
+                  Επαναφορά στο τυπικό τιμολόγιο I-MENTOR (ακολουθεί αυτόματα μελλοντικές αλλαγές)
+                </button>
+              )}
+              <InvestmentPricingBracketsEditor
+                value={investmentPricingBrackets}
+                onChange={v => { setInvestmentPricingBrackets(v); setCustomPricingBrackets(true) }}
+              />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Ειδικές οδηγίες για τον Ερμή (AI chat)</label>
