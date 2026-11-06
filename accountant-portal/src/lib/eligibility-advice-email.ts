@@ -151,14 +151,24 @@ export function buildEligibilityAdviceEmailHtml(params: {
     : ''
 
   const sectionB = `
-    <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:20px 22px;margin-top:4px;">
-      <p style="margin:0 0 12px;font-size:15px;font-weight:700;color:#3730a3;">Τα επόμενα βήματα — θα θέλαμε να μας απαντήσετε σε 3 μικρά ερωτήματα:</p>
+    <div style="background:#eef2ff;border:2px solid #4f46e5;border-radius:12px;padding:20px 22px;margin-top:4px;">
+      <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#3730a3;">📩 Πατήστε «Απάντηση» σε αυτό το email και γράψτε μας:</p>
+      <p style="margin:0 0 14px;font-size:12.5px;color:#4338ca;">(αρκεί να απαντήσετε στα 3 παρακάτω σημεία, όσο σύντομα θέλετε)</p>
       ${ermisNote}
-      <ol style="margin:0;padding-left:18px;">
-        <li style="font-size:14px;color:#374151;line-height:1.9;"><strong>Τι επένδυση σκέφτεστε;</strong> Περιγράψτε μας με λίγα λόγια, με δικά σας λόγια, τι θα θέλατε να κάνετε (π.χ. αγορά νέου εξοπλισμού, ανακαίνιση καταστήματος, ψηφιακός εκσυγχρονισμός κ.λπ.).</li>
-        <li style="font-size:14px;color:#374151;line-height:1.9;"><strong>Πόσο κοστίζει, χοντρικά;</strong> Μια πρώτη, έστω πρόχειρη, εκτίμηση του ποσού αρκεί για να ξεκινήσουμε.</li>
-        <li style="font-size:14px;color:#374151;line-height:1.9;"><strong>Ερωτήσεις;</strong> Αν κάτι δεν είναι ξεκάθαρο, ρωτήστε μας ελεύθερα — απαντάμε άμεσα.</li>
-      </ol>
+      <div style="background:#ffffff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;">
+        <p style="margin:0 0 10px;font-size:14px;color:#1f2937;line-height:1.7;">
+          1️⃣ <strong>Τι επένδυση σκέφτομαι:</strong> ______________________________
+        </p>
+        <p style="margin:0 0 10px;font-size:14px;color:#1f2937;line-height:1.7;">
+          2️⃣ <strong>Κατά προσέγγιση κόστος:</strong> ____________ €
+        </p>
+        <p style="margin:0;font-size:14px;color:#1f2937;line-height:1.7;">
+          3️⃣ <strong>Ερωτήσεις μου (αν έχω):</strong> ______________________________
+        </p>
+      </div>
+      <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">
+        Π.χ. «1) Καινούργιος εξοπλισμός κουζίνας 2) Γύρω στις 50.000€ 3) Καμία, προχωράμε».
+      </p>
     </div>`
 
   return `

@@ -53,6 +53,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
 
   const detectedAmount = extractDiscussedAmount(matchToken?.chatLog)
   const ermisDiscussedAmount = includeErmisAmount !== false ? detectedAmount : null
+  const ermisChatLog = Array.isArray(matchToken?.chatLog)
+    ? (matchToken!.chatLog as any[]).filter(m => m && typeof m.text === 'string' && (m.role === 'user' || m.role === 'assistant')).map(m => ({ role: m.role, text: m.text }))
+    : []
 
   const subject = buildEligibilityAdviceSubject(business.onomasia, match.program.title)
   const html = buildEligibilityAdviceEmailHtml({
@@ -83,8 +86,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       sentByUserId: session.user.id,
       sentByName: session.user.name,
     })
-    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, detectedAmount })
+    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, detectedAmount, ermisChatLog })
   }
 
-  return NextResponse.json({ subject, html, sent: false, hasEmail: !!business.email, detectedAmount })
+  return NextResponse.json({ subject, html, sent: false, hasEmail: !!business.email, detectedAmount, ermisChatLog })
 }

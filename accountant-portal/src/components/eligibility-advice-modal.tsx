@@ -1,6 +1,6 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { X, Send, CheckCircle2, Eye, RefreshCw } from 'lucide-react'
+import { X, Send, CheckCircle2, Eye, RefreshCw, MessageSquare, ChevronDown, ChevronUp, CornerDownLeft } from 'lucide-react'
 
 interface EligibilityAdviceModalProps {
   businessId: string
@@ -11,6 +11,8 @@ interface EligibilityAdviceModalProps {
   onSent?: () => void
 }
 
+type ErmisChatMsg = { role: 'user' | 'assistant'; text: string }
+
 // Admin/consultant tool: short "you're eligible, here's what the grant is
 // worth, here's what to do next" email — asks the prospect to reply with
 // their own investment idea, a rough cost estimate, and any questions. See
@@ -18,12 +20,13 @@ interface EligibilityAdviceModalProps {
 export function EligibilityAdviceModal({ businessId, programId, programTitle, businessHasEmail, onClose, onSent }: EligibilityAdviceModalProps) {
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
-  const [preview, setPreview] = useState<{ subject: string; html: string; detectedAmount: number | null } | null>(null)
+  const [preview, setPreview] = useState<{ subject: string; html: string; detectedAmount: number | null; ermisChatLog: ErmisChatMsg[] } | null>(null)
   const [sent, setSent] = useState(false)
   const [error, setError] = useState('')
   const [customMessage, setCustomMessage] = useState('')
   const [includeErmisAmount, setIncludeErmisAmount] = useState(true)
   const [previewStale, setPreviewStale] = useState(false)
+  const [showChat, setShowChat] = useState(false)
 
   async function loadPreview(message: string, includeAmount: boolean) {
     setLoading(true)
@@ -36,7 +39,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
-        setPreview({ subject: data.subject, html: data.html, detectedAmount: data.detectedAmount ?? null })
+        setPreview({ subject: data.subject, html: data.html, detectedAmount: data.detectedAmount ?? null, ermisChatLog: data.ermisChatLog ?? [] })
         setPreviewStale(false)
       } else {
         setError(data.error || 'Σφάλμα δημιουργίας προεπισκόπησης.')
@@ -95,6 +98,39 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
             </div>
           ) : (
             <>
+              {!!preview?.ermisChatLog?.length && (
+                <div className="border border-purple-200 bg-purple-50 rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => setShowChat(s => !s)}
+                    className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-purple-800"
+                  >
+                    <span className="flex items-center gap-1.5">
+                      <MessageSquare size={13} />
+                      Συνομιλία με τον Ερμή για αυτό το πρόγραμμα ({preview.ermisChatLog.length} μηνύματα)
+                    </span>
+                    {showChat ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </button>
+                  {showChat && (
+                    <div className="max-h-64 overflow-y-auto px-3 pb-3 space-y-2">
+                      {preview.ermisChatLog.map((m, i) => (
+                        <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`group relative max-w-[85%] rounded-lg px-2.5 py-1.5 text-xs ${m.role === 'user' ? 'bg-white border border-purple-200 text-gray-800' : 'bg-purple-100 text-purple-900'}`}>
+                            <p className="whitespace-pre-wrap">{m.text}</p>
+                            <button
+                              onClick={() => { setCustomMessage(prev => prev ? `${prev}\n${m.text}` : m.text); setPreviewStale(true) }}
+                              title="Προσθήκη στο προσωπικό μήνυμα"
+                              className="mt-1 flex items-center gap-1 text-[10px] text-indigo-600 hover:underline opacity-70 hover:opacity-100"
+                            >
+                              <CornerDownLeft size={10} /> Προσθήκη στο μήνυμα
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
               {preview?.detectedAmount != null && (
                 <label className="flex items-center gap-2 text-xs text-gray-600 bg-indigo-50 border border-indigo-100 rounded-lg px-3 py-2 cursor-pointer">
                   <input
