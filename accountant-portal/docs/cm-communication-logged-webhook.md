@@ -46,7 +46,7 @@ Content-Type: application/json
 | `channel` | string | Always `EMAIL` today. |
 | `subject` | string\|null | The email's subject line. |
 | `comment` | string | Human-readable one-liner to append as a note/activity on the lead. |
-| `leadStatus` | string\|null | One of `NEW` \| `ACTIVE` \| `HOT` \| `CALL` \| `CANCELLED`, or `null`/absent = don't change the lead's status. This is Logistis's fixed vocabulary — CM maps it to its own internal status values. |
+| `leadStatus` | string\|null | One of `NEW` \| `WORKED` \| `CALL` \| `HOT` \| `ACTIVE` \| `DEAL` \| `CANCELLED`, or `null`/absent = don't change the lead's status. **Update (this matches CM's actual lead-status dropdown exactly now — NEW LEAD / WORKED / CALL / HOT / ACTIVE / DEAL / CANCEL):** the existing mapper (`NEW→NEW LEAD`, `HOT→HOT`, `CALL→CALL`, `ACTIVE→ACTIVE`, `CANCELLED→CANCEL`) needs two more identity entries added: `WORKED→WORKED` and `DEAL→DEAL`. |
 | `reminderDate` | string\|null | `YYYY-MM-DD`, or `null`/absent = don't change. Set/replace the lead's follow-up/reminder date. |
 | `sentByName` | string\|null | The consultant who sent it. |
 | `loggedAt` | string | ISO timestamp. |

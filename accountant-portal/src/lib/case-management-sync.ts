@@ -139,9 +139,10 @@ export async function notifyCaseManagementDocument(data: {
 }
 
 // Lead statuses the consultant can set on a CM lead from inside Logistis,
-// right when logging a communication. CM owns the actual mapping to its own
-// UI labels/enum — this is the fixed vocabulary both sides agree on.
-export type CmLeadStatus = 'NEW' | 'ACTIVE' | 'HOT' | 'CALL' | 'CANCELLED'
+// right when logging a communication — matches CM's own lead-status
+// dropdown exactly (NEW LEAD / WORKED / CALL / HOT / ACTIVE / DEAL /
+// CANCEL), so CM applies these 1:1 with no translation needed.
+export type CmLeadStatus = 'NEW' | 'WORKED' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCELLED'
 
 // Fired every time a consultant sends one of the client-facing emails from a
 // business's program match (program-info email, microcredits eligibility

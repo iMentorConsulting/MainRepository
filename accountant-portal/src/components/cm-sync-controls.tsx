@@ -1,9 +1,12 @@
 'use client'
 import { Link2 } from 'lucide-react'
 
+// Matches Case Management's own lead-status dropdown exactly (NEW LEAD /
+// WORKED / CALL / HOT / ACTIVE / DEAL / CANCEL), so the values sent here
+// need no translation on the CM side.
 export interface CmSyncValue {
   notify: boolean
-  leadStatus: '' | 'NEW' | 'ACTIVE' | 'HOT' | 'CALL' | 'CANCELLED'
+  leadStatus: '' | 'NEW' | 'WORKED' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCELLED'
   reminderDate: string // '' or yyyy-mm-dd
 }
 
@@ -12,9 +15,11 @@ export const CM_SYNC_DEFAULT: CmSyncValue = { notify: true, leadStatus: '', remi
 const LEAD_STATUS_OPTIONS: { value: CmSyncValue['leadStatus']; label: string }[] = [
   { value: '', label: 'Χωρίς αλλαγή κατάστασης' },
   { value: 'NEW', label: 'Νέο Lead' },
-  { value: 'ACTIVE', label: 'Ενεργό' },
-  { value: 'HOT', label: '🔥 Hot' },
+  { value: 'WORKED', label: 'Σε Επεξεργασία' },
   { value: 'CALL', label: 'Προς Κλήση' },
+  { value: 'HOT', label: '🔥 Hot' },
+  { value: 'ACTIVE', label: 'Ενεργό' },
+  { value: 'DEAL', label: '✅ Deal' },
   { value: 'CANCELLED', label: 'Ακυρώθηκε' },
 ]
 
