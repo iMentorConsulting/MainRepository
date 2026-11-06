@@ -11,7 +11,8 @@ import { QuickSendModal } from '@/components/quick-send-modal'
 import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
 import { MicrocreditsEligibilityModal } from '@/components/microcredits-eligibility-modal'
-import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database, Calculator } from 'lucide-react'
+import { AgreementModal } from '@/components/agreement-modal'
+import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database, Calculator, FileText } from 'lucide-react'
 import { NewCaseModal } from '@/components/cases/new-case-modal'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
@@ -79,6 +80,7 @@ export default function BusinessDetailPage() {
   const [eligibilityMessage, setEligibilityMessage] = useState(false)
   const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string; category?: string } | null>(null)
   const [microcreditsProgramId, setMicrocreditsProgramId] = useState<string | null>(null)
+  const [agreementProgram, setAgreementProgram] = useState<{ id: string; title: string } | null>(null)
   // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
   const [newCase, setNewCase] = useState(
     typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('newCase') === '1'
@@ -321,6 +323,15 @@ export default function BusinessDetailPage() {
         />
       )}
 
+      {agreementProgram && (
+        <AgreementModal
+          businessId={business.id}
+          programId={agreementProgram.id}
+          programTitle={agreementProgram.title}
+          onClose={() => setAgreementProgram(null)}
+        />
+      )}
+
       <NewCaseModal
         open={newCase}
         onClose={() => setNewCase(false)}
@@ -470,6 +481,15 @@ export default function BusinessDetailPage() {
                         >
                           <Calculator size={12} />
                           Ανάλυση Επιλεξιμότητας Μικροπιστώσεων
+                        </button>
+                      )}
+                      {isStaff && (
+                        <button
+                          onClick={() => setAgreementProgram({ id: m.programId, title: m.program?.title || '' })}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
+                        >
+                          <FileText size={12} />
+                          Συμφωνητικό Συνεργασίας
                         </button>
                       )}
                     </div>
