@@ -69,6 +69,13 @@ const PTOXEUSI_STATUS_VARIANT: Record<string, any> = {
   SUBMITTED: 'info', IN_ASSESSMENT: 'warning', REPORT_READY: 'purple',
   OFFER_SENT: 'purple', ACCEPTED: 'success', DECLINED: 'danger', COMPLETED: 'success',
 }
+const MESSAGE_LOG_KIND_LABELS: Record<string, string> = {
+  QUICK_SEND: 'Γρήγορη Αποστολή',
+  ELIGIBILITY: 'Email/Viber Επιλεξιμότητας',
+  PROGRAM_EMAIL: 'Email Προγράμματος',
+  MICROCREDITS: 'Ανάλυση Μικροπιστώσεων',
+  ADVICE: 'Ενημέρωση & Επόμενα Βήματα',
+}
 
 export default function BusinessDetailPage() {
   const { id } = useParams()
@@ -433,36 +440,70 @@ export default function BusinessDetailPage() {
             </CardContent>
           </Card>
 
-          {/* Campaign messaging history */}
-          {business.campaignRecipients && business.campaignRecipients.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle>Μηνύματα Καμπανιών ({business.campaignRecipients.length})</CardTitle></CardHeader>
-              <CardContent>
-                <ul className="divide-y divide-gray-100">
-                  {business.campaignRecipients.map((r: any) => (
-                    <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
-                      <div className="min-w-0">
-                        <Link href={`/campaigns/${r.campaign?.id}`} className="font-medium text-blue-700 hover:underline truncate block">
-                          {r.campaign?.title || '—'}
-                        </Link>
-                        <div className="text-xs text-gray-400">
-                          {r.channel === 'EMAIL' ? 'Email' : r.channel === 'VIBER' ? 'Viber' : 'Email + Viber'} · {r.recipient}
-                          {r.sentAt && <> · {formatDate(r.sentAt)}</>}
+          {/* Full communication history — formal Campaign sends plus every
+              ad-hoc send tool (Γρήγορη Αποστολή, email επιλεξιμότητας, Email
+              Προγράμματος, Ανάλυση Μικροπιστώσεων, Ενημέρωση & Επόμενα
+              Βήματα), merged into one chronological list. */}
+          {(() => {
+            const campaignItems = (business.campaignRecipients || []).map((r: any) => ({
+              id: `rec_${r.id}`,
+              title: r.campaign?.title || 'Καμπάνια',
+              href: r.campaign?.id ? `/campaigns/${r.campaign.id}` : null,
+              channel: r.channel,
+              recipient: r.recipient,
+              date: r.sentAt,
+              status: r.status,
+              openedAt: r.openedAt,
+              clickedAt: r.clickedAt,
+            }))
+            const logItems = (business.messageLogs || []).map((l: any) => ({
+              id: `log_${l.id}`,
+              title: MESSAGE_LOG_KIND_LABELS[l.kind] || l.kind,
+              href: null,
+              channel: l.channel,
+              recipient: l.recipient,
+              date: l.createdAt,
+              status: l.success ? 'sent' : 'failed',
+              openedAt: null,
+              clickedAt: null,
+              subject: l.subject,
+            }))
+            const items = [...campaignItems, ...logItems]
+              .filter(i => i.date)
+              .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+            if (items.length === 0) return null
+            return (
+              <Card>
+                <CardHeader><CardTitle>Ιστορικό Επικοινωνίας ({items.length})</CardTitle></CardHeader>
+                <CardContent>
+                  <ul className="divide-y divide-gray-100">
+                    {items.map((r: any) => (
+                      <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                        <div className="min-w-0">
+                          {r.href ? (
+                            <Link href={r.href} className="font-medium text-blue-700 hover:underline truncate block">{r.title}</Link>
+                          ) : (
+                            <p className="font-medium text-gray-800 truncate">{r.title}</p>
+                          )}
+                          <div className="text-xs text-gray-400">
+                            {r.channel === 'EMAIL' ? 'Email' : r.channel === 'VIBER' ? 'Viber' : 'Email + Viber'} · {r.recipient}
+                            {r.date && <> · {formatDate(r.date)}</>}
+                          </div>
                         </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 shrink-0">
-                        {r.status === 'sent' && <Badge variant="success">Εστάλη</Badge>}
-                        {r.status === 'failed' && <Badge variant="danger">Απέτυχε</Badge>}
-                        {r.status === 'pending' && <Badge variant="secondary">Σε εκκρεμότητα</Badge>}
-                        {r.openedAt && <Badge variant="info">Ανοίχτηκε</Badge>}
-                        {r.clickedAt && <Badge variant="purple">Κλικ</Badge>}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          {r.status === 'sent' && <Badge variant="success">Εστάλη</Badge>}
+                          {r.status === 'failed' && <Badge variant="danger">Απέτυχε</Badge>}
+                          {r.status === 'pending' && <Badge variant="secondary">Σε εκκρεμότητα</Badge>}
+                          {r.openedAt && <Badge variant="info">Ανοίχτηκε</Badge>}
+                          {r.clickedAt && <Badge variant="purple">Κλικ</Badge>}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            )
+          })()}
 
           {/* Matches */}
           {business.programMatches && business.programMatches.filter((m: any) => m.status !== 'REJECTED').length > 0 && (

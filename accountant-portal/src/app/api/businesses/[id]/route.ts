@@ -65,6 +65,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
 
   await reconcileMatchStatuses(business.programMatches)
 
+  // Ad-hoc sends (Γρήγορη Αποστολή, email επιλεξιμότητας, Email Προγράμματος,
+  // Ανάλυση Μικροπιστώσεων, Ενημέρωση & Επόμενα Βήματα) aren't formal
+  // Campaign sends, so they don't come through campaignRecipients — pulled
+  // separately here (MessageLog.businessId isn't a Prisma relation) so the
+  // business's own page can show its full communication history, not just
+  // the "Όλες οι Αποστολές" global feed on /campaigns.
+  const messageLogs = await prisma.messageLog.findMany({
+    where: { businessId: business.id },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  }).catch(() => [])
+  ;(business as any).messageLogs = messageLogs
+
   // Accountant can only see their own businesses
   if (session.user.role === 'ACCOUNTANT' && business.accountantId !== session.user.accountantId) {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
@@ -94,6 +107,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete updateData.programMatches
   delete updateData.requests
   delete updateData.campaignRecipients
+  delete updateData.messageLogs
   delete updateData.createdAt
   delete updateData.updatedAt
   if (session.user.role === 'ACCOUNTANT') delete updateData.accountantId
