@@ -275,6 +275,7 @@ class CommunicationLoggedWebhook(BaseModel):
     leadStatus: Optional[str] = None
     reminderDate: Optional[str] = None
     sentByName: Optional[str] = None
+    assignToConsultant: Optional[str] = None
     loggedAt: Optional[str] = None
 
 
@@ -535,6 +536,21 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
             if payload.leadStatus and payload.leadStatus in LEAD_STATUSES
             else "NEW LEAD"
         )
+        # Resolve consultant for assignment (new lead only)
+        assigned_id = None
+        assigned_name = None
+        if payload.assignToConsultant:
+            consultant_user = db.query(CMUser).filter(
+                CMUser.full_name == payload.assignToConsultant
+            ).first()
+            if consultant_user:
+                assigned_id = consultant_user.id
+                assigned_name = consultant_user.full_name
+            else:
+                log.warning(
+                    "[portal-webhook] communication.logged: assignToConsultant=%r not found",
+                    payload.assignToConsultant,
+                )
         lead = CMLead(
             name=payload.onomasia or afm,
             afm=afm,
@@ -544,6 +560,8 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
             program_title=payload.programTitle or None,
             service_type=payload.programTitle or None,
             status=initial_status,
+            assigned_agent_id=assigned_id,
+            assigned_name=assigned_name,
             source="Logistis",
             notes=None,
             next_call_date=(
@@ -554,7 +572,8 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         db.add(lead)
         db.flush()
         created = True
-        log.info("[portal-webhook] communication.logged: created lead_id=%s afm=%s", lead.id, afm)
+        log.info("[portal-webhook] communication.logged: created lead_id=%s afm=%s assigned_to=%s",
+                 lead.id, afm, assigned_name)
 
     # Append comment/activity to the lead's timeline
     author = payload.sentByName or "Logistis"
