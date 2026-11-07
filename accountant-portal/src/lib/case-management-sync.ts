@@ -6,6 +6,22 @@
 //                           the inbound /api/external/cases endpoint)
 // If unset, this is a no-op.
 
+// I-MENTOR consultant logins mapped to their exact CM consultant name, so a
+// brand-new lead created by communication.logged (see below) can be
+// assigned to the right person instead of landing unassigned. Keep in sync
+// by hand — there's no shared user directory between Logistis and CM.
+const CM_CONSULTANT_BY_EMAIL: Record<string, string> = {
+  'christos@i-mentor.gr': 'Πουλιδάκης Χρήστος',
+  'manos@i-mentor.gr': 'Βαρδιάμπασης Μάνος',
+  'eleftheria@i-mentor.gr': 'Στριλιγκά Ελευθερία',
+  'info@i-mentor.gr': 'Αποστολάκης Χάρης',
+}
+
+function lookupCmConsultant(email: string | null | undefined): string | null {
+  if (!email) return null
+  return CM_CONSULTANT_BY_EMAIL[email.trim().toLowerCase()] ?? null
+}
+
 function deriveProgramCategory(programTitle: string | null | undefined): string {
   if (!programTitle) return 'ΕΣΠΑ'
   const t = programTitle.toUpperCase()
@@ -153,12 +169,17 @@ export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CA
 //      program_exact_title, same fields as case.created) — the most recent
 //      non-cancelled one if several exist for the same client.
 //   2. If none exists, CREATE one (status NEW LEAD, or `leadStatus` if
-//      given) using onomasia/email/phone/programTitle — this is not
-//      optional, every communication must end up logged on some lead.
+//      given) using onomasia/email/phone/programTitle, and assign it to
+//      `assignToConsultant` if present (the consultant who sent this from
+//      Logistis) — this is not optional, every communication must end up
+//      logged on some lead.
 //   3. Append `comment` as a new note/activity on that lead (new or found).
 //   4. If `leadStatus` is present, set the lead's status to match.
 //   5. If `reminderDate` is present (YYYY-MM-DD), set/replace the lead's
 //      follow-up/reminder date.
+// IMPORTANT: `assignToConsultant` only applies when CREATING a new lead
+// (step 2) — an existing lead's assignment must never be changed by this
+// event, regardless of who sent the email from Logistis.
 // Reply { found: boolean, created?: boolean } so Logistis can tell the
 // consultant whether this landed on an existing lead or a new one was
 // created; a response with no `found` field is treated as unknown (assume
@@ -177,12 +198,17 @@ export async function notifyCaseManagementCommunication(data: {
   leadStatus?: CmLeadStatus | null
   reminderDate?: string | null
   sentByName?: string | null
+  // The sending consultant's Logistis login email — mapped to their CM
+  // consultant name and sent as `assignToConsultant`, used ONLY when CM
+  // creates a brand-new lead (never to reassign an existing one).
+  sentByEmail?: string | null
 }): Promise<{ delivered: boolean; found?: boolean; created?: boolean }> {
   const url = process.env.CASE_MGMT_WEBHOOK_URL
   const apiKey = process.env.CASES_API_KEY
   if (!url || !apiKey) return { delivered: false }
 
   const program_category = deriveProgramCategory(data.programTitle)
+  const assignToConsultant = lookupCmConsultant(data.sentByEmail)
 
   try {
     const res = await fetch(url, {
@@ -203,6 +229,7 @@ export async function notifyCaseManagementCommunication(data: {
         leadStatus: data.leadStatus ?? null,
         reminderDate: data.reminderDate ?? null,
         sentByName: data.sentByName ?? null,
+        assignToConsultant,
         loggedAt: new Date().toISOString(),
       }),
     })

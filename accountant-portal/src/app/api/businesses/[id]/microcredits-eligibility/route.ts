@@ -105,6 +105,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         leadStatus: (cmLeadStatus || null) as CmLeadStatus | null,
         reminderDate: cmReminderDate || null,
         sentByName: session.user.name,
+        sentByEmail: session.user.email,
       })
     }
     return NextResponse.json({ subject, html, sent: ok, hasEmail: true, cmSync })

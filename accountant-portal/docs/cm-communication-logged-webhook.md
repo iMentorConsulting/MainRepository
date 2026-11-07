@@ -34,6 +34,7 @@ Content-Type: application/json
   "leadStatus": "HOT",
   "reminderDate": "2026-11-20",
   "sentByName": "Γιώργος Παπαδόπουλος",
+  "assignToConsultant": "Πουλιδάκης Χρήστος",
   "loggedAt": "2026-11-06T18:00:00.000Z"
 }
 ```
@@ -53,6 +54,7 @@ Content-Type: application/json
 | `leadStatus` | string\|null | **No mapping, send/apply these verbatim.** One of `NEW LEAD` \| `CALL` \| `HOT` \| `ACTIVE` \| `DEAL` \| `CANCEL` (or `null`/absent = don't change the lead's status). These are CM's own values, byte-for-byte — Logistis's consultant-facing dropdown offers exactly these 6 (deliberately **not** `WORKED` — consultants never set that one from Logistis), so CM should set the lead's status field directly to whatever string arrives here, with **no translation table in between**. If a `NEW→NEW LEAD` / `CANCELLED→CANCEL` mapping was built earlier, remove it — a literal `"CANCEL"` run through a mapper expecting `"CANCELLED"` would fail to match. |
 | `reminderDate` | string\|null | `YYYY-MM-DD`, or `null`/absent = don't change. Set/replace the lead's follow-up/reminder date. |
 | `sentByName` | string\|null | The consultant who sent it. |
+| `assignToConsultant` | string\|null | **New.** The exact CM consultant name to assign a **brand-new** lead to (Logistis maps the sending consultant's login to one of: `Πουλιδάκης Χρήστος`, `Βαρδιάμπασης Μάνος`, `Στριλιγκά Ελευθερία`, `Αποστολάκης Χάρης`). `null` if the sender isn't one of these four. **Only ever used when creating a new lead (step 2 below) — never use this to change who an existing lead is assigned to, even if it differs from `assignToConsultant`.** |
 | `loggedAt` | string | ISO timestamp. |
 
 ## What CM should do
@@ -64,15 +66,23 @@ Content-Type: application/json
 2. **If none exists, create one.** This is not optional — every
    `communication.logged` event must end up attached to some lead. Create it
    using `onomasia` / `email` / `phone` / `programTitle` / `program_category`,
-   with status `NEW LEAD` (or `leadStatus` if one was sent with this event).
+   with status `NEW LEAD` (or `leadStatus` if one was sent with this event),
+   and **assign it to `assignToConsultant`** if present (fall back to
+   whatever CM already does for an unassigned lead when it's `null`).
 3. **Append `comment`** as a new note/activity on that lead — whether it was
    just found or just created (authored as "Logistis" / the given
    `sentByName`).
 4. If `leadStatus` is present, **set the lead's status to that exact
-   string** — it's already one of CM's own 7 values, no lookup/translation
+   string** — it's already one of CM's own values, no lookup/translation
    needed. (Skip this step for a lead you just created with that same
    status in step 2 — no need to set it twice.)
 5. If `reminderDate` is present, **set the lead's reminder/follow-up date**.
+
+**Do not touch consultant assignment on an existing lead (step 1).** Only a
+newly-created lead (step 2) gets `assignToConsultant` applied — if the lead
+already existed, leave its current assignment exactly as it was, even if
+`assignToConsultant` names someone else. Steps 3–5 still apply normally to
+an existing lead; only the assignment step is skipped for it.
 
 ## Response (optional but helpful)
 
@@ -89,6 +99,20 @@ So Logistis can tell the consultant what actually happened:
 
 Any 2xx response (with or without a body) is otherwise treated as a
 successful delivery even without these fields.
+
+## Consultant mapping (Logistis login → CM consultant name)
+
+| Logistis login | CM consultant |
+|---|---|
+| `christos@i-mentor.gr` | Πουλιδάκης Χρήστος |
+| `manos@i-mentor.gr` | Βαρδιάμπασης Μάνος |
+| `eleftheria@i-mentor.gr` | Στριλιγκά Ελευθερία |
+| `info@i-mentor.gr` | Αποστολάκης Χάρης |
+
+Maintained by hand in `src/lib/case-management-sync.ts`
+(`CM_CONSULTANT_BY_EMAIL`) — no shared user directory between the two
+systems, so if CM renames a consultant or a new one joins, this mapping
+needs a matching update on the Logistis side.
 
 ## Logistis-side implementation
 
