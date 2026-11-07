@@ -264,6 +264,8 @@ class CommunicationLoggedWebhook(BaseModel):
     event: str
     afm: str
     onomasia: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
     programTitle: Optional[str] = None
     program_category: Optional[str] = None
     kind: Optional[str] = None
@@ -528,9 +530,34 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
     if lead is None and candidates:
         lead = candidates[0]
 
+    created = False
     if lead is None:
-        log.info("[portal-webhook] communication.logged: no lead found for afm=%s prog=%s", afm, prog_cat)
-        return {"found": False}
+        from models_cases import LEAD_STATUSES
+        initial_status = (
+            payload.leadStatus
+            if payload.leadStatus and payload.leadStatus in LEAD_STATUSES
+            else "NEW LEAD"
+        )
+        lead = CMLead(
+            name=payload.onomasia or afm,
+            afm=afm,
+            phone=payload.phone or None,
+            email=payload.email or None,
+            program=prog_cat or _map_program_category(payload.programTitle),
+            program_title=payload.programTitle or None,
+            service_type=payload.programTitle or None,
+            status=initial_status,
+            source="Logistis",
+            notes=None,
+            next_call_date=(
+                datetime.strptime(payload.reminderDate[:10], "%Y-%m-%d").date()
+                if payload.reminderDate else date.today()
+            ),
+        )
+        db.add(lead)
+        db.flush()
+        created = True
+        log.info("[portal-webhook] communication.logged: created lead_id=%s afm=%s", lead.id, afm)
 
     # Append comment/activity to the lead's timeline
     author = payload.sentByName or "Logistis"
@@ -541,24 +568,28 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         content=payload.comment,
     ))
 
-    # Optionally update status — Logistis sends CM's own status strings verbatim
-    if payload.leadStatus:
-        from models_cases import LEAD_STATUSES
-        if payload.leadStatus in LEAD_STATUSES:
-            lead.status = payload.leadStatus
-        else:
-            log.warning("[portal-webhook] communication.logged: unknown leadStatus=%r", payload.leadStatus)
+    if not created:
+        # Optionally update status — Logistis sends CM's own status strings verbatim
+        if payload.leadStatus:
+            from models_cases import LEAD_STATUSES
+            if payload.leadStatus in LEAD_STATUSES:
+                lead.status = payload.leadStatus
+            else:
+                log.warning("[portal-webhook] communication.logged: unknown leadStatus=%r", payload.leadStatus)
 
-    # Optionally update reminder/follow-up date
-    if payload.reminderDate:
-        try:
-            lead.next_call_date = datetime.strptime(payload.reminderDate[:10], "%Y-%m-%d").date()
-        except ValueError:
-            log.warning("[portal-webhook] communication.logged: invalid reminderDate=%s", payload.reminderDate)
+        # Optionally update reminder/follow-up date
+        if payload.reminderDate:
+            try:
+                lead.next_call_date = datetime.strptime(payload.reminderDate[:10], "%Y-%m-%d").date()
+            except ValueError:
+                log.warning("[portal-webhook] communication.logged: invalid reminderDate=%s", payload.reminderDate)
 
     db.commit()
-    log.info("[portal-webhook] communication.logged: updated lead_id=%s afm=%s", lead.id, afm)
-    return {"found": True, "lead_id": lead.id}
+    if created:
+        log.info("[portal-webhook] communication.logged: lead created lead_id=%s afm=%s", lead.id, afm)
+    else:
+        log.info("[portal-webhook] communication.logged: updated lead_id=%s afm=%s", lead.id, afm)
+    return {"found": not created, "created": created, "lead_id": lead.id}
 
 
 # In-memory ring buffer of recent inbound webhook hits (diagnostic; lost on restart)
