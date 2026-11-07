@@ -1,11 +1,12 @@
 'use client'
 import { Link2 } from 'lucide-react'
 
-// The exact 7 status strings Case Management's own lead-status dropdown
-// uses — sent to CM byte-for-byte, as the literal value to set on the lead.
-// No translation/mapping step on either side: never add a value here that
-// isn't one of these 7, and never rename one.
-export type CmLeadStatusValue = '' | 'NEW LEAD' | 'WORKED' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL'
+// The exact 6 status strings Case Management's own lead-status dropdown
+// uses (WORKED deliberately excluded — not offered here) — sent to CM
+// byte-for-byte, as the literal value to set on the lead. No
+// translation/mapping step on either side: never add a value here that
+// isn't one of CM's own values, and never rename one.
+export type CmLeadStatusValue = '' | 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL'
 
 export interface CmSyncValue {
   notify: boolean
@@ -17,13 +18,12 @@ export const CM_SYNC_DEFAULT: CmSyncValue = { notify: true, leadStatus: '', remi
 
 const LEAD_STATUS_OPTIONS: { value: CmLeadStatusValue; label: string }[] = [
   { value: '', label: 'Χωρίς αλλαγή κατάστασης' },
-  { value: 'NEW LEAD', label: 'Νέο Lead' },
-  { value: 'WORKED', label: 'Σε Επεξεργασία' },
-  { value: 'CALL', label: 'Προς Κλήση' },
-  { value: 'HOT', label: '🔥 Hot' },
-  { value: 'ACTIVE', label: 'Ενεργό' },
-  { value: 'DEAL', label: '✅ Deal' },
-  { value: 'CANCEL', label: 'Ακυρώθηκε' },
+  { value: 'NEW LEAD', label: 'NEW LEAD' },
+  { value: 'CALL', label: 'CALL' },
+  { value: 'HOT', label: 'HOT' },
+  { value: 'ACTIVE', label: 'ACTIVE' },
+  { value: 'DEAL', label: 'DEAL' },
+  { value: 'CANCEL', label: 'CANCEL' },
 ]
 
 // Shown right above the final "send" button on every client-facing email

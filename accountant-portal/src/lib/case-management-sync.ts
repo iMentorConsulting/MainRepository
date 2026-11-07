@@ -138,11 +138,12 @@ export async function notifyCaseManagementDocument(data: {
   }
 }
 
-// The exact 7 status strings Case Management's own lead-status dropdown
-// uses, sent byte-for-byte as the literal value to set on the lead — no
+// The status strings Logistis can set on a CM lead — CM's own status
+// strings, sent byte-for-byte as the literal value to set on the lead, no
 // mapping/translation on either side. Never add a value that isn't one of
-// these 7 (CM only recognizes these), and never rename one.
-export type CmLeadStatus = 'NEW LEAD' | 'WORKED' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL'
+// CM's own (WORKED deliberately left out — not offered to consultants), and
+// never rename one.
+export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL'
 
 // Fired every time a consultant sends one of the client-facing emails from a
 // business's program match (program-info email, microcredits eligibility
