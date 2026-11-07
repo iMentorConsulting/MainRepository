@@ -23,7 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { programId, income, profit, proposedAmount, consultantName, customMessage, send, cmNotify, cmLeadStatus, cmReminderDate } = await request.json().catch(() => ({}))
+  const { programId, income, profit, proposedAmount, consultantName, customMessage, send, cmNotify, cmLeadStatus, cmReminderDate, cmCreateIfMissing } = await request.json().catch(() => ({}))
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
@@ -104,6 +104,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         comment: `Εστάλη ανάλυση επιλεξιμότητας Ταμείου Μικροπιστώσεων (έσοδα ${incomeNum.toLocaleString('el-GR')}€, κέρδη ${profitNum.toLocaleString('el-GR')}€, προτεινόμενο δάνειο ${proposedNum.toLocaleString('el-GR')}€).`,
         leadStatus: (cmLeadStatus || null) as CmLeadStatus | null,
         reminderDate: cmReminderDate || null,
+        createIfMissing: cmCreateIfMissing !== false,
         sentByName: session.user.name,
         sentByEmail: session.user.email,
       })

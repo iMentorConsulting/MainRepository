@@ -35,6 +35,7 @@ Content-Type: application/json
   "reminderDate": "2026-11-20",
   "sentByName": "Γιώργος Παπαδόπουλος",
   "assignToConsultant": "Πουλιδάκης Χρήστος",
+  "createIfMissing": true,
   "loggedAt": "2026-11-06T18:00:00.000Z"
 }
 ```
@@ -55,6 +56,7 @@ Content-Type: application/json
 | `reminderDate` | string\|null | `YYYY-MM-DD`, or `null`/absent = don't change. Set/replace the lead's follow-up/reminder date. |
 | `sentByName` | string\|null | The consultant who sent it. |
 | `assignToConsultant` | string\|null | **New.** The exact CM consultant name to assign a **brand-new** lead to (Logistis maps the sending consultant's login to one of: `Πουλιδάκης Χρήστος`, `Βαρδιάμπασης Μάνος`, `Στριλιγκά Ελευθερία`, `Αποστολάκης Χάρης`). `null` if the sender isn't one of these four. **Only ever used when creating a new lead (step 2 below) — never use this to change who an existing lead is assigned to, even if it differs from `assignToConsultant`.** |
+| `createIfMissing` | boolean | **New.** `true` (the default — shown pre-checked in Logistis, the consultant can uncheck it per-send) means "create a new lead if none is found" (step 2 below applies normally). `false` means **do not create a new lead** if none is found — in that case, skip steps 2–5 entirely (no lead to create, no comment/status/reminder to attach) and reply `{ "found": false, "created": false }`. Always sent — never omitted. |
 | `loggedAt` | string | ISO timestamp. |
 
 ## What CM should do
@@ -63,12 +65,15 @@ Content-Type: application/json
    `program_category`, same identifying fields `case.created` already sends)
    — if the client has more than one, use the most recent non-cancelled one
    for this program.
-2. **If none exists, create one.** This is not optional — every
-   `communication.logged` event must end up attached to some lead. Create it
-   using `onomasia` / `email` / `phone` / `programTitle` / `program_category`,
-   with status `NEW LEAD` (or `leadStatus` if one was sent with this event),
-   and **assign it to `assignToConsultant`** if present (fall back to
-   whatever CM already does for an unassigned lead when it's `null`).
+2. **If none exists and `createIfMissing` is `true`, create one.** Create
+   it using `onomasia` / `email` / `phone` / `programTitle` /
+   `program_category`, with status `NEW LEAD` (or `leadStatus` if one was
+   sent with this event), and **assign it to `assignToConsultant`** if
+   present (fall back to whatever CM already does for an unassigned lead
+   when it's `null`). **If `createIfMissing` is `false` and no lead was
+   found, stop here** — do not create a lead, and skip steps 3–5 below
+   (there's nothing to attach a comment/status/reminder to); reply
+   `{ "found": false, "created": false }`.
 3. **Append `comment`** as a new note/activity on that lead — whether it was
    just found or just created (authored as "Logistis" / the given
    `sentByName`).

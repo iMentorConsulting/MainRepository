@@ -168,11 +168,13 @@ export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CA
 //   1. Find the lead matching this ΑΦΜ + program (program_category/
 //      program_exact_title, same fields as case.created) — the most recent
 //      non-cancelled one if several exist for the same client.
-//   2. If none exists, CREATE one (status NEW LEAD, or `leadStatus` if
-//      given) using onomasia/email/phone/programTitle, and assign it to
-//      `assignToConsultant` if present (the consultant who sent this from
-//      Logistis) — this is not optional, every communication must end up
-//      logged on some lead.
+//   2. If none exists AND `createIfMissing` is true (the default — the
+//      consultant can uncheck this in Logistis), CREATE one (status NEW
+//      LEAD, or `leadStatus` if given) using onomasia/email/phone/
+//      programTitle, and assign it to `assignToConsultant` if present (the
+//      consultant who sent this from Logistis). If `createIfMissing` is
+//      false and no lead exists, do NOT create one — stop here (skip steps
+//      3–5 too, there's nothing to attach them to) and reply found:false.
 //   3. Append `comment` as a new note/activity on that lead (new or found).
 //   4. If `leadStatus` is present, set the lead's status to match.
 //   5. If `reminderDate` is present (YYYY-MM-DD), set/replace the lead's
@@ -202,6 +204,9 @@ export async function notifyCaseManagementCommunication(data: {
   // consultant name and sent as `assignToConsultant`, used ONLY when CM
   // creates a brand-new lead (never to reassign an existing one).
   sentByEmail?: string | null
+  // Default true. False means "only update an existing lead — never create
+  // a new one for this communication."
+  createIfMissing?: boolean
 }): Promise<{ delivered: boolean; found?: boolean; created?: boolean }> {
   const url = process.env.CASE_MGMT_WEBHOOK_URL
   const apiKey = process.env.CASES_API_KEY
@@ -230,6 +235,7 @@ export async function notifyCaseManagementCommunication(data: {
         reminderDate: data.reminderDate ?? null,
         sentByName: data.sentByName ?? null,
         assignToConsultant,
+        createIfMissing: data.createIfMissing !== false,
         loggedAt: new Date().toISOString(),
       }),
     })

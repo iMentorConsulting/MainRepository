@@ -109,7 +109,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
           programId, send: true, customMessage: customMessage || undefined, includeErmisAmount,
           investmentAmount: investmentAmount ? Number(investmentAmount) : undefined,
           questions: questions.map(q => q.trim()).filter(Boolean),
-          cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined,
+          cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined, cmCreateIfMissing: cmSync.createIfMissing,
         }),
       })
       const data = await res.json().catch(() => ({}))

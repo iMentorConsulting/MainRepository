@@ -51,7 +51,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
       consultantName: consultantName.trim(),
       customMessage: customMessage || undefined,
       send: sendNow,
-      ...(sendNow ? { cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined } : {}),
+      ...(sendNow ? { cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined, cmCreateIfMissing: cmSync.createIfMissing } : {}),
     }
   }
 

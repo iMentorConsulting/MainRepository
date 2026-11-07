@@ -12,9 +12,13 @@ export interface CmSyncValue {
   notify: boolean
   leadStatus: CmLeadStatusValue
   reminderDate: string // '' or yyyy-mm-dd
+  // When no matching lead exists in CM: true (default) creates a new one,
+  // false leaves it alone (comment/status/reminder are skipped too, since
+  // there's nothing to attach them to).
+  createIfMissing: boolean
 }
 
-export const CM_SYNC_DEFAULT: CmSyncValue = { notify: true, leadStatus: '', reminderDate: '' }
+export const CM_SYNC_DEFAULT: CmSyncValue = { notify: true, leadStatus: '', reminderDate: '', createIfMissing: true }
 
 const LEAD_STATUS_OPTIONS: { value: CmLeadStatusValue; label: string }[] = [
   { value: '', label: 'Χωρίς αλλαγή κατάστασης' },
@@ -45,26 +49,37 @@ export function CmSyncControls({ value, onChange }: { value: CmSyncValue; onChan
         Ενημέρωση Case Management (CRM)
       </label>
       {value.notify && (
-        <div className="grid grid-cols-2 gap-2 pl-6">
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Κατάσταση Lead</label>
-            <select
-              value={value.leadStatus}
-              onChange={e => onChange({ ...value, leadStatus: e.target.value as CmSyncValue['leadStatus'] })}
-              className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
-            >
-              {LEAD_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
+        <div className="pl-6 space-y-2">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Κατάσταση Lead</label>
+              <select
+                value={value.leadStatus}
+                onChange={e => onChange({ ...value, leadStatus: e.target.value as CmSyncValue['leadStatus'] })}
+                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+              >
+                {LEAD_STATUS_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="text-xs text-gray-500 block mb-1">Υπενθύμιση (προαιρετικό)</label>
+              <input
+                type="date"
+                value={value.reminderDate}
+                onChange={e => onChange({ ...value, reminderDate: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+              />
+            </div>
           </div>
-          <div>
-            <label className="text-xs text-gray-500 block mb-1">Υπενθύμιση (προαιρετικό)</label>
+          <label className="flex items-center gap-2 text-xs text-gray-600 cursor-pointer">
             <input
-              type="date"
-              value={value.reminderDate}
-              onChange={e => onChange({ ...value, reminderDate: e.target.value })}
-              className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-sm"
+              type="checkbox"
+              checked={value.createIfMissing}
+              onChange={e => onChange({ ...value, createIfMissing: e.target.checked })}
+              className="cursor-pointer accent-indigo-600"
             />
-          </div>
+            Δημιουργία νέου lead αν δεν υπάρχει ήδη (αν απενεργοποιηθεί, ενημερώνεται μόνο υπάρχον lead)
+          </label>
         </div>
       )}
     </div>

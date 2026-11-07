@@ -89,7 +89,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
           send: true,
           customMessage: customMessage || undefined,
           investmentAmount: showInvestmentField && investmentAmount ? Number(investmentAmount) : undefined,
-          cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined,
+          cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined, cmCreateIfMissing: cmSync.createIfMissing,
         }),
       })
       const data = await res.json().catch(() => ({}))
