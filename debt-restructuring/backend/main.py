@@ -9,7 +9,7 @@ from database import engine, Base
 from models import Case, AppConfig, Lead, IrisPayment, ThemisSession, FinancePayment
 from routers import cases, statistics, public, config, leads, auth, external, payments, notifications, themis, analytics, finance, accountants
 from routers import finance_intake as finance_intake_router
-from auth_utils import get_current_user
+from auth_utils import get_current_user, require_admin
 
 load_dotenv()
 
@@ -310,11 +310,30 @@ def _run_backup_safe():
     try:
         from backup import run_backup
         result = run_backup()
-        drive_ok = "Drive ✓" if result.get("drive_backup") else f"Drive ✗ {result.get('drive_error','')}"
+        drive_ok = "Drive ✓" if result.get("drive_verified") else f"Drive ✗ {result.get('drive_error','')}"
         local_ok = "Local ✓" if result.get("local_backup") else f"Local ✗ {result.get('local_error','')}"
-        print(f"[Backup] OK — {result['filename']} ({result['case_count']} cases) {local_ok} {drive_ok}")
+        print(f"[Backup] {'OK' if result.get('ok') else 'PROBLEM'} — {result.get('filename')} "
+              f"({result.get('case_count')} cases, {result.get('lead_count')} leads, {result.get('size_bytes')} bytes) {local_ok} {drive_ok}")
     except Exception as e:
         print(f"[Backup] FAILED — {e}")
+
+
+def _run_backup_freshness_safe():
+    try:
+        from backup import check_backup_freshness
+        r = check_backup_freshness()
+        print(f"[BackupWatchdog] stale={r['stale']} age_hours={r['age_hours']}")
+    except Exception as e:
+        print(f"[BackupWatchdog] FAILED — {e}")
+
+
+def _run_restore_drill_safe():
+    try:
+        from backup import run_restore_drill
+        r = run_restore_drill()
+        print(f"[RestoreDrill] ok={r.get('ok')} {r.get('file') or r.get('error')}")
+    except Exception as e:
+        print(f"[RestoreDrill] FAILED — {e}")
 
 def _run_leads_sync_safe():
     try:
@@ -425,7 +444,9 @@ _scheduler.add_job(_run_leads_sync_safe,              "cron", hour=8, minute=45,
 _scheduler.add_job(_run_full_leads_sync_safe,         "cron", day_of_week="sun", hour=3, minute=0, timezone="Europe/Athens")  # Weekly Sunday 3am
 _scheduler.add_job(_run_sync_health_check_safe,       "cron", hour=9, minute=0, timezone="Europe/Athens")  # Daily 09:00 Athens
 _scheduler.add_job(_run_daily_reminders_safe,         "cron", hour=5, minute=0)    # 05:00 UTC = 08:00 Athens
-_scheduler.add_job(_run_backup_safe,                  "cron", hour=15, minute=0)   # 15:00 UTC = 18:00 Athens
+_scheduler.add_job(_run_backup_safe,                  "cron", hour=15, minute=0, misfire_grace_time=3600, coalesce=True)   # 15:00 UTC = 18:00 Athens
+_scheduler.add_job(_run_backup_freshness_safe,        "cron", hour=10, minute=0, timezone="Europe/Athens", misfire_grace_time=3600, coalesce=True)  # alert if no fresh Drive backup
+_scheduler.add_job(_run_restore_drill_safe,           "cron", day_of_week="sun", hour=4, minute=0, timezone="Europe/Athens", misfire_grace_time=7200, coalesce=True)  # weekly proof that a restore works
 _scheduler.add_job(_run_morning_leads_report_safe,    "cron", hour=9, minute=0, timezone="Europe/Athens", misfire_grace_time=3600, coalesce=True)  # Daily 09:00 Athens
 _scheduler.start()
 print("[Scheduler] Leads sync 08:45 | Full sync Sun 3am | Health check 09:00 | Reminders 05:00 UTC | Backup 15:00 UTC | Morning report 09:00 Athens")
@@ -437,7 +458,7 @@ def root():
 
 
 @app.post("/admin/morning-report-now")
-def morning_report_now():
+def morning_report_now(_: str = Depends(require_admin)):
     """Trigger the morning leads report immediately (for testing)."""
     result = _run_morning_leads_report_safe()
     if not result.get("ok"):
@@ -445,18 +466,45 @@ def morning_report_now():
     return result
 
 @app.post("/admin/backup-now")
-def backup_now(_: str = Depends(get_current_user)):
-    """Trigger an immediate backup (local + Google Drive if configured)."""
+def backup_now(_: str = Depends(require_admin)):
+    """Trigger an immediate full backup (local + Google Drive), verified. 502 if anything failed."""
     try:
         from backup import run_backup
         result = run_backup()
-        return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    if not result.get("ok"):
+        raise HTTPException(status_code=502, detail=result.get("error") or result.get("drive_error") or result.get("local_error") or "backup failed")
+    return result
+
+
+@app.get("/admin/backup-status")
+def backup_status(_: str = Depends(require_admin)):
+    """Last backup / restore-drill outcome and how old the last verified Drive backup is."""
+    from backup import _get_status, STATUS_KEY, DRILL_KEY, check_backup_freshness  # noqa: F401
+    from datetime import datetime
+    status = _get_status(STATUS_KEY)
+    age = None
+    if status.get("last_drive_ok_at"):
+        try:
+            age = round((datetime.utcnow() - datetime.fromisoformat(status["last_drive_ok_at"])).total_seconds() / 3600, 1)
+        except Exception:
+            pass
+    return {"backup": status, "drive_backup_age_hours": age, "restore_drill": _get_status(DRILL_KEY)}
+
+
+@app.post("/admin/backup-verify")
+def backup_verify(_: str = Depends(require_admin)):
+    """Restore drill now: download the newest Drive backup, verify it and restore it into a scratch database."""
+    from backup import run_restore_drill
+    report = run_restore_drill()
+    if not report.get("ok"):
+        raise HTTPException(status_code=502, detail=report.get("error") or "restore drill failed")
+    return report
 
 
 @app.get("/admin/service-account-email")
-def service_account_email(_: str = Depends(get_current_user)):
+def service_account_email(_: str = Depends(require_admin)):
     """Return just the client_email from GOOGLE_SERVICE_ACCOUNT_JSON."""
     try:
         from backup import _load_service_account_json
@@ -470,7 +518,7 @@ def service_account_email(_: str = Depends(get_current_user)):
 
 
 @app.get("/admin/drive-check")
-def drive_check(_: str = Depends(get_current_user)):
+def drive_check(_: str = Depends(require_admin)):
     """Diagnose Drive connectivity: validates JSON, gets service account email, lists folder."""
     result = {"json_ok": False, "client_email": None, "folder_id": None, "folder_accessible": False, "error": None}
     try:
@@ -491,17 +539,18 @@ def drive_check(_: str = Depends(get_current_user)):
 
 
 @app.get("/admin/export")
-def export_data(_: str = Depends(get_current_user)):
-    """Download a full JSON export of all cases (no Drive upload)."""
-    from backup import build_backup_payload
+def export_data(_: str = Depends(require_admin)):
+    """Download a complete export of the database (all tables, gzip-compressed, restorable with restore_backup.py)."""
+    from fastapi.responses import Response
+    from backup import build_backup_payload, encode_backup
     payload = build_backup_payload()
-    return JSONResponse(content=payload, headers={
-        "Content-Disposition": f"attachment; filename=Exodikastikos-backup_{payload['exported_at'][:10]}.json"
+    return Response(content=encode_backup(payload), media_type="application/gzip", headers={
+        "Content-Disposition": f"attachment; filename=Exodikastikos-backup_{payload['exported_at'][:10]}.json.gz"
     })
 
 
 @app.get("/admin/upload-docs")
-def upload_docs(_: str = Depends(get_current_user)):
+def upload_docs(_: str = Depends(require_admin)):
     """Upload the backup & restore instructions PDF to Google Drive."""
     folder_id = os.getenv("GOOGLE_DRIVE_BACKUP_FOLDER_ID", "").strip()
     if not folder_id:
@@ -511,95 +560,91 @@ def upload_docs(_: str = Depends(get_current_user)):
         from googleapiclient.http import MediaIoBaseUpload
         import io as _io
 
-        content = """ΟΔΗΓΙΕΣ BACKUP & RESTORE — ΕΞΩΔΙΚΑΣΤΙΚΟΣ CRM (iMentor)
+        content = """ΟΔΗΓΙΕΣ BACKUP & ΑΝΑΚΤΗΣΗ ΑΠΟ ΚΑΤΑΣΤΡΟΦΗ — ΕΞΩΔΙΚΑΣΤΙΚΟΣ CRM (iMentor)
 ═══════════════════════════════════════════════════════════════
-Τελευταία ενημέρωση: 2026-05-23
-Backend: https://innovative-nourishment-production.up.railway.app
+Τελευταία ενημέρωση: 2026-11-07
 ═══════════════════════════════════════════════════════════════
 
 
 1. ΤΙ ΠΕΡΙΕΧΕΙ ΤΟ BACKUP
 ────────────────────────
-Κάθε αρχείο backup περιέχει ΟΛΑ τα δεδομένα της εφαρμογής:
-  • Όλες τις υποθέσεις (πελάτης, ΑΦΜ, τηλ, email, υπάλληλος)
-  • Οφειλές, περιουσιακά στοιχεία, εισοδηματικά στοιχεία
-  • Εκτιμήσεις & πραγματικά αποτελέσματα ρύθμισης
-  • Pipeline stage, commercial offer, portal visits
-  • Σημειώσεις, share tokens, χρονοσφραγίδες
-  • Ρυθμίσεις εφαρμογής (app_config / τιμολόγηση)
+ΟΛΟΙ οι πίνακες της βάσης, ΟΛΕΣ οι στήλες (αυτόματα, ό,τι πίνακα προστεθεί στο μέλλον):
+υποθέσεις (συμπ. πτώχευση, προσφορές, portal), leads (συμπ. κωδικοί TaxisNet, σχόλια),
+πληρωμές Finance, πληρωμές IRIS, ειδοποιήσεις, συνομιλίες Θέμις, κλήσεις, Viber,
+αναθέσεις λογιστών, ρυθμίσεις (app_config / τιμολόγηση).
+Το αρχείο είναι .json.gz, περιέχει πλήθος γραμμών ανά πίνακα και αποτύπωμα SHA-256
+ώστε να εντοπίζεται οποιαδήποτε φθορά.
+ΠΡΟΣΟΧΗ: περιέχει κωδικούς TaxisNet — κράτα τον φάκελο Drive ιδιωτικό.
 
 
 2. ΠΟΥ ΑΠΟΘΗΚΕΥΕΤΑΙ
 ────────────────────
-  [A] Railway Volume  →  /data/debt_cases.db  (live, πάντα ενημερωμένο)
-  [B] Google Drive    →  αυτός ο φάκελος (αυτόματα κάθε μέρα 18:00 UTC / 21:00 ώρα Ελλάδας)
-  [C] Κώδικας εφαρμογής  →  GitHub, branch: claude/new-online-app-T89Sn
+  [A] Railway Volume  →  /data/debt_cases.db  (live)
+  [B] Google Drive    →  αυτός ο φάκελος. Αυτόματα κάθε μέρα 15:00 UTC = 18:00 ώρα Ελλάδας.
+                         Τα αρχεία ΔΕΝ διαγράφονται ποτέ αυτόματα.
+  [C] Τοπικό αντίγραφο στο Volume (/data/backups): 7 μέρες, τουλάχιστον 3 πιο πρόσφατα.
+  [D] Κώδικας εφαρμογής  →  GitHub, branch: claude/new-online-app-T89Sn
 
-  Αρχεία backup: Exodikastikos-backup_YYYY-MM-DD_HH-MM.json
-  Διατήρηση:     90 μέρες (τα παλαιότερα διαγράφονται αυτόματα)
-
-
-3. ΧΕΙΡΟΚΙΝΗΤΟ BACKUP (οποιαδήποτε στιγμή)
-────────────────────────────────────────────
-  Από την εφαρμογή:
-    → Οικονομικά Dashboard → κουμπί "Backup Drive"   (αποθηκεύει στο Drive)
-    → Οικονομικά Dashboard → κουμπί "Export JSON"    (κατεβάζει στον υπολογιστή)
-
-
-4. ΑΠΟΚΑΤΑΣΤΑΣΗ ΔΕΔΟΜΕΝΩΝ (RESTORE)
-────────────────────────────────────
-
-  ΣΕΝΑΡΙΟ Α — Η βάση δεδομένων άδειασε (π.χ. μετά από redeploy)
-  ──────────────────────────────────────────────────────────────
-  1. Κατέβασε το τελευταίο backup από αυτόν τον φάκελο
-     (πχ. Exodikastikos-backup_2026-05-23_18-00.json)
-
-  2. Τρέξε την παρακάτω εντολή (σε terminal ή Postman):
-
-     curl -X POST https://innovative-nourishment-production.up.railway.app/admin/restore?wipe_first=true \\
-       -H "Content-Type: application/json" \\
-       -d @Exodikastikos-backup_2026-05-23_18-00.json
-
-  3. Η εφαρμογή επιστρέφει: {"ok": true, "inserted": 102, "updated": 0}
-     Όλες οι υποθέσεις είναι πίσω.
+  Αρχεία: Exodikastikos-backup_YYYY-MM-DD_HH-MM.json.gz
+  Κάθε backup ελέγχεται μετά το ανέβασμα (μέγεθος + md5 από το Drive).
+  Αν αποτύχει → email στον διαχειριστή. Αν περάσουν >30 ώρες χωρίς επιτυχές backup
+  → email "ΠΑΡΑΛΕΙΨΗ" (έλεγχος κάθε μέρα 10:00).
+  Κάθε Κυριακή 04:00 γίνεται ΔΟΚΙΜΑΣΤΙΚΗ ΕΠΑΝΑΦΟΡΑ του τελευταίου backup σε προσωρινή βάση.
+  Αποτυχία → email. Η κατάσταση φαίνεται στο Οικονομικό Dashboard (μπάρα "Backup health").
 
 
-  ΣΕΝΑΡΙΟ Β — Κάποιος διέγραψε υποθέσεις κατά λάθος
-  ────────────────────────────────────────────────────
-  Ίδιο με Σενάριο Α αλλά χωρίς το ?wipe_first=true:
-
-     curl -X POST https://innovative-nourishment-production.up.railway.app/admin/restore \\
-       -H "Content-Type: application/json" \\
-       -d @Exodikastikos-backup_2026-05-23_18-00.json
-
-  Αυτό κάνει safe merge — δεν διαγράφει νεότερες υποθέσεις που δεν είναι στο backup.
+3. ΧΕΙΡΟΚΙΝΗΤΟ BACKUP
+─────────────────────
+  Οικονομικό Dashboard → "Backup Drive" (ανεβάζει και επιβεβαιώνει)
+  Οικονομικό Dashboard → "Export" (κατεβάζει .json.gz στον υπολογιστή)
+  Μόνο ο διαχειριστής (HARIS) έχει πρόσβαση στις λειτουργίες backup/restore.
 
 
-  ΣΕΝΑΡΙΟ Γ — Θέλουμε να γυρίσουμε σε παλαιότερη έκδοση του κώδικα
-  ──────────────────────────────────────────────────────────────────
-  1. Βρες το commit hash που θέλεις στο GitHub
-  2. Τρέξε:
-       git revert <commit-hash>
-       git push origin claude/new-online-app-T89Sn
-  3. Το Railway κάνει redeploy αυτόματα. Τα δεδομένα δεν επηρεάζονται.
+4. ΑΠΟΚΑΤΑΣΤΑΣΗ (RESTORE)
+─────────────────────────
+  ΣΕΝΑΡΙΟ Α — Ολική καταστροφή (χάθηκε η βάση / το Railway project)
+  1. Φτιάξε νέο Railway project από το GitHub repo, πρόσθεσε Volume στο /data
+     (ή Postgres και DATABASE_URL).
+  2. Ξαναβάλε τα environment variables (ΟΝΟΜΑΤΑ· οι τιμές είναι στον password manager):
+       SECRET_KEY, DATABASE_URL (αν Postgres), GOOGLE_SERVICE_ACCOUNT_JSON,
+       GOOGLE_DRIVE_BACKUP_FOLDER_ID, GOOGLE_SHEET_ID και Gmail OAuth (GMAIL_*),
+       ADMIN_EMAIL, CHATWOOT_*, FINANCE_*, LEAD_INTAKE_API_KEY, META_CAPI_TOKEN,
+       OPENAI/ANTHROPIC κλειδί για Θέμις, καθώς και οι κωδικοί υπαλλήλων.
+  3. Κατέβασε το πιο πρόσφατο Exodikastikos-backup_*.json.gz από αυτόν τον φάκελο.
+  4. Από τον φάκελο debt-restructuring/backend σε οποιονδήποτε υπολογιστή με Python:
+       pip install -r requirements.txt
+       export DATABASE_URL=...            (η νέα βάση)
+       python restore_backup.py Exodikastikos-backup_XXXX.json.gz --dry-run   # δοκιμή
+       python restore_backup.py Exodikastikos-backup_XXXX.json.gz --wipe      # πραγματική
+     Εναλλακτικά κατευθείαν από το Drive:  python restore_backup.py --from-drive --wipe
+  5. Άνοιξε την εφαρμογή και έλεγξε πλήθος υποθέσεων/leads με τα στοιχεία του backup.
+
+  ΣΕΝΑΡΙΟ Β — Διαγράφηκαν υποθέσεις κατά λάθος (η εφαρμογή δουλεύει)
+  Ίδια εντολή ΧΩΡΙΣ --wipe: κάνει merge, δεν πειράζει νεότερα δεδομένα.
+  Ή μέσω API (με το token διαχειριστή):
+       POST /admin/restore?dry_run=true      (δοκιμή)
+       POST /admin/restore                    (merge)
+       POST /admin/restore?wipe_first=true    (πλήρης αντικατάσταση)
+  Πριν από wipe παίρνεται αυτόματα safety snapshot· αν αποτύχει, η επαναφορά ΔΕΝ γίνεται.
+  Η επαναφορά γίνεται σε μία συναλλαγή: ή περνάνε όλα ή δεν αλλάζει τίποτα.
+
+  ΣΕΝΑΡΙΟ Γ — Γυρίζουμε σε παλαιότερη έκδοση κώδικα
+       git revert <commit-hash> && git push origin claude/new-online-app-T89Sn
+     Τα δεδομένα δεν επηρεάζονται.
 
 
-5. ΣΗΜΑΝΤΙΚΕΣ ΠΛΗΡΟΦΟΡΙΕΣ
-───────────────────────────
-  • Το backup τρέχει 18:00 UTC = 21:00 ώρα Ελλάδας (θερινή ώρα)
-  • Αν γίνει κάτι λίγο πριν τις 21:00, χάνεις max 24 ώρες δεδομένων
-    → Λύση: πάτα "Backup Drive" πριν κάνεις οποιαδήποτε αλλαγή στο Railway
-  • ΜΗΝ αλλάζεις το DATABASE_URL χωρίς πρώτα να κάνεις manual backup
-  • ΜΗΝ διαγράφεις τον φάκελο αυτό στο Drive
+5. ΣΗΜΑΝΤΙΚΑ
+────────────
+  • Μέγιστη απώλεια δεδομένων: ~24 ώρες. Πάτα "Backup Drive" πριν από επικίνδυνες αλλαγές.
+  • ΜΗΝ αλλάζεις το DATABASE_URL χωρίς πρώτα manual backup.
+  • ΜΗΝ διαγράφεις τον φάκελο αυτό ούτε το service account από το Drive.
+  • Τα κλειδιά/κωδικοί (env vars) ΔΕΝ είναι στο backup — κράτα τα σε password manager.
 
 
-6. ΕΠΙΚΟΙΝΩΝΙΑ / ΤΕΧΝΙΚΗ ΥΠΟΣΤΗΡΙΞΗ
-──────────────────────────────────────
-  Εφαρμογή:    https://mainrepository-production.up.railway.app
-  Backend:     https://innovative-nourishment-production.up.railway.app
-  GitHub:      iMentorConsulting/MainRepository
-  Branch:      claude/new-online-app-T89Sn
-  Health check: https://innovative-nourishment-production.up.railway.app/health
+6. ΣΤΟΙΧΕΙΑ
+───────────
+  GitHub:  iMentorConsulting/MainRepository  (branch: claude/new-online-app-T89Sn)
+  Εφαρμογή: https://portal.i-mentor.gr
 
 ═══════════════════════════════════════════════════════════════
 """
@@ -632,16 +677,28 @@ Backend: https://innovative-nourishment-production.up.railway.app
 
 
 @app.post("/admin/restore")
-def restore_data(request: dict, wipe_first: bool = False, _: str = Depends(get_current_user)):
+def restore_data(request: dict, wipe_first: bool = False, dry_run: bool = False, _: str = Depends(require_admin)):
     """
-    Restore cases from a backup JSON payload.
-    POST the full backup JSON as the request body.
-    ?wipe_first=true  → deletes ALL existing data first (full reset)
-    ?wipe_first=false → safe merge, keeps cases not in backup (default)
+    Restore a backup JSON payload (admin only). For a gzip file or when the app is down use restore_backup.py.
+    ?dry_run=true     → check everything and roll back, nothing is written (do this first)
+    ?wipe_first=true  → empties the tables contained in the backup first (full reset); a safety copy of the
+                        current database is written to the local volume before that
+    ?wipe_first=false → merge: rows are overwritten by id, rows not in the backup are kept (default)
     """
-    from backup import restore_from_payload
+    from backup import restore_from_payload, snapshot_before_restore, verify_payload
     try:
-        result = restore_from_payload(request, wipe_first=wipe_first)
+        verify_payload(request)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Μη έγκυρο backup: {e}")
+    safety_copy = None
+    if wipe_first and not dry_run:
+        try:
+            safety_copy = snapshot_before_restore()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Δεν δημιουργήθηκε αντίγραφο ασφαλείας πριν το wipe — ακυρώθηκε: {e}")
+    try:
+        result = restore_from_payload(request, wipe_first=wipe_first, dry_run=dry_run)
+        result["safety_copy"] = safety_copy
         return result
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

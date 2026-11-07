@@ -106,6 +106,10 @@ export default function FinancialDashboard({ currentEmployee }) {
   const [showPricingAdmin, setShowPricingAdmin] = useState(false)
   const [payroll, setPayroll] = useState(null)
   const [backingUp, setBackingUp] = useState(false)
+  const [backupInfo, setBackupInfo] = useState(null)
+  const [verifyingBackup, setVerifyingBackup] = useState(false)
+  const loadBackupInfo = () => api.getBackupStatus().then(r => setBackupInfo(r.data)).catch(() => {})
+  useEffect(() => { loadBackupInfo() }, [])
   const [dateFromFilter, setDateFromFilter] = useState('')
   const [dateToFilter, setDateToFilter] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')  // Empty = show all data by default
@@ -139,7 +143,7 @@ export default function FinancialDashboard({ currentEmployee }) {
       if (d.drive_error) {
         toast.error(`Drive σφάλμα: ${d.drive_error}`, { duration: 8000 })
       } else if (d.drive_backup) {
-        toast.success(`✅ Backup Drive: ${d.filename} (${d.lead_count} leads, ${d.case_count} υποθέσεις)`)
+        toast.success(`✅ Backup Drive επιβεβαιωμένο: ${d.filename} (${d.lead_count} leads, ${d.case_count} υποθέσεις)`)
       } else {
         toast(`📁 Τοπικό backup μόνο — Drive δεν ρυθμίστηκε`, { duration: 5000 })
       }
@@ -148,6 +152,20 @@ export default function FinancialDashboard({ currentEmployee }) {
       toast.error(err?.response?.data?.detail || 'Σφάλμα backup')
     } finally {
       setBackingUp(false)
+      loadBackupInfo()
+    }
+  }
+
+  const handleVerifyBackup = async () => {
+    setVerifyingBackup(true)
+    try {
+      const res = await api.verifyBackup()
+      toast.success(`✅ Τεστ επαναφοράς OK — ${res.data.tables} πίνακες, ${res.data.rows} εγγραφές (${res.data.file})`, { duration: 8000 })
+    } catch (err) {
+      toast.error(err?.response?.data?.detail || 'Το τεστ επαναφοράς απέτυχε', { duration: 10000 })
+    } finally {
+      setVerifyingBackup(false)
+      loadBackupInfo()
     }
   }
 
@@ -451,6 +469,25 @@ export default function FinancialDashboard({ currentEmployee }) {
           </button>
         </div>
       </div>
+
+      {/* Backup health */}
+      {backupInfo && (() => {
+        const age = backupInfo.drive_backup_age_hours
+        const stale = age == null || age > 30
+        const drill = backupInfo.restore_drill || {}
+        return (
+          <div className={`rounded-xl border px-4 py-2 text-xs flex flex-wrap items-center gap-x-4 gap-y-1 ${stale ? 'bg-red-50 border-red-300 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+            <span className="font-bold">{stale ? '⚠️ Backup' : '✅ Backup'}</span>
+            <span>Τελευταίο επιβεβαιωμένο στο Drive: {age == null ? 'ΚΑΝΕΝΑ' : `πριν ${age} ώρες`}</span>
+            {backupInfo.backup?.counts && <span>{backupInfo.backup.counts.cases ?? 0} υποθέσεις · {backupInfo.backup.counts.leads ?? 0} leads</span>}
+            {backupInfo.backup?.last_error && <span className="text-red-700">Σφάλμα: {backupInfo.backup.last_error}</span>}
+            <span>Τεστ επαναφοράς: {drill.ok === true ? `✅ ${drill.ran_at?.slice(0, 10)}` : drill.ok === false ? `❌ ${drill.error}` : 'δεν έχει τρέξει'}</span>
+            <button onClick={handleVerifyBackup} disabled={verifyingBackup} className="ml-auto underline font-semibold">
+              {verifyingBackup ? 'Έλεγχος…' : 'Τρέξε τεστ επαναφοράς τώρα'}
+            </button>
+          </div>
+        )
+      })()}
 
       {/* Bulk Import Modal */}
       {showBulkImport && <BulkImportForm onClose={() => setShowBulkImport(false)} />}

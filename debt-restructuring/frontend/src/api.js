@@ -191,13 +191,15 @@ export const createLead = (data) => api.post('/leads/create', data)
 
 // Admin / backup
 export const triggerBackup = () => api.post('/admin/backup-now')
+export const getBackupStatus = () => api.get('/admin/backup-status')
+export const verifyBackup = () => api.post('/admin/backup-verify')
 export const exportData = async () => {
   const res = await api.get('/admin/export', { responseType: 'blob' })
   const url = URL.createObjectURL(res.data)
   const a = document.createElement('a')
   const date = new Date().toISOString().slice(0, 10)
   a.href = url
-  a.download = `Exodikastikos-backup_${date}.json`
+  a.download = `Exodikastikos-backup_${date}.json.gz`
   a.click()
   URL.revokeObjectURL(url)
 }

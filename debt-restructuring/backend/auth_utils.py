@@ -27,3 +27,10 @@ def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer
         return employee
     except JWTError:
         raise HTTPException(status_code=401, detail="Μη έγκυρο ή ληγμένο token")
+
+
+def require_admin(employee: str = Depends(get_current_user)) -> str:
+    """Only HARIS (admin) — for backup/restore/export and other dangerous operations."""
+    if (employee or "").upper() != "HARIS":
+        raise HTTPException(status_code=403, detail="Μόνο ο διαχειριστής")
+    return employee
