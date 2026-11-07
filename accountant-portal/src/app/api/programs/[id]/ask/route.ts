@@ -3,10 +3,11 @@ import Anthropic from '@anthropic-ai/sdk'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
+import { resolveRegionFromZip } from '@/lib/greek-regions'
 
 export const dynamic = 'force-dynamic'
 
-const MAX_RESPONSE_TOKENS = 1500
+const MAX_RESPONSE_TOKENS = 4096
 // Keeps a single request's PDF text reasonable for latency/cost — a program
 // realistically carries a handful of announcement/KYA PDFs, not a library.
 const MAX_ATTACHMENT_CHARS = 120_000
@@ -151,7 +152,78 @@ async function buildProgramContext(program: any): Promise<string> {
   return lines.join('\n')
 }
 
-const SYSTEM_PROMPT_PREFIX = `Είσαι βοηθός που απαντά σε ερωτήσεις ενός διαχειριστή του I-MENTOR Portal σχετικά με ένα συγκεκριμένο πρόγραμμα χρηματοδότησης. Απάντησε ΑΠΟΚΛΕΙΣΤΙΚΑ με βάση τις πληροφορίες που σου δίνονται παρακάτω (στοιχεία προγράμματος + περιεχόμενο συνημμένων εγγράφων). Αν η απάντηση δεν προκύπτει από αυτές τις πληροφορίες, πες το καθαρά ("Δεν βρίσκω αυτή την πληροφορία στα στοιχεία του προγράμματος ή στα συνημμένα έγγραφα.") αντί να μαντέψεις. Απάντησε στα Ελληνικά, σύντομα αλλά πλήρως. Όταν είναι χρήσιμο, ανέφερε από ποιο σημείο (π.χ. "Άλλες Προϋποθέσεις" ή το όνομα ενός συνημμένου εγγράφου) προκύπτει η απάντηση.
+// Looks up one ΑΦΜ across both client tables — claimed Business first (has
+// ProgramMatch, a real BusinessActivity relation), falling back to an
+// unclaimed GemiLookup lead (activities stored as JSON) if no Business
+// exists for that ΑΦΜ. Returns null if found in neither.
+async function findClientByAfm(afm: string): Promise<{
+  source: 'business' | 'gemi'
+  onomasia: string | null
+  legalStatusDescr: string | null
+  regdate: string | null
+  doyDescr: string | null
+  address: string | null
+  perifereia: string | null
+  tags: string[]
+  activities: { firmActCode: string; firmActDescr: string | null; isMain: boolean }[]
+} | null> {
+  const business = await prisma.business.findUnique({ where: { afm }, include: { activities: true } })
+  if (business) {
+    return {
+      source: 'business',
+      onomasia: business.onomasia,
+      legalStatusDescr: business.legalStatusDescr,
+      regdate: business.regdate,
+      doyDescr: business.doyDescr,
+      address: [business.postalAddress, business.postalAddressNo, business.postalZipCode, business.postalAreaDescription].filter(Boolean).join(', ') || null,
+      perifereia: resolveRegionFromZip(business.postalZipCode),
+      tags: business.tags,
+      activities: business.activities.map(a => ({ firmActCode: a.firmActCode, firmActDescr: a.firmActDescr, isMain: a.firmActKind === 1 })),
+    }
+  }
+  const gemi = await prisma.gemiLookup.findUnique({ where: { afm } })
+  if (gemi) {
+    const acts = Array.isArray(gemi.activities) ? gemi.activities as any[] : []
+    return {
+      source: 'gemi',
+      onomasia: gemi.onomasia,
+      legalStatusDescr: gemi.legalStatusDescr,
+      regdate: gemi.regdate,
+      doyDescr: gemi.doyDescr,
+      address: [gemi.postalAddress, gemi.postalAddressNo, gemi.postalZipCode, gemi.postalAreaDescription].filter(Boolean).join(', ') || null,
+      perifereia: resolveRegionFromZip(gemi.postalZipCode),
+      tags: gemi.tags,
+      activities: acts.map(a => ({ firmActCode: a?.firmActCode, firmActDescr: a?.firmActDescr ?? null, isMain: (a?.firmActKind != null ? parseInt(String(a.firmActKind)) : null) === 1 })),
+    }
+  }
+  return null
+}
+
+function buildClientContext(afm: string, client: Awaited<ReturnType<typeof findClientByAfm>>): string {
+  if (!client) return `\n\n--- Στοιχεία Συγκεκριμένου Πελάτη (ΑΦΜ: ${afm}) ---\nΔεν βρέθηκε επιχείρηση με αυτό το ΑΦΜ (ούτε ως πελάτης λογιστή, ούτε ως ΓΕΜΗ lead).`
+  const lines = [`\n\n--- Στοιχεία Συγκεκριμένου Πελάτη (ΑΦΜ: ${afm}) ---`]
+  lines.push(`Πηγή: ${client.source === 'business' ? 'Πελάτης λογιστή (καταχωρημένος)' : 'ΓΕΜΗ lead (μη ανακτημένος)'}`)
+  if (client.onomasia) lines.push(`Επωνυμία: ${client.onomasia}`)
+  if (client.legalStatusDescr) lines.push(`Νομική Μορφή: ${client.legalStatusDescr}`)
+  if (client.regdate) lines.push(`Ημερομηνία Ίδρυσης: ${client.regdate}`)
+  if (client.doyDescr) lines.push(`ΔΟΥ: ${client.doyDescr}`)
+  if (client.address) lines.push(`Διεύθυνση: ${client.address}`)
+  if (client.perifereia) lines.push(`Περιφέρεια: ${client.perifereia}`)
+  if (client.tags.length > 0) lines.push(`Ετικέτες: ${client.tags.join(', ')}`)
+  if (client.activities.length > 0) {
+    lines.push('ΚΑΔ Δραστηριότητες:')
+    for (const a of client.activities) {
+      lines.push(`- ${a.firmActCode}${a.firmActDescr ? ` (${a.firmActDescr})` : ''}${a.isMain ? ' [κύρια]' : ''}`)
+    }
+  }
+  return lines.join('\n')
+}
+
+const SYSTEM_PROMPT_PREFIX = `Είσαι βοηθός που απαντά σε ερωτήσεις ενός διαχειριστή του I-MENTOR Portal σχετικά με ένα συγκεκριμένο πρόγραμμα χρηματοδότησης. Απάντησε ΑΠΟΚΛΕΙΣΤΙΚΑ με βάση τις πληροφορίες που σου δίνονται παρακάτω (στοιχεία προγράμματος + περιεχόμενο συνημμένων εγγράφων + τυχόν στοιχεία συγκεκριμένου πελάτη). Αν η απάντηση δεν προκύπτει από αυτές τις πληροφορίες, πες το καθαρά ("Δεν βρίσκω αυτή την πληροφορία στα στοιχεία του προγράμματος ή στα συνημμένα έγγραφα.") αντί να μαντέψεις. Απάντησε στα Ελληνικά, σύντομα αλλά πλήρως. Όταν είναι χρήσιμο, ανέφερε από ποιο σημείο (π.χ. "Άλλες Προϋποθέσεις" ή το όνομα ενός συνημμένου εγγράφου) προκύπτει η απάντηση.
+
+ΜΗΝ χρησιμοποιείς markdown μορφοποίηση στην απάντησή σου — όχι αστερίσκους (**) για έντονα γράμματα, όχι # για επικεφαλίδες, όχι markdown λίστες με -/*. Γράψε απλό κείμενο, με παραγράφους και αριθμημένα/με τελεία σημεία αν χρειάζεται, όπως θα έγραφες ένα απλό email — το περιβάλλον εμφάνισης δεν αποδίδει markdown.
+
+Αν σου δοθούν παρακάτω και "Στοιχεία Συγκεκριμένου Πελάτη" (ΑΦΜ), μπορείς να απαντήσεις ΚΑΙ σε ερωτήσεις για το αν αυτός ο συγκεκριμένος πελάτης είναι επιλέξιμος για το πρόγραμμα — συνδύασε τα κριτήρια του προγράμματος (ΚΑΔ, περιοχή, νομική μορφή, ημερομηνία ίδρυσης κ.λπ.) με τα στοιχεία του πελάτη και εξήγησε το σκεπτικό σου. Αν δεν σου έχουν δοθεί στοιχεία πελάτη και ερωτηθείς για συγκεκριμένο πελάτη, πες ότι πρέπει πρώτα να καταχωρηθεί το ΑΦΜ του πελάτη.
 
 --- Στοιχεία Προγράμματος ---
 `
@@ -165,6 +237,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const body = await request.json().catch(() => ({}))
   const question: string = (body.question || '').trim()
   const history: Array<{ role: 'user' | 'assistant'; content: string }> = Array.isArray(body.history) ? body.history : []
+  const afm: string = typeof body.afm === 'string' ? body.afm.trim() : ''
   if (!question) return NextResponse.json({ error: 'Η ερώτηση είναι υποχρεωτική' }, { status: 400 })
 
   const program = await prisma.program.findUnique({
@@ -176,7 +249,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return NextResponse.json({ error: 'ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.' }, { status: 500 })
 
-  const context = await buildProgramContext(program)
+  let context = await buildProgramContext(program)
+  let clientFound: { source: 'business' | 'gemi'; onomasia: string | null } | null = null
+  if (afm) {
+    const client = await findClientByAfm(afm)
+    context += buildClientContext(afm, client)
+    if (client) clientFound = { source: client.source, onomasia: client.onomasia }
+  }
   const anthropic = new Anthropic({ apiKey })
 
   try {
@@ -193,7 +272,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     const textBlock = response.content.find(b => b.type === 'text')
     const answer = textBlock && textBlock.type === 'text' ? textBlock.text : 'Δεν ελήφθη απάντηση από το μοντέλο.'
 
-    return NextResponse.json({ answer })
+    return NextResponse.json({ answer, clientFound })
   } catch (e: any) {
     console.error('[ProgramAsk] Anthropic call failed:', e?.message)
     return NextResponse.json({ error: 'Σφάλμα κατά την επεξεργασία της ερώτησης.' }, { status: 500 })
