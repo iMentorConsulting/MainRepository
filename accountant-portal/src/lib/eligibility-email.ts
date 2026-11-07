@@ -339,7 +339,10 @@ export function buildProspectProgramEmailHtml(params: {
     if (fees) {
       const fmtEur = (n: number) => n.toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
       const fmtEurVat = (n: number) => `${fmtEur(n)} + ΦΠΑ = ${fmtEur(n * 1.24)}`
-      sections.push(section('Κόστος για Υποβολή Αίτησης &amp; Αμοιβή για Παρακολούθηση της Επένδυσης', `
+      sections.push(section(`Κόστος για Υποβολή Αίτησης &amp; Αμοιβή για Παρακολούθηση της Επένδυσης (ενδεικτικά, για ύψος επένδυσης ${fmtEur(investmentAmount)})`, `
+        <p style="margin:0 0 10px;font-size:13px;color:#6b7280;line-height:1.6;">
+          Το τελικό ύψος της επένδυσής σας δεν έχει ακόμη οριστικοποιηθεί — το παρακάτω κόστος είναι ενδεικτικό, υπολογισμένο για επένδυση ${fmtEur(investmentAmount)}, και θα προσαρμοστεί ανάλογα αν το τελικό ποσό διαφοροποιηθεί.
+        </p>
         <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;margin-bottom:10px;">
           <tr><td style="padding:4px 0;color:#6b7280;width:55%;">Κόστος υποβολής αίτησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.applicationFee)}</td></tr>
           <tr><td style="padding:4px 0;color:#6b7280;">Αμοιβή παρακολούθησης υλοποίησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.implementationFee)}</td></tr>

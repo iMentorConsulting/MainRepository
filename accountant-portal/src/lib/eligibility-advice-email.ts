@@ -156,7 +156,7 @@ export function buildEligibilityAdviceEmailHtml(params: {
     const fees = computeInvestmentFees(investmentAmount, program.investmentPricingBrackets as any)
     if (fees) {
       const fmtEurVat = (n: number) => `${fmtEur0(n)} + ΦΠΑ = ${fmtEur0(Math.round(n * 1.24))}`
-      sectionCost = section('Το Κοστολόγιό μας για Επένδυση ' + fmtEur0(investmentAmount), `
+      sectionCost = section('Το Κοστολόγιό μας (ενδεικτικά, για ύψος επένδυσης ' + fmtEur0(investmentAmount) + ')', `
         <table width="100%" cellpadding="0" cellspacing="0" style="font-size:13.5px;margin-bottom:10px;">
           <tr><td style="padding:4px 0;color:#6b7280;width:55%;">Κόστος υποβολής αίτησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.applicationFee)}</td></tr>
           <tr><td style="padding:4px 0;color:#6b7280;">Αμοιβή παρακολούθησης υλοποίησης</td><td style="padding:4px 0;color:#111827;font-weight:600;">${fmtEurVat(fees.implementationFee)}</td></tr>
