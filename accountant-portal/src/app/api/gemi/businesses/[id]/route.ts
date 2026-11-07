@@ -40,7 +40,18 @@ export async function GET(
     })
   }
 
-  return NextResponse.json({ ...business, claimedAccountant })
+  // Ad-hoc sends (program-info email, microcredits eligibility analysis,
+  // "Ενημέρωση & Επόμενα Βήματα") aren't formal Campaign sends, so they
+  // don't come through campaignRecipients. MessageLog.businessId isn't set
+  // for an unclaimed lead (only once claimed), so match by ΑΦΜ instead —
+  // same identity every send for this lead already uses.
+  const messageLogs = await prisma.messageLog.findMany({
+    where: { afm: business.afm },
+    orderBy: { createdAt: 'desc' },
+    take: 100,
+  }).catch(() => [])
+
+  return NextResponse.json({ ...business, claimedAccountant, messageLogs })
 }
 
 export async function PATCH(

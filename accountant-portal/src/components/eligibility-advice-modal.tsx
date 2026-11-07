@@ -8,6 +8,11 @@ interface EligibilityAdviceModalProps {
   programId: string
   programTitle: string
   businessHasEmail: boolean
+  // 'business' (default) hits /api/businesses/[id]/eligibility-advice, for
+  // a claimed Business. 'gemi' hits
+  // /api/gemi/businesses/[id]/eligibility-advice, for an unclaimed ΓΕΜΗ
+  // lead (GemiLookup/GemiProgramMatch/GemiMatchToken).
+  kind?: 'business' | 'gemi'
   onClose: () => void
   onSent?: () => void
 }
@@ -18,7 +23,10 @@ type ErmisChatMsg = { role: 'user' | 'assistant'; text: string }
 // worth, here's what to do next" email — asks the prospect to reply with
 // their own investment idea, a rough cost estimate, and any questions. See
 // src/lib/eligibility-advice-email.ts.
-export function EligibilityAdviceModal({ businessId, programId, programTitle, businessHasEmail, onClose, onSent }: EligibilityAdviceModalProps) {
+export function EligibilityAdviceModal({ businessId, programId, programTitle, businessHasEmail, kind = 'business', onClose, onSent }: EligibilityAdviceModalProps) {
+  const endpoint = kind === 'gemi'
+    ? `/api/gemi/businesses/${businessId}/eligibility-advice`
+    : `/api/businesses/${businessId}/eligibility-advice`
   const [loading, setLoading] = useState(true)
   const [sending, setSending] = useState(false)
   const [preview, setPreview] = useState<{ subject: string; html: string; detectedAmount: number | null; ermisChatLog: ErmisChatMsg[] } | null>(null)
@@ -36,7 +44,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/eligibility-advice`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ programId, send: false, customMessage: message || undefined, includeErmisAmount: includeAmount, investmentAmount: invAmount ? Number(invAmount) : undefined }),
@@ -64,7 +72,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
     setSending(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/eligibility-advice`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

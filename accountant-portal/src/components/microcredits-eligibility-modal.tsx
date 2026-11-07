@@ -8,6 +8,11 @@ interface MicrocreditsEligibilityModalProps {
   businessId: string
   programId: string
   businessHasEmail: boolean
+  // 'business' (default) hits /api/businesses/[id]/microcredits-eligibility,
+  // for a claimed Business. 'gemi' hits
+  // /api/gemi/businesses/[id]/microcredits-eligibility, for an unclaimed
+  // ΓΕΜΗ lead (GemiLookup).
+  kind?: 'business' | 'gemi'
   onClose: () => void
   onSent?: () => void
 }
@@ -16,7 +21,7 @@ interface MicrocreditsEligibilityModalProps {
 // loan amount, previews the "ΑΝΑΛΥΣΗ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ" email (full per-ΚΑΔ
 // eligibility breakdown included), then sends it. See
 // src/lib/microcredits-eligibility-email.ts.
-export function MicrocreditsEligibilityModal({ businessId, programId, businessHasEmail, onClose, onSent }: MicrocreditsEligibilityModalProps) {
+export function MicrocreditsEligibilityModal({ businessId, programId, businessHasEmail, kind = 'business', onClose, onSent }: MicrocreditsEligibilityModalProps) {
   const { data: session } = useSession()
   const [income, setIncome] = useState('')
   const [profit, setProfit] = useState('')
@@ -32,6 +37,10 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
   const [error, setError] = useState('')
   const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
   const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean; created?: boolean } | null>(null)
+
+  const endpoint = kind === 'gemi'
+    ? `/api/gemi/businesses/${businessId}/microcredits-eligibility`
+    : `/api/businesses/${businessId}/microcredits-eligibility`
 
   function markStale() { setPreviewStale(true) }
 
@@ -54,7 +63,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/microcredits-eligibility`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildBody(false)),
@@ -77,7 +86,7 @@ export function MicrocreditsEligibilityModal({ businessId, programId, businessHa
     setSending(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/microcredits-eligibility`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(buildBody(true)),

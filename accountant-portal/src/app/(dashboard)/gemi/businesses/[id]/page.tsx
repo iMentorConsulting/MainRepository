@@ -7,10 +7,13 @@ import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { CategoryBadge } from '@/components/businesses/category-badge'
-import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale, Gavel, Plus, Trash2, Zap } from 'lucide-react'
+import { ArrowLeft, Building2, Mail, Phone, MapPin, Briefcase, Target, Send, Link2, Pencil, Printer, ClipboardList, Scale, Gavel, Plus, Trash2, Zap, Calculator, FileText, Lightbulb } from 'lucide-react'
 import { getEffectiveCategory } from '@/lib/business-categories'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
+import { MicrocreditsEligibilityModal } from '@/components/microcredits-eligibility-modal'
+import { AgreementModal } from '@/components/agreement-modal'
+import { EligibilityAdviceModal } from '@/components/eligibility-advice-modal'
 
 const STATUS_LABELS: Record<string, string> = {
   POTENTIAL: 'Πιθανό', REVIEWED: 'Ελέγχθηκε', REJECTED: 'Απορρίφθηκε',
@@ -19,6 +22,13 @@ const STATUS_LABELS: Record<string, string> = {
 const STATUS_VARIANT: Record<string, any> = {
   POTENTIAL: 'secondary', REVIEWED: 'info', REJECTED: 'danger',
   INTERESTED: 'success', SUBMITTED: 'success',
+}
+const MESSAGE_LOG_KIND_LABELS: Record<string, string> = {
+  QUICK_SEND: 'Γρήγορη Αποστολή',
+  ELIGIBILITY: 'Email/Viber Επιλεξιμότητας',
+  PROGRAM_EMAIL: 'Email Προγράμματος',
+  MICROCREDITS: 'Ανάλυση Μικροπιστώσεων',
+  ADVICE: 'Ενημέρωση & Επόμενα Βήματα',
 }
 
 function formatGreekDate(dateStr: string | null | undefined): string | null {
@@ -48,6 +58,9 @@ export default function GemiBusinessDetailPage() {
   const [editMsg, setEditMsg] = useState('')
   const [rematching, setRematching] = useState(false)
   const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string; category?: string } | null>(null)
+  const [microcreditsProgramId, setMicrocreditsProgramId] = useState<string | null>(null)
+  const [agreementProgram, setAgreementProgram] = useState<{ id: string; title: string } | null>(null)
+  const [adviceProgram, setAdviceProgram] = useState<{ id: string; title: string } | null>(null)
 
   const isAdmin = ['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role ?? '')
 
@@ -503,13 +516,40 @@ export default function GemiBusinessDetailPage() {
                   </div>
                 </div>
                 {m.status !== 'REJECTED' && (
-                  <button
-                    onClick={() => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '', category: m.program?.category })}
-                    className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
-                  >
-                    <Mail size={12} />
-                    Προεπισκόπηση &amp; Αποστολή Email
-                  </button>
+                  <div className="space-y-1.5">
+                    <button
+                      onClick={() => setProspectEmailProgram({ id: m.programId, title: m.program?.title || '', category: m.program?.category })}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
+                    >
+                      <Mail size={12} />
+                      Προεπισκόπηση &amp; Αποστολή Email
+                    </button>
+                    {m.program?.category === 'MICROCREDITS' && (
+                      <button
+                        onClick={() => setMicrocreditsProgramId(m.programId)}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50"
+                      >
+                        <Calculator size={12} />
+                        Ανάλυση Επιλεξιμότητας Μικροπιστώσεων
+                      </button>
+                    )}
+                    <button
+                      onClick={() => setAgreementProgram({ id: m.programId, title: m.program?.title || '' })}
+                      className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 text-indigo-700 text-xs font-medium hover:bg-indigo-50"
+                    >
+                      <FileText size={12} />
+                      Συμφωνητικό Συνεργασίας
+                    </button>
+                    {['ESPA', 'LEADER', 'DYPA'].includes(m.program?.category) && (
+                      <button
+                        onClick={() => setAdviceProgram({ id: m.programId, title: m.program?.title || '' })}
+                        className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-blue-200 text-blue-700 text-xs font-medium hover:bg-blue-50"
+                      >
+                        <Lightbulb size={12} />
+                        Ενημέρωση &amp; Επόμενα Βήματα
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             ))}
@@ -574,6 +614,33 @@ export default function GemiBusinessDetailPage() {
         </div>
       )}
 
+      {/* Ad-hoc sends — program-info email, microcredits eligibility
+          analysis, "Ενημέρωση & Επόμενα Βήματα" — not formal Campaign
+          sends, so they're logged separately (MessageLog, matched by ΑΦΜ). */}
+      {business.messageLogs?.length > 0 && (
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Mail size={14} />Λοιπές Αποστολές ({business.messageLogs.length})</h2>
+          <div className="divide-y text-sm">
+            {business.messageLogs.map((l: any) => (
+              <div key={l.id} className="py-3 flex items-start justify-between gap-4">
+                <div className="flex-1 min-w-0">
+                  <p className="font-medium text-gray-900 truncate">{MESSAGE_LOG_KIND_LABELS[l.kind] || l.kind}</p>
+                  {l.subject && <p className="text-xs text-gray-400 mt-0.5 truncate">{l.subject}</p>}
+                </div>
+                <div className="flex flex-wrap items-center gap-2 text-xs shrink-0">
+                  {l.createdAt && <span className="text-gray-500">{new Date(l.createdAt).toLocaleDateString('el-GR')}</span>}
+                  {l.success ? (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">✓ Εστάλη</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">✗ Απέτυχε</span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {prospectEmailProgram && (
         <ProspectProgramEmailModal
           businessId={business.id}
@@ -583,6 +650,37 @@ export default function GemiBusinessDetailPage() {
           programCategory={prospectEmailProgram.category}
           businessHasEmail={!!business.email}
           onClose={() => setProspectEmailProgram(null)}
+        />
+      )}
+
+      {microcreditsProgramId && (
+        <MicrocreditsEligibilityModal
+          businessId={business.id}
+          kind="gemi"
+          programId={microcreditsProgramId}
+          businessHasEmail={!!business.email}
+          onClose={() => setMicrocreditsProgramId(null)}
+        />
+      )}
+
+      {agreementProgram && (
+        <AgreementModal
+          businessId={business.id}
+          kind="gemi"
+          programId={agreementProgram.id}
+          programTitle={agreementProgram.title}
+          onClose={() => setAgreementProgram(null)}
+        />
+      )}
+
+      {adviceProgram && (
+        <EligibilityAdviceModal
+          businessId={business.id}
+          kind="gemi"
+          programId={adviceProgram.id}
+          programTitle={adviceProgram.title}
+          businessHasEmail={!!business.email}
+          onClose={() => setAdviceProgram(null)}
         />
       )}
     </div>

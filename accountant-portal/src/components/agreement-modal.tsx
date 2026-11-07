@@ -6,17 +6,25 @@ interface AgreementModalProps {
   businessId: string
   programId: string
   programTitle: string
+  // 'business' (default) hits /api/businesses/[id]/agreement, for a claimed
+  // Business. 'gemi' hits /api/gemi/businesses/[id]/agreement, for an
+  // unclaimed ΓΕΜΗ lead (GemiLookup) — same modal, same .docx template.
+  kind?: 'business' | 'gemi'
   onClose: () => void
 }
 
 // Admin/consultant-only: asks for the two agreement fees and downloads the
 // prefilled "ΣΥΜΦΩΝΗΤΙΚΟ ΣΥΝΕΡΓΑΣΙΑΣ" .docx for this business + program.
 // See src/lib/agreement-docx.ts.
-export function AgreementModal({ businessId, programId, programTitle, onClose }: AgreementModalProps) {
+export function AgreementModal({ businessId, programId, programTitle, kind = 'business', onClose }: AgreementModalProps) {
   const [applicationFee, setApplicationFee] = useState('')
   const [implementationFee, setImplementationFee] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  const endpoint = kind === 'gemi'
+    ? `/api/gemi/businesses/${businessId}/agreement`
+    : `/api/businesses/${businessId}/agreement`
 
   async function download() {
     if (!implementationFee) {
@@ -26,7 +34,7 @@ export function AgreementModal({ businessId, programId, programTitle, onClose }:
     setLoading(true)
     setError('')
     try {
-      const res = await fetch(`/api/businesses/${businessId}/agreement`, {
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
