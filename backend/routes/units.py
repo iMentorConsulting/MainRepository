@@ -4,14 +4,17 @@ from database import get_db
 from models import Unit
 from schemas import UnitCreate, UnitUpdate, UnitResponse
 from auth_utils import get_tenant
-from typing import List
+from typing import List, Optional
 
 router = APIRouter(prefix="/units", tags=["units"])
 
 
 @router.get("/", response_model=List[UnitResponse])
-def get_units(db: Session = Depends(get_db), active_only: bool = False, tenant: str = Depends(get_tenant)):
+def get_units(db: Session = Depends(get_db), active_only: bool = False, property_id: Optional[int] = None,
+              tenant: str = Depends(get_tenant)):
     q = db.query(Unit).filter(Unit.tenant == tenant)
+    if property_id:
+        q = q.filter(Unit.property_id == property_id)
     if active_only:
         q = q.filter(Unit.is_active == True)
     return q.order_by(Unit.name).all()
@@ -21,6 +24,11 @@ def get_units(db: Session = Depends(get_db), active_only: bool = False, tenant: 
 def create_unit(unit: UnitCreate, db: Session = Depends(get_db), tenant: str = Depends(get_tenant)):
     db_unit = Unit(**unit.model_dump(), tenant=tenant)
     db.add(db_unit)
+    db.flush()
+    if not db_unit.room_type_id:
+        # A unit created on its own is its own type (quantity 1), like a villa
+        from routes.properties import ensure_unit_type
+        ensure_unit_type(db, tenant, db_unit)
     db.commit()
     db.refresh(db_unit)
     return db_unit

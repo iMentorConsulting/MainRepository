@@ -1,9 +1,12 @@
 import { useEffect, useState } from 'react'
-import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from '../api'
+import { getCustomers, getCustomerBookings, createCustomer, updateCustomer, deleteCustomer } from '../api'
 import toast from 'react-hot-toast'
 import { PlusIcon, PencilSquareIcon, TrashIcon, XMarkIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline'
 
 const empty = { fullName: '', email: '', phone: '', nationality: '', id_number: '', notes: '' }
+
+const CH_LABELS = { booking: 'Booking.com', airbnb: 'Airbnb', direct: 'Απευθείας', vrbo: 'VRBO', oga: 'ΟΓΑ', other: 'Άλλο' }
+const CH_COLORS = { airbnb: 'bg-red-100 text-red-700', booking: 'bg-blue-100 text-blue-700', direct: 'bg-green-100 text-green-700', vrbo: 'bg-indigo-100 text-indigo-700', oga: 'bg-purple-100 text-purple-700', other: 'bg-gray-100 text-gray-600' }
 
 function toApiFields(form) {
   const parts = form.fullName.trim().split(' ')
@@ -25,7 +28,14 @@ function CustomerModal({ customer, onClose, onSaved }) {
       : { ...empty }
   )
   const [saving, setSaving] = useState(false)
+  const [bookings, setBookings] = useState([])
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }))
+
+  useEffect(() => {
+    if (customer?.id) {
+      getCustomerBookings(customer.id).then(r => setBookings(r.data)).catch(() => {})
+    }
+  }, [customer?.id])
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -52,7 +62,7 @@ function CustomerModal({ customer, onClose, onSaved }) {
       <div className="bg-white w-full md:max-w-lg rounded-t-2xl md:rounded-2xl shadow-xl max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200 sticky top-0 bg-white">
           <h3 className="font-bold text-gray-800">{customer?.id ? 'Επεξεργασία Πελάτη' : 'Νέος Πελάτης'}</h3>
-          <button onClick={onClose}><XMarkIcon className="h-5 w-5 text-gray-500" /></button>
+          <button onClick={onClose} aria-label="Κλείσιμο"><XMarkIcon className="h-5 w-5 text-gray-500" aria-hidden="true" /></button>
         </div>
         <form onSubmit={handleSubmit} className="p-5 space-y-4">
           <div>
@@ -81,6 +91,32 @@ function CustomerModal({ customer, onClose, onSaved }) {
             <label className="label">Σημειώσεις</label>
             <textarea className="input" rows={2} value={form.notes || ''} onChange={(e) => set('notes', e.target.value)} />
           </div>
+          {bookings.length > 0 && (
+            <div className="border border-gray-200 rounded-xl overflow-hidden">
+              <p className="text-xs font-semibold text-gray-500 px-3 py-2 bg-gray-50 border-b">Κρατήσεις ({bookings.length})</p>
+              <div className="divide-y divide-gray-100 max-h-48 overflow-y-auto">
+                {bookings.map(b => (
+                  <div key={b.id} className="px-3 py-2.5 space-y-1 text-xs">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${CH_COLORS[b.channel] || 'bg-gray-100 text-gray-600'}`}>
+                        {CH_LABELS[b.channel] || b.channel}
+                      </span>
+                      <span className="font-medium text-gray-700">{b.unit_name}</span>
+                    </div>
+                    <div className="flex gap-3 text-gray-500 flex-wrap">
+                      <span>📅 {b.check_in} → {b.check_out} ({b.nights}ν)</span>
+                      <span>👥 {b.guests} {b.guests === 1 ? 'άτομο' : 'άτομα'}</span>
+                      <span>💰 €{b.total_price.toLocaleString('el-GR', {minimumFractionDigits:2})}</span>
+                    </div>
+                    <p className={b.notes ? 'text-blue-600 font-medium' : 'text-gray-300'}>
+                      🔖 {b.notes || 'Κωδ. κράτησης: —'}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="flex gap-2 pt-2">
             <button type="button" onClick={onClose} className="btn-secondary flex-1">Ακύρωση</button>
             <button type="submit" disabled={saving} className="btn-primary flex-1">{saving ? 'Αποθήκευση...' : 'Αποθήκευση'}</button>
@@ -130,6 +166,7 @@ export default function Customers() {
         <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
         <input
           className="input pl-9"
+          aria-label="Αναζήτηση πελατών"
           placeholder="Αναζήτηση ονόματος, email, τηλεφώνου..."
           value={search}
           onChange={handleSearch}
@@ -140,7 +177,7 @@ export default function Customers() {
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
+              <tr className="border-b border-gray-100 bg-gray-50 text-xs text-gray-700 uppercase tracking-wide">
                 <th className="text-left px-4 py-3">Ονοματεπώνυμο</th>
                 <th className="text-left px-4 py-3 hidden sm:table-cell">Email</th>
                 <th className="text-left px-4 py-3 hidden md:table-cell">Τηλέφωνο</th>

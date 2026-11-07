@@ -106,7 +106,7 @@ export default function Dashboard() {
         <StatCard label="Αφίξεις Σήμερα" value={stats.arrivals_today} color="blue" />
         <StatCard label="Αναχωρήσεις" value={stats.departures_today} color="amber" />
         <StatCard label="Πληρότητα" value={`${stats.occupancy_rate}%`} sub={`${stats.currently_occupied}/${stats.total_units} μονάδες`} color="green" />
-        <StatCard label="Έσοδα Μήνα" value={`€${stats.monthly_revenue.toLocaleString('el-GR')}`} sub={`${stats.upcoming_bookings} επερχόμενες`} color="purple" />
+        <StatCard label="Έσοδα Μήνα" value={`€${(stats.monthly_revenue ?? 0).toLocaleString('el-GR')}`} sub={`${stats.upcoming_bookings} επερχόμενες`} color="purple" />
       </div>
 
       <div className="grid md:grid-cols-2 gap-4">
