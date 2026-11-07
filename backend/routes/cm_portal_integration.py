@@ -527,9 +527,6 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         if by_cat:
             lead = by_cat[0]
 
-    if lead is None and candidates:
-        lead = candidates[0]
-
     created = False
     if lead is None:
         from models_cases import LEAD_STATUSES
