@@ -148,11 +148,12 @@ sequelize.sync({ alter: true }).then(async () => {
 
   app.listen(PORT, () => console.log(`Backend running on port ${PORT}`));
 
-  // Daily backup at 18:00 Athens time
+  // Backup 3× per day: 09:00, 14:00, 19:00 Athens time + once 2 min after every startup
   try {
     const cron = require('node-cron');
     const { runBackup } = require('./backup');
-    cron.schedule('0 18 * * *', () => {
+
+    const doBackup = () =>
       runBackup()
         .then(r => {
           const driveOk = !r.driveError;
@@ -163,8 +164,13 @@ sequelize.sync({ alter: true }).then(async () => {
           global._lastBackup = { ran_at: new Date().toISOString(), ok: false, error: e.message };
           console.error('[backup-cron] error:', e.message);
         });
-    }, { timezone: 'Europe/Athens' });
-    console.log('[backup-cron] Daily backup scheduled at 18:00 Europe/Athens');
+
+    cron.schedule('0 9,14,19 * * *', doBackup, { timezone: 'Europe/Athens' });
+    console.log('[backup-cron] Backup scheduled 3× daily (09:00, 14:00, 19:00 Europe/Athens)');
+
+    // Startup backup — runs 2 minutes after boot to catch any data added since the last scheduled run
+    setTimeout(doBackup, 2 * 60 * 1000);
+    console.log('[backup-cron] Startup backup queued (2 min delay)');
   } catch (e) {
     console.warn('[backup-cron] Could not schedule backup:', e.message);
   }

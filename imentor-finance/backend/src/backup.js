@@ -15,14 +15,24 @@ require('./models/ServiceAgreement');
 require('./models/ListItem');
 require('./models/RecurringExpense');
 require('./models/CommissionLog');
+require('./models/AppSetting');
+require('./models/PayrollEmployeeSetting');
+require('./models/IncomingLead');
+require('./models/BankTransaction');
+require('./models/ServiceDepartmentMap');
 
-const Income           = require('./models/Income');
-const Expense          = require('./models/Expense');
-const Customer         = require('./models/Customer');
-const ServiceAgreement = require('./models/ServiceAgreement');
-const ListItem         = require('./models/ListItem');
-const RecurringExpense = require('./models/RecurringExpense');
-const CommissionLog    = require('./models/CommissionLog');
+const Income                 = require('./models/Income');
+const Expense                = require('./models/Expense');
+const Customer               = require('./models/Customer');
+const ServiceAgreement       = require('./models/ServiceAgreement');
+const ListItem               = require('./models/ListItem');
+const RecurringExpense       = require('./models/RecurringExpense');
+const CommissionLog          = require('./models/CommissionLog');
+const AppSetting             = require('./models/AppSetting');
+const PayrollEmployeeSetting = require('./models/PayrollEmployeeSetting');
+const IncomingLead           = require('./models/IncomingLead');
+const BankTransaction        = require('./models/BankTransaction');
+const ServiceDepartmentMap   = require('./models/ServiceDepartmentMap');
 
 const BACKUP_FOLDER_ID = process.env.GDRIVE_BACKUP_FOLDER_ID || '19FRqXOTePavaJ07CmKFTWF4aKKJTraE4';
 const CODE_FOLDER_ID   = process.env.GDRIVE_CODE_FOLDER_ID   || BACKUP_FOLDER_ID;
@@ -134,11 +144,15 @@ async function uploadToDrive(accessToken, filename, jsonContent) {
   return uploadToFolder(accessToken, BACKUP_FOLDER_ID, filename, jsonContent);
 }
 
-async function pruneOldBackups(accessToken, keepCount = 30) {
-  const q = encodeURIComponent(`'${BACKUP_FOLDER_ID}' in parents and trashed = false`);
+async function pruneOldBackups(accessToken, keepCount = 90) {
+  // Only prune data backup files — code snapshots live in a separate folder
+  // and must not compete with the keepCount quota.
+  const q = encodeURIComponent(
+    `'${BACKUP_FOLDER_ID}' in parents and trashed = false and name contains 'imentor-finance-backup'`
+  );
   const { status, data } = await driveRequest(
     'GET',
-    `/drive/v3/files?q=${q}&orderBy=createdTime+desc&fields=files(id,name)&pageSize=100&supportsAllDrives=true&includeItemsFromAllDrives=true`,
+    `/drive/v3/files?q=${q}&orderBy=createdTime+desc&fields=files(id,name)&pageSize=200&supportsAllDrives=true&includeItemsFromAllDrives=true`,
     accessToken
   );
   if (status !== 200) return 0;
@@ -193,7 +207,10 @@ async function runCodeBackup(accessToken) {
 }
 
 async function exportAllData() {
-  const [income, expenses, customers, agreements, listItems, recurring, commissions] = await Promise.all([
+  const [
+    income, expenses, customers, agreements, listItems, recurring, commissions,
+    appSettings, payrollSettings, incomingLeads, bankTransactions, serviceDeptMap,
+  ] = await Promise.all([
     Income.findAll({ raw: true }),
     Expense.findAll({ raw: true }),
     Customer.findAll({ raw: true }),
@@ -201,16 +218,40 @@ async function exportAllData() {
     ListItem.findAll({ raw: true }),
     RecurringExpense.findAll({ raw: true }),
     CommissionLog.findAll({ raw: true }),
+    AppSetting.findAll({ raw: true }),
+    PayrollEmployeeSetting.findAll({ raw: true }),
+    IncomingLead.findAll({ raw: true }),
+    BankTransaction.findAll({ raw: true }),
+    ServiceDepartmentMap.findAll({ raw: true }),
   ]);
   return {
     exported_at: new Date().toISOString(),
     counts: {
-      income: income.length, expenses: expenses.length, customers: customers.length,
-      service_agreements: agreements.length, list_items: listItems.length,
-      recurring_expenses: recurring.length, commission_logs: commissions.length,
+      income: income.length,
+      expenses: expenses.length,
+      customers: customers.length,
+      service_agreements: agreements.length,
+      list_items: listItems.length,
+      recurring_expenses: recurring.length,
+      commission_logs: commissions.length,
+      app_settings: appSettings.length,
+      payroll_employee_settings: payrollSettings.length,
+      incoming_leads: incomingLeads.length,
+      bank_transactions: bankTransactions.length,
+      service_department_map: serviceDeptMap.length,
     },
-    income, expenses, customers, service_agreements: agreements,
-    list_items: listItems, recurring_expenses: recurring, commission_logs: commissions,
+    income,
+    expenses,
+    customers,
+    service_agreements: agreements,
+    list_items: listItems,
+    recurring_expenses: recurring,
+    commission_logs: commissions,
+    app_settings: appSettings,
+    payroll_employee_settings: payrollSettings,
+    incoming_leads: incomingLeads,
+    bank_transactions: bankTransactions,
+    service_department_map: serviceDeptMap,
   };
 }
 
