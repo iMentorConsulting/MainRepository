@@ -70,13 +70,30 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   // Campaign sends, so they don't come through campaignRecipients — pulled
   // separately here (MessageLog.businessId isn't a Prisma relation) so the
   // business's own page can show its full communication history, not just
-  // the "Όλες οι Αποστολές" global feed on /campaigns.
+  // the "Όλες οι Αποστολές" global feed on /campaigns. Matched by ΑΦΜ, not
+  // businessId: a business claimed from a ΓΕΜΗ lead has MessageLog rows from
+  // before the claim with businessId still null (it didn't exist yet when
+  // those were sent) — ΑΦΜ is the one identity that's stable across the
+  // claim, so this picks up that pre-claim history too.
   const messageLogs = await prisma.messageLog.findMany({
-    where: { businessId: business.id },
+    where: { afm: business.afm },
     orderBy: { createdAt: 'desc' },
     take: 100,
   }).catch(() => [])
   ;(business as any).messageLogs = messageLogs
+
+  // Same reasoning for campaign sends: if this business was claimed from a
+  // ΓΕΜΗ lead, any campaigns sent to it while still unclaimed live in
+  // GemiCampaignRecipient (keyed by gemiId), a completely separate table
+  // from campaignRecipients (keyed by businessId) — pull those in too so
+  // they show up in the same history.
+  const gemiCampaignRecipients = await prisma.gemiCampaignRecipient.findMany({
+    where: { gemi: { afm: business.afm } },
+    include: { campaign: { select: { id: true, title: true, channel: true } } },
+    orderBy: { sentAt: 'desc' },
+    take: 100,
+  }).catch(() => [])
+  ;(business as any).gemiCampaignRecipients = gemiCampaignRecipients
 
   // Accountant can only see their own businesses
   if (session.user.role === 'ACCOUNTANT' && business.accountantId !== session.user.accountantId) {
@@ -108,6 +125,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   delete updateData.requests
   delete updateData.campaignRecipients
   delete updateData.messageLogs
+  delete updateData.gemiCampaignRecipients
   delete updateData.createdAt
   delete updateData.updatedAt
   if (session.user.role === 'ACCOUNTANT') delete updateData.accountantId

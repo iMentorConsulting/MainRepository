@@ -559,12 +559,21 @@ export default function GemiBusinessDetailPage() {
         </div>
       )}
 
-      {/* Campaign history */}
-      {business.campaignRecipients?.length > 0 && (
+      {/* Campaign history — this lead's own GemiCampaignRecipient sends,
+          plus (if later claimed into a real Business) any formal Campaign
+          sends made to it afterward via CampaignRecipient — different
+          table, same client. */}
+      {(() => {
+        const allCampaignRecipients = [
+          ...(business.campaignRecipients || []),
+          ...(business.claimedBusinessCampaignRecipients || []),
+        ].sort((a: any, b: any) => new Date(b.sentAt ?? 0).getTime() - new Date(a.sentAt ?? 0).getTime())
+        if (allCampaignRecipients.length === 0) return null
+        return (
         <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 space-y-4">
-          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Send size={14} />Ιστορικό Καμπανιών</h2>
+          <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide flex items-center gap-2"><Send size={14} />Ιστορικό Καμπανιών ({allCampaignRecipients.length})</h2>
           <div className="divide-y text-sm">
-            {business.campaignRecipients.map((r: any) => (
+            {allCampaignRecipients.map((r: any) => (
               <div key={r.id} className="py-3 flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
@@ -614,7 +623,8 @@ export default function GemiBusinessDetailPage() {
             ))}
           </div>
         </div>
-      )}
+        )
+      })()}
 
       {/* Ad-hoc sends — program-info email, microcredits eligibility
           analysis, "Ενημέρωση & Επόμενα Βήματα" — not formal Campaign

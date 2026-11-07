@@ -468,7 +468,21 @@ export default function BusinessDetailPage() {
               clickedAt: null,
               subject: l.subject,
             }))
-            const items = [...campaignItems, ...logItems]
+            // Sent before this business was claimed from a ΓΕΜΗ lead — a
+            // separate table (gemiId-keyed), but the same client, so it
+            // belongs in the same history.
+            const gemiCampaignItems = (business.gemiCampaignRecipients || []).map((r: any) => ({
+              id: `gemirec_${r.id}`,
+              title: `${r.campaign?.title || 'Καμπάνια'} (ΓΕΜΗ)`,
+              href: null,
+              channel: r.channel,
+              recipient: r.recipient,
+              date: r.sentAt,
+              status: r.status,
+              openedAt: r.openedAt,
+              clickedAt: r.clickedAt,
+            }))
+            const items = [...campaignItems, ...logItems, ...gemiCampaignItems]
               .filter(i => i.date)
               .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
             if (items.length === 0) return null

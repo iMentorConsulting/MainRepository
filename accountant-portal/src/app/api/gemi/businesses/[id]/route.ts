@@ -51,7 +51,20 @@ export async function GET(
     take: 100,
   }).catch(() => [])
 
-  return NextResponse.json({ ...business, claimedAccountant, messageLogs })
+  // If this lead was later claimed into a real Business, formal Campaign
+  // sends to it afterward live in campaignRecipients (businessId-keyed) —
+  // a separate table from this lead's own campaignRecipients (gemiId-keyed)
+  // — so pull those in too, same reasoning as messageLogs above.
+  const claimedBusinessCampaignRecipients = business.claimedBusinessId
+    ? await prisma.campaignRecipient.findMany({
+        where: { businessId: business.claimedBusinessId },
+        include: { campaign: { select: { id: true, title: true, channel: true } } },
+        orderBy: { sentAt: 'desc' },
+        take: 100,
+      }).catch(() => [])
+    : []
+
+  return NextResponse.json({ ...business, claimedAccountant, messageLogs, claimedBusinessCampaignRecipients })
 }
 
 export async function PATCH(
