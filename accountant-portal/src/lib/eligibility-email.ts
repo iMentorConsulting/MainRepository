@@ -385,7 +385,7 @@ export function buildProspectProgramEmailHtml(params: {
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
-          Χάρηκα για τη συζήτησή μας — ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:
+          Ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:
         </p>
         ${customMessage ? `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin:0 0 20px;">
           <p style="margin:0;font-size:14px;color:#3730a3;line-height:1.7;white-space:pre-line;">${customMessage}</p>
