@@ -1,7 +1,16 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { X, Send, CheckCircle2, Eye, RefreshCw, MessageSquare, ChevronDown, ChevronUp, CornerDownLeft } from 'lucide-react'
+import { X, Send, CheckCircle2, Eye, RefreshCw, MessageSquare, ChevronDown, ChevronUp, CornerDownLeft, Plus, Trash2, RotateCcw } from 'lucide-react'
 import { CmSyncControls, CmSyncResult, CM_SYNC_DEFAULT, type CmSyncValue } from '@/components/cm-sync-controls'
+
+// Mirrors DEFAULT_ADVICE_QUESTIONS in src/lib/eligibility-advice-email.ts —
+// kept as a separate client-side copy so this component doesn't need to
+// import a server-side email-building module just for 3 strings.
+const DEFAULT_QUESTIONS = [
+  'Τι επένδυση σκέφτομαι',
+  'Κατά προσέγγιση κόστος (σε €)',
+  'Ερωτήσεις μου (αν έχω)',
+]
 
 interface EligibilityAdviceModalProps {
   businessId: string
@@ -39,6 +48,23 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
   const [investmentAmount, setInvestmentAmount] = useState('')
   const [previewStale, setPreviewStale] = useState(false)
   const [showChat, setShowChat] = useState(false)
+  const [questions, setQuestions] = useState<string[]>(DEFAULT_QUESTIONS)
+
+  function updateQuestion(i: number, text: string) {
+    setQuestions(prev => prev.map((q, idx) => idx === i ? text : q))
+    setPreviewStale(true)
+  }
+  function removeQuestion(i: number) {
+    setQuestions(prev => prev.filter((_, idx) => idx !== i))
+    setPreviewStale(true)
+  }
+  function addQuestion() {
+    setQuestions(prev => [...prev, ''])
+  }
+  function resetQuestions() {
+    setQuestions(DEFAULT_QUESTIONS)
+    setPreviewStale(true)
+  }
 
   async function loadPreview(message: string, includeAmount: boolean, invAmount: string) {
     setLoading(true)
@@ -47,7 +73,11 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, send: false, customMessage: message || undefined, includeErmisAmount: includeAmount, investmentAmount: invAmount ? Number(invAmount) : undefined }),
+        body: JSON.stringify({
+          programId, send: false, customMessage: message || undefined, includeErmisAmount: includeAmount,
+          investmentAmount: invAmount ? Number(invAmount) : undefined,
+          questions: questions.map(q => q.trim()).filter(Boolean),
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (res.ok) {
@@ -78,6 +108,7 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
         body: JSON.stringify({
           programId, send: true, customMessage: customMessage || undefined, includeErmisAmount,
           investmentAmount: investmentAmount ? Number(investmentAmount) : undefined,
+          questions: questions.map(q => q.trim()).filter(Boolean),
           cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined,
         }),
       })
@@ -170,6 +201,38 @@ export function EligibilityAdviceModal({ businessId, programId, programTitle, bu
                   placeholder="π.χ. 150000"
                   className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                 />
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-xs font-medium text-gray-500">Ερωτήσεις προς τον πελάτη (Ενότητα Β)</label>
+                  <button type="button" onClick={resetQuestions} className="flex items-center gap-1 text-xs text-gray-400 hover:text-indigo-600">
+                    <RotateCcw size={11} /> Επαναφορά προεπιλογών
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  {questions.map((q, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <input
+                        type="text"
+                        value={q}
+                        onChange={e => updateQuestion(i, e.target.value)}
+                        placeholder="π.χ. Πότε θα θέλατε να ξεκινήσει η επένδυση;"
+                        className="flex-1 rounded-lg border border-gray-300 px-3 py-1.5 text-sm"
+                      />
+                      <button type="button" onClick={() => removeQuestion(i)} className="text-gray-400 hover:text-red-600 shrink-0">
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={addQuestion}
+                  className="mt-1.5 flex items-center gap-1 text-xs text-indigo-600 hover:underline"
+                >
+                  <Plus size={12} /> Προσθήκη ερώτησης
+                </button>
               </div>
 
               <div>

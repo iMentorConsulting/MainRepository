@@ -31,6 +31,21 @@ function fmtEur0(n: number): string {
   return n.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
 }
 
+// Section B's "reply with these points" list — preset to these 3, but the
+// consultant can edit, delete, or add to them before sending (see
+// EligibilityAdviceModal). Each is just the question label; a blank line is
+// appended automatically.
+export const DEFAULT_ADVICE_QUESTIONS: string[] = [
+  'Τι επένδυση σκέφτομαι',
+  'Κατά προσέγγιση κόστος (σε €)',
+  'Ερωτήσεις μου (αν έχω)',
+]
+
+const NUMBER_EMOJI = ['0️⃣', '1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6️⃣', '7️⃣', '8️⃣', '9️⃣', '🔟']
+function numberBadge(n: number): string {
+  return NUMBER_EMOJI[n] || `${n}.`
+}
+
 export function buildEligibilityAdviceSubject(businessName: string | null, programTitle: string): string {
   const name = businessName || 'Η επιχείρησή σας'
   return `${name} — Ενημέρωση & επόμενα βήματα για «${programTitle}»`
@@ -83,8 +98,12 @@ export function buildEligibilityAdviceEmailHtml(params: {
   investmentAmount?: number | null
   customMessage?: string | null
   imentorLogoUrl?: string | null
+  // Section B's questions — defaults to DEFAULT_ADVICE_QUESTIONS when
+  // omitted/empty.
+  questions?: string[]
 }): string {
   const { businessName, program, matchReasons, ermisDiscussedAmount, investmentAmount, customMessage, imentorLogoUrl } = params
+  const questions = params.questions && params.questions.length > 0 ? params.questions : DEFAULT_ADVICE_QUESTIONS
   const name = businessName || 'Αγαπητέ/ή πελάτη'
   const isDypa = program.category === 'DYPA'
 
@@ -178,22 +197,13 @@ export function buildEligibilityAdviceEmailHtml(params: {
   const sectionB = `
     <div style="background:#eef2ff;border:2px solid #4f46e5;border-radius:12px;padding:20px 22px;margin-top:4px;">
       <p style="margin:0 0 4px;font-size:15px;font-weight:700;color:#3730a3;">📩 Πατήστε «Απάντηση» σε αυτό το email και γράψτε μας:</p>
-      <p style="margin:0 0 14px;font-size:12.5px;color:#4338ca;">(αρκεί να απαντήσετε στα 3 παρακάτω σημεία, όσο σύντομα θέλετε)</p>
+      <p style="margin:0 0 14px;font-size:12.5px;color:#4338ca;">(αρκεί να απαντήσετε στα ${questions.length} παρακάτω σημεία, όσο σύντομα θέλετε)</p>
       ${ermisNote}
       <div style="background:#ffffff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;">
-        <p style="margin:0 0 10px;font-size:14px;color:#1f2937;line-height:1.7;">
-          1️⃣ <strong>Τι επένδυση σκέφτομαι:</strong> ______________________________
-        </p>
-        <p style="margin:0 0 10px;font-size:14px;color:#1f2937;line-height:1.7;">
-          2️⃣ <strong>Κατά προσέγγιση κόστος:</strong> ____________ €
-        </p>
-        <p style="margin:0;font-size:14px;color:#1f2937;line-height:1.7;">
-          3️⃣ <strong>Ερωτήσεις μου (αν έχω):</strong> ______________________________
-        </p>
+        ${questions.map((q, i) => `<p style="margin:${i === questions.length - 1 ? '0' : '0 0 10px'};font-size:14px;color:#1f2937;line-height:1.7;">
+          ${numberBadge(i + 1)} <strong>${q}:</strong> ______________________________
+        </p>`).join('')}
       </div>
-      <p style="margin:12px 0 0;font-size:12px;color:#6b7280;line-height:1.6;">
-        Π.χ. «1) Καινούργιος εξοπλισμός κουζίνας 2) Γύρω στις 50.000€ 3) Καμία, προχωράμε».
-      </p>
     </div>`
 
   return `

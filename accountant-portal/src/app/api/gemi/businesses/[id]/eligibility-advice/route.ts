@@ -17,7 +17,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { programId, send, customMessage, includeErmisAmount, investmentAmount, cmNotify, cmLeadStatus, cmReminderDate } = await request.json().catch(() => ({}))
+  const { programId, send, customMessage, includeErmisAmount, investmentAmount, cmNotify, cmLeadStatus, cmReminderDate, questions } = await request.json().catch(() => ({}))
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
@@ -64,6 +64,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     ermisDiscussedAmount,
     investmentAmount: typeof investmentAmount === 'number' && investmentAmount > 0 ? investmentAmount : null,
     customMessage: typeof customMessage === 'string' && customMessage.trim() ? customMessage.trim() : null,
+    questions: Array.isArray(questions) ? questions.filter((q: unknown) => typeof q === 'string' && q.trim()).map((q: string) => q.trim()) : undefined,
     imentorLogoUrl: appSetting?.imentorLogoUrl,
   })
 
