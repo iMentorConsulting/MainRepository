@@ -24,6 +24,7 @@ import {
   CloudArrowUpIcon,
   BellAlertIcon,
   UserPlusIcon,
+  BookOpenIcon,
 } from '@heroicons/react/24/outline'
 import { changePassword, getMyPayrollTargets } from '../api'
 import toast from 'react-hot-toast'
@@ -51,6 +52,7 @@ const nav = [
   { to: '/status-notifications', label: 'Ειδοποιήσεις Status', Icon: BellAlertIcon, adminOnly: true },
   { to: '/meta-ads', label: 'Meta Lead Ads', Icon: GlobeAltIcon, adminOnly: true },
   { to: '/message-templates', label: 'Πρότυπα Μηνυμάτων', Icon: DocumentTextIcon },
+  { to: '/doc-library', label: 'Βιβλιοθήκη Δικαιολογητικών', Icon: BookOpenIcon },
 ]
 
 function ChangePasswordModal({ onClose }) {

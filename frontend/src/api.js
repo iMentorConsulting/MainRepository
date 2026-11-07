@@ -325,4 +325,16 @@ export const createMessageTemplate = (data) => api.post('/api/cm/message-templat
 export const updateMessageTemplate = (id, data) => api.put(`/api/cm/message-templates/${id}`, data).then(r => r.data)
 export const deleteMessageTemplate = (id) => api.delete(`/api/cm/message-templates/${id}`).then(r => r.data)
 
+// Document Library
+export const getDocSets = () => api.get('/api/cm/doc-sets').then(r => r.data)
+export const getDocSet = (id) => api.get(`/api/cm/doc-sets/${id}`).then(r => r.data)
+export const createDocSet = (data) => api.post('/api/cm/doc-sets', data).then(r => r.data)
+export const updateDocSet = (id, data) => api.put(`/api/cm/doc-sets/${id}`, data).then(r => r.data)
+export const deleteDocSet = (id) => api.delete(`/api/cm/doc-sets/${id}`).then(r => r.data)
+export const createDocSetItem = (setId, data) => api.post(`/api/cm/doc-sets/${setId}/items`, data).then(r => r.data)
+export const updateDocSetItem = (setId, itemId, data) => api.put(`/api/cm/doc-sets/${setId}/items/${itemId}`, data).then(r => r.data)
+export const deleteDocSetItem = (setId, itemId) => api.delete(`/api/cm/doc-sets/${setId}/items/${itemId}`).then(r => r.data)
+export const reorderDocSetItems = (setId, orderedIds) => api.post(`/api/cm/doc-sets/${setId}/reorder`, { ordered_ids: orderedIds }).then(r => r.data)
+export const getDocLibMeta = () => api.get('/api/cm/doc-library/meta').then(r => r.data)
+
 export default api

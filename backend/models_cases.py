@@ -832,3 +832,74 @@ class CMMetaLeadLog(Base):
     status        = Column(String(30), nullable=True)   # ok | fetch_error | no_contact
     error         = Column(Text, nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow)
+
+
+# ── Document Library ───────────────────────────────────────────────────────────
+
+REQUIREMENT_TYPES = [
+    "ΥΠΟΧΡΕΩΤΙΚΟ",
+    "ΥΠΟ_ΠΡΟΫΠΟΘΕΣΗ",
+    "ΕΝΑΛΛΑΚΤΙΚΑ",
+    "ΓΙΑ_ΒΑΘΜΟΛΟΓΗΣΗ",
+    "ΠΡΟΑΙΡΕΤΙΚΟ",
+]
+
+GROUP_NAMES = {
+    "G01": "Νομιμοποίηση & Εκπροσώπηση",
+    "G02": "Φορολογικά & Οικονομικά",
+    "G03": "Προσωπικό & ΜΜΕ",
+    "G04": "Υπεύθυνες Δηλώσεις",
+    "G05": "Αδειοδότηση & Συμμόρφωση",
+    "G06": "Χρηματοδοτική Επάρκεια",
+    "G07": "Εμπειρία & Σπουδές",
+    "G08": "Καινοτομία & Βαθμολόγηση",
+    "G09": "Μελέτες & Συνοδευτικά",
+}
+
+
+class CMDocSet(Base):
+    """A named collection of required documents for a program/applicant type."""
+    __tablename__ = "cm_doc_sets"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String(300), nullable=False)
+    program_category = Column(String(50))   # ΕΣΠΑ, LEADER, ΔΥΠΑ, ...
+    program_title = Column(String(200))     # e.g. "Καινοτομώ στην Κρήτη"
+    applicant_type = Column(String(30))     # new_business | existing_business | both
+    description = Column(Text)
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    items = relationship(
+        "CMDocSetItem", back_populates="doc_set",
+        cascade="all, delete-orphan",
+        order_by="CMDocSetItem.sort_order",
+    )
+
+
+class CMDocSetItem(Base):
+    """One required document entry inside a CMDocSet."""
+    __tablename__ = "cm_doc_set_items"
+
+    id = Column(Integer, primary_key=True, index=True)
+    set_id = Column(Integer, ForeignKey("cm_doc_sets.id"), nullable=False, index=True)
+
+    item_code = Column(String(20))          # e.g. NEW-01, EXI-05
+    opske_code = Column(String(20))         # e.g. 02.02, 09.04
+    group_code = Column(String(5))          # G01 … G09
+    group_name = Column(String(100))
+
+    title = Column(String(300), nullable=False)
+    description = Column(Text)              # full client-facing instructions
+    requirement_type = Column(String(30), default="ΥΠΟΧΡΕΩΤΙΚΟ")
+    condition_notes = Column(Text)          # when this applies (for conditional items)
+    source_page = Column(String(50))        # reference to official source page
+
+    sort_order = Column(Integer, default=0)
+    is_active = Column(Boolean, default=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+
+    doc_set = relationship("CMDocSet", back_populates="items")
