@@ -250,7 +250,7 @@ export default function GemiBusinessDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-2 flex-wrap md:justify-end md:shrink-0">
+        <div className="flex gap-2 flex-wrap md:justify-end min-w-0">
           <Button variant="outline" onClick={() => window.print()}>
             <Printer size={14} className="mr-1" />Εκτύπωση / PDF
           </Button>
