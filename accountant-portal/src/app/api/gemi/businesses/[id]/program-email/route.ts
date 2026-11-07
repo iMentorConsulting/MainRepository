@@ -6,6 +6,7 @@ import { buildProspectProgramEmailSubject, buildProspectProgramEmailHtml } from 
 import { sendEmail } from '@/lib/email'
 import { logMessage } from '@/lib/message-log'
 import { notifyCaseManagementCommunication, type CmLeadStatus } from '@/lib/case-management-sync'
+import { autoClaimGemiOnSend } from '@/lib/gemi-claim'
 
 export const dynamic = 'force-dynamic'
 
@@ -105,7 +106,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         sentByEmail: session.user.email,
       })
     }
-    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, cmSync })
+    const claimed = ok ? await autoClaimGemiOnSend(gemi) : false
+    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, cmSync, claimed })
   }
 
   return NextResponse.json({ subject, html, sent: false, hasEmail: !!gemi.email })

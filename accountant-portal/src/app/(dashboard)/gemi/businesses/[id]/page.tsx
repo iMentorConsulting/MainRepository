@@ -64,13 +64,15 @@ export default function GemiBusinessDetailPage() {
 
   const isAdmin = ['ADMIN', 'CONSULTANT'].includes((session?.user as any)?.role ?? '')
 
+  function refetchBusiness() {
+    return fetch(`/api/gemi/businesses/${id}`).then(r => r.json()).then(d => setBusiness(d))
+  }
+
   useEffect(() => {
     if (status === 'loading') return
     if (!isAdmin) { router.push('/'); return }
-    fetch(`/api/gemi/businesses/${id}`)
-      .then(r => r.json())
-      .then(d => setBusiness(d))
-      .finally(() => setLoading(false))
+    refetchBusiness().finally(() => setLoading(false))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id, isAdmin, router, status])
 
   function startEdit() {
@@ -650,6 +652,7 @@ export default function GemiBusinessDetailPage() {
           programCategory={prospectEmailProgram.category}
           businessHasEmail={!!business.email}
           onClose={() => setProspectEmailProgram(null)}
+          onSent={refetchBusiness}
         />
       )}
 
@@ -660,6 +663,7 @@ export default function GemiBusinessDetailPage() {
           programId={microcreditsProgramId}
           businessHasEmail={!!business.email}
           onClose={() => setMicrocreditsProgramId(null)}
+          onSent={refetchBusiness}
         />
       )}
 
@@ -681,6 +685,7 @@ export default function GemiBusinessDetailPage() {
           programTitle={adviceProgram.title}
           businessHasEmail={!!business.email}
           onClose={() => setAdviceProgram(null)}
+          onSent={refetchBusiness}
         />
       )}
     </div>

@@ -5,6 +5,7 @@ import { buildEligibilityAdviceSubject, buildEligibilityAdviceEmailHtml, extract
 import { sendEmail } from '@/lib/email'
 import { logMessage } from '@/lib/message-log'
 import { notifyCaseManagementCommunication, type CmLeadStatus } from '@/lib/case-management-sync'
+import { autoClaimGemiOnSend } from '@/lib/gemi-claim'
 
 export const dynamic = 'force-dynamic'
 
@@ -22,10 +23,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
 
-  const gemi = await prisma.gemiLookup.findUnique({
-    where: { id: params.id },
-    select: { id: true, onomasia: true, afm: true, email: true, phone: true, claimedBusinessId: true, claimedAccountantId: true },
-  })
+  const gemi = await prisma.gemiLookup.findUnique({ where: { id: params.id } })
   if (!gemi) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
 
   const [match, appSetting, matchToken] = await Promise.all([
@@ -105,7 +103,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         sentByEmail: session.user.email,
       })
     }
-    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, detectedAmount, ermisChatLog, cmSync })
+    const claimed = ok ? await autoClaimGemiOnSend(gemi) : false
+    return NextResponse.json({ subject, html, sent: ok, hasEmail: true, detectedAmount, ermisChatLog, cmSync, claimed })
   }
 
   return NextResponse.json({ subject, html, sent: false, hasEmail: !!gemi.email, detectedAmount, ermisChatLog })

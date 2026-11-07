@@ -37,6 +37,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
   const [previewStale, setPreviewStale] = useState(false)
   const [cmSync, setCmSync] = useState<CmSyncValue>(CM_SYNC_DEFAULT)
   const [cmSyncResult, setCmSyncResult] = useState<{ delivered: boolean; found?: boolean; created?: boolean } | null>(null)
+  const [claimed, setClaimed] = useState(false)
 
   const showInvestmentField = !!programCategory && INVESTMENT_FEE_CATEGORIES.has(programCategory)
 
@@ -96,6 +97,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
       if (res.ok && data.sent) {
         setSent(true)
         setCmSyncResult(data.cmSync ?? null)
+        setClaimed(!!data.claimed)
         onSent?.()
       } else {
         setError(data.error || 'Η αποστολή απέτυχε.')
@@ -122,6 +124,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
           {sent ? (
             <div className="space-y-2">
               <p className="text-sm text-emerald-700 flex items-center gap-1.5"><CheckCircle2 size={16} /> Το email εστάλη.</p>
+              {claimed && <p className="text-xs text-indigo-700">✔️ Η επιχείρηση ανακτήθηκε αυτόματα και μετατράπηκε σε κανονικό πελάτη (δεν είναι πλέον ΓΕΜΗ lead).</p>}
               <CmSyncResult cmSync={cmSyncResult} />
               <button onClick={onClose} className="text-sm text-indigo-600 hover:underline">Κλείσιμο</button>
             </div>
