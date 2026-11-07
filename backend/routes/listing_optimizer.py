@@ -362,6 +362,26 @@ def _num(v) -> Optional[float]:
         return None
 
 
+GENIUS_COMPETITOR_PCT = 10  # Genius level 1 — the minimum discount a Genius property gives members
+
+
+def _genius_flag(obj, depth: int = 0) -> bool:
+    """True when a Booking result marks the property as part of Genius (flag, badge or label)."""
+    if depth > 4:
+        return False
+    if isinstance(obj, dict):
+        for k, v in obj.items():
+            if "genius" in str(k).lower() and v not in (None, False, 0, "", [], {}, "false", "False"):
+                return True
+            if _genius_flag(v, depth + 1):
+                return True
+    elif isinstance(obj, list):
+        return any(_genius_flag(v, depth + 1) for v in obj[:20])
+    elif isinstance(obj, str):
+        return "genius" in obj.lower()
+    return False
+
+
 _CURRENT_KEYS = ("discountedPrice", "discounted_price", "finalPrice", "final_price", "priceAfterDiscount",
                  "salePrice", "currentPrice", "discountPrice")
 _ORIGINAL_KEYS = ("originalPrice", "original_price", "strikethroughPrice", "priceBeforeDiscount", "oldPrice",
@@ -509,6 +529,7 @@ def _normalize(item: dict, platform: str) -> dict:
         "signals": _signals(feature_text),
         "superhost": bool(item.get("isSuperHost") or item.get("isSuperhost") or host.get("isSuperHost")
                           or item.get("isGuestFavorite") or item.get("guestFavorite")),
+        "genius": platform == "booking" and _genius_flag(item),
         "stars": _num(item.get("stars")),
         "capacity": _num(item.get("personCapacity") or item.get("maxGuests") or item.get("persons")),
         "photos": len(photos) if isinstance(photos, list) else None,
@@ -551,15 +572,29 @@ def _tier(score: int, mine: int) -> str:
     return "inferior"
 
 
-def _better_cheaper(comps: list, my_rank: Optional[int]) -> list:
-    """Comparable-or-better listings that rank above us AND are cheaper — the only case a price cut is justified."""
+def _genius_price(c: dict) -> Optional[float]:
+    """What a Genius member pays a competitor: Genius properties give at least level-1 discount."""
+    if not c.get("price"):
+        return None
+    return c["price"] * (1 - GENIUS_COMPETITOR_PCT / 100) if c.get("genius") else c["price"]
+
+
+def _better_cheaper(comps: list, my_rank: Optional[int], my_genius_pct: float = 0) -> list:
+    """
+    Comparable-or-better listings that rank above us AND are cheaper — the only case a price cut is justified.
+    With my_genius_pct, compares the prices a Genius member sees (ours and Genius competitors' discounted).
+    """
     me = next((c for c in comps if c.get("mine")), None)
     if not me:
         return []
     my_price = me.get("price") or me.get("est_price")
     if not my_price:
         return []
-    return [c for c in comps if not c.get("mine") and c.get("price") and c["price"] < my_price
+    price_of = (lambda c: c.get("price"))
+    if my_genius_pct:
+        my_price = my_price * (1 - my_genius_pct / 100)
+        price_of = _genius_price
+    return [c for c in comps if not c.get("mine") and price_of(c) and price_of(c) < my_price
             and _tier(c.get("score", 0), me.get("score", 0)) != "inferior"
             and (my_rank is None or (c.get("position") or 999) < my_rank)]
 
@@ -597,6 +632,17 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
         above = [c for c in others if s.rank and (c.get("position") or 999) < s.rank][:10] or others[:8]
         bc = _better_cheaper(comps, s.rank)
         my_total = s.my_price or me.get("est_price")
+        g_pct = float(unit_cfg.get("booking_genius_pct") or 0) if s.platform == "booking" else 0
+        genius_txt = ""
+        if g_pct and my_total:
+            gbc = _better_cheaper(comps, s.rank, g_pct)
+            genius_txt = (
+                f"GENIUS: είμαστε στο Genius με {g_pct:g}% → τα συνδεδεμένα μέλη Genius μας βλέπουν "
+                f"στα ~{round(my_total * (1 - g_pct / 100) / nights)}€/νύχτα (οι τιμές παραπάνω είναι χωρίς σύνδεση). "
+                f"Για ανταγωνιστές με Genius υποθέτουμε τουλάχιστον {GENIUS_COMPETITOR_PCT}%. "
+                + ("Με τιμές Genius, ισάξια/ανώτερα φθηνότερα που μας ξεπερνούν: "
+                   + "; ".join(f"#{c.get('position')} {c['name']} ~{round(_genius_price(c) / nights)}€/νύχτα" for c in gbc)
+                   if gbc else "Με τιμές Genius κανένα ισάξιο/ανώτερο φθηνότερο δεν μας ξεπερνά.") + "\n")
         blocks.append(
             f"### {s.platform.upper()} · {s.check_in:%d/%m}–{s.check_out:%d/%m/%Y} "
             f"({nights} νύχτες, {s.adults} ενήλικες)\n"
@@ -605,7 +651,8 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
             + f". Δική μας τιμή: {f'{round(my_total / nights)}€/νύχτα ({round(my_total)}€ σύνολο)' if my_total else 'άγνωστη'}. "
             f"Δικό μας quality score: {my_score}/100 "
             f"(χαρακτηριστικά: {', '.join(me.get('signals') or []) or '—'}).\n"
-            + (f"ΙΣΑΞΙΑ/ΑΝΩΤΕΡΑ ΚΑΙ ΦΘΗΝΟΤΕΡΑ ΠΟΥ ΜΑΣ ΞΕΠΕΡΝΟΥΝ: "
+            + genius_txt
+            + (f"ΙΣΑΞΙΑ/ΑΝΩΤΕΡΑ ΚΑΙ ΦΘΗΝΟΤΕΡΑ ΠΟΥ ΜΑΣ ΞΕΠΕΡΝΟΥΝ (χωρίς σύνδεση): "
                + "; ".join(f"#{c.get('position')} {c['name']} {round(c['price'] / nights)}€/νύχτα (score {c.get('score')})" for c in bc)
                + "\n" if bc else "Κανένα ισάξιο/ανώτερο φθηνότερο listing δεν μας ξεπερνά → ΟΧΙ μείωση τιμής.\n")
             + f"Listings πάνω από εμάς (με τη σειρά της αναζήτησης):\n"
@@ -617,6 +664,7 @@ def _claude_recommendations(unit: Unit, unit_cfg: dict, snapshots: list, locatio
                 f"βαθμ. {c.get('rating') or '?'} ({c.get('reviews', 0)} κριτικές) | "
                 f"{', '.join(c.get('signals') or []) or '—'}"
                 + (" | Superhost/Guest fav." if c.get("superhost") else "")
+                + (" | Genius" if c.get("genius") else "")
                 + (f" | {c['description'][:160]}" if c.get("description") else "")
                 for c in above
             )
@@ -639,6 +687,9 @@ quality score και η ετικέτα SUPERIOR / COMPARABLE / INFERIOR σε β�
 από ονόματα/περιγραφές.
 
 ΚΑΝΟΝΑΣ ΤΙΜΗΣ (όταν αναφέρεις τιμές, γράψε τες ΑΝΑ ΝΥΧΤΑ, όπως στα δεδομένα):
+- Στο Booking, όπου δίνεται GENIUS, ζύγισε και τις δύο όψεις: επισκέπτες χωρίς σύνδεση βλέπουν τη δημόσια τιμή,
+  μέλη Genius την τιμή Genius. Αν φθηνότερο ισάξιο υπάρχει μόνο στη μία όψη, πες ποια, και μην προτείνεις
+  μείωση της βασικής τιμής όταν η τιμή Genius μας είναι ήδη ανταγωνιστική.
 - Πρότεινε μείωση τιμής ΜΟΝΟ όταν ισάξιο ή ανώτερο listing είναι φθηνότερο ΚΑΙ μας ξεπερνά στην κατάταξη.
   Τότε η μείωση να φέρνει την τιμή μας κοντά σε αυτό το listing (όχι χαμηλότερα), με συγκεκριμένο ποσό/% και ημερομηνίες.
 - Φθηνότερα INFERIOR listings (απλά σπίτια, διαμερίσματα χωρίς πισίνα κλπ.) τα ΑΓΝΟΟΥΜΕ για την τιμή.
@@ -1049,6 +1100,25 @@ def _snap_dict(s: ListingSnapshot, cfg: dict) -> dict:
                             "rating": c.get("rating"), "score": c.get("score"), "position": c.get("position")}
                            for c in _better_cheaper(all_comps, s.rank)],
         "competitors": comps[:5], "error": s.error, "created_at": s.created_at.isoformat(),
+        "genius": _genius_view(s, all_comps, cfg),
+    }
+
+
+def _genius_view(s: ListingSnapshot, all_comps: list, cfg: dict) -> Optional[dict]:
+    """Booking prices as a signed-in Genius member sees them (estimated; the scraper searches logged out)."""
+    pct = float((cfg.get("units", {}).get(str(s.unit_id), {}) or {}).get("booking_genius_pct") or 0)
+    if s.platform != "booking" or not pct:
+        return None
+    me = next((c for c in all_comps if c.get("mine")), {})
+    base = s.my_price or me.get("est_price")
+    return {
+        "pct": pct,
+        "my_price": round(base * (1 - pct / 100), 2) if base else None,
+        "competitor_pct": GENIUS_COMPETITOR_PCT,
+        "genius_competitors": sum(1 for c in all_comps if c.get("genius") and not c.get("mine")),
+        "better_cheaper": [{"name": c["name"], "url": c.get("url"), "price": _genius_price(c),
+                            "genius": bool(c.get("genius")), "rating": c.get("rating"), "position": c.get("position")}
+                           for c in _better_cheaper(all_comps, s.rank, pct)],
     }
 
 

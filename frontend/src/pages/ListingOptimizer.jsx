@@ -460,6 +460,12 @@ export default function ListingOptimizer() {
                         </div>
                       ))}
                     </div>
+                    <div>
+                      <label className="label">Genius Booking (%)</label>
+                      <input type="number" min={0} max={50} step={5} className="input" placeholder="όχι στο Genius"
+                        value={uc.booking_genius_pct || ''} onChange={e => setU(u.id, 'booking_genius_pct', +e.target.value || undefined)} />
+                      <p className="text-[11px] text-gray-400 mt-1">Η έκπτωση που βλέπουν τα συνδεδεμένα μέλη Genius (π.χ. 10). Η αναζήτηση γίνεται χωρίς σύνδεση, οπότε η τιμή Genius υπολογίζεται.</p>
+                    </div>
                     <MinStayPeriods periods={uc.min_stay_periods || []}
                       onChange={ps => setU(u.id, 'min_stay_periods', ps)} />
                     <div>
@@ -548,6 +554,11 @@ export default function ListingOptimizer() {
                           −{Math.round((1 - s.my_price / s.my_original_price) * 100)}% από <s>{eur(pn(s, s.my_original_price))}</s>
                         </span>
                       )}
+                      {s.genius?.my_price && (
+                        <span className="block text-[11px] text-blue-700 whitespace-nowrap" title="Εκτίμηση: η τιμή που βλέπουν τα συνδεδεμένα μέλη Genius">
+                          Genius {eur(pn(s, s.genius.my_price))} (−{s.genius.pct}%)
+                        </span>
+                      )}
                       {s.my_score != null && <span className="block text-[11px] text-gray-500">score {s.my_score}/100</span>}
                     </td>
                     <td className="px-4 py-3 text-xs min-w-[170px]">
@@ -563,6 +574,14 @@ export default function ListingOptimizer() {
                           ))}
                         </div>
                       ) : <span className="text-green-700 font-medium">Όχι — κανένα αντίστοιχο φθηνότερο</span>}
+                      {s.genius && !s.error && (
+                        <div className="mt-1.5 pt-1.5 border-t border-gray-100 text-[11px]">
+                          {s.genius.better_cheaper.length ? (
+                            <span className="text-amber-700">Με Genius: ναι — {s.genius.better_cheaper.length} φθηνότερο
+                              {' '}({s.genius.better_cheaper.slice(0, 1).map(b => `${eur(pn(s, b.price))} #${b.position}`)})</span>
+                          ) : <span className="text-green-700">Με Genius: όχι — η τιμή Genius σας είναι ανταγωνιστική</span>}
+                        </div>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-600 space-y-0.5 min-w-[220px]">
                       {s.competitors.slice(0, 3).map((c, i) => (
@@ -577,6 +596,7 @@ export default function ListingOptimizer() {
                             {c.original_price ? <span className="text-green-700 font-normal text-[10px]"> −{Math.round((1 - c.price / c.original_price) * 100)}%</span> : null}
                           </span>
                           <span className="shrink-0 tabular-nums text-amber-600 min-w-[5.5rem] whitespace-nowrap">{c.rating ? <>★{c.rating}{c.reviews ? <span className="text-gray-400"> ({c.reviews})</span> : null}</> : '—'}</span>
+                          {c.genius ? <span className="shrink-0 px-1 rounded bg-blue-700 text-white text-[9px] font-bold" title={`Στο Genius — για μέλη τουλάχιστον −10%: ~${eur(pn(s, c.price * 0.9))}/νύχτα`}>G</span> : null}
                           <span className="truncate min-w-0" title={c.name}>{c.position || i + 1}. {c.name}</span>
                         </a>
                       ))}
