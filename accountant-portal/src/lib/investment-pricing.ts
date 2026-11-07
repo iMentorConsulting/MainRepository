@@ -20,7 +20,7 @@ export interface PricingBracket {
 export const DEFAULT_INVESTMENT_PRICING_BRACKETS: PricingBracket[] = [
   { minAmount: 0, maxAmount: 70000, applicationFee: 950, implementationFee: 4000 },
   { minAmount: 70001, maxAmount: 90000, applicationFee: 950, implementationFee: 4200 },
-  { minAmount: 90001, maxAmount: 110000, applicationFee: 880, implementationFee: 4400 },
+  { minAmount: 90001, maxAmount: 110000, applicationFee: 950, implementationFee: 4400 },
   { minAmount: 110001, maxAmount: 130000, applicationFee: 1040, implementationFee: 5200 },
   { minAmount: 130001, maxAmount: 150000, applicationFee: 1200, implementationFee: 6000 },
   { minAmount: 150001, maxAmount: 170000, applicationFee: 1360, implementationFee: 6800 },
