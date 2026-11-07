@@ -89,7 +89,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
           send: true,
           customMessage: customMessage || undefined,
           investmentAmount: showInvestmentField && investmentAmount ? Number(investmentAmount) : undefined,
-          ...(kind === 'business' ? { cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined } : {}),
+          cmNotify: cmSync.notify, cmLeadStatus: cmSync.leadStatus || undefined, cmReminderDate: cmSync.reminderDate || undefined,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -122,7 +122,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
           {sent ? (
             <div className="space-y-2">
               <p className="text-sm text-emerald-700 flex items-center gap-1.5"><CheckCircle2 size={16} /> Το email εστάλη.</p>
-              {kind === 'business' && <CmSyncResult cmSync={cmSyncResult} />}
+              <CmSyncResult cmSync={cmSyncResult} />
               <button onClick={onClose} className="text-sm text-indigo-600 hover:underline">Κλείσιμο</button>
             </div>
           ) : (
@@ -184,7 +184,7 @@ export function ProspectProgramEmailModal({ businessId, programId, programTitle,
               )}
               {error && <p className="text-xs text-red-600">{error}</p>}
 
-              {kind === 'business' && <CmSyncControls value={cmSync} onChange={setCmSync} />}
+              <CmSyncControls value={cmSync} onChange={setCmSync} />
 
               <div className="flex justify-end gap-2 pt-2">
                 <button onClick={onClose} className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800">Ακύρωση</button>
