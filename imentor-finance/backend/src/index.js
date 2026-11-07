@@ -165,8 +165,8 @@ sequelize.sync({ alter: true }).then(async () => {
           console.error('[backup-cron] error:', e.message);
         });
 
-    cron.schedule('0 9,14,19 * * *', doBackup, { timezone: 'Europe/Athens' });
-    console.log('[backup-cron] Backup scheduled 3× daily (09:00, 14:00, 19:00 Europe/Athens)');
+    cron.schedule('0 19 * * *', doBackup, { timezone: 'Europe/Athens' });
+    console.log('[backup-cron] Daily backup scheduled at 19:00 Europe/Athens');
 
     // Startup backup — runs 2 minutes after boot to catch any data added since the last scheduled run
     setTimeout(doBackup, 2 * 60 * 1000);
