@@ -265,7 +265,7 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
   const [loading, setLoading] = useState(true)
   const [showShare, setShowShare] = useState(false)
   const auth = getAuth()
-  const isAdmin = auth?.role === 'admin'
+  const isAdmin = auth?.user?.role === 'admin'
 
   useEffect(() => {
     setLoading(true)

@@ -995,7 +995,7 @@ export default function DocLibraryPage() {
   const [loading, setLoading] = useState(true)
 
   const auth = getAuth()
-  const isAdmin = auth?.role === 'admin'
+  const isAdmin = auth?.user?.role === 'admin'
 
   useEffect(() => {
     Promise.all([getDocSets(), getDocLibMeta()])
