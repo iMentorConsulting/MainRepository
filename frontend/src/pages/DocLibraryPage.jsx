@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import {
   getDocSets, getDocSet, createDocSet, updateDocSet, deleteDocSet,
   createDocSetItem, updateDocSetItem, deleteDocSetItem, getDocLibMeta, getAuth,
@@ -890,8 +890,8 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
           <div key={cat}>
             <div className="px-2 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider">{cat}</div>
             {catSets.map(s => (
+              <React.Fragment key={s.id}>
               <button
-                key={s.id}
                 onClick={() => onSelect(s.id)}
                 className={`w-full text-left px-3 py-2.5 rounded-xl mb-1 transition-all group ${
                   selectedId === s.id
@@ -965,6 +965,7 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                   </div>
                 </div>
               )}
+              </React.Fragment>
             ))}
           </div>
         ))}
