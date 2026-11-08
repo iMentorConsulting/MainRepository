@@ -1,8 +1,7 @@
 'use client'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Sparkles, ChevronDown, ArrowRight, Users, ExternalLink, AlertTriangle, Calendar } from 'lucide-react'
-import { Badge } from '@/components/ui/badge'
+import { Sparkles, ChevronDown, ArrowRight, Users } from 'lucide-react'
 
 interface MatchBusiness {
   id: string
@@ -31,53 +30,25 @@ function formatDeadline(dateStr: string) {
   return new Date(dateStr).toLocaleDateString('el-GR', { day: 'numeric', month: 'short', year: 'numeric' })
 }
 
-function DeadlineChip({ endDate, category }: { endDate: string | null; category?: string }) {
+// Returns a dot color + short label; deadline urgency is conveyed with a
+// colored dot + compact text instead of a bulky pill badge, to keep the
+// redesigned card's header row to a single compact line.
+function deadlineMeta(endDate: string | null, category?: string): { dot: string; text: string; urgent: boolean } | null {
   if (!endDate) {
     const noDateLabel = category === 'DYPA'
-      ? 'Έως κάλυψης των θέσεων'
+      ? 'Έως κάλυψης θέσεων'
       : category === 'ESPA' || category === 'MICROCREDITS'
-      ? 'Έως εξάντλησης των κονδυλίων'
+      ? 'Έως εξάντλησης κονδυλίων'
       : null
     if (!noDateLabel) return null
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
-        <Calendar size={9} />
-        {noDateLabel}
-      </span>
-    )
+    return { dot: 'bg-slate-300', text: noDateLabel, urgent: false }
   }
   const days = daysUntil(endDate)
   const formatted = formatDeadline(endDate)
-  if (days < 0) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-800 bg-red-100 border border-red-300 px-2 py-0.5 rounded-full mt-1.5 w-fit">
-        <AlertTriangle size={9} />
-        ΕΛΗΞΕ {formatted}
-      </span>
-    )
-  }
-  if (days <= 14) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-red-700 bg-red-50 border border-red-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
-        <AlertTriangle size={9} />
-        Λήξη {formatted} · {days === 0 ? 'σήμερα!' : `σε ${days} ${days === 1 ? 'ημέρα' : 'ημέρες'}`}
-      </span>
-    )
-  }
-  if (days <= 45) {
-    return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
-        <AlertTriangle size={9} />
-        Λήξη {formatted} · σε {days} ημέρες
-      </span>
-    )
-  }
-  return (
-    <span className="inline-flex items-center gap-1 text-[10px] font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 px-2 py-0.5 rounded-full mt-1.5 w-fit">
-      <Calendar size={9} />
-      Λήξη {formatted} · σε {days} ημέρες
-    </span>
-  )
+  if (days < 0) return { dot: 'bg-red-500', text: `Έληξε ${formatted}`, urgent: true }
+  if (days <= 14) return { dot: 'bg-red-500', text: days === 0 ? 'Λήγει σήμερα' : `${days} ${days === 1 ? 'ημέρα' : 'ημέρες'} ακόμη`, urgent: true }
+  if (days <= 45) return { dot: 'bg-amber-500', text: `${days} ημέρες ακόμη`, urgent: false }
+  return { dot: 'bg-emerald-500', text: `Έως ${formatted}`, urgent: false }
 }
 
 const VISIBLE_BUSINESSES = 6
@@ -86,65 +57,63 @@ function OpportunityCard({ opp, accountantId }: { opp: ProgramOpportunity; accou
   const [expanded, setExpanded] = useState(false)
   const visible = expanded ? opp.businesses : opp.businesses.slice(0, VISIBLE_BUSINESSES)
   const hiddenCount = opp.businesses.length - visible.length
+  const deadline = deadlineMeta(opp.endDate, opp.programCategory)
 
   return (
-    <div className="bg-white rounded-xl border border-slate-100 p-4 flex flex-col">
-      <div className="flex items-start justify-between gap-2">
-        <Link href={`/programs/${opp.programId}`} className="group flex-1 min-w-0">
-          <h3 className="text-sm font-bold text-slate-900 leading-snug group-hover:text-indigo-700 flex items-center gap-1">
-            <span>{opp.programTitle}</span>
-            <ExternalLink size={11} className="flex-shrink-0 text-slate-300 group-hover:text-indigo-500" />
+    <div className="group/card relative bg-white rounded-lg border border-slate-200/70 hover:border-indigo-200 hover:shadow-md hover:shadow-indigo-100/50 transition-all duration-200 flex flex-col overflow-hidden">
+      <Link href={`/programs/${opp.programId}`} className="block px-3.5 pt-3 pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <h3 className="text-[13px] font-semibold text-slate-900 leading-snug group-hover/card:text-indigo-700 line-clamp-2 flex-1">
+            {opp.programTitle}
           </h3>
-        </Link>
-        <Badge variant="purple" className="flex-shrink-0">
-          <Users size={11} /> {opp.matchCount}
-        </Badge>
-      </div>
-
-      <DeadlineChip endDate={opp.endDate} category={opp.programCategory} />
-
-      {opp.programDescription && (
-        <p className="text-xs text-slate-500 mt-1.5 leading-relaxed line-clamp-2">{opp.programDescription}</p>
-      )}
-      {opp.extraCriteriaLabels.length > 0 && (
-        <div className="mt-1.5">
-          <span className="text-xs font-medium text-slate-600">Πρόσθετες Προϋποθέσεις:</span>
-          <div className="flex flex-wrap gap-1 mt-1">
-            {opp.extraCriteriaLabels.map((label, i) => (
-              <Badge key={i} variant="secondary" className="text-[10px]">{label}</Badge>
-            ))}
-          </div>
+          <span className="flex-shrink-0 inline-flex items-center gap-1 text-[11px] font-bold text-indigo-700 bg-indigo-50 rounded-md px-1.5 py-0.5">
+            <Users size={10} strokeWidth={2.5} /> {opp.matchCount}
+          </span>
         </div>
-      )}
 
-      <button
-        onClick={() => setExpanded(v => !v)}
-        className="flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 mt-3"
-      >
-        {expanded ? 'Απόκρυψη επαφών' : 'Δείτε τις επιχειρήσεις'}
-        <ChevronDown size={13} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
-      </button>
+        <div className="flex items-center gap-2.5 mt-1.5 flex-wrap">
+          {deadline && (
+            <span className={`inline-flex items-center gap-1 text-[10.5px] ${deadline.urgent ? 'font-semibold text-red-600' : 'text-slate-400'}`}>
+              <span className={`w-1.5 h-1.5 rounded-full ${deadline.dot}`} />
+              {deadline.text}
+            </span>
+          )}
+          {opp.extraCriteriaLabels.slice(0, 2).map((label, i) => (
+            <span key={i} className="text-[10.5px] text-slate-400 truncate max-w-[120px]">· {label}</span>
+          ))}
+        </div>
+      </Link>
 
       {expanded && (
-        <div className="mt-2 space-y-1.5 max-h-64 overflow-y-auto pr-1">
+        <div className="px-3.5 pb-1 -mt-1 space-y-1 max-h-56 overflow-y-auto">
           {visible.map(b => (
-            <div key={b.id} className="bg-slate-50 rounded-lg px-2.5 py-1.5">
-              <p className="text-xs font-medium text-slate-800 truncate">{b.name}</p>
-              <p className="text-[11px] text-slate-500 truncate">{b.activityDescr || 'Χωρίς καταχωρημένη δραστηριότητα'}</p>
+            <div key={b.id} className="bg-slate-50 rounded-md px-2 py-1.5 border border-slate-100">
+              <p className="text-[11.5px] font-medium text-slate-800 truncate">{b.name}</p>
+              <p className="text-[10.5px] text-slate-500 truncate">{b.activityDescr || 'Χωρίς καταχωρημένη δραστηριότητα'}</p>
             </div>
           ))}
           {hiddenCount > 0 && (
-            <p className="text-[11px] text-slate-400 text-center pt-0.5">+{hiddenCount} ακόμη</p>
+            <p className="text-[10.5px] text-slate-400 text-center py-0.5">+{hiddenCount} ακόμη</p>
           )}
         </div>
       )}
 
-      <Link
-        href={`/matches?programIds=${opp.programId}${accountantId ? `&accountantIds=${accountantId}` : ''}`}
-        className="flex items-center gap-1 text-xs font-semibold text-slate-700 hover:text-indigo-700 mt-3 pt-3 border-t border-slate-100"
-      >
-        Δείτε στα Matches <ArrowRight size={12} />
-      </Link>
+      <div className="mt-auto flex items-center border-t border-slate-100 bg-slate-50/60 text-[11px] font-medium">
+        <button
+          onClick={() => setExpanded(v => !v)}
+          className="flex-1 flex items-center justify-center gap-1 py-2 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50/60 transition-colors"
+        >
+          {expanded ? 'Απόκρυψη' : 'Επιχειρήσεις'}
+          <ChevronDown size={12} className={`transition-transform ${expanded ? 'rotate-180' : ''}`} />
+        </button>
+        <div className="w-px self-stretch bg-slate-200" />
+        <Link
+          href={`/matches?programIds=${opp.programId}${accountantId ? `&accountantIds=${accountantId}` : ''}`}
+          className="flex-1 flex items-center justify-center gap-1 py-2 text-slate-600 hover:text-indigo-700 hover:bg-indigo-50/60 transition-colors"
+        >
+          Matches <ArrowRight size={11} />
+        </Link>
+      </div>
     </div>
   )
 }
@@ -178,9 +147,12 @@ export function MatchesHero({ accountantId }: { accountantId?: string }) {
       <div className="absolute -top-20 -right-20 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl" />
       <div className="absolute -bottom-20 -left-10 w-64 h-64 bg-fuchsia-500/10 rounded-full blur-3xl" />
 
-      <div className="relative flex items-center gap-2 mb-4">
-        <Sparkles size={18} className="text-amber-300" />
-        <h2 className="text-base font-bold">Matches Επιχειρήσεων &amp; Προγραμμάτων</h2>
+      <div className="relative flex items-center gap-2 mb-3.5">
+        <Sparkles size={17} className="text-amber-300" />
+        <h2 className="text-[15px] font-bold tracking-tight">Matches Επιχειρήσεων &amp; Προγραμμάτων</h2>
+        {programs && programs.length > 0 && (
+          <span className="text-[11px] text-white/40 font-medium">{programs.length} προγράμματα</span>
+        )}
       </div>
 
       <div className="relative">
@@ -189,7 +161,7 @@ export function MatchesHero({ accountantId }: { accountantId?: string }) {
         ) : programs.length === 0 ? (
           <div className="h-40 flex items-center justify-center text-white/60 text-sm">Δεν υπάρχουν matches ακόμη</div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-2.5">
             {programs.map(opp => <OpportunityCard key={opp.programId} opp={opp} accountantId={accountantId} />)}
           </div>
         )}
