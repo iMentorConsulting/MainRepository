@@ -70,13 +70,15 @@ export function buildEligibilityEmailHtml(params: {
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;border-radius:12px 12px 0 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+      <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
         <table width="100%" cellpadding="0" cellspacing="0"><tr>
           <td valign="middle" align="left" style="padding-right:12px;">${brandLeft}</td>
           ${brandRight ? `<td valign="middle" align="right" style="padding-left:12px;">${brandRight}</td>` : ''}
         </tr></table>
         <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">✅ Βρέθηκαν διαθέσιμα προγράμματα</h1>
-      </div>
+      </td></tr>
+      </table>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
@@ -378,10 +380,12 @@ export function buildProspectProgramEmailHtml(params: {
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;border-radius:12px 12px 0 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+      <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
         ${brandLeft}
         <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">✅ Είστε επιλέξιμοι για επιχορήγηση</h1>
-      </div>
+      </td></tr>
+      </table>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">

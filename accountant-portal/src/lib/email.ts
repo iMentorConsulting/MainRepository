@@ -106,9 +106,40 @@ interface EmailData {
   html: string
 }
 
+// Every email template in this codebase returns a bare HTML fragment (a
+// table/div tree with no <!DOCTYPE>/<head>) — sendEmail() ships that raw
+// string as the entire message. Outlook desktop and some mobile clients use
+// that missing document shell plus the absence of a color-scheme declaration
+// to decide whether to auto-invert colors in dark mode, which is how a
+// correctly-coded blue banner with white text can end up rendering with no
+// background (CSS background/linear-gradient on a <div> is ignored by
+// Outlook's Word engine anyway — the templates also need bgcolor/table
+// fallbacks, fixed separately per-template) and invisible white-on-white
+// text. Wrapping centrally here fixes the document-level half of the problem
+// for every template at once. Skipped when the fragment already supplies its
+// own document shell (onboarding-emails.ts's emailWrap()) to avoid nesting
+// <html>/<body> inside another <body>.
+function wrapEmailDocument(html: string): string {
+  if (/^\s*<!doctype/i.test(html) || /^\s*<html/i.test(html)) return html
+  return `<!DOCTYPE html>
+<html lang="el">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<meta name="color-scheme" content="light" />
+<meta name="supported-color-schemes" content="light" />
+</head>
+<body style="margin:0;padding:0;">
+${html}
+</body>
+</html>`
+}
+
 export async function sendEmail(data: EmailData): Promise<boolean> {
+  const html = wrapEmailDocument(data.html)
+
   if (googleServiceAccountJson) {
-    return sendViaGmailApi(data.to, data.subject, data.html)
+    return sendViaGmailApi(data.to, data.subject, html)
   }
 
   if (!smtpUser || !smtpPass) {
@@ -121,7 +152,7 @@ export async function sendEmail(data: EmailData): Promise<boolean> {
       from: fromAddress,
       to: data.to,
       subject: data.subject,
-      html: data.html,
+      html,
     })
     console.log(`[Email] Sent to ${data.to}`)
     return true

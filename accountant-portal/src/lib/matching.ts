@@ -444,9 +444,13 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
       <p style="margin: 0 0 8px; font-size: 15px; font-weight: bold; color: #4f46e5;">🎯 ${m.program.title}</p>
       ${infoHtml}
       ${req}
-      <a href="${actionUrl}" style="display: inline-block; margin-top: 12px; background: linear-gradient(135deg, #059669, #047857); color: white; padding: 8px 20px; border-radius: 6px; text-decoration: none; font-size: 13px; font-weight: bold;">
-        Ανάθεση σε I-MENTOR &rarr;
-      </a>
+      <table role="presentation" cellpadding="0" cellspacing="0" style="margin-top: 12px;"><tr>
+        <td align="center" bgcolor="#059669" style="background: linear-gradient(135deg, #059669, #047857); border-radius: 6px;">
+          <a href="${actionUrl}" style="display: inline-block; color: white; padding: 8px 20px; text-decoration: none; font-size: 13px; font-weight: bold;">
+            Ανάθεση σε I-MENTOR &rarr;
+          </a>
+        </td>
+      </tr></table>
     </div>`
   }))
 
@@ -462,17 +466,21 @@ export async function autoNotifyBusinessMatches(businessId: string): Promise<voi
     subject: `🎯 Ο πελάτης ${businessName} ταιριάζει με ${count} πρόγραμμα${count === 1 ? '' : 'τα'} — I-MENTOR`,
     html: `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #374151;">
-        <div style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px; border-radius: 12px 12px 0 0;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius: 12px 12px 0 0; overflow: hidden;">
+        <tr><td bgcolor="#4f46e5" style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px;">
           <h1 style="color: white; margin: 0; font-size: 20px; line-height: 1.3;">Νέες Ευκαιρίες Χρηματοδότησης<br>για τους Πελάτες σας</h1>
-        </div>
+        </td></tr>
+        </table>
         <div style="background: white; padding: 32px; border: 1px solid #e5e7eb; border-top: 0; border-radius: 0 0 12px 12px;">
           <p style="font-size: 16px; margin: 0 0 12px;">Αγαπητέ/ή <strong>${accountant.contactPerson}</strong>,</p>
           <p style="font-size: 15px; margin: 0 0 24px;">Ο πελάτης <strong>${businessName}</strong> που μόλις προσθέσατε είναι επιλέξιμος για <strong style="color: #4f46e5;">${count} πρόγραμμα${count === 1 ? '' : 'τα'}</strong> χρηματοδότησης!</p>
 
-          <div style="background: linear-gradient(135deg, #059669, #047857); border-radius: 12px; padding: 20px; margin: 0 0 24px; text-align: center;">
-            <p style="color: white; font-size: 17px; font-weight: bold; margin: 0 0 8px;">Αφήστε μας να χειριστούμε τα πάντα!</p>
-            <p style="color: #d1fae5; font-size: 13px; margin: 0; line-height: 1.6;">Η I-MENTOR αναλαμβάνει να επικοινωνήσει με τον πελάτη σας, να τον ενημερώσει και — εφόσον εκφράσει ενδιαφέρον — να προχωρήσει με τον φάκελό του.</p>
-          </div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;"><tr>
+            <td bgcolor="#059669" style="background: linear-gradient(135deg, #059669, #047857); border-radius: 12px; padding: 20px; text-align: center;">
+              <p style="color: white; font-size: 17px; font-weight: bold; margin: 0 0 8px;">Αφήστε μας να χειριστούμε τα πάντα!</p>
+              <p style="color: #d1fae5; font-size: 13px; margin: 0; line-height: 1.6;">Η I-MENTOR αναλαμβάνει να επικοινωνήσει με τον πελάτη σας, να τον ενημερώσει και — εφόσον εκφράσει ενδιαφέρον — να προχωρήσει με τον φάκελό του.</p>
+            </td>
+          </tr></table>
 
           ${missingContactHtml}
 
@@ -691,20 +699,28 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
         subject: `🎯 ${count} πελάτες σας ταιριάζουν με «${program.title}» — I-MENTOR`,
         html: `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; color: #374151;">
-            <div style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px; border-radius: 12px 12px 0 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius: 12px 12px 0 0; overflow: hidden;">
+            <tr><td bgcolor="#4f46e5" style="background: linear-gradient(135deg, #4f46e5, #4338ca); padding: 24px 32px;">
               <h1 style="color: white; margin: 0; font-size: 20px; line-height: 1.3;">Νέες Ευκαιρίες Χρηματοδότησης<br>για τους Πελάτες σας</h1>
-            </div>
+            </td></tr>
+            </table>
             <div style="background: white; padding: 32px; border: 1px solid #e5e7eb; border-top: 0; border-radius: 0 0 12px 12px;">
               <p style="font-size: 16px; margin: 0 0 12px;">Αγαπητέ/ή <strong>${accountant.contactPerson}</strong>,</p>
               <p style="font-size: 15px; margin: 0 0 24px;">Το σύστημα I-MENTOR εντόπισε <strong style="color: #4f46e5;">${count} πελάτ${count === 1 ? 'η' : 'ες'} σας</strong> που είναι επιλέξιμοι για το πρόγραμμα <strong>«${program.title}»</strong>.</p>
 
-              <div style="background: linear-gradient(135deg, #059669, #047857); border-radius: 12px; padding: 24px; margin: 0 0 24px; text-align: center;">
-                <p style="color: white; font-size: 18px; font-weight: bold; margin: 0 0 10px;">Αφήστε μας να χειριστούμε τα πάντα!</p>
-                <p style="color: #d1fae5; font-size: 14px; margin: 0 0 20px; line-height: 1.6;">Η I-MENTOR αναλαμβάνει να επικοινωνήσει με τους πελάτες σας, να τους ενημερώσει για το πρόγραμμα και — εφόσον εκφράσουν ενδιαφέρον — να προχωρήσει με τον φάκελό τους. Εσείς κρατάτε ευχαριστημένους τους πελάτες σας και κερδίζετε την προμήθειά σας!</p>
-                <a href="${actionUrl}" style="background: white; color: #047857; padding: 12px 28px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">
-                  Ανάθεση σε I-MENTOR &rarr;
-                </a>
-              </div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 0 0 24px;"><tr>
+                <td bgcolor="#059669" style="background: linear-gradient(135deg, #059669, #047857); border-radius: 12px; padding: 24px; text-align: center;">
+                  <p style="color: white; font-size: 18px; font-weight: bold; margin: 0 0 10px;">Αφήστε μας να χειριστούμε τα πάντα!</p>
+                  <p style="color: #d1fae5; font-size: 14px; margin: 0 0 20px; line-height: 1.6;">Η I-MENTOR αναλαμβάνει να επικοινωνήσει με τους πελάτες σας, να τους ενημερώσει για το πρόγραμμα και — εφόσον εκφράσουν ενδιαφέρον — να προχωρήσει με τον φάκελό τους. Εσείς κρατάτε ευχαριστημένους τους πελάτες σας και κερδίζετε την προμήθειά σας!</p>
+                  <table role="presentation" cellpadding="0" cellspacing="0" style="margin: 0 auto;"><tr>
+                    <td bgcolor="#ffffff" style="background: white; border-radius: 8px;">
+                      <a href="${actionUrl}" style="color: #047857; padding: 12px 28px; text-decoration: none; font-weight: bold; font-size: 15px; display: inline-block;">
+                        Ανάθεση σε I-MENTOR &rarr;
+                      </a>
+                    </td>
+                  </tr></table>
+                </td>
+              </tr></table>
 
               <p style="font-size: 14px; font-weight: bold; margin: 0 0 8px;">Επιλέξιμοι πελάτες σας (${count}):</p>
               <table style="width: 100%; border-collapse: collapse; font-size: 14px; margin-bottom: 20px;">
@@ -724,12 +740,18 @@ export async function notifyBatchMatchesForBusinesses(businessIds: string[]): Pr
               ${programInfoHtml}
               ${requirementsHtml}
 
-              <div style="text-align: center; margin: 28px 0 8px;">
-                <a href="${actionUrl}" style="background: linear-gradient(135deg, #4f46e5, #6366f1); color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
-                  Επιλέξτε πελάτες για ανάθεση &rarr;
-                </a>
-                <p style="color: #9ca3af; font-size: 12px; margin: 10px 0 0;">Ο σύνδεσμος ισχύει για 45 ημέρες και δεν απαιτεί σύνδεση.</p>
-              </div>
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 28px 0 8px;">
+                <tr><td align="center">
+                  <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                    <td align="center" bgcolor="#4f46e5" style="background: linear-gradient(135deg, #4f46e5, #6366f1); border-radius: 8px;">
+                      <a href="${actionUrl}" style="color: white; padding: 14px 36px; text-decoration: none; font-weight: bold; font-size: 16px; display: inline-block;">
+                        Επιλέξτε πελάτες για ανάθεση &rarr;
+                      </a>
+                    </td>
+                  </tr></table>
+                  <p style="color: #9ca3af; font-size: 12px; margin: 10px 0 0;">Ο σύνδεσμος ισχύει για 45 ημέρες και δεν απαιτεί σύνδεση.</p>
+                </td></tr>
+              </table>
             </div>
             <div style="padding: 16px 32px; text-align: center;">
               <p style="color: #9ca3af; font-size: 12px; margin: 0;">I-MENTOR Portal &middot; <a href="${appUrl}" style="color: #9ca3af; text-decoration: none;">logistis.i-mentor.gr</a></p>

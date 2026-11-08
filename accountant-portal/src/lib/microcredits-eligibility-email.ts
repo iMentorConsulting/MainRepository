@@ -82,11 +82,13 @@ export function buildMicrocreditsEmailHtml(params: {
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:640px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:22px 26px;border-radius:12px 12px 0 0;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+      <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:22px 26px;">
         ${brandLeft}
         <h1 style="margin:16px 0 0;color:#fff;font-size:18px;">Ανάλυση Επιλεξιμότητας – ${name}</h1>
         <p style="margin:4px 0 0;color:#dbeafe;font-size:13px;">Ταμείο Μικροπιστώσεων</p>
-      </div>
+      </td></tr>
+      </table>
       <div style="background:#ffffff;padding:24px 26px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
         <p style="margin:0 0 18px;font-size:14px;color:#4b5563;line-height:1.6;">

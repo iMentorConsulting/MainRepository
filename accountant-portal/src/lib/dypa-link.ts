@@ -40,9 +40,11 @@ export async function createAndSendDypaLink({
         to: contactEmail,
         subject: `Επόμενο βήμα για την επιδότηση ΔΥΠΑ πρόσληψης — συμπλήρωση αίτησης`,
         html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#374151;">
-          <div style="background:linear-gradient(135deg,#4f46e5,#4338ca);padding:28px 32px;border-radius:12px 12px 0 0;">
-            <h1 style="color:white;margin:0;font-size:20px;line-height:1.4;">Επόμενο βήμα για την επιδότηση πρόσληψης ΔΥΠΑ</h1>
-          </div>
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+          <tr><td bgcolor="#4f46e5" style="background:linear-gradient(135deg,#4f46e5,#4338ca);padding:28px 32px;">
+            <h1 style="color:#ffffff;margin:0;font-size:20px;line-height:1.4;">Επόμενο βήμα για την επιδότηση πρόσληψης ΔΥΠΑ</h1>
+          </td></tr>
+          </table>
           <div style="background:white;padding:32px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;">
             <p style="font-size:16px;margin:0 0 20px;">Αγαπητέ/ή <strong>${businessName || 'συνεργάτη'}</strong>,</p>
 
@@ -56,12 +58,18 @@ export async function createAndSendDypaLink({
               Η διαδικασία είναι <strong>απλή και γρήγορη</strong> — ακολουθήστε τον παρακάτω σύνδεσμο:
             </p>
 
-            <div style="text-align:center;margin:0 0 28px;">
-              <a href="${url}" style="display:inline-block;background:linear-gradient(135deg,#4f46e5,#6366f1);color:white;padding:16px 40px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:17px;">
-                Συμπλήρωση Αίτησης ΔΥΠΑ &rarr;
-              </a>
-              <p style="color:#9ca3af;font-size:12px;margin:10px 0 0;">Ο σύνδεσμος ισχύει για 30 ημέρες &middot; Δεν απαιτείται εγγραφή</p>
-            </div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin:0 0 28px;">
+              <tr><td align="center">
+                <table role="presentation" cellpadding="0" cellspacing="0"><tr>
+                  <td align="center" bgcolor="#4f46e5" style="background:linear-gradient(135deg,#4f46e5,#6366f1);border-radius:10px;">
+                    <a href="${url}" style="display:inline-block;color:#ffffff;padding:16px 40px;text-decoration:none;font-weight:bold;font-size:17px;">
+                      Συμπλήρωση Αίτησης ΔΥΠΑ &rarr;
+                    </a>
+                  </td>
+                </tr></table>
+                <p style="color:#9ca3af;font-size:12px;margin:10px 0 0;">Ο σύνδεσμος ισχύει για 30 ημέρες &middot; Δεν απαιτείται εγγραφή</p>
+              </td></tr>
+            </table>
 
             <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:10px;padding:18px 20px;margin:0 0 24px;">
               <p style="margin:0 0 10px;font-weight:bold;color:#166534;font-size:14px;">Τι θα χρειαστείτε:</p>
@@ -136,9 +144,11 @@ export async function sendMissingContactNotification({
     to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
     subject: `⚠️ ΔΥΠΑ — Λείπουν στοιχεία επικοινωνίας: ${businessName}`,
     html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#374151;">
-      <div style="background:#f59e0b;padding:20px 28px;border-radius:12px 12px 0 0;">
-        <h2 style="color:white;margin:0;font-size:18px;">⚠️ Δεν ήταν δυνατή η αυτόματη αποστολή συνδέσμου ΔΥΠΑ</h2>
-      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+      <tr><td bgcolor="#f59e0b" style="background:#f59e0b;padding:20px 28px;">
+        <h2 style="color:#ffffff;margin:0;font-size:18px;">⚠️ Δεν ήταν δυνατή η αυτόματη αποστολή συνδέσμου ΔΥΠΑ</h2>
+      </td></tr>
+      </table>
       <div style="background:white;padding:28px;border:1px solid #e5e7eb;border-top:0;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 16px;">Δημιουργήθηκε νέα ανάθεση ΔΥΠΑ για την επιχείρηση <strong>${businessName}</strong>, αλλά <strong>δεν βρέθηκαν στοιχεία επικοινωνίας</strong> (email ή κινητό) για αυτόματη αποστολή του συνδέσμου.</p>
         <p style="margin:0 0 20px;">Παρακαλούμε ενημερώστε τα στοιχεία επικοινωνίας της επιχείρησης και στείλτε χειροκίνητα τον σύνδεσμο.</p>

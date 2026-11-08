@@ -9,7 +9,7 @@ const STEP_DELAYS_DAYS = [0, 3, 7, 14, 21] // steps 1-5
 // ─── shared layout wrappers ────────────────────────────────────────────────
 
 function emailWrap(body: string): string {
-  return `<!DOCTYPE html><html lang="el"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
+  return `<!DOCTYPE html><html lang="el"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="color-scheme" content="light"/><meta name="supported-color-schemes" content="light"/></head>
 <body style="margin:0;padding:0;background:#f3f4f6;font-family:Arial,Helvetica,sans-serif;">
 <div style="max-width:620px;margin:32px auto;background:#f3f4f6;">
 ${body}
@@ -19,13 +19,15 @@ ${emailFooter()}
 }
 
 function emailHeader(title: string, subtitle?: string): string {
-  return `<div style="background:linear-gradient(135deg,#4f46e5 0%,#6366f1 50%,#818cf8 100%);padding:36px 40px 32px;border-radius:16px 16px 0 0;">
-  <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:10px;padding:8px 14px;margin-bottom:16px;">
-    <span style="color:white;font-size:13px;font-weight:600;letter-spacing:0.5px;">I-MENTOR LOGISTIS</span>
-  </div>
-  <h1 style="color:white;margin:0;font-size:22px;line-height:1.4;font-weight:700;">${title}</h1>
-  ${subtitle ? `<p style="color:rgba(255,255,255,0.85);margin:10px 0 0;font-size:15px;line-height:1.5;">${subtitle}</p>` : ''}
-</div>`
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:16px 16px 0 0;overflow:hidden;">
+  <tr><td bgcolor="#4f46e5" style="background:linear-gradient(135deg,#4f46e5 0%,#6366f1 50%,#818cf8 100%);padding:36px 40px 32px;">
+    <div style="display:inline-block;background:rgba(255,255,255,0.15);border-radius:10px;padding:8px 14px;margin-bottom:16px;">
+      <span style="color:#ffffff;font-size:13px;font-weight:600;letter-spacing:0.5px;">I-MENTOR LOGISTIS</span>
+    </div>
+    <h1 style="color:#ffffff;margin:0;font-size:22px;line-height:1.4;font-weight:700;">${title}</h1>
+    ${subtitle ? `<p style="color:rgba(255,255,255,0.85);margin:10px 0 0;font-size:15px;line-height:1.5;">${subtitle}</p>` : ''}
+  </td></tr>
+</table>`
 }
 
 function emailSection(icon: string, title: string, body: string): string {
@@ -64,7 +66,8 @@ function divider(): string {
 }
 
 function emailFooter(): string {
-  return `<div style="background:#1e1b4b;padding:24px 32px;border-radius:0 0 16px 16px;text-align:center;">
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:0 0 16px 16px;overflow:hidden;">
+  <tr><td bgcolor="#1e1b4b" style="background:#1e1b4b;padding:24px 32px;text-align:center;">
   <p style="color:rgba(255,255,255,0.7);margin:0 0 8px;font-size:13px;">I-MENTOR Consulting</p>
   <p style="color:rgba(255,255,255,0.5);margin:0 0 12px;font-size:12px;">
     📧 <a href="mailto:info@i-mentor.gr" style="color:#a5b4fc;text-decoration:none;">info@i-mentor.gr</a>
@@ -76,7 +79,8 @@ function emailFooter(): string {
   <a href="${BOOKING_URL}" style="display:inline-block;background:rgba(255,255,255,0.12);color:white;padding:8px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">
     🖥️ Κλείστε ραντεβού AnyDesk
   </a>
-</div>`
+  </td></tr>
+</table>`
 }
 
 // ─── step templates ────────────────────────────────────────────────────────
