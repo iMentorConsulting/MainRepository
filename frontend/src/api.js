@@ -344,5 +344,6 @@ export const getCaseDocChecklist = (caseId, checklistId) => api.get(`/api/cm/cas
 export const updateCaseDocChecklist = (caseId, checklistId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`, data).then(r => r.data)
 export const deleteCaseDocChecklist = (caseId, checklistId) => api.delete(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`).then(r => r.data)
 export const updateCaseDocChecklistItem = (caseId, checklistId, itemId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/items/${itemId}`, data).then(r => r.data)
+export const sendChecklistEmail = (caseId, checklistId) => api.post(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/send-email`).then(r => r.data)
 
 export default api

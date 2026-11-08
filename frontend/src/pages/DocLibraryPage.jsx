@@ -186,12 +186,12 @@ function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
         <ReqBadge type={item.requirement_type} />
         {isAdmin && (
           <div className="flex gap-1 flex-shrink-0" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setEditing(true)}
-              className="p-1 text-gray-400 hover:text-blue-600 rounded transition-colors">
+            <button onClick={() => setEditing(true)} title="Επεξεργασία"
+              className="p-1.5 text-blue-500 hover:text-blue-700 hover:bg-blue-50 rounded-lg transition-colors">
               <PencilIcon className="w-4 h-4" />
             </button>
-            <button onClick={del}
-              className="p-1 text-gray-400 hover:text-red-600 rounded transition-colors">
+            <button onClick={del} title="Διαγραφή"
+              className="p-1.5 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">
               <TrashIcon className="w-4 h-4" />
             </button>
           </div>

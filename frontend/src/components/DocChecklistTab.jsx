@@ -5,6 +5,7 @@ import {
   updateCaseDocChecklist,
   deleteCaseDocChecklist,
   updateCaseDocChecklistItem,
+  sendChecklistEmail,
   getAuth,
 } from '../api'
 import {
@@ -164,8 +165,9 @@ function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
   )
 }
 
-function SharePanel({ checklist, caseData, onClose }) {
+function SharePanel({ checklist, caseData, caseId, onClose }) {
   const pendingItems = (checklist?.items || []).filter(i => i.is_applicable && !i.is_received)
+  const [sending, setSending] = useState(false)
 
   const formatList = () => {
     const groups = {}
@@ -178,7 +180,7 @@ function SharePanel({ checklist, caseData, onClose }) {
     Object.entries(groups).forEach(([grp, items]) => {
       lines.push(`*${grp}*`)
       items.forEach(item => {
-        lines.push(`• ${item.title}${item.condition_notes ? ` (${item.condition_notes})` : ''}`)
+        lines.push(`• ${item.title}${item.condition_notes ? ` (${item.condition_notes})` : ''}${item.client_notes ? `\n  📝 ${item.client_notes}` : ''}`)
       })
       lines.push('')
     })
@@ -188,23 +190,22 @@ function SharePanel({ checklist, caseData, onClose }) {
 
   const text = formatList()
 
-  const emailTo = caseData?.email || ''
-  const emailSubject = encodeURIComponent(`Εκκρεμή Δικαιολογητικά — ${checklist.title}`)
-
   const copyToClipboard = (showMsg) => {
     navigator.clipboard.writeText(text).then(() => toast.success(showMsg || 'Αντιγράφηκε!'))
   }
 
-  const handleEmail = () => {
-    // Copy text first (mailto body breaks for long texts), then open email with subject only
-    navigator.clipboard.writeText(text).then(() => {
-      toast.success('Κείμενο αντιγράφηκε! Επικολλήστε στο email (Ctrl+V / Cmd+V)', { duration: 5000 })
-      setTimeout(() => {
-        window.open(`mailto:${emailTo}?subject=${emailSubject}`, '_blank')
-      }, 300)
-    }).catch(() => {
-      window.open(`mailto:${emailTo}?subject=${emailSubject}`, '_blank')
-    })
+  const handleEmail = async () => {
+    setSending(true)
+    try {
+      const res = await sendChecklistEmail(caseId, checklist.id)
+      toast.success(`Email στάλθηκε στο ${res.sent_to}! (${res.pending_count} εκκρεμή)`, { duration: 5000 })
+      onClose()
+    } catch (err) {
+      const msg = err?.response?.data?.detail || 'Αποτυχία αποστολής email'
+      toast.error(msg)
+    } finally {
+      setSending(false)
+    }
   }
 
   return (
@@ -224,13 +225,15 @@ function SharePanel({ checklist, caseData, onClose }) {
           className="w-full text-xs font-mono border border-gray-200 rounded-lg p-3 bg-gray-50 resize-none mb-3 focus:outline-none"
         />
         <div className="flex gap-2 flex-wrap">
-          {emailTo ? (
+          {caseData?.email ? (
             <button
               onClick={handleEmail}
-              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={sending}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-60"
             >
-              <EnvelopeIcon className="w-4 h-4" /> Email
-              <span className="text-blue-200 text-xs truncate max-w-32">{emailTo}</span>
+              <EnvelopeIcon className="w-4 h-4" />
+              {sending ? 'Αποστολή…' : 'Αποστολή Email'}
+              {!sending && <span className="text-blue-200 text-xs truncate max-w-36">{caseData.email}</span>}
             </button>
           ) : (
             <span className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-400 text-sm rounded-lg">
@@ -397,7 +400,7 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
   return (
     <div className="p-5 space-y-4">
       {showShare && checklist && (
-        <SharePanel checklist={checklist} caseData={caseData} onClose={() => setShowShare(false)} />
+        <SharePanel checklist={checklist} caseData={caseData} caseId={caseId} onClose={() => setShowShare(false)} />
       )}
       {/* Multiple checklists selector */}
       {checklists.length > 1 && (
