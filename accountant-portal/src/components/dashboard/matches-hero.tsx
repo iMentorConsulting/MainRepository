@@ -112,7 +112,7 @@ function OpportunityCard({ opp, accountantId }: { opp: ProgramOpportunity; accou
             <Icon size={13} strokeWidth={2.25} />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-[12.5px] font-semibold text-white leading-snug line-clamp-2 group-hover/card:text-white transition-colors">
+            <h3 className="text-[12.5px] font-semibold text-white leading-snug group-hover/card:text-white transition-colors">
               {opp.programTitle}
             </h3>
           </div>
