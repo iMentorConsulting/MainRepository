@@ -337,4 +337,12 @@ export const deleteDocSetItem = (setId, itemId) => api.delete(`/api/cm/doc-sets/
 export const reorderDocSetItems = (setId, orderedIds) => api.post(`/api/cm/doc-sets/${setId}/reorder`, { ordered_ids: orderedIds }).then(r => r.data)
 export const getDocLibMeta = () => api.get('/api/cm/doc-library/meta').then(r => r.data)
 
+// Case Document Checklists
+export const getCaseDocChecklists = (caseId) => api.get(`/api/cm/cases/${caseId}/doc-checklists`).then(r => r.data)
+export const createCaseDocChecklist = (caseId, data) => api.post(`/api/cm/cases/${caseId}/doc-checklists`, data).then(r => r.data)
+export const getCaseDocChecklist = (caseId, checklistId) => api.get(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`).then(r => r.data)
+export const updateCaseDocChecklist = (caseId, checklistId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`, data).then(r => r.data)
+export const deleteCaseDocChecklist = (caseId, checklistId) => api.delete(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`).then(r => r.data)
+export const updateCaseDocChecklistItem = (caseId, checklistId, itemId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/items/${itemId}`, data).then(r => r.data)
+
 export default api

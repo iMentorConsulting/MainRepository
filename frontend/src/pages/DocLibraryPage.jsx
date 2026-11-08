@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
   getDocSets, getDocSet, createDocSet, updateDocSet, deleteDocSet,
   createDocSetItem, updateDocSetItem, deleteDocSetItem, getDocLibMeta, getAuth,
+  getCases, createCaseDocChecklist,
 } from '../api'
 import {
   BookOpenIcon,
@@ -16,6 +17,8 @@ import {
   PrinterIcon,
   FolderOpenIcon,
   ArrowsUpDownIcon,
+  PaperAirplaneIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -276,6 +279,200 @@ function AddItemForm({ setId, onAdded, meta, onCancel }) {
   )
 }
 
+// ── Assign-to-case modal ──────────────────────────────────────────────────────
+
+function AssignModal({ docSet, onClose }) {
+  const [items, setItems] = useState(() =>
+    (docSet.items || []).map(i => ({ ...i, selected: true }))
+  )
+  const [caseQuery, setCaseQuery] = useState('')
+  const [caseResults, setCaseResults] = useState([])
+  const [selectedCase, setSelectedCase] = useState(null)
+  const [searching, setSearching] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [checklistTitle, setChecklistTitle] = useState(docSet.name)
+
+  useEffect(() => {
+    if (!caseQuery.trim()) { setCaseResults([]); return }
+    const tid = setTimeout(async () => {
+      setSearching(true)
+      try {
+        const res = await getCases({ search: caseQuery, limit: 10 })
+        setCaseResults(res.items || res || [])
+      } catch { /* ignore */ } finally { setSearching(false) }
+    }, 300)
+    return () => clearTimeout(tid)
+  }, [caseQuery])
+
+  const toggleItem = (id) =>
+    setItems(prev => prev.map(i => i.id === id ? { ...i, selected: !i.selected } : i))
+
+  const toggleAll = (val) =>
+    setItems(prev => prev.map(i => ({ ...i, selected: val })))
+
+  const handleAssign = async () => {
+    if (!selectedCase) { toast.error('Επιλέξτε υπόθεση'); return }
+    const selected = items.filter(i => i.selected)
+    if (selected.length === 0) { toast.error('Επιλέξτε τουλάχιστον ένα δικαιολογητικό'); return }
+    setSaving(true)
+    try {
+      await createCaseDocChecklist(selectedCase.id, {
+        doc_set_id: docSet.id,
+        title: checklistTitle,
+        items: selected.map((i, idx) => ({
+          item_code: i.item_code,
+          opske_code: i.opske_code,
+          group_code: i.group_code,
+          group_name: i.group_name,
+          title: i.title,
+          description: i.description,
+          requirement_type: i.requirement_type,
+          condition_notes: i.condition_notes,
+          is_applicable: true,
+          sort_order: idx,
+        })),
+      })
+      toast.success(`Ανατέθηκε στην υπόθεση "${selectedCase.client_name}"`)
+      onClose()
+    } catch { toast.error('Σφάλμα ανάθεσης') } finally { setSaving(false) }
+  }
+
+  const allSelected = items.every(i => i.selected)
+  const noneSelected = items.every(i => !i.selected)
+
+  // Group items by group_name for display
+  const grouped = useMemo(() => {
+    const g = {}
+    items.forEach(item => {
+      const key = item.group_name || item.group_code || 'Λοιπά'
+      if (!g[key]) g[key] = []
+      g[key].push(item)
+    })
+    return g
+  }, [items])
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200">
+          <div>
+            <h2 className="text-base font-bold text-[#1e3a5f]">Ανάθεση σε Υπόθεση</h2>
+            <p className="text-xs text-gray-400 mt-0.5">{docSet.name}</p>
+          </div>
+          <button onClick={onClose} className="p-1 text-gray-400 hover:text-gray-600 rounded">
+            <XMarkIcon className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-5 space-y-5">
+          {/* Checklist title */}
+          <div>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">Τίτλος λίστας</label>
+            <input value={checklistTitle} onChange={e => setChecklistTitle(e.target.value)}
+              className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+          </div>
+
+          {/* Case search */}
+          <div>
+            <label className="text-xs font-semibold text-gray-500 mb-1 block">Επιλογή Υπόθεσης *</label>
+            {selectedCase ? (
+              <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold text-green-800">{selectedCase.client_name}</p>
+                  <p className="text-xs text-green-600">{selectedCase.service_type} · ΑΦΜ {selectedCase.afm}</p>
+                </div>
+                <button onClick={() => { setSelectedCase(null); setCaseQuery('') }}
+                  className="p-1 text-green-500 hover:text-red-500 rounded">
+                  <XMarkIcon className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="relative">
+                <MagnifyingGlassIcon className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                <input value={caseQuery} onChange={e => setCaseQuery(e.target.value)}
+                  placeholder="Αναζήτηση υπόθεσης (όνομα ή ΑΦΜ)…"
+                  className="w-full border border-gray-300 rounded-xl pl-9 pr-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+                {(searching || caseResults.length > 0) && (
+                  <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-10 max-h-48 overflow-y-auto">
+                    {searching && <p className="text-xs text-gray-400 px-3 py-2">Αναζήτηση…</p>}
+                    {caseResults.map(c => (
+                      <button key={c.id} onClick={() => { setSelectedCase(c); setCaseQuery(''); setCaseResults([]) }}
+                        className="w-full text-left px-3 py-2 hover:bg-blue-50 text-sm border-b border-gray-100 last:border-0">
+                        <p className="font-semibold text-gray-800">{c.client_name}</p>
+                        <p className="text-xs text-gray-400">{c.service_type} · {c.afm}</p>
+                      </button>
+                    ))}
+                    {!searching && caseResults.length === 0 && caseQuery && (
+                      <p className="text-xs text-gray-400 px-3 py-2">Δεν βρέθηκαν υποθέσεις</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Item selection */}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-semibold text-gray-500">
+                Δικαιολογητικά ({items.filter(i => i.selected).length}/{items.length} επιλεγμένα)
+              </label>
+              <div className="flex gap-2">
+                <button onClick={() => toggleAll(true)} disabled={allSelected}
+                  className="text-xs text-blue-600 hover:underline disabled:opacity-40">Όλα</button>
+                <button onClick={() => toggleAll(false)} disabled={noneSelected}
+                  className="text-xs text-gray-500 hover:underline disabled:opacity-40">Κανένα</button>
+              </div>
+            </div>
+            <div className="border border-gray-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
+              {Object.entries(grouped).map(([groupName, grpItems]) => (
+                <div key={groupName}>
+                  <div className="px-3 py-1.5 bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
+                    {groupName}
+                  </div>
+                  {grpItems.map(item => (
+                    <label key={item.id}
+                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors ${!item.selected ? 'opacity-50' : ''}`}>
+                      <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)}
+                        className="rounded w-4 h-4 text-blue-600 flex-shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          {item.item_code && <span className="text-xs font-mono text-gray-400">{item.item_code}</span>}
+                          <span className="text-xs text-gray-800 truncate">{item.title}</span>
+                        </div>
+                      </div>
+                      <ReqBadge type={item.requirement_type} />
+                    </label>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 bg-gray-50 rounded-b-2xl">
+          <p className="text-xs text-gray-400">
+            {items.filter(i => i.selected).length} δικαιολογητικά θα ανατεθούν
+          </p>
+          <div className="flex gap-2">
+            <button onClick={onClose}
+              className="px-4 py-2 text-sm border border-gray-300 rounded-xl hover:bg-gray-50 transition-colors">
+              Άκυρο
+            </button>
+            <button onClick={handleAssign} disabled={saving || !selectedCase}
+              className="flex items-center gap-2 px-5 py-2 text-sm bg-[#1e3a5f] text-white rounded-xl hover:bg-[#162d4a] transition-colors disabled:opacity-50">
+              <PaperAirplaneIcon className="w-4 h-4" />
+              {saving ? 'Ανάθεση…' : 'Ανάθεση'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Set detail panel ───────────────────────────────────────────────────────────
 
 function SetPanel({ setId, isAdmin, meta }) {
@@ -284,6 +481,7 @@ function SetPanel({ setId, isAdmin, meta }) {
   const [addingItem, setAddingItem] = useState(false)
   const [filterReq, setFilterReq] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
+  const [assignModalOpen, setAssignModalOpen] = useState(false)
 
   useEffect(() => {
     if (!setId) return
@@ -398,6 +596,9 @@ function SetPanel({ setId, isAdmin, meta }) {
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
+      {assignModalOpen && docSet && (
+        <AssignModal docSet={docSet} onClose={() => setAssignModalOpen(false)} />
+      )}
       {/* Header */}
       <div className="px-6 pt-5 pb-4 border-b border-gray-200 bg-white">
         <div className="flex items-start justify-between gap-4">
@@ -420,6 +621,10 @@ function SetPanel({ setId, isAdmin, meta }) {
             <button onClick={handlePrint}
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">
               <PrinterIcon className="w-4 h-4" /> Εκτύπωση
+            </button>
+            <button onClick={() => setAssignModalOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#1e3a5f] text-[#1e3a5f] rounded-lg hover:bg-[#1e3a5f] hover:text-white transition-colors">
+              <PaperAirplaneIcon className="w-4 h-4" /> Ανάθεση σε Υπόθεση
             </button>
             {isAdmin && (
               <button onClick={() => setAddingItem(true)}

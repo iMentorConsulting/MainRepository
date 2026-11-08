@@ -903,3 +903,46 @@ class CMDocSetItem(Base):
     updated_at = Column(DateTime, default=datetime.utcnow)
 
     doc_set = relationship("CMDocSet", back_populates="items")
+
+
+class CMCaseDocChecklist(Base):
+    __tablename__ = "cm_case_doc_checklists"
+    id = Column(Integer, primary_key=True, index=True)
+    case_id = Column(Integer, ForeignKey("cm_cases.id"), nullable=False, index=True)
+    doc_set_id = Column(Integer, ForeignKey("cm_doc_sets.id"), nullable=True)
+    title = Column(String(300))
+    notes = Column(Text)
+    status = Column(String(20), default="active")   # active | hidden
+    assigned_by_id = Column(Integer, ForeignKey("cm_users.id"), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.utcnow)
+    items = relationship(
+        "CMCaseDocChecklistItem",
+        back_populates="checklist",
+        cascade="all, delete-orphan",
+        order_by="CMCaseDocChecklistItem.sort_order",
+    )
+
+
+class CMCaseDocChecklistItem(Base):
+    __tablename__ = "cm_case_doc_checklist_items"
+    id = Column(Integer, primary_key=True, index=True)
+    checklist_id = Column(
+        Integer, ForeignKey("cm_case_doc_checklists.id"), nullable=False, index=True
+    )
+    # snapshot from doc-set item
+    item_code = Column(String(20))
+    opske_code = Column(String(20))
+    group_code = Column(String(5))
+    group_name = Column(String(100))
+    title = Column(String(300), nullable=False)
+    description = Column(Text)
+    requirement_type = Column(String(30))
+    condition_notes = Column(Text)
+    # per-checklist state
+    is_applicable = Column(Boolean, default=True)   # on/off toggle
+    is_received = Column(Boolean, default=False)    # document submitted
+    received_at = Column(DateTime, nullable=True)
+    client_notes = Column(Text)
+    sort_order = Column(Integer, default=0)
+    checklist = relationship("CMCaseDocChecklist", back_populates="items")

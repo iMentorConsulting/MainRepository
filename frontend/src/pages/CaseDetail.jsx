@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { PIPELINES } from '../pipelines'
-import { getPipelines, syncCaseToPortal } from '../api'
+import { getPipelines, syncCaseToPortal, getCaseDocChecklists } from '../api'
 import PaymentsTab from '../components/PaymentsTab'
 import MessagesTab from '../components/MessagesTab'
 import DocumentsTab from '../components/DocumentsTab'
@@ -10,6 +10,7 @@ import PendingItemsTab from '../components/PendingItemsTab'
 import ModificationsTab from '../components/ModificationsTab'
 import AnakainizwTab from './AnakainizwTab'
 import DypaHiringTab from './DypaHiringTab'
+import DocChecklistTab from '../components/DocChecklistTab'
 import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
@@ -1086,6 +1087,7 @@ export default function CaseDetail() {
   const [livePipelines, setLivePipelines] = useState(_cachedPipelines)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('Επισκόπηση')
+  const [hasActiveChecklist, setHasActiveChecklist] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1098,6 +1100,12 @@ export default function CaseDetail() {
     } finally {
       setLoading(false)
     }
+  }, [id])
+
+  useEffect(() => {
+    getCaseDocChecklists(id)
+      .then(rows => setHasActiveChecklist(rows.some(r => r.status === 'active')))
+      .catch(() => {})
   }, [id])
 
   useEffect(() => {
@@ -1201,7 +1209,7 @@ export default function CaseDetail() {
       {/* Tab bar */}
       <div className="border-b bg-white rounded-t-xl overflow-hidden">
         <nav className="flex -mb-px overflow-x-auto">
-          {getTabs(caseData?.program_category).map((tab) => (
+          {[...getTabs(caseData?.program_category), ...(hasActiveChecklist ? ['Δικαιολογητικά Αίτησης'] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1256,6 +1264,13 @@ export default function CaseDetail() {
         {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Προϋπολογισμός' && <BudgetTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Portal' && <PortalTab caseData={caseData} onRefresh={load} />}
+        {activeTab === 'Δικαιολογητικά Αίτησης' && (
+          <DocChecklistTab
+            caseId={id}
+            caseData={caseData}
+            onChecklistHidden={() => setHasActiveChecklist(false)}
+          />
+        )}
       </div>
     </div>
   )

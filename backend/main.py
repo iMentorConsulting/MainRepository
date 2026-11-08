@@ -39,6 +39,7 @@ from routes.cm_webhook import router_public as cm_webhook_public_router, router_
 from routes.cm_meta_leads import router_public as cm_meta_public_router, router_admin as cm_meta_admin_router, router_log as cm_meta_log_router, router_capi as cm_meta_capi_router
 from routes.cm_message_templates import router as cm_message_templates_router
 from routes.cm_doc_library import router as cm_doc_library_router
+from routes.cm_case_doc_checklist import router as cm_case_doc_checklist_router
 
 load_dotenv()
 
@@ -1080,6 +1081,7 @@ app.include_router(cm_meta_log_router)
 app.include_router(cm_meta_capi_router)
 app.include_router(cm_message_templates_router)
 app.include_router(cm_doc_library_router)
+app.include_router(cm_case_doc_checklist_router)
 
 
 try:
@@ -1444,6 +1446,43 @@ try:
         _conn.commit()
     print("[migration] cm_doc_sets / cm_doc_set_items created", flush=True)
 
+    # cm_case_doc_checklists + cm_case_doc_checklist_items
+    with engine.connect() as _conn:
+        _conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cm_case_doc_checklists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                case_id INTEGER NOT NULL REFERENCES cm_cases(id),
+                doc_set_id INTEGER REFERENCES cm_doc_sets(id),
+                title VARCHAR(300),
+                notes TEXT,
+                status VARCHAR(20) DEFAULT 'active',
+                assigned_by_id INTEGER REFERENCES cm_users(id),
+                created_at DATETIME,
+                updated_at DATETIME
+            )
+        """))
+        _conn.execute(text("""
+            CREATE TABLE IF NOT EXISTS cm_case_doc_checklist_items (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                checklist_id INTEGER NOT NULL REFERENCES cm_case_doc_checklists(id),
+                item_code VARCHAR(20),
+                opske_code VARCHAR(20),
+                group_code VARCHAR(5),
+                group_name VARCHAR(100),
+                title VARCHAR(300) NOT NULL,
+                description TEXT,
+                requirement_type VARCHAR(30),
+                condition_notes TEXT,
+                is_applicable BOOLEAN DEFAULT 1,
+                is_received BOOLEAN DEFAULT 0,
+                received_at DATETIME,
+                client_notes TEXT,
+                sort_order INTEGER DEFAULT 0
+            )
+        """))
+        _conn.commit()
+    print("[migration] cm_case_doc_checklists / cm_case_doc_checklist_items created", flush=True)
+
     # Seed default sets if none exist yet
     from database import SessionLocal as _SL
     _seed_db = _SL()
@@ -1490,11 +1529,11 @@ try:
             ]
 
             _set_new = CMDocSet(
-                name="Καινοτομώ στην Κρήτη — Νέες Επιχειρήσεις",
+                name="Νέες Επιχειρήσεις — Γενικό Σετ Δικαιολογητικών",
                 program_category="ΕΣΠΑ",
-                program_title="Καινοτομώ στην Κρήτη",
+                program_title=None,
                 applicant_type="new_business",
-                description="Απαιτούμενα δικαιολογητικά υποβολής/ένταξης για την Κατηγορία 1η: Νέες καινοτόμες επιχειρήσεις (υπό σύσταση). Δράση 1.1.2.1 – Υποστήριξη νέων καινοτόμων επιχειρήσεων στην Περιφέρεια Κρήτης.",
+                description="Γενικό σετ απαιτούμενων δικαιολογητικών για νέες/υπό σύσταση επιχειρήσεις σε ΕΣΠΑ/LEADER προγράμματα.",
                 sort_order=0,
             )
             _seed_db.add(_set_new)
@@ -1508,11 +1547,11 @@ try:
                 ))
 
             _set_exi = CMDocSet(
-                name="Καινοτομώ στην Κρήτη — Υφιστάμενες Επιχειρήσεις",
+                name="Υφιστάμενες Επιχειρήσεις — Γενικό Σετ Δικαιολογητικών",
                 program_category="ΕΣΠΑ",
-                program_title="Καινοτομώ στην Κρήτη",
+                program_title=None,
                 applicant_type="existing_business",
-                description="Απαιτούμενα δικαιολογητικά υποβολής/ένταξης για την Κατηγορία 2η: Ενίσχυση νέων καινοτόμων επιχειρήσεων στην Κρήτη (υφιστάμενες). Δράση 1.1.2.1.",
+                description="Γενικό σετ απαιτούμενων δικαιολογητικών για υφιστάμενες επιχειρήσεις σε ΕΣΠΑ/LEADER προγράμματα.",
                 sort_order=1,
             )
             _seed_db.add(_set_exi)
@@ -1526,7 +1565,7 @@ try:
                 ))
 
             _seed_db.commit()
-            print("[seed] Document library seeded with Καινοτομώ Κρήτη sets", flush=True)
+            print("[seed] Document library seeded with generic ΕΣΠΑ sets", flush=True)
     finally:
         _seed_db.close()
 except Exception as _e:
