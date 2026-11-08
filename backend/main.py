@@ -1483,6 +1483,25 @@ try:
         _conn.commit()
     print("[migration] cm_case_doc_checklists / cm_case_doc_checklist_items created", flush=True)
 
+    # Rename legacy "Καινοτομώ" seed sets to generic names (one-time idempotent)
+    with engine.connect() as _conn:
+        _conn.execute(text("""
+            UPDATE cm_doc_sets
+            SET name='Νέες Επιχειρήσεις — Γενικό Σετ Δικαιολογητικών',
+                program_title=NULL,
+                description='Γενικό σετ απαιτούμενων δικαιολογητικών για νέες/υπό σύσταση επιχειρήσεις σε ΕΣΠΑ/LEADER προγράμματα.'
+            WHERE name='Καινοτομώ στην Κρήτη — Νέες Επιχειρήσεις'
+        """))
+        _conn.execute(text("""
+            UPDATE cm_doc_sets
+            SET name='Υφιστάμενες Επιχειρήσεις — Γενικό Σετ Δικαιολογητικών',
+                program_title=NULL,
+                description='Γενικό σετ απαιτούμενων δικαιολογητικών για υφιστάμενες επιχειρήσεις σε ΕΣΠΑ/LEADER προγράμματα.'
+            WHERE name='Καινοτομώ στην Κρήτη — Υφιστάμενες Επιχειρήσεις'
+        """))
+        _conn.commit()
+    print("[migration] legacy seed set names normalised", flush=True)
+
     # Seed default sets if none exist yet
     from database import SessionLocal as _SL
     _seed_db = _SL()

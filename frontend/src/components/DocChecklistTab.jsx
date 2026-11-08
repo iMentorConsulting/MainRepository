@@ -14,6 +14,11 @@ import {
   EyeSlashIcon,
   TrashIcon,
   PrinterIcon,
+  PencilSquareIcon,
+  ShareIcon,
+  ClipboardDocumentIcon,
+  EnvelopeIcon,
+  DevicePhoneMobileIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -36,6 +41,9 @@ const REQ_LABELS = {
 function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
   const [expanded, setExpanded] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [notesDraft, setNotesDraft] = useState(item.client_notes || '')
+  const [notesSaving, setNotesSaving] = useState(false)
+  const notesTimer = useState(null)
 
   const toggle = async (field, value) => {
     setSaving(true)
@@ -43,6 +51,20 @@ function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
       const updated = await updateCaseDocChecklistItem(caseId, checklistId, item.id, { [field]: value })
       onUpdated(updated)
     } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+  }
+
+  const saveNotes = async (val) => {
+    setNotesSaving(true)
+    try {
+      const updated = await updateCaseDocChecklistItem(caseId, checklistId, item.id, { client_notes: val })
+      onUpdated(updated)
+    } catch { toast.error('Σφάλμα αποθήκευσης σημείωσης') } finally { setNotesSaving(false) }
+  }
+
+  const handleNotesChange = (val) => {
+    setNotesDraft(val)
+    if (notesTimer[0]) clearTimeout(notesTimer[0])
+    notesTimer[0] = setTimeout(() => saveNotes(val), 1200)
   }
 
   const reqColor = REQ_COLORS[item.requirement_type] || 'bg-gray-100 text-gray-500'
@@ -111,8 +133,102 @@ function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
           {item.description && (
             <p className="text-sm text-gray-600 leading-relaxed">{item.description}</p>
           )}
+          <div className="pt-1">
+            <label className="text-xs font-semibold text-gray-400 flex items-center gap-1 mb-1">
+              <PencilSquareIcon className="w-3.5 h-3.5" /> Σημειώσεις
+              {notesSaving && <span className="text-gray-300 font-normal">αποθήκευση…</span>}
+            </label>
+            <textarea
+              value={notesDraft}
+              onChange={e => handleNotesChange(e.target.value)}
+              rows={2}
+              placeholder="Προσθήκη σημείωσης για αυτό το δικαιολογητικό…"
+              className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none text-gray-700 placeholder-gray-300"
+            />
+          </div>
         </div>
       )}
+    </div>
+  )
+}
+
+function SharePanel({ checklist, caseData, onClose }) {
+  const pendingItems = (checklist?.items || []).filter(i => i.is_applicable && !i.is_received)
+
+  const formatList = () => {
+    const groups = {}
+    pendingItems.forEach(item => {
+      const g = item.group_name || item.group_code || 'Λοιπά'
+      if (!groups[g]) groups[g] = []
+      groups[g].push(item)
+    })
+    const lines = [`📋 Εκκρεμή Δικαιολογητικά — ${checklist.title}`, '']
+    Object.entries(groups).forEach(([grp, items]) => {
+      lines.push(`*${grp}*`)
+      items.forEach(item => {
+        lines.push(`• ${item.title}${item.condition_notes ? ` (${item.condition_notes})` : ''}`)
+      })
+      lines.push('')
+    })
+    lines.push(`Πελάτης: ${caseData?.client_name || ''}`)
+    return lines.join('\n')
+  }
+
+  const text = formatList()
+
+  const copyToClipboard = () => {
+    navigator.clipboard.writeText(text).then(() => toast.success('Αντιγράφηκε!'))
+  }
+
+  const emailSubject = encodeURIComponent(`Εκκρεμή Δικαιολογητικά — ${checklist.title}`)
+  const emailBody = encodeURIComponent(text)
+  const emailTo = caseData?.email || ''
+
+  return (
+    <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
+      <div className="bg-white rounded-t-2xl sm:rounded-2xl w-full sm:max-w-lg p-5 shadow-xl" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-bold text-[#1e3a5f] flex items-center gap-2">
+            <ShareIcon className="w-5 h-5" /> Αποστολή Εκκρεμών
+          </h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+        </div>
+        <p className="text-xs text-gray-500 mb-3">{pendingItems.length} εκκρεμή δικαιολογητικά</p>
+        <textarea
+          readOnly
+          value={text}
+          rows={8}
+          className="w-full text-xs font-mono border border-gray-200 rounded-lg p-3 bg-gray-50 resize-none mb-3 focus:outline-none"
+        />
+        <div className="flex gap-2 flex-wrap">
+          {emailTo && (
+            <a
+              href={`mailto:${emailTo}?subject=${emailSubject}&body=${emailBody}`}
+              className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <EnvelopeIcon className="w-4 h-4" /> Email
+              <span className="text-blue-200 text-xs">{emailTo}</span>
+            </a>
+          )}
+          {!emailTo && (
+            <span className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-400 text-sm rounded-lg">
+              <EnvelopeIcon className="w-4 h-4" /> Δεν υπάρχει email πελάτη
+            </span>
+          )}
+          <button
+            onClick={copyToClipboard}
+            className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
+          >
+            <DevicePhoneMobileIcon className="w-4 h-4" /> Αντιγραφή για Viber
+          </button>
+          <button
+            onClick={copyToClipboard}
+            className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <ClipboardDocumentIcon className="w-4 h-4" /> Αντιγραφή
+          </button>
+        </div>
+      </div>
     </div>
   )
 }
@@ -122,6 +238,7 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
   const [activeId, setActiveId] = useState(null)
   const [checklist, setChecklist] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [showShare, setShowShare] = useState(false)
   const auth = getAuth()
   const isAdmin = auth?.role === 'admin'
 
@@ -257,6 +374,9 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
 
   return (
     <div className="p-5 space-y-4">
+      {showShare && checklist && (
+        <SharePanel checklist={checklist} caseData={caseData} onClose={() => setShowShare(false)} />
+      )}
       {/* Multiple checklists selector */}
       {checklists.length > 1 && (
         <div className="flex gap-2">
@@ -287,6 +407,10 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
               </p>
             </div>
             <div className="flex gap-2">
+              <button onClick={() => setShowShare(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-blue-200 rounded-lg hover:bg-blue-50 text-blue-600 transition-colors">
+                <ShareIcon className="w-4 h-4" /> Αποστολή
+              </button>
               <button onClick={handlePrint}
                 className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-200 rounded-lg hover:bg-gray-50 text-gray-600 transition-colors">
                 <PrinterIcon className="w-4 h-4" /> Εκτύπωση

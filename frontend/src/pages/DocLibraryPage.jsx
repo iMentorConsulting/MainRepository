@@ -475,13 +475,39 @@ function AssignModal({ docSet, onClose }) {
 
 // ── Set detail panel ───────────────────────────────────────────────────────────
 
-function SetPanel({ setId, isAdmin, meta }) {
+function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
   const [docSet, setDocSet] = useState(null)
   const [loading, setLoading] = useState(true)
   const [addingItem, setAddingItem] = useState(false)
   const [filterReq, setFilterReq] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
   const [assignModalOpen, setAssignModalOpen] = useState(false)
+  const [editingSet, setEditingSet] = useState(false)
+  const [editForm, setEditForm] = useState({})
+  const [savingSet, setSavingSet] = useState(false)
+
+  const startEditSet = () => {
+    setEditForm({
+      name: docSet.name || '',
+      program_category: docSet.program_category || '',
+      applicant_type: docSet.applicant_type || 'both',
+      description: docSet.description || '',
+    })
+    setEditingSet(true)
+  }
+  const setEF = (k, v) => setEditForm(f => ({ ...f, [k]: v }))
+
+  const saveSet = async () => {
+    if (!editForm.name.trim()) { toast.error('Απαιτείται όνομα'); return }
+    setSavingSet(true)
+    try {
+      const updated = await updateDocSet(setId, editForm)
+      setDocSet(ds => ({ ...ds, ...updated }))
+      if (onSetUpdated) onSetUpdated(updated)
+      setEditingSet(false)
+      toast.success('Αποθηκεύτηκε')
+    } catch { toast.error('Σφάλμα') } finally { setSavingSet(false) }
+  }
 
   useEffect(() => {
     if (!setId) return
@@ -601,39 +627,88 @@ function SetPanel({ setId, isAdmin, meta }) {
       )}
       {/* Header */}
       <div className="px-6 pt-5 pb-4 border-b border-gray-200 bg-white">
-        <div className="flex items-start justify-between gap-4">
-          <div className="min-w-0">
-            <h2 className="text-lg font-bold text-[#1e3a5f] leading-tight">{docSet.name}</h2>
-            <div className="flex items-center gap-3 mt-1 flex-wrap">
-              {docSet.program_category && (
-                <span className="text-xs bg-[#1e3a5f] text-white px-2 py-0.5 rounded-full">{docSet.program_category}</span>
-              )}
-              {docSet.applicant_type && (
-                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{APPLICANT_LABELS[docSet.applicant_type] || docSet.applicant_type}</span>
-              )}
-              <span className="text-xs text-gray-500">{totalCount} δικαιολογητικά · {mandatoryCount} υποχρεωτικά</span>
+        {editingSet ? (
+          <div className="space-y-3">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Όνομα σετ *</label>
+                <input value={editForm.name} onChange={e => setEF('name', e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:border-blue-400 focus:outline-none font-semibold" />
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Κατηγορία</label>
+                <select value={editForm.program_category} onChange={e => setEF('program_category', e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white focus:border-blue-400 focus:outline-none">
+                  {['ΕΣΠΑ', 'LEADER', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'Γενικό', ''].map(c => (
+                    <option key={c} value={c}>{c || '—'}</option>
+                  ))}
+                </select>
+              </div>
             </div>
-            {docSet.description && (
-              <p className="text-xs text-gray-500 mt-1 line-clamp-2">{docSet.description}</p>
-            )}
-          </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button onClick={handlePrint}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">
-              <PrinterIcon className="w-4 h-4" /> Εκτύπωση
-            </button>
-            <button onClick={() => setAssignModalOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#1e3a5f] text-[#1e3a5f] rounded-lg hover:bg-[#1e3a5f] hover:text-white transition-colors">
-              <PaperAirplaneIcon className="w-4 h-4" /> Ανάθεση σε Υπόθεση
-            </button>
-            {isAdmin && (
-              <button onClick={() => setAddingItem(true)}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors">
-                <PlusIcon className="w-4 h-4" /> Προσθήκη
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Τύπος επιχείρησης</label>
+                <select value={editForm.applicant_type} onChange={e => setEF('applicant_type', e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm bg-white focus:border-blue-400 focus:outline-none">
+                  {Object.entries(APPLICANT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                </select>
+              </div>
+              <div className="col-span-2">
+                <label className="text-xs font-semibold text-gray-500 mb-1 block">Περιγραφή</label>
+                <input value={editForm.description} onChange={e => setEF('description', e.target.value)}
+                  className="w-full border border-gray-300 rounded-xl px-3 py-2 text-sm focus:border-blue-400 focus:outline-none" />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setEditingSet(false)}
+                className="px-4 py-1.5 text-sm border border-gray-300 rounded-xl hover:bg-gray-50">Άκυρο</button>
+              <button onClick={saveSet} disabled={savingSet}
+                className="px-5 py-1.5 text-sm bg-[#1e3a5f] text-white rounded-xl hover:bg-[#162d4a] disabled:opacity-50">
+                {savingSet ? 'Αποθήκευση…' : 'Αποθήκευση'}
               </button>
-            )}
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-bold text-[#1e3a5f] leading-tight">{docSet.name}</h2>
+                <button onClick={startEditSet}
+                  className="p-1 text-gray-300 hover:text-blue-500 rounded transition-colors flex-shrink-0">
+                  <PencilIcon className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="flex items-center gap-3 mt-1 flex-wrap">
+                {docSet.program_category && (
+                  <span className="text-xs bg-[#1e3a5f] text-white px-2 py-0.5 rounded-full">{docSet.program_category}</span>
+                )}
+                {docSet.applicant_type && (
+                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{APPLICANT_LABELS[docSet.applicant_type] || docSet.applicant_type}</span>
+                )}
+                <span className="text-xs text-gray-500">{totalCount} δικαιολογητικά · {mandatoryCount} υποχρεωτικά</span>
+              </div>
+              {docSet.description && (
+                <p className="text-xs text-gray-500 mt-1 line-clamp-2">{docSet.description}</p>
+              )}
+            </div>
+            <div className="flex gap-2 flex-shrink-0">
+              <button onClick={handlePrint}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors text-gray-600">
+                <PrinterIcon className="w-4 h-4" /> Εκτύπωση
+              </button>
+              <button onClick={() => setAssignModalOpen(true)}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-[#1e3a5f] text-[#1e3a5f] rounded-lg hover:bg-[#1e3a5f] hover:text-white transition-colors">
+                <PaperAirplaneIcon className="w-4 h-4" /> Ανάθεση σε Υπόθεση
+              </button>
+              {isAdmin && (
+                <button onClick={() => setAddingItem(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] transition-colors">
+                  <PlusIcon className="w-4 h-4" /> Προσθήκη
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="flex items-center gap-3 mt-3 flex-wrap">
@@ -706,7 +781,11 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ name: '', program_category: 'ΕΣΠΑ', program_title: '', applicant_type: 'both', description: '', sort_order: 0 })
   const [saving, setSaving] = useState(false)
+  const [editingSetId, setEditingSetId] = useState(null)
+  const [editForm, setEditForm] = useState({})
+  const [editSaving, setEditSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
+  const setEF = (k, v) => setEditForm(f => ({ ...f, [k]: v }))
 
   const save = async () => {
     if (!form.name.trim()) { toast.error('Απαιτείται όνομα'); return }
@@ -718,6 +797,29 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
       setForm({ name: '', program_category: 'ΕΣΠΑ', program_title: '', applicant_type: 'both', description: '', sort_order: 0 })
       toast.success('Δημιουργήθηκε')
     } catch { toast.error('Σφάλμα') } finally { setSaving(false) }
+  }
+
+  const startEdit = (s, e) => {
+    e.stopPropagation()
+    setEditingSetId(s.id)
+    setEditForm({ name: s.name, program_category: s.program_category || 'ΕΣΠΑ', program_title: s.program_title || '', applicant_type: s.applicant_type || 'both', description: s.description || '' })
+  }
+
+  const saveEdit = async (s, e) => {
+    e.stopPropagation()
+    if (!editForm.name.trim()) { toast.error('Απαιτείται όνομα'); return }
+    setEditSaving(true)
+    try {
+      const saved = await updateDocSet(s.id, editForm)
+      onSetUpdated(saved)
+      setEditingSetId(null)
+      toast.success('Αποθηκεύτηκε')
+    } catch { toast.error('Σφάλμα') } finally { setEditSaving(false) }
+  }
+
+  const cancelEdit = (e) => {
+    e.stopPropagation()
+    setEditingSetId(null)
   }
 
   const handleDelete = async (s, e) => {
@@ -808,17 +910,61 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                     </div>
                   </div>
                   {isAdmin && (
-                    <button
-                      onClick={e => handleDelete(s, e)}
-                      className={`opacity-0 group-hover:opacity-100 p-1 rounded transition-all flex-shrink-0 ${
-                        selectedId === s.id ? 'text-red-300 hover:text-red-100' : 'text-gray-400 hover:text-red-500'
-                      }`}
-                    >
-                      <TrashIcon className="w-3.5 h-3.5" />
-                    </button>
+                    <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      <button
+                        onClick={e => startEdit(s, e)}
+                        className={`p-1 rounded transition-colors ${
+                          selectedId === s.id ? 'text-blue-200 hover:text-white' : 'text-gray-400 hover:text-blue-500'
+                        }`}
+                      >
+                        <PencilIcon className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={e => handleDelete(s, e)}
+                        className={`p-1 rounded transition-colors ${
+                          selectedId === s.id ? 'text-red-300 hover:text-red-100' : 'text-gray-400 hover:text-red-500'
+                        }`}
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
                   )}
                 </div>
               </button>
+
+              {/* Inline edit form */}
+              {isAdmin && editingSetId === s.id && (
+                <div className="mx-1 mb-2 p-3 bg-white border border-blue-200 rounded-xl shadow-sm space-y-2" onClick={e => e.stopPropagation()}>
+                  <input value={editForm.name} onChange={e => setEF('name', e.target.value)}
+                    placeholder="Όνομα σετ *"
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-sm focus:border-blue-400 focus:outline-none" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={editForm.program_category} onChange={e => setEF('program_category', e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:border-blue-400 focus:outline-none">
+                      {['ΕΣΠΑ', 'LEADER', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'Γενικό'].map(c => <option key={c}>{c}</option>)}
+                    </select>
+                    <select value={editForm.applicant_type} onChange={e => setEF('applicant_type', e.target.value)}
+                      className="border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:border-blue-400 focus:outline-none">
+                      {Object.entries(APPLICANT_LABELS).map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+                    </select>
+                  </div>
+                  <input value={editForm.program_title} onChange={e => setEF('program_title', e.target.value)}
+                    placeholder="Τίτλος προγράμματος (π.χ. Καινοτομώ Κρήτη)"
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none" />
+                  <textarea value={editForm.description} onChange={e => setEF('description', e.target.value)}
+                    placeholder="Περιγραφή (προαιρετικό)"
+                    rows={2}
+                    className="w-full border border-gray-300 rounded-lg px-2.5 py-1.5 text-xs focus:border-blue-400 focus:outline-none resize-none" />
+                  <div className="flex gap-2 justify-end">
+                    <button onClick={cancelEdit}
+                      className="px-3 py-1 text-xs border border-gray-300 rounded-lg hover:bg-gray-50">Άκυρο</button>
+                    <button onClick={e => saveEdit(s, e)} disabled={editSaving}
+                      className="px-3 py-1 text-xs bg-[#1e3a5f] text-white rounded-lg hover:bg-[#162d4a] disabled:opacity-50">
+                      {editSaving ? '…' : 'Αποθήκευση'}
+                    </button>
+                  </div>
+                </div>
+              )}
             ))}
           </div>
         ))}
@@ -874,7 +1020,8 @@ export default function DocLibraryPage() {
         }}
         onSetUpdated={updated => setSets(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))}
       />
-      <SetPanel setId={selectedId} isAdmin={isAdmin} meta={meta} />
+      <SetPanel setId={selectedId} isAdmin={isAdmin} meta={meta}
+        onSetUpdated={updated => setSets(prev => prev.map(s => s.id === updated.id ? { ...s, ...updated } : s))} />
     </div>
   )
 }
