@@ -202,12 +202,12 @@ export function MatchesHero({ accountantId }: { accountantId?: string }) {
   const totalMatches = programs?.reduce((sum, p) => sum + p.matchCount, 0) ?? 0
 
   return (
-    <div className="relative rounded-2xl p-6 text-white overflow-hidden bg-violet-900">
+    <div className="relative rounded-2xl p-6 text-white overflow-hidden bg-slate-950">
       {/* layered glow backdrop */}
-      <div className="absolute inset-0 bg-gradient-to-br from-violet-700 via-purple-800 to-blue-900" />
-      <div className="absolute -top-24 -right-16 w-80 h-80 bg-fuchsia-400/35 rounded-full blur-[100px]" />
-      <div className="absolute -bottom-24 -left-16 w-80 h-80 bg-blue-400/25 rounded-full blur-[100px]" />
-      <div className="absolute top-1/3 left-1/2 w-72 h-72 bg-amber-300/15 rounded-full blur-[110px]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-indigo-950 via-slate-950 to-slate-900" />
+      <div className="absolute -top-24 -right-16 w-80 h-80 bg-indigo-500/25 rounded-full blur-[100px]" />
+      <div className="absolute -bottom-24 -left-16 w-80 h-80 bg-fuchsia-500/15 rounded-full blur-[100px]" />
+      <div className="absolute top-1/3 left-1/2 w-72 h-72 bg-cyan-400/10 rounded-full blur-[110px]" />
       <div
         className="absolute inset-0 opacity-[0.05]"
         style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '22px 22px' }}
