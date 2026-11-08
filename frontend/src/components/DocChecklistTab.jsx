@@ -91,8 +91,8 @@ function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
           {expanded ? <ChevronDownIcon className="w-4 h-4" /> : <ChevronRightIcon className="w-4 h-4" />}
         </button>
 
-        <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setExpanded(e => !e)}>
-          <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap cursor-pointer" onClick={() => setExpanded(e => !e)}>
             {item.item_code && (
               <span className="text-xs font-mono text-gray-400 bg-gray-100 px-1.5 py-0.5 rounded">{item.item_code}</span>
             )}
@@ -103,6 +103,17 @@ function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
           {item.condition_notes && !expanded && (
             <p className="text-xs text-orange-600 mt-0.5 italic truncate">{item.condition_notes}</p>
           )}
+          {/* Quick notes — always visible */}
+          <div className="mt-1.5" onClick={e => e.stopPropagation()}>
+            <input
+              value={notesDraft}
+              onChange={e => handleNotesChange(e.target.value)}
+              placeholder="+ Σημείωση…"
+              className={`w-full text-xs border-0 border-b border-dashed bg-transparent focus:outline-none focus:border-blue-300 transition-colors px-0 py-0.5 ${
+                notesDraft ? 'text-blue-700 border-blue-200' : 'text-gray-400 border-gray-200 placeholder-gray-300'
+              }`}
+            />
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-shrink-0">
@@ -136,14 +147,15 @@ function ChecklistItem({ item, checklistId, caseId, onUpdated }) {
           <div className="pt-1">
             <label className="text-xs font-semibold text-gray-400 flex items-center gap-1 mb-1">
               <PencilSquareIcon className="w-3.5 h-3.5" /> Σημειώσεις
-              {notesSaving && <span className="text-gray-300 font-normal">αποθήκευση…</span>}
+              {notesSaving && <span className="text-gray-300 font-normal ml-1">αποθήκευση…</span>}
             </label>
             <textarea
               value={notesDraft}
               onChange={e => handleNotesChange(e.target.value)}
-              rows={2}
+              rows={3}
               placeholder="Προσθήκη σημείωσης για αυτό το δικαιολογητικό…"
               className="w-full text-sm border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-300 resize-none text-gray-700 placeholder-gray-300"
+              onClick={e => e.stopPropagation()}
             />
           </div>
         </div>
@@ -176,13 +188,24 @@ function SharePanel({ checklist, caseData, onClose }) {
 
   const text = formatList()
 
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(text).then(() => toast.success('Αντιγράφηκε!'))
+  const emailTo = caseData?.email || ''
+  const emailSubject = encodeURIComponent(`Εκκρεμή Δικαιολογητικά — ${checklist.title}`)
+
+  const copyToClipboard = (showMsg) => {
+    navigator.clipboard.writeText(text).then(() => toast.success(showMsg || 'Αντιγράφηκε!'))
   }
 
-  const emailSubject = encodeURIComponent(`Εκκρεμή Δικαιολογητικά — ${checklist.title}`)
-  const emailBody = encodeURIComponent(text)
-  const emailTo = caseData?.email || ''
+  const handleEmail = () => {
+    // Copy text first (mailto body breaks for long texts), then open email with subject only
+    navigator.clipboard.writeText(text).then(() => {
+      toast.success('Κείμενο αντιγράφηκε! Επικολλήστε στο email (Ctrl+V / Cmd+V)', { duration: 5000 })
+      setTimeout(() => {
+        window.open(`mailto:${emailTo}?subject=${emailSubject}`, '_blank')
+      }, 300)
+    }).catch(() => {
+      window.open(`mailto:${emailTo}?subject=${emailSubject}`, '_blank')
+    })
+  }
 
   return (
     <div className="fixed inset-0 bg-black/40 flex items-end sm:items-center justify-center z-50" onClick={onClose}>
@@ -201,28 +224,27 @@ function SharePanel({ checklist, caseData, onClose }) {
           className="w-full text-xs font-mono border border-gray-200 rounded-lg p-3 bg-gray-50 resize-none mb-3 focus:outline-none"
         />
         <div className="flex gap-2 flex-wrap">
-          {emailTo && (
-            <a
-              href={`mailto:${emailTo}?subject=${emailSubject}&body=${emailBody}`}
+          {emailTo ? (
+            <button
+              onClick={handleEmail}
               className="flex items-center gap-1.5 px-3 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
             >
               <EnvelopeIcon className="w-4 h-4" /> Email
-              <span className="text-blue-200 text-xs">{emailTo}</span>
-            </a>
-          )}
-          {!emailTo && (
+              <span className="text-blue-200 text-xs truncate max-w-32">{emailTo}</span>
+            </button>
+          ) : (
             <span className="flex items-center gap-1.5 px-3 py-2 bg-gray-100 text-gray-400 text-sm rounded-lg">
               <EnvelopeIcon className="w-4 h-4" /> Δεν υπάρχει email πελάτη
             </span>
           )}
           <button
-            onClick={copyToClipboard}
+            onClick={() => copyToClipboard('Αντιγράφηκε! Επικολλήστε στο Viber.')}
             className="flex items-center gap-1.5 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition-colors"
           >
             <DevicePhoneMobileIcon className="w-4 h-4" /> Αντιγραφή για Viber
           </button>
           <button
-            onClick={copyToClipboard}
+            onClick={() => copyToClipboard('Αντιγράφηκε!')}
             className="flex items-center gap-1.5 px-3 py-2 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 transition-colors"
           >
             <ClipboardDocumentIcon className="w-4 h-4" /> Αντιγραφή

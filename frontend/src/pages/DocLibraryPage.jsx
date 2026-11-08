@@ -891,9 +891,12 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
             <div className="px-2 py-1 text-xs font-bold text-gray-400 uppercase tracking-wider">{cat}</div>
             {catSets.map(s => (
               <React.Fragment key={s.id}>
-              <button
+              <div
                 onClick={() => onSelect(s.id)}
-                className={`w-full text-left px-3 py-2.5 rounded-xl mb-1 transition-all group ${
+                role="button"
+                tabIndex={0}
+                onKeyDown={e => e.key === 'Enter' && onSelect(s.id)}
+                className={`w-full text-left px-3 py-2.5 rounded-xl mb-1 transition-all group cursor-pointer ${
                   selectedId === s.id
                     ? 'bg-[#1e3a5f] text-white shadow-sm'
                     : 'hover:bg-white hover:shadow-sm text-gray-700'
@@ -913,6 +916,7 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                     <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
                       <button
                         onClick={e => startEdit(s, e)}
+                        title="Επεξεργασία"
                         className={`p-1 rounded transition-colors ${
                           selectedId === s.id ? 'text-blue-200 hover:text-white' : 'text-gray-400 hover:text-blue-500'
                         }`}
@@ -921,6 +925,7 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                       </button>
                       <button
                         onClick={e => handleDelete(s, e)}
+                        title="Διαγραφή"
                         className={`p-1 rounded transition-colors ${
                           selectedId === s.id ? 'text-red-300 hover:text-red-100' : 'text-gray-400 hover:text-red-500'
                         }`}
@@ -930,7 +935,7 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                     </div>
                   )}
                 </div>
-              </button>
+              </div>
 
               {/* Inline edit form */}
               {isAdmin && editingSetId === s.id && (
