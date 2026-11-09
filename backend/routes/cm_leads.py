@@ -495,8 +495,13 @@ def list_leads(
         query = query.filter(CMLead.program.in_(program_list))
     if program_title:
         title_list = [t.strip() for t in program_title.split(",") if t.strip()]
+        # Use service_type only as a fallback when program_title is null —
+        # mirrors filter-options logic so the displayed title always matches the filter.
         query = query.filter(
-            or_(CMLead.program_title.in_(title_list), CMLead.service_type.in_(title_list))
+            or_(
+                CMLead.program_title.in_(title_list),
+                and_(CMLead.program_title.is_(None), CMLead.service_type.in_(title_list)),
+            )
         )
     if ermis_filter == "not_sent":
         # Ready to send: no ermis attempt yet (or previous attempt errored), has AFM and a program
