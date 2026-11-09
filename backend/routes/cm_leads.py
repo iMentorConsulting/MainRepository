@@ -475,23 +475,28 @@ def list_leads(
     if agent_id is not None:
         query = query.filter(CMLead.assigned_agent_id == agent_id)
     if consultant:
-        matching_agent = db.query(CMUser).filter(CMUser.full_name == consultant).first()
-        if matching_agent:
-            # Also match old code names (HARIS, CHRISTOS etc.) for this agent's first name
-            from routes.cm_leads_ermis import _CONSULTANT_GR
-            first_name_match = matching_agent.full_name.split()[1] if matching_agent.full_name and len(matching_agent.full_name.split()) > 1 else None
-            old_codes = [code for code, fn in _CONSULTANT_GR.items() if first_name_match and fn.lower() in first_name_match.lower()]
-            name_conditions = [CMLead.assigned_name == consultant, CMLead.assigned_agent_id == matching_agent.id]
-            for code in old_codes:
-                name_conditions.append(CMLead.assigned_name == code)
-            query = query.filter(or_(*name_conditions))
-        else:
-            query = query.filter(CMLead.assigned_name == consultant)
+        consultant_list = [c.strip() for c in consultant.split(",") if c.strip()]
+        consultant_conditions = []
+        for c in consultant_list:
+            matching_agent = db.query(CMUser).filter(CMUser.full_name == c).first()
+            if matching_agent:
+                from routes.cm_leads_ermis import _CONSULTANT_GR
+                first_name_match = matching_agent.full_name.split()[1] if matching_agent.full_name and len(matching_agent.full_name.split()) > 1 else None
+                old_codes = [code for code, fn in _CONSULTANT_GR.items() if first_name_match and fn.lower() in first_name_match.lower()]
+                consultant_conditions.append(CMLead.assigned_name == c)
+                consultant_conditions.append(CMLead.assigned_agent_id == matching_agent.id)
+                for code in old_codes:
+                    consultant_conditions.append(CMLead.assigned_name == code)
+            else:
+                consultant_conditions.append(CMLead.assigned_name == c)
+        query = query.filter(or_(*consultant_conditions))
     if program:
-        query = query.filter(CMLead.program == program)
+        program_list = [p.strip() for p in program.split(",") if p.strip()]
+        query = query.filter(CMLead.program.in_(program_list))
     if program_title:
+        title_list = [t.strip() for t in program_title.split(",") if t.strip()]
         query = query.filter(
-            or_(CMLead.program_title == program_title, CMLead.service_type == program_title)
+            or_(CMLead.program_title.in_(title_list), CMLead.service_type.in_(title_list))
         )
     if ermis_filter == "not_sent":
         # Ready to send: no ermis attempt yet (or previous attempt errored), has AFM and a program

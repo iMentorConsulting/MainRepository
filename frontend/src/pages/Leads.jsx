@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, Fragment } from 'react'
+import { useState, useEffect, useCallback, useRef, Fragment, useMemo } from 'react'
 import {
   getLeads, getLeadFilterOptions, getLead, createLead, updateLead, deleteLead,
   getLeadComments, addLeadComment, editLeadComment, deleteLeadComment,
@@ -1137,11 +1137,61 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
   )
 }
 
+function MultiSelect({ value = [], onChange, options = [], placeholder, className = '' }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+  useEffect(() => {
+    const handler = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+  const toggle = (opt) => {
+    if (value.includes(opt)) onChange(value.filter(v => v !== opt))
+    else onChange([...value, opt])
+  }
+  const label = value.length === 0 ? placeholder : value.length === 1 ? value[0] : `${value[0]} +${value.length - 1}`
+  return (
+    <div ref={ref} className={`relative ${className}`}>
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        className={`flex items-center gap-1 px-3 py-2 border rounded-lg text-sm bg-white hover:border-blue-400 transition-colors min-w-[160px] max-w-xs ${value.length > 0 ? 'border-blue-400 text-blue-700 font-medium' : 'border-gray-300 text-gray-700'}`}
+      >
+        <span className="truncate flex-1 text-left">{label}</span>
+        {value.length > 0 && (
+          <span
+            className="ml-1 text-blue-400 hover:text-red-500 transition-colors"
+            onMouseDown={e => { e.stopPropagation(); onChange([]) }}
+            title="Καθαρισμός"
+          >×</span>
+        )}
+        <ChevronDownIcon className={`w-3.5 h-3.5 text-gray-400 flex-shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </button>
+      {open && (
+        <div className="absolute z-50 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg min-w-[220px] max-w-xs max-h-72 overflow-y-auto">
+          {options.map(opt => (
+            <label key={opt} className="flex items-center gap-2 px-3 py-1.5 hover:bg-blue-50 cursor-pointer text-sm">
+              <input
+                type="checkbox"
+                checked={value.includes(opt)}
+                onChange={() => toggle(opt)}
+                className="accent-blue-600 w-3.5 h-3.5 flex-shrink-0"
+              />
+              <span className="truncate">{opt}</span>
+            </label>
+          ))}
+          {options.length === 0 && <div className="px-3 py-2 text-xs text-gray-400">Δεν υπάρχουν επιλογές</div>}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function Leads() {
   const [data, setData] = useState({ items: [], total: 0, page: 1, page_size: 50 })
   const [options, setOptions] = useState({ statuses: LEAD_STATUSES, agents: [], programs: [], program_titles: [], consultants: [], status_counts: {}, total: 0 })
   const [loading, setLoading] = useState(true)
-  const [filters, setFilters] = useState({ status: '', consultant: '', program: '', program_title: '', q: '', reminder: '', ermis_filter: '', date_from: '', date_to: '' })
+  const [filters, setFilters] = useState({ status: '', consultant: [], program: [], program_title: [], q: '', reminder: '', ermis_filter: '', date_from: '', date_to: '' })
   const [sort, setSort] = useState({ sort: 'created_at', direction: 'desc' })
   const [page, setPage] = useState(1)
   const [showNew, setShowNew] = useState(false)
@@ -1160,7 +1210,10 @@ export default function Leads() {
     setLoading(true)
     try {
       const params = { ...sort, page }
-      Object.entries(filters).forEach(([k, v]) => { if (v) params[k] = v })
+      Object.entries(filters).forEach(([k, v]) => {
+        if (Array.isArray(v)) { if (v.length) params[k] = v.join(',') }
+        else if (v) params[k] = v
+      })
       // Hide CANCEL by default, unless the user explicitly filtered to CANCEL
       if (hideCancel && filters.status !== 'CANCEL') params.exclude_status = 'CANCEL'
       setData(await getLeads(params))
@@ -1203,12 +1256,10 @@ export default function Leads() {
     if (/\.\s+[Α-ΩA-Z]/.test(title)) return false
     return true
   }
-  const visibleTitles = filters.program
+  const visibleTitles = filters.program.length > 0
     ? (options.program_titles || []).filter(t => {
         const cat = categoryFromTitle(t)
-        // ΕΣΠΑ is the catch-all: show titles that explicitly match ΕΣΠΑ OR
-        // don't match any other recognised category.
-        return cat === filters.program || (filters.program === 'ΕΣΠΑ' && cat === null)
+        return filters.program.some(p => cat === p || (p === 'ΕΣΠΑ' && cat === null))
       })
     : (options.program_titles || [])
 
@@ -1406,15 +1457,25 @@ export default function Leads() {
           <MagnifyingGlassIcon className="w-4 h-4 text-gray-400 absolute left-2.5 top-2.5" />
           <input value={filters.q} onChange={e => setFilter({ q: e.target.value })} placeholder="Αναζήτηση…" className="pl-8 pr-3 py-2 border rounded-lg text-sm" />
         </div>
-        <select value={filters.program} onChange={e => setFilter({ program: e.target.value, program_title: '' })} className="px-3 py-2 border rounded-lg text-sm">
-          <option value="">Όλα τα προγράμματα</option>{(options.programs || []).map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select value={filters.program_title} onChange={e => setFilter({ program_title: e.target.value })} className="px-3 py-2 border rounded-lg text-sm max-w-xs" title={filters.program_title || ''}>
-          <option value="">Τίτλος προγράμματος (όλα)</option>{visibleTitles.map(p => <option key={p} value={p}>{p}</option>)}
-        </select>
-        <select value={filters.consultant} onChange={e => setFilter({ consultant: e.target.value })} className="px-3 py-2 border rounded-lg text-sm">
-          <option value="">Σύμβουλος (όλοι)</option>{(options.consultants || []).map(c => <option key={c} value={c}>{c}</option>)}
-        </select>
+        <MultiSelect
+          value={filters.program}
+          onChange={v => setFilter({ program: v, program_title: [] })}
+          options={options.programs || []}
+          placeholder="Όλα τα προγράμματα"
+        />
+        <MultiSelect
+          value={filters.program_title}
+          onChange={v => setFilter({ program_title: v })}
+          options={visibleTitles}
+          placeholder="Τίτλος προγράμματος (όλα)"
+          className="max-w-xs"
+        />
+        <MultiSelect
+          value={filters.consultant}
+          onChange={v => setFilter({ consultant: v })}
+          options={options.consultants || []}
+          placeholder="Σύμβουλος (όλοι)"
+        />
         <input type="date" value={filters.date_from} onChange={e => setFilter({ date_from: e.target.value })} className="px-2 py-2 border rounded-lg text-sm" />
         <input type="date" value={filters.date_to} onChange={e => setFilter({ date_to: e.target.value })} className="px-2 py-2 border rounded-lg text-sm" />
       </div>
