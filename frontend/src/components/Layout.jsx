@@ -53,6 +53,7 @@ const nav = [
   { to: '/meta-ads', label: 'Meta Lead Ads', Icon: GlobeAltIcon, adminOnly: true },
   { to: '/message-templates', label: 'Πρότυπα Μηνυμάτων', Icon: DocumentTextIcon },
   { to: '/doc-library', label: 'Βιβλιοθήκη Δικαιολογητικών', Icon: BookOpenIcon },
+  { to: '/service-types-admin', label: 'Τύποι Υπηρεσιών', Icon: AdjustmentsHorizontalIcon, adminOnly: true },
 ]
 
 function ChangePasswordModal({ onClose }) {

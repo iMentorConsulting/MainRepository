@@ -346,4 +346,8 @@ export const deleteCaseDocChecklist = (caseId, checklistId) => api.delete(`/api/
 export const updateCaseDocChecklistItem = (caseId, checklistId, itemId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/items/${itemId}`, data).then(r => r.data)
 export const sendChecklistEmail = (caseId, checklistId) => api.post(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/send-email`).then(r => r.data)
 
+// App Settings
+export const getServiceTypeGroups = () => api.get('/api/cm/settings/service-types').then(r => r.data)
+export const putServiceTypeGroups = (data) => api.put('/api/cm/settings/service-types', data).then(r => r.data)
+
 export default api

@@ -33,6 +33,7 @@ import Onboard from './pages/Onboard'
 import MetaAdsPage from './pages/MetaAdsPage'
 import MessageTemplatesPage from './pages/MessageTemplatesPage'
 import DocLibraryPage from './pages/DocLibraryPage'
+import ServiceTypesAdminPage from './pages/ServiceTypesAdminPage'
 
 export default function App() {
   const [auth, setAuthState] = useState(() => getAuth())
@@ -72,6 +73,7 @@ export default function App() {
             <Route path="meta-ads" element={<ErrorBoundary><MetaAdsPage /></ErrorBoundary>} />
             <Route path="message-templates" element={<ErrorBoundary><MessageTemplatesPage /></ErrorBoundary>} />
             <Route path="doc-library" element={<ErrorBoundary><DocLibraryPage /></ErrorBoundary>} />
+            <Route path="service-types-admin" element={<ErrorBoundary><ServiceTypesAdminPage /></ErrorBoundary>} />
             <Route path="kanban" element={<ErrorBoundary><Kanban /></ErrorBoundary>} />
             <Route path="pending" element={<ErrorBoundary><PendingPage /></ErrorBoundary>} />
             <Route path="workview" element={<ErrorBoundary><WorkView /></ErrorBoundary>} />

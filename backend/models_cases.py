@@ -948,3 +948,11 @@ class CMCaseDocChecklistItem(Base):
     client_notes = Column(Text)
     sort_order = Column(Integer, default=0)
     checklist = relationship("CMCaseDocChecklist", back_populates="items")
+
+
+class CMAppSetting(Base):
+    __tablename__ = "cm_app_settings"
+    id = Column(Integer, primary_key=True, index=True)
+    key = Column(String(100), unique=True, nullable=False, index=True)
+    value = Column(Text, nullable=False)  # JSON string
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

@@ -40,6 +40,7 @@ from routes.cm_meta_leads import router_public as cm_meta_public_router, router_
 from routes.cm_message_templates import router as cm_message_templates_router
 from routes.cm_doc_library import router as cm_doc_library_router
 from routes.cm_case_doc_checklist import router as cm_case_doc_checklist_router
+from routes.cm_settings import router as cm_settings_router
 
 load_dotenv()
 
@@ -1082,6 +1083,7 @@ app.include_router(cm_meta_capi_router)
 app.include_router(cm_message_templates_router)
 app.include_router(cm_doc_library_router)
 app.include_router(cm_case_doc_checklist_router)
+app.include_router(cm_settings_router)
 
 
 try:
@@ -1920,6 +1922,20 @@ try:
         _lm_db.close()
 except Exception as _e:
     print(f"[seed] Λογιστής Master seed skipped: {_e}", flush=True)
+
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_app_settings (
+                id SERIAL PRIMARY KEY,
+                key VARCHAR(100) UNIQUE NOT NULL,
+                value TEXT NOT NULL,
+                updated_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_app_settings create skipped: {_e}", flush=True)
 
 
 @app.on_event("shutdown")

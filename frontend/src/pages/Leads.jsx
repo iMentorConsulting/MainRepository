@@ -6,6 +6,7 @@ import {
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants, upgradeWorkedLeads, downgradeWorkedLeads,
   sendLeadToFinance, cloneLead,
   getMessageTemplates, getAllMessageTemplates, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate,
+  getServiceTypeGroups,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -554,7 +555,7 @@ const categoryFromTitle = title => {
 }
 
 // ── Finance intake modal ─────────────────────────────────────────────────────
-const SERVICE_TYPE_GROUPS = [
+const DEFAULT_SERVICE_TYPE_GROUPS = [
   { label: 'ΣΥΜΒΟΥΛΕΥΤΙΚΗ', items: ['ΣΥΜΒΟΥΛΕΥΤΙΚΗ'] },
   { label: 'ΔΑΝΕΙΑ', items: ['BUSINESS PLAN', 'ΔΑΝΕΙΟΔΟΤΗΣΕΙΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΤΕΠΙΧ'] },
   {
@@ -595,6 +596,10 @@ const SOURCE_REFERRALS = [
 
 function FinanceModal({ lead, onClose, onSuccess }) {
   const today = new Date().toISOString().slice(0, 10)
+  const [serviceTypeGroups, setServiceTypeGroups] = useState(DEFAULT_SERVICE_TYPE_GROUPS)
+  useEffect(() => {
+    getServiceTypeGroups().then(setServiceTypeGroups).catch(() => {})
+  }, [])
   const [f, setF] = useState({
     invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
     amount_collected: '',
@@ -729,7 +734,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
             <select value={f.service_type} onChange={e => set('service_type', e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm">
               <option value="">— Επιλέξτε —</option>
-              {SERVICE_TYPE_GROUPS.map(g => (
+              {serviceTypeGroups.map(g => (
                 <optgroup key={g.label} label={g.label}>
                   {g.items.map(s => <option key={s} value={s}>{s}</option>)}
                 </optgroup>
