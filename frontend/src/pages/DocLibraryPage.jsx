@@ -84,7 +84,9 @@ function ReqBadge({ type }) {
 function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
   const [expanded, setExpanded] = useState(false)
   const [editing, setEditing] = useState(false)
-  const [form, setForm] = useState({ ...item })
+  const deriveGroupCode = (it) =>
+    it.group_code || (meta?.groups || []).find(g => g.name === it.group_name)?.code || ''
+  const [form, setForm] = useState(() => ({ ...item, group_code: deriveGroupCode(item) }))
   const [saving, setSaving] = useState(false)
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -93,7 +95,10 @@ function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
     if (!form.title.trim()) { toast.error('Απαιτείται τίτλος'); return }
     setSaving(true)
     try {
-      const saved = await updateDocSetItem(setId, item.id, form)
+      const derivedGroupName = form.group_code
+        ? (meta?.groups || []).find(g => g.code === form.group_code)?.name || form.group_name || ''
+        : ''
+      const saved = await updateDocSetItem(setId, item.id, { ...form, group_name: derivedGroupName })
       onUpdated(saved)
       setEditing(false)
       toast.success('Αποθηκεύτηκε')
@@ -192,7 +197,7 @@ function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
             </label>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => { setEditing(false); setForm({ ...item }) }}
+            <button onClick={() => { setEditing(false); setForm({ ...item, group_code: deriveGroupCode(item) }) }}
               className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors">
               Άκυρο
             </button>
