@@ -12,6 +12,7 @@ import {
   CheckIcon,
   XMarkIcon,
   ChevronDownIcon,
+  ChevronUpIcon,
   ChevronRightIcon,
   DocumentTextIcon,
   PrinterIcon,
@@ -42,6 +43,31 @@ const APPLICANT_LABELS = {
   new_business: 'Νέες Επιχειρήσεις',
   existing_business: 'Υφιστάμενες Επιχειρήσεις',
   both: 'Νέες & Υφιστάμενες',
+}
+
+const LF_OPTIONS = ['Ατομική', 'ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ', 'ΑΕ', 'ΚοινΣΕπ']
+
+// Color palette per group name (left-border + header background)
+const GROUP_PALETTE = [
+  { border: 'border-indigo-400',  bg: 'bg-indigo-50',  text: 'text-indigo-700' },
+  { border: 'border-purple-400',  bg: 'bg-purple-50',  text: 'text-purple-700' },
+  { border: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  { border: 'border-teal-400',    bg: 'bg-teal-50',    text: 'text-teal-700'   },
+  { border: 'border-blue-400',    bg: 'bg-blue-50',    text: 'text-blue-700'   },
+  { border: 'border-orange-400',  bg: 'bg-orange-50',  text: 'text-orange-700' },
+  { border: 'border-yellow-500',  bg: 'bg-yellow-50',  text: 'text-yellow-700' },
+  { border: 'border-red-400',     bg: 'bg-red-50',     text: 'text-red-700'    },
+  { border: 'border-pink-400',    bg: 'bg-pink-50',    text: 'text-pink-700'   },
+  { border: 'border-amber-400',   bg: 'bg-amber-50',   text: 'text-amber-700'  },
+  { border: 'border-slate-400',   bg: 'bg-slate-100',  text: 'text-slate-700'  },
+]
+let _groupColorIdx = {}
+function groupColor(name) {
+  if (!_groupColorIdx[name]) {
+    const idx = Object.keys(_groupColorIdx).length % GROUP_PALETTE.length
+    _groupColorIdx[name] = GROUP_PALETTE[idx]
+  }
+  return _groupColorIdx[name]
 }
 
 function ReqBadge({ type }) {
@@ -137,6 +163,25 @@ function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
             className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-blue-400 focus:outline-none"
             placeholder="Πότε εφαρμόζεται (για υπό προϋπόθεση)..." />
         </div>
+        <div>
+          <label className="text-xs font-semibold text-gray-500 mb-1 block">Αφορά νομική μορφή</label>
+          <div className="flex gap-4 flex-wrap">
+            {LF_OPTIONS.map(lf => {
+              const vals = (form.applicable_legal_forms || '').split(',').map(x => x.trim()).filter(Boolean)
+              const checked = vals.includes(lf)
+              const toggle = () => {
+                const next = checked ? vals.filter(x => x !== lf) : [...vals, lf]
+                set('applicable_legal_forms', next.length ? next.join(',') : null)
+              }
+              return (
+                <label key={lf} className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+                  <input type="checkbox" checked={checked} onChange={toggle} className="rounded" /> {lf}
+                </label>
+              )
+            })}
+            <span className="text-xs text-gray-400 self-center">(κενό = για όλες)</span>
+          </div>
+        </div>
         <div className="flex items-center justify-between pt-1">
           <div className="flex items-center gap-2">
             <input type="number" value={form.sort_order ?? 0} onChange={e => set('sort_order', Number(e.target.value))}
@@ -174,10 +219,10 @@ function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
                 {item.item_code}
               </span>
             )}
-            {item.opske_code && (
-              <span className="text-xs text-gray-400">[{item.opske_code}]</span>
-            )}
             <span className="text-sm font-semibold text-gray-800">{item.title}</span>
+            {item.applicable_legal_forms && item.applicable_legal_forms.split(',').map(lf => lf.trim()).filter(Boolean).map(lf => (
+              <span key={lf} className="text-xs bg-indigo-50 text-indigo-600 border border-indigo-200 px-1.5 py-0.5 rounded-full whitespace-nowrap">{lf}</span>
+            ))}
           </div>
           {item.condition_notes && (
             <p className="text-xs text-orange-600 mt-0.5 italic">{item.condition_notes}</p>
@@ -197,8 +242,11 @@ function ItemRow({ item, isAdmin, setId, onUpdated, onDeleted, meta }) {
           </div>
         )}
       </div>
-      {expanded && item.description && (
+      {expanded && (item.description || item.opske_code) && (
         <div className="px-10 pb-3 text-sm text-gray-600 leading-relaxed border-t border-gray-100 pt-2 mx-3">
+          {item.opske_code && (
+            <p className="text-xs text-gray-400 mb-1">ΟΠΣΚΕ: <span className="font-mono">{item.opske_code}</span></p>
+          )}
           {item.description}
           {item.source_page && (
             <span className="ml-2 text-xs text-gray-400">(σελ. {item.source_page})</span>
@@ -215,7 +263,7 @@ function AddItemForm({ setId, onAdded, meta, onCancel }) {
   const [form, setForm] = useState({
     item_code: '', opske_code: '', group_code: 'G01',
     title: '', description: '', requirement_type: 'ΥΠΟΧΡΕΩΤΙΚΟ',
-    condition_notes: '', source_page: '', sort_order: 0,
+    condition_notes: '', source_page: '', sort_order: 0, applicable_legal_forms: null,
   })
   const [saving, setSaving] = useState(false)
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
@@ -264,6 +312,25 @@ function AddItemForm({ setId, onAdded, meta, onCancel }) {
       <input value={form.condition_notes} onChange={e => set('condition_notes', e.target.value)}
         placeholder="Σημείωση προϋπόθεσης (για υπό προϋπόθεση)"
         className="w-full border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-green-400 focus:outline-none" />
+      <div>
+        <label className="text-xs font-semibold text-gray-500 mb-1 block">Αφορά νομική μορφή</label>
+        <div className="flex gap-4 flex-wrap">
+          {LF_OPTIONS.map(lf => {
+            const vals = (form.applicable_legal_forms || '').split(',').map(x => x.trim()).filter(Boolean)
+            const checked = vals.includes(lf)
+            const toggle = () => {
+              const next = checked ? vals.filter(x => x !== lf) : [...vals, lf]
+              set('applicable_legal_forms', next.length ? next.join(',') : null)
+            }
+            return (
+              <label key={lf} className="flex items-center gap-1.5 text-xs text-gray-700 cursor-pointer">
+                <input type="checkbox" checked={checked} onChange={toggle} className="rounded" /> {lf}
+              </label>
+            )
+          })}
+          <span className="text-xs text-gray-400 self-center">(κενό = για όλες)</span>
+        </div>
+      </div>
       <div className="flex items-center justify-between">
         <input type="text" value={form.source_page} onChange={e => set('source_page', e.target.value)}
           placeholder="Σελίδα πηγής" className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:border-green-400 focus:outline-none" />
@@ -580,7 +647,7 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
   const filteredItems = useMemo(() => {
     if (!docSet) return []
     let items = docSet.items || []
-    if (legalFormFilter) items = items.filter(i => !i.applicable_legal_forms || i.applicable_legal_forms === legalFormFilter)
+    if (legalFormFilter) items = items.filter(i => !i.applicable_legal_forms || i.applicable_legal_forms.split(',').map(x => x.trim()).includes(legalFormFilter))
     if (filterReq !== 'ALL') items = items.filter(i => i.requirement_type === filterReq)
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase()
@@ -760,14 +827,14 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
           </div>
         )}
 
-        {Object.entries(grouped).map(([groupName, items]) => (
-          <div key={groupName}>
-            <h3 className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 flex items-center gap-2">
-              <span className="flex-1 border-t border-gray-200" />
-              {groupName}
-              <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full">{items.length}</span>
-              <span className="flex-1 border-t border-gray-200" />
-            </h3>
+        {Object.entries(grouped).map(([groupName, items]) => {
+          const gc = groupColor(groupName)
+          return (
+          <div key={groupName} className={`rounded-xl border-l-4 ${gc.border} ${gc.bg} px-3 pt-2 pb-3`}>
+            <div className={`flex items-center gap-2 mb-2`}>
+              <span className={`text-xs font-bold uppercase tracking-wide ${gc.text}`}>{groupName}</span>
+              <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${gc.text} bg-white/70`}>{items.length}</span>
+            </div>
             <div className="space-y-1.5">
               {items.map(item => (
                 <ItemRow
@@ -782,7 +849,7 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
               ))}
             </div>
           </div>
-        ))}
+        )})}
       </div>
     </div>
   )
@@ -841,6 +908,23 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
     await deleteDocSet(s.id)
     onSetDeleted(s.id)
     toast.success('Διαγράφηκε')
+  }
+
+  const handleReorder = async (s, direction, catSets, e) => {
+    e.stopPropagation()
+    const sorted = [...catSets].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id)
+    const idx = sorted.findIndex(x => x.id === s.id)
+    const swapIdx = direction === 'up' ? idx - 1 : idx + 1
+    if (swapIdx < 0 || swapIdx >= sorted.length) return
+    const other = sorted[swapIdx]
+    const aOrder = s.sort_order ?? idx
+    const bOrder = other.sort_order ?? swapIdx
+    const [updA, updB] = await Promise.all([
+      updateDocSet(s.id, { sort_order: bOrder }),
+      updateDocSet(other.id, { sort_order: aOrder }),
+    ])
+    onSetUpdated(updA)
+    onSetUpdated(updB)
   }
 
   const grouped = useMemo(() => {
@@ -927,6 +1011,24 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                   </div>
                   {isAdmin && (
                     <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-all flex-shrink-0">
+                      <button
+                        onClick={e => handleReorder(s, 'up', catSets, e)}
+                        title="Μετακίνηση πάνω"
+                        className={`p-1 rounded transition-colors ${
+                          selectedId === s.id ? 'text-blue-200 hover:text-white' : 'text-gray-400 hover:text-[#1e3a5f]'
+                        }`}
+                      >
+                        <ChevronUpIcon className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        onClick={e => handleReorder(s, 'down', catSets, e)}
+                        title="Μετακίνηση κάτω"
+                        className={`p-1 rounded transition-colors ${
+                          selectedId === s.id ? 'text-blue-200 hover:text-white' : 'text-gray-400 hover:text-[#1e3a5f]'
+                        }`}
+                      >
+                        <ChevronDownIcon className="w-3.5 h-3.5" />
+                      </button>
                       <button
                         onClick={e => startEdit(s, e)}
                         title="Επεξεργασία"
