@@ -382,6 +382,11 @@ function AssignModal({ docSet, initialItems, onClose }) {
   const toggleAll = (val) =>
     setItems(prev => prev.map(i => ({ ...i, selected: val })))
 
+  const toggleGroup = (groupName, val) =>
+    setItems(prev => prev.map(i =>
+      (i.group_name || i.group_code || 'Λοιπά') === groupName ? { ...i, selected: val } : i
+    ))
+
   const handleAssign = async () => {
     if (!selectedCase) { toast.error('Επιλέξτε υπόθεση'); return }
     const selected = items.filter(i => i.selected)
@@ -498,27 +503,39 @@ function AssignModal({ docSet, initialItems, onClose }) {
               </div>
             </div>
             <div className="border border-gray-200 rounded-xl overflow-hidden max-h-64 overflow-y-auto">
-              {Object.entries(grouped).map(([groupName, grpItems]) => (
-                <div key={groupName}>
-                  <div className="px-3 py-1.5 bg-gray-50 text-xs font-bold text-gray-500 uppercase tracking-wide border-b border-gray-200">
-                    {groupName}
-                  </div>
-                  {grpItems.map(item => (
-                    <label key={item.id}
-                      className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors ${!item.selected ? 'opacity-50' : ''}`}>
-                      <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)}
-                        className="rounded w-4 h-4 text-blue-600 flex-shrink-0" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          {item.item_code && <span className="text-xs font-mono text-gray-400">{item.item_code}</span>}
-                          <span className="text-xs text-gray-800 truncate">{item.title}</span>
+              {Object.entries(grouped).map(([groupName, grpItems]) => {
+                const allGrpSelected = grpItems.every(i => i.selected)
+                const someGrpSelected = grpItems.some(i => i.selected)
+                return (
+                  <div key={groupName}>
+                    <div className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 border-b border-gray-200 sticky top-0">
+                      <input
+                        type="checkbox"
+                        checked={allGrpSelected}
+                        ref={el => { if (el) el.indeterminate = someGrpSelected && !allGrpSelected }}
+                        onChange={() => toggleGroup(groupName, !allGrpSelected)}
+                        className="rounded w-4 h-4 text-blue-600 flex-shrink-0 cursor-pointer"
+                      />
+                      <span className="text-xs font-bold text-gray-600 uppercase tracking-wide flex-1">{groupName}</span>
+                      <span className="text-xs text-gray-400">{grpItems.filter(i => i.selected).length}/{grpItems.length}</span>
+                    </div>
+                    {grpItems.map(item => (
+                      <label key={item.id}
+                        className={`flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-blue-50 border-b border-gray-100 last:border-0 transition-colors ${!item.selected ? 'opacity-40' : ''}`}>
+                        <input type="checkbox" checked={item.selected} onChange={() => toggleItem(item.id)}
+                          className="rounded w-4 h-4 text-blue-600 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            {item.item_code && <span className="text-xs font-mono text-gray-400">{item.item_code}</span>}
+                            <span className="text-xs text-gray-800 truncate">{item.title}</span>
+                          </div>
                         </div>
-                      </div>
-                      <ReqBadge type={item.requirement_type} />
-                    </label>
-                  ))}
-                </div>
-              ))}
+                        <ReqBadge type={item.requirement_type} />
+                      </label>
+                    ))}
+                  </div>
+                )
+              })}
             </div>
           </div>
         </div>
