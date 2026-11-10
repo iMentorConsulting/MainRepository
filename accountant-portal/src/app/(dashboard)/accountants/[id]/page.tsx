@@ -295,6 +295,7 @@ export default function AccountantDetailPage() {
                     { step: 3, label: 'Email 3 — Ταιριάσματα & υπενθύμιση' },
                     { step: 4, label: 'Email 4 — Ραντεβού AnyDesk' },
                     { step: 5, label: 'Email 5 — Μαζική ενημέρωση επιλεξιμότητας' },
+                    { step: 6, label: 'Email 6 — Σύμβαση Συνεργασίας' },
                   ].map(({ step, label }) => (
                     <button
                       key={step}

@@ -4,7 +4,7 @@ import { sendEmail } from '@/lib/email'
 const APP_URL = process.env.APP_URL || 'https://logistis.i-mentor.gr'
 const BOOKING_URL = process.env.ANYDESK_BOOKING_URL || 'https://calendly.com/i-mentor/anydesk-15min'
 
-const STEP_DELAYS_DAYS = [0, 3, 7, 14, 21] // steps 1-5
+const STEP_DELAYS_DAYS = [0, 3, 7, 14, 21, 28] // steps 1-6
 
 // ─── shared layout wrappers ────────────────────────────────────────────────
 
@@ -424,6 +424,60 @@ ${emailHeader('Ενημερώστε όλους τους πελάτες σας, �
   return { subject, html }
 }
 
+async function step6(name: string, officeName: string, accountantId: string): Promise<{ subject: string; html: string }> {
+  const contract = await prisma.accountantContract.findUnique({ where: { accountantId } })
+  const contractUrl = `${APP_URL}/commissions/contract`
+
+  if (contract) {
+    const subject = `Ευχαριστούμε για την υπογραφή της Σύμβασης Συνεργασίας`
+    const html = emailWrap(`
+${emailHeader('Η συνεργασία μας είναι πλέον επίσημη ✅', `Ευχαριστούμε, ${officeName}!`)}
+<div style="background:white;padding:32px 40px;">
+  <p style="font-size:15px;margin:0 0 24px;color:#374151;">Αγαπητέ/ή <strong>${name}</strong>,</p>
+  ${infoBox('✅', `
+    Η Σύμβαση Συνεργασίας του γραφείου σας έχει ήδη υπογραφεί (κωδικός <strong>${contract.uniqueCode}</strong>). Ευχαριστούμε για την εμπιστοσύνη — είμαστε έτοιμοι να συνεχίσουμε να φέρνουμε ευκαιρίες στους πελάτες σας.
+  `, '#f0fdf4', '#bbf7d0', '#166534')}
+  ${ctaButton('Δείτε τις Προμήθειές σας →', `${APP_URL}/commissions`)}
+</div>`)
+    return { subject, html }
+  }
+
+  const subject = `Ένα τελευταίο βήμα: υπογράψτε τη Σύμβαση Συνεργασίας`
+  const html = emailWrap(`
+${emailHeader('✍️ Ένα τελευταίο βήμα: η Σύμβαση Συνεργασίας', `Ολοκληρώστε την επίσημη συνεργασία μας σε λιγότερο από 2 λεπτά.`)}
+<div style="background:white;padding:32px 40px;">
+  <p style="font-size:15px;margin:0 0 24px;color:#374151;">Αγαπητέ/ή <strong>${name}</strong>,</p>
+  <p style="font-size:14px;margin:0 0 24px;color:#374151;line-height:1.7;">
+    Πριν αναλάβουμε αιτήσεις για λογαριασμό των πελατών του γραφείου <strong>${officeName}</strong>, χρειαζόμαστε την υπογεγραμμένη <strong>Σύμβαση Συνεργασίας</strong> μεταξύ του γραφείου σας και της I-MENTOR Consulting.
+  </p>
+
+  ${emailSection('✍️', 'Γιατί χρειάζεται', `
+    Η σύμβαση καθορίζει τους όρους της συνεργασίας μας — τις υπηρεσίες που αναλαμβάνει η I-MENTOR για τους πελάτες σας και τον τρόπο υπολογισμού των προμηθειών σας. Είναι το τυπικό πλαίσιο που μας επιτρέπει να προχωράμε με αιτήσεις στο όνομά σας.
+  `)}
+
+  ${emailSection('⚡', 'Πώς γίνεται — 100% ηλεκτρονικά', `
+    <ol style="margin:8px 0 0;padding-left:20px;line-height:2;">
+      <li>Διαβάζετε τους όρους online, μέσα στην πλατφόρμα</li>
+      <li>Καταχωρείτε το ονοματεπώνυμό σας</li>
+      <li>Πατάτε «Υπογραφή» — η σύμβαση αποθηκεύεται άμεσα με μοναδικό κωδικό</li>
+    </ol>
+    Χωρίς εκτυπώσεις, σαρώσεις ή αποστολή εγγράφων.
+  `)}
+
+  ${ctaButton('Υπογραφή Σύμβασης Τώρα →', contractUrl)}
+
+  ${infoBox('🔒', `
+    Αν δεν είστε ήδη συνδεδεμένοι, θα σας ζητηθεί σύνδεση και θα μεταφερθείτε απευθείας στη σελίδα υπογραφής.
+  `, '#eef2ff', '#c7d2fe', '#3730a3')}
+
+  <p style="font-size:14px;color:#374151;line-height:1.7;margin:20px 0 0;">
+    Για οποιαδήποτε απορία σχετικά με τους όρους, η ομάδα μας είναι διαθέσιμη <strong>Δευτέρα–Παρασκευή 10:00–16:30</strong>.
+  </p>
+  ${ctaButton('🗓️ Κλείστε ραντεβού (15 λεπτά)', BOOKING_URL, '#059669')}
+</div>`)
+  return { subject, html }
+}
+
 // ─── public API ────────────────────────────────────────────────────────────
 
 export async function scheduleOnboardingEmails(accountantId: string): Promise<void> {
@@ -466,6 +520,8 @@ export async function sendOnboardingEmailStep(onboardingEmailId: string): Promis
     payload = step4(name, officeName)
   } else if (step === 5) {
     payload = step5(name, officeName)
+  } else if (step === 6) {
+    payload = await step6(name, officeName, accountant.id)
   } else {
     return
   }
