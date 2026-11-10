@@ -348,9 +348,9 @@ function AddItemForm({ setId, onAdded, meta, onCancel }) {
 
 // ── Assign-to-case modal ──────────────────────────────────────────────────────
 
-function AssignModal({ docSet, onClose }) {
+function AssignModal({ docSet, initialItems, onClose }) {
   const [items, setItems] = useState(() =>
-    (docSet.items || []).map(i => ({ ...i, selected: true }))
+    (initialItems || docSet.items || []).map(i => ({ ...i, selected: true }))
   )
   const [caseQuery, setCaseQuery] = useState('')
   const [caseResults, setCaseResults] = useState([])
@@ -692,7 +692,7 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
   return (
     <div className="flex-1 flex flex-col min-h-0">
       {assignModalOpen && docSet && (
-        <AssignModal docSet={docSet} onClose={() => setAssignModalOpen(false)} />
+        <AssignModal docSet={docSet} initialItems={filteredItems} onClose={() => setAssignModalOpen(false)} />
       )}
       {/* Header */}
       <div className="px-6 pt-5 pb-4 border-b border-gray-200 bg-white">
