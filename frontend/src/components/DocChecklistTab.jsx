@@ -23,6 +23,26 @@ import {
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
+const GROUP_PALETTE = [
+  { border: 'border-indigo-400',  bg: 'bg-indigo-50',  text: 'text-indigo-700' },
+  { border: 'border-purple-400',  bg: 'bg-purple-50',  text: 'text-purple-700' },
+  { border: 'border-emerald-400', bg: 'bg-emerald-50', text: 'text-emerald-700' },
+  { border: 'border-teal-400',    bg: 'bg-teal-50',    text: 'text-teal-700'   },
+  { border: 'border-blue-400',    bg: 'bg-blue-50',    text: 'text-blue-700'   },
+  { border: 'border-orange-400',  bg: 'bg-orange-50',  text: 'text-orange-700' },
+  { border: 'border-yellow-500',  bg: 'bg-yellow-50',  text: 'text-yellow-700' },
+  { border: 'border-red-400',     bg: 'bg-red-50',     text: 'text-red-700'    },
+  { border: 'border-pink-400',    bg: 'bg-pink-50',    text: 'text-pink-700'   },
+]
+let _grpColorIdx = {}
+function groupColor(name) {
+  if (!_grpColorIdx[name]) {
+    const idx = Object.keys(_grpColorIdx).length % GROUP_PALETTE.length
+    _grpColorIdx[name] = GROUP_PALETTE[idx]
+  }
+  return _grpColorIdx[name]
+}
+
 const REQ_COLORS = {
   ΥΠΟΧΡΕΩΤΙΚΟ: 'bg-red-100 text-red-700',
   ΥΠΟ_ΠΡΟΫΠΟΘΕΣΗ: 'bg-orange-100 text-orange-700',
@@ -477,17 +497,16 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
           </div>
 
           {/* Items grouped */}
-          <div className="space-y-5">
-            {Object.entries(grouped).map(([groupName, items]) => (
-              <div key={groupName}>
-                <h4 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-2">
-                  <span className="flex-1 border-t border-gray-200" />
-                  {groupName}
-                  <span className="bg-gray-100 text-gray-400 text-xs px-1.5 py-0.5 rounded-full">
-                    {items.filter(i => i.is_applicable).length}
-                  </span>
-                  <span className="flex-1 border-t border-gray-200" />
-                </h4>
+          <div className="space-y-3">
+            {Object.entries(grouped).map(([groupName, items]) => {
+              const gc = groupColor(groupName)
+              const appCount = items.filter(i => i.is_applicable).length
+              return (
+              <div key={groupName} className={`rounded-xl border-l-4 ${gc.border} ${gc.bg} px-3 pt-2 pb-3`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`text-xs font-bold uppercase tracking-wide ${gc.text}`}>{groupName}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded-full font-semibold ${gc.text} bg-white/70`}>{appCount}</span>
+                </div>
                 <div className="space-y-1.5">
                   {items.map(item => (
                     <ChecklistItem
@@ -500,7 +519,7 @@ export default function DocChecklistTab({ caseId, caseData, onChecklistHidden })
                   ))}
                 </div>
               </div>
-            ))}
+            )})}
           </div>
         </>
       )}
