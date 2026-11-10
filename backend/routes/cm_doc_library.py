@@ -43,6 +43,7 @@ class DocSetItemCreate(BaseModel):
     requirement_type: str = "ΥΠΟΧΡΕΩΤΙΚΟ"
     condition_notes: Optional[str] = None
     source_page: Optional[str] = None
+    applicable_legal_forms: Optional[str] = None
     sort_order: int = 0
 
 
@@ -55,6 +56,7 @@ class DocSetItemUpdate(BaseModel):
     requirement_type: Optional[str] = None
     condition_notes: Optional[str] = None
     source_page: Optional[str] = None
+    applicable_legal_forms: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
 
@@ -98,6 +100,7 @@ def _item_to_dict(i: CMDocSetItem) -> dict:
         "requirement_type": i.requirement_type,
         "condition_notes": i.condition_notes,
         "source_page": i.source_page,
+        "applicable_legal_forms": i.applicable_legal_forms,
         "sort_order": i.sort_order,
         "is_active": i.is_active,
         "created_at": i.created_at.isoformat() if i.created_at else None,

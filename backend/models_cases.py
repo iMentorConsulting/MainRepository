@@ -897,6 +897,7 @@ class CMDocSetItem(Base):
     requirement_type = Column(String(30), default="ΥΠΟΧΡΕΩΤΙΚΟ")
     condition_notes = Column(Text)          # when this applies (for conditional items)
     source_page = Column(String(50))        # reference to official source page
+    applicable_legal_forms = Column(String(200))  # NULL=all | "Ατομική" | "ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ" | "ΑΕ" | "ΚοινΣΕπ"
 
     sort_order = Column(Integer, default=0)
     is_active = Column(Boolean, default=True)

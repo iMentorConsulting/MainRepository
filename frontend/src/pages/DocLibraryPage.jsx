@@ -481,6 +481,7 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
   const [addingItem, setAddingItem] = useState(false)
   const [filterReq, setFilterReq] = useState('ALL')
   const [searchTerm, setSearchTerm] = useState('')
+  const [legalFormFilter, setLegalFormFilter] = useState('')
   const [assignModalOpen, setAssignModalOpen] = useState(false)
   const [editingSet, setEditingSet] = useState(false)
   const [editForm, setEditForm] = useState({})
@@ -579,6 +580,7 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
   const filteredItems = useMemo(() => {
     if (!docSet) return []
     let items = docSet.items || []
+    if (legalFormFilter) items = items.filter(i => !i.applicable_legal_forms || i.applicable_legal_forms === legalFormFilter)
     if (filterReq !== 'ALL') items = items.filter(i => i.requirement_type === filterReq)
     if (searchTerm.trim()) {
       const q = searchTerm.toLowerCase()
@@ -590,7 +592,7 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
       )
     }
     return items
-  }, [docSet, filterReq, searchTerm])
+  }, [docSet, filterReq, searchTerm, legalFormFilter])
 
   // Group items by group_name
   const grouped = useMemo(() => {
@@ -718,6 +720,17 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
             placeholder="Αναζήτηση…"
             className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:border-blue-400 focus:outline-none w-48"
           />
+          <select
+            value={legalFormFilter}
+            onChange={e => setLegalFormFilter(e.target.value)}
+            className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm bg-white focus:border-blue-400 focus:outline-none"
+          >
+            <option value="">Όλες οι νομικές μορφές</option>
+            <option value="Ατομική">Ατομική Επιχείρηση</option>
+            <option value="ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ">ΟΕ / ΕΕ / ΙΚΕ / ΕΠΕ</option>
+            <option value="ΑΕ">ΑΕ</option>
+            <option value="ΚοινΣΕπ">ΚοινΣΕπ</option>
+          </select>
           <div className="flex gap-1 flex-wrap">
             {['ALL', ...Object.keys(REQ_LABELS)].map(r => (
               <button key={r}
@@ -777,14 +790,6 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
 
 // ── Set sidebar ────────────────────────────────────────────────────────────────
 
-const LEGAL_FORM_OPTIONS = [
-  { value: '', label: 'Όλες οι νομικές μορφές' },
-  { value: 'Ατομική', label: 'Ατομική Επιχείρηση' },
-  { value: 'ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ', label: 'ΟΕ · ΕΕ · ΙΚΕ · ΕΠΕ' },
-  { value: 'ΑΕ', label: 'ΑΕ · Μονοπρόσωπη ΑΕ' },
-  { value: 'ΚοινΣΕπ', label: 'ΚοινΣΕπ · Συνεταιρισμός' },
-]
-
 function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDeleted, onSetUpdated }) {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ name: '', program_category: 'ΕΣΠΑ', program_title: '', applicant_type: 'both', description: '', sort_order: 0 })
@@ -792,7 +797,6 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
   const [editingSetId, setEditingSetId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [editSaving, setEditSaving] = useState(false)
-  const [legalFormFilter, setLegalFormFilter] = useState('')
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setEF = (k, v) => setEditForm(f => ({ ...f, [k]: v }))
 
@@ -839,20 +843,15 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
     toast.success('Διαγράφηκε')
   }
 
-  const visibleSets = useMemo(() => {
-    if (!legalFormFilter) return sets
-    return sets.filter(s => !s.legal_form || s.legal_form === legalFormFilter)
-  }, [sets, legalFormFilter])
-
   const grouped = useMemo(() => {
     const g = {}
-    visibleSets.forEach(s => {
+    sets.forEach(s => {
       const cat = s.program_category || 'Γενικά'
       if (!g[cat]) g[cat] = []
       g[cat].push(s)
     })
     return g
-  }, [visibleSets])
+  }, [sets])
 
   return (
     <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
@@ -868,17 +867,6 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
             </button>
           )}
         </div>
-        <div>
-          <label className="block text-xs font-semibold text-gray-500 mb-1">Νομική Μορφή</label>
-          <select
-            value={legalFormFilter}
-            onChange={e => setLegalFormFilter(e.target.value)}
-            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:border-blue-400 focus:outline-none"
-          >
-            {LEGAL_FORM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
-        </div>
-
         {creating && (
           <div className="mt-3 space-y-2">
             <input value={form.name} onChange={e => set('name', e.target.value)}
