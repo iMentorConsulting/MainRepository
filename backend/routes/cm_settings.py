@@ -1,5 +1,7 @@
 import json
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 from database import get_db
 from models_cases import CMAppSetting, CMUser
@@ -25,6 +27,11 @@ DEFAULT_SERVICE_TYPE_GROUPS = [
 SETTING_KEY_SERVICE_TYPES = "service_type_groups"
 
 
+class ServiceGroup(BaseModel):
+    label: str
+    items: List[str]
+
+
 def _get_or_default(db: Session, key: str, default):
     row = db.query(CMAppSetting).filter(CMAppSetting.key == key).first()
     if row is None:
@@ -42,23 +49,18 @@ def get_service_types(db: Session = Depends(get_db)):
 
 @router.put("/service-types")
 def put_service_types(
-    body: list,
+    body: List[ServiceGroup],
     db: Session = Depends(get_db),
     current_user: CMUser = Depends(get_current_user),
 ):
     if current_user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin only")
-    # validate structure
-    for g in body:
-        if not isinstance(g, dict) or "label" not in g or "items" not in g:
-            raise HTTPException(status_code=422, detail="Each group needs label and items")
-        if not isinstance(g["items"], list):
-            raise HTTPException(status_code=422, detail="items must be a list")
+    data = [g.dict() for g in body]
     row = db.query(CMAppSetting).filter(CMAppSetting.key == SETTING_KEY_SERVICE_TYPES).first()
     if row is None:
-        row = CMAppSetting(key=SETTING_KEY_SERVICE_TYPES, value=json.dumps(body, ensure_ascii=False))
+        row = CMAppSetting(key=SETTING_KEY_SERVICE_TYPES, value=json.dumps(data, ensure_ascii=False))
         db.add(row)
     else:
-        row.value = json.dumps(body, ensure_ascii=False)
+        row.value = json.dumps(data, ensure_ascii=False)
     db.commit()
-    return body
+    return data
