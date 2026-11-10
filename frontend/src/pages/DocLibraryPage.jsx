@@ -691,8 +691,10 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
   if (loading) return <div className="flex-1 flex items-center justify-center text-gray-400 text-sm">Φόρτωση…</div>
   if (!docSet) return <div className="flex-1 flex items-center justify-center text-red-400 text-sm">Σφάλμα φόρτωσης</div>
 
-  const totalCount = docSet.items?.length || 0
-  const mandatoryCount = (docSet.items || []).filter(i => i.requirement_type === 'ΥΠΟΧΡΕΩΤΙΚΟ').length
+  const allItemsCount = docSet.items?.length || 0
+  const isFiltered = legalFormFilter || filterReq !== 'ALL' || searchTerm
+  const totalCount = isFiltered ? filteredItems.length : allItemsCount
+  const mandatoryCount = (isFiltered ? filteredItems : (docSet.items || [])).filter(i => i.requirement_type === 'ΥΠΟΧΡΕΩΤΙΚΟ').length
 
   return (
     <div className="flex-1 flex flex-col min-h-0">
@@ -759,7 +761,9 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
                 {docSet.applicant_type && (
                   <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">{APPLICANT_LABELS[docSet.applicant_type] || docSet.applicant_type}</span>
                 )}
-                <span className="text-xs text-gray-500">{totalCount} δικαιολογητικά · {mandatoryCount} υποχρεωτικά</span>
+                <span className="text-xs text-gray-500">
+                  {totalCount} δικαιολογητικά{isFiltered ? ` / ${allItemsCount}` : ''} · {mandatoryCount} υποχρεωτικά
+                </span>
               </div>
               {docSet.description && (
                 <p className="text-xs text-gray-500 mt-1 line-clamp-2">{docSet.description}</p>
