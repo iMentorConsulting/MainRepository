@@ -866,6 +866,7 @@ class CMDocSet(Base):
     program_category = Column(String(50))   # ΕΣΠΑ, LEADER, ΔΥΠΑ, ...
     program_title = Column(String(200))     # e.g. "Καινοτομώ στην Κρήτη"
     applicant_type = Column(String(30))     # new_business | existing_business | both
+    legal_form = Column(String(100))        # Ατομική | ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ | ΑΕ | ΚοινΣΕπ | NULL=all
     description = Column(Text)
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)

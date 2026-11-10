@@ -777,6 +777,14 @@ function SetPanel({ setId, isAdmin, meta, onSetUpdated }) {
 
 // ── Set sidebar ────────────────────────────────────────────────────────────────
 
+const LEGAL_FORM_OPTIONS = [
+  { value: '', label: 'Όλες οι νομικές μορφές' },
+  { value: 'Ατομική', label: 'Ατομική Επιχείρηση' },
+  { value: 'ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ', label: 'ΟΕ · ΕΕ · ΙΚΕ · ΕΠΕ' },
+  { value: 'ΑΕ', label: 'ΑΕ · Μονοπρόσωπη ΑΕ' },
+  { value: 'ΚοινΣΕπ', label: 'ΚοινΣΕπ · Συνεταιρισμός' },
+]
+
 function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDeleted, onSetUpdated }) {
   const [creating, setCreating] = useState(false)
   const [form, setForm] = useState({ name: '', program_category: 'ΕΣΠΑ', program_title: '', applicant_type: 'both', description: '', sort_order: 0 })
@@ -784,6 +792,7 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
   const [editingSetId, setEditingSetId] = useState(null)
   const [editForm, setEditForm] = useState({})
   const [editSaving, setEditSaving] = useState(false)
+  const [legalFormFilter, setLegalFormFilter] = useState('')
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }))
   const setEF = (k, v) => setEditForm(f => ({ ...f, [k]: v }))
 
@@ -830,20 +839,25 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
     toast.success('Διαγράφηκε')
   }
 
+  const visibleSets = useMemo(() => {
+    if (!legalFormFilter) return sets
+    return sets.filter(s => !s.legal_form || s.legal_form === legalFormFilter)
+  }, [sets, legalFormFilter])
+
   const grouped = useMemo(() => {
     const g = {}
-    sets.forEach(s => {
+    visibleSets.forEach(s => {
       const cat = s.program_category || 'Γενικά'
       if (!g[cat]) g[cat] = []
       g[cat].push(s)
     })
     return g
-  }, [sets])
+  }, [visibleSets])
 
   return (
     <div className="w-72 flex-shrink-0 border-r border-gray-200 bg-gray-50 flex flex-col">
       <div className="p-4 border-b border-gray-200 bg-white">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-700 flex items-center gap-2">
             <BookOpenIcon className="w-4 h-4 text-[#1e3a5f]" /> Σετ Δικαιολογητικών
           </h2>
@@ -853,6 +867,16 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
               <PlusIcon className="w-4 h-4" />
             </button>
           )}
+        </div>
+        <div>
+          <label className="block text-xs font-semibold text-gray-500 mb-1">Νομική Μορφή</label>
+          <select
+            value={legalFormFilter}
+            onChange={e => setLegalFormFilter(e.target.value)}
+            className="w-full border border-gray-300 rounded-lg px-2 py-1.5 text-xs bg-white focus:border-blue-400 focus:outline-none"
+          >
+            {LEGAL_FORM_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
         </div>
 
         {creating && (
@@ -909,7 +933,8 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
                     </div>
                     <div className={`text-xs mt-0.5 ${selectedId === s.id ? 'text-blue-200' : 'text-gray-400'}`}>
                       {s.item_count || 0} δικαιολογητικά
-                      {s.applicant_type && ` · ${APPLICANT_LABELS[s.applicant_type] || s.applicant_type}`}
+                      {s.legal_form && ` · ${s.legal_form}`}
+                      {!s.legal_form && s.applicant_type && ` · ${APPLICANT_LABELS[s.applicant_type] || s.applicant_type}`}
                     </div>
                   </div>
                   {isAdmin && (

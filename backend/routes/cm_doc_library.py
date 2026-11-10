@@ -18,6 +18,7 @@ class DocSetCreate(BaseModel):
     program_category: Optional[str] = None
     program_title: Optional[str] = None
     applicant_type: Optional[str] = None  # new_business | existing_business | both
+    legal_form: Optional[str] = None      # Ατομική | ΟΕ/ΕΕ/ΙΚΕ/ΕΠΕ | ΑΕ | ΚοινΣΕπ | None=all
     description: Optional[str] = None
     sort_order: int = 0
 
@@ -27,6 +28,7 @@ class DocSetUpdate(BaseModel):
     program_category: Optional[str] = None
     program_title: Optional[str] = None
     applicant_type: Optional[str] = None
+    legal_form: Optional[str] = None
     description: Optional[str] = None
     sort_order: Optional[int] = None
     is_active: Optional[bool] = None
@@ -70,6 +72,7 @@ def _set_to_dict(s: CMDocSet, include_items: bool = False) -> dict:
         "program_category": s.program_category,
         "program_title": s.program_title,
         "applicant_type": s.applicant_type,
+        "legal_form": s.legal_form,
         "description": s.description,
         "is_active": s.is_active,
         "sort_order": s.sort_order,
