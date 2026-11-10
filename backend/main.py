@@ -1628,7 +1628,14 @@ try:
                 _lm_db.delete(_ls)
         _lm_db.commit()
 
-        _GUARD = "Υφιστάμενες Επιχειρήσεις — Λογιστής Master"
+        _GUARD = "Υφιστάμενες Επιχειρήσεις — Λογιστής Master v2"
+        # Remove old version (wrong group_names) so the new seed runs
+        _old_set = _lm_db.query(CMDocSet).filter(CMDocSet.name == "Υφιστάμενες Επιχειρήσεις — Λογιστής Master").first()
+        if _old_set:
+            _lm_db.query(CMDocSetItem).filter(CMDocSetItem.set_id == _old_set.id).delete()
+            _lm_db.delete(_old_set)
+            _lm_db.commit()
+            print("[migrate] Removed old Λογιστής Master set (wrong group_names)", flush=True)
         if _lm_db.query(CMDocSet).filter(CMDocSet.name == _GUARD).count() == 0:
 
             # Unified item list: (code, opske, group_name, title, desc, req_type, condition, page, applicable_legal_forms)
