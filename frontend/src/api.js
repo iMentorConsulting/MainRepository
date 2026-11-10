@@ -349,5 +349,7 @@ export const sendChecklistEmail = (caseId, checklistId) => api.post(`/api/cm/cas
 // App Settings
 export const getServiceTypeGroups = () => api.get('/api/cm/settings/service-types').then(r => r.data)
 export const putServiceTypeGroups = (data) => api.put('/api/cm/settings/service-types', data).then(r => r.data)
+export const getSettingList = (key) => api.get(`/api/cm/settings/list/${key}`).then(r => r.data)
+export const putSettingList = (key, data) => api.put(`/api/cm/settings/list/${key}`, data).then(r => r.data)
 
 export default api

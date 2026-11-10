@@ -1,90 +1,110 @@
 import { useState, useEffect } from 'react'
-import { getServiceTypeGroups, putServiceTypeGroups } from '../api'
+import { getServiceTypeGroups, putServiceTypeGroups, getSettingList, putSettingList } from '../api'
 import toast from 'react-hot-toast'
-import { PlusIcon, TrashIcon, Bars3Icon } from '@heroicons/react/24/outline'
+import { PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 
-export default function ServiceTypesAdminPage() {
-  const [groups, setGroups] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
-  const [newGroupLabel, setNewGroupLabel] = useState('')
-  const [newItems, setNewItems] = useState({}) // groupIdx -> string
+// ── Simple flat list editor ──────────────────────────────────────────────────
+function FlatListEditor({ title, items, onChange }) {
+  const [newVal, setNewVal] = useState('')
 
-  useEffect(() => {
-    getServiceTypeGroups()
-      .then(data => { setGroups(data); setLoading(false) })
-      .catch(() => { toast.error('Σφάλμα φόρτωσης'); setLoading(false) })
-  }, [])
-
-  const save = async () => {
-    setSaving(true)
-    try {
-      await putServiceTypeGroups(groups)
-      toast.success('Αποθηκεύτηκε!')
-    } catch (e) {
-      toast.error(e.response?.data?.detail || 'Σφάλμα αποθήκευσης')
-    } finally {
-      setSaving(false)
-    }
+  const add = () => {
+    const v = newVal.trim()
+    if (!v) return
+    if (items.includes(v)) { toast.error('Υπάρχει ήδη'); return }
+    onChange([...items, v])
+    setNewVal('')
   }
+
+  const remove = (item) => onChange(items.filter(i => i !== item))
+
+  const move = (idx, dir) => {
+    const next = idx + dir
+    if (next < 0 || next >= items.length) return
+    const a = [...items]
+    ;[a[idx], a[next]] = [a[next], a[idx]]
+    onChange(a)
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <div className="bg-gray-50 px-4 py-3 border-b border-gray-200">
+        <span className="font-bold text-sm text-gray-700">{title}</span>
+        <span className="ml-2 text-xs text-gray-400">{items.length} επιλογές</span>
+      </div>
+      <div className="p-3 space-y-1">
+        {items.map((item, idx) => (
+          <div key={idx} className="flex items-center gap-2 px-3 py-1.5 bg-white border border-gray-100 rounded-lg">
+            <div className="flex flex-col gap-0.5 mr-0.5">
+              <button onClick={() => move(idx, -1)} disabled={idx === 0}
+                className="text-gray-300 hover:text-gray-500 disabled:opacity-20 leading-none text-xs">▲</button>
+              <button onClick={() => move(idx, 1)} disabled={idx === items.length - 1}
+                className="text-gray-300 hover:text-gray-500 disabled:opacity-20 leading-none text-xs">▼</button>
+            </div>
+            <span className="flex-1 text-sm text-gray-800">{item}</span>
+            <button onClick={() => remove(item)}
+              className="text-red-400 hover:text-red-600 p-0.5 rounded">
+              <TrashIcon className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+        <div className="flex gap-2 mt-2">
+          <input
+            value={newVal}
+            onChange={e => setNewVal(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && add()}
+            placeholder="Νέα επιλογή…"
+            className="flex-1 px-3 py-1.5 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          <button onClick={add}
+            className="px-3 py-1.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-lg text-sm hover:bg-blue-100 flex items-center gap-1">
+            <PlusIcon className="w-3.5 h-3.5" /> Προσθήκη
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Grouped service types editor ─────────────────────────────────────────────
+function GroupedEditor({ groups, onChange }) {
+  const [newGroupLabel, setNewGroupLabel] = useState('')
+  const [newItems, setNewItems] = useState({})
 
   const addGroup = () => {
     const label = newGroupLabel.trim().toUpperCase()
     if (!label) return
     if (groups.some(g => g.label === label)) { toast.error('Υπάρχει ήδη αυτή η κατηγορία'); return }
-    setGroups(prev => [...prev, { label, items: [] }])
+    onChange([...groups, { label, items: [] }])
     setNewGroupLabel('')
   }
 
-  const removeGroup = (idx) => {
-    setGroups(prev => prev.filter((_, i) => i !== idx))
-  }
+  const removeGroup = (idx) => onChange(groups.filter((_, i) => i !== idx))
 
   const addItem = (idx) => {
     const val = (newItems[idx] || '').trim().toUpperCase()
     if (!val) return
-    setGroups(prev => prev.map((g, i) => {
+    const updated = groups.map((g, i) => {
       if (i !== idx) return g
       if (g.items.includes(val)) { toast.error('Υπάρχει ήδη'); return g }
       return { ...g, items: [...g.items, val] }
-    }))
+    })
+    onChange(updated)
     setNewItems(prev => ({ ...prev, [idx]: '' }))
   }
 
-  const removeItem = (gIdx, item) => {
-    setGroups(prev => prev.map((g, i) =>
-      i !== gIdx ? g : { ...g, items: g.items.filter(it => it !== item) }
-    ))
-  }
+  const removeItem = (gIdx, item) =>
+    onChange(groups.map((g, i) => i !== gIdx ? g : { ...g, items: g.items.filter(it => it !== item) }))
 
   const moveGroup = (idx, dir) => {
     const next = idx + dir
     if (next < 0 || next >= groups.length) return
-    setGroups(prev => {
-      const a = [...prev]
-      ;[a[idx], a[next]] = [a[next], a[idx]]
-      return a
-    })
+    const a = [...groups]
+    ;[a[idx], a[next]] = [a[next], a[idx]]
+    onChange(a)
   }
 
-  if (loading) return <div className="p-8 text-gray-500">Φόρτωση...</div>
-
   return (
-    <div className="max-w-2xl mx-auto p-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">Τύποι Υπηρεσιών</h1>
-          <p className="text-sm text-gray-500 mt-1">Διαχείριση λίστας "Αποστολή στα Οικονομικά"</p>
-        </div>
-        <button
-          onClick={save}
-          disabled={saving}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
-        >
-          {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
-        </button>
-      </div>
-
+    <div className="space-y-3">
       {groups.map((g, idx) => (
         <div key={idx} className="border border-gray-200 rounded-xl overflow-hidden">
           <div className="flex items-center gap-2 bg-gray-50 px-4 py-3 border-b border-gray-200">
@@ -144,6 +164,96 @@ export default function ServiceTypesAdminPage() {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+// ── Main page ────────────────────────────────────────────────────────────────
+const TABS = [
+  { key: 'service_types', label: 'Τύποι Υπηρεσιών' },
+  { key: 'work_statuses', label: 'Κατάσταση Εργασίας' },
+  { key: 'descriptions', label: 'Περιγραφή' },
+  { key: 'source_referrals', label: 'Πηγή Σύστασης' },
+]
+
+export default function ServiceTypesAdminPage() {
+  const [activeTab, setActiveTab] = useState('service_types')
+  const [data, setData] = useState({
+    service_types: null,
+    work_statuses: null,
+    descriptions: null,
+    source_referrals: null,
+  })
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    getServiceTypeGroups().then(v => setData(d => ({ ...d, service_types: v }))).catch(() => {})
+    getSettingList('work_statuses').then(v => setData(d => ({ ...d, work_statuses: v }))).catch(() => {})
+    getSettingList('descriptions').then(v => setData(d => ({ ...d, descriptions: v }))).catch(() => {})
+    getSettingList('source_referrals').then(v => setData(d => ({ ...d, source_referrals: v }))).catch(() => {})
+  }, [])
+
+  const save = async () => {
+    setSaving(true)
+    try {
+      if (activeTab === 'service_types') {
+        await putServiceTypeGroups(data.service_types)
+      } else {
+        await putSettingList(activeTab, data[activeTab])
+      }
+      toast.success('Αποθηκεύτηκε!')
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα αποθήκευσης')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const current = data[activeTab]
+
+  return (
+    <div className="max-w-2xl mx-auto p-6 space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Ρυθμίσεις Αποστολής στα Οικονομικά</h1>
+          <p className="text-sm text-gray-500 mt-1">Διαχείριση επιλογών στη φόρμα "Αποστολή στα Οικονομικά"</p>
+        </div>
+        <button
+          onClick={save}
+          disabled={saving || current === null}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saving ? 'Αποθήκευση...' : 'Αποθήκευση'}
+        </button>
+      </div>
+
+      {/* Tabs */}
+      <div className="flex gap-1 bg-gray-100 rounded-xl p-1">
+        {TABS.map(t => (
+          <button
+            key={t.key}
+            onClick={() => setActiveTab(t.key)}
+            className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium transition-colors ${
+              activeTab === t.key ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Content */}
+      {current === null ? (
+        <div className="text-center py-12 text-gray-400">Φόρτωση...</div>
+      ) : activeTab === 'service_types' ? (
+        <GroupedEditor groups={current} onChange={v => setData(d => ({ ...d, service_types: v }))} />
+      ) : (
+        <FlatListEditor
+          title={TABS.find(t => t.key === activeTab)?.label}
+          items={current}
+          onChange={v => setData(d => ({ ...d, [activeTab]: v }))}
+        />
+      )}
     </div>
   )
 }

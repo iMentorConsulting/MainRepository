@@ -6,7 +6,7 @@ import {
   retryErmisErrors, backfillErmisTranscripts, fetchLeadErmisTranscript, getAuth, dedupLeads, normalizeConsultants, upgradeWorkedLeads, downgradeWorkedLeads,
   sendLeadToFinance, cloneLead,
   getMessageTemplates, getAllMessageTemplates, createMessageTemplate, updateMessageTemplate, deleteMessageTemplate,
-  getServiceTypeGroups,
+  getServiceTypeGroups, getSettingList,
 } from '../api'
 import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
@@ -568,14 +568,14 @@ const DEFAULT_SERVICE_TYPE_GROUPS = [
     ],
   },
 ]
-const WORK_STATUSES = [
+const DEFAULT_WORK_STATUSES = [
   'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
   'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ',
   'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
   'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
   'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
 ]
-const DESCRIPTIONS = [
+const DEFAULT_DESCRIPTIONS = [
   'Αίτηση & Συμβ. υποστήριξη για το πρόγραμμα ΔΥΠΑ 18-29',
   'Αίτηση & Συμβ. Υποστήριξη για το πρόγραμμα ΔΥΠΑ 30-59',
   'Αίτηση & Συμβ. υποστήριξη για το πρόγραμμα ΔΥΠΑ Πρόσληψης Προσωπικού',
@@ -589,7 +589,7 @@ const DESCRIPTIONS = [
   'Συμβουλευτική υποστήριξη για την παρακολούθηση της υλοποίησης του επενδυτικού σχεδίου',
   'Συμβουλευτική Υποστήριξη για την Υποβολή Αίτησης Επενδυτικού Σχεδίου',
 ]
-const SOURCE_REFERRALS = [
+const DEFAULT_SOURCE_REFERRALS = [
   'FACEBOOK', 'GOOGLE', 'LOGISTIS.I-MENTOR.GR', 'NEWSLETTER',
   'TIKTOK', 'WEBSITE', 'ΣΥΣΤΑΣΗ', 'ΤΗΛΕΦΩΝΟ', 'ΥΦΙΣΤΑΜΕΝΟΣ ΠΕΛΑΤΗΣ',
 ]
@@ -597,8 +597,14 @@ const SOURCE_REFERRALS = [
 function FinanceModal({ lead, onClose, onSuccess }) {
   const today = new Date().toISOString().slice(0, 10)
   const [serviceTypeGroups, setServiceTypeGroups] = useState(DEFAULT_SERVICE_TYPE_GROUPS)
+  const [workStatuses, setWorkStatuses] = useState(DEFAULT_WORK_STATUSES)
+  const [descriptions, setDescriptions] = useState(DEFAULT_DESCRIPTIONS)
+  const [sourceReferrals, setSourceReferrals] = useState(DEFAULT_SOURCE_REFERRALS)
   useEffect(() => {
     getServiceTypeGroups().then(setServiceTypeGroups).catch(() => {})
+    getSettingList('work_statuses').then(setWorkStatuses).catch(() => {})
+    getSettingList('descriptions').then(setDescriptions).catch(() => {})
+    getSettingList('source_referrals').then(setSourceReferrals).catch(() => {})
   }, [])
   const [f, setF] = useState({
     invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
@@ -761,7 +767,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
             <label className="block text-xs text-gray-500 mb-1">Κατάσταση εργασίας *</label>
             <select value={f.work_status} onChange={e => set('work_status', e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm">
-              {WORK_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+              {workStatuses.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
@@ -771,7 +777,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
             <select value={f.description} onChange={e => set('description', e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm">
               <option value="">— Επιλέξτε —</option>
-              {DESCRIPTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+              {descriptions.map(d => <option key={d} value={d}>{d}</option>)}
             </select>
           </div>
 
@@ -781,7 +787,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
             <select value={f.source_referral} onChange={e => set('source_referral', e.target.value)}
               className="w-full px-3 py-2 border rounded-lg text-sm">
               <option value="">— Επιλέξτε —</option>
-              {SOURCE_REFERRALS.map(s => <option key={s} value={s}>{s}</option>)}
+              {sourceReferrals.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
           </div>
 
