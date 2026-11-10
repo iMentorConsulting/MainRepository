@@ -919,12 +919,27 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
     const other = sorted[swapIdx]
     const aOrder = s.sort_order ?? idx
     const bOrder = other.sort_order ?? swapIdx
-    const [updA, updB] = await Promise.all([
-      updateDocSet(s.id, { sort_order: bOrder }),
-      updateDocSet(other.id, { sort_order: aOrder }),
-    ])
-    onSetUpdated(updA)
-    onSetUpdated(updB)
+    if (aOrder === bOrder) {
+      // Assign unique orders so the swap has visible effect
+      const base = idx * 10
+      try {
+        const [updA, updB] = await Promise.all([
+          updateDocSet(s.id, { sort_order: (swapIdx) * 10 }),
+          updateDocSet(other.id, { sort_order: base }),
+        ])
+        onSetUpdated(updA)
+        onSetUpdated(updB)
+      } catch { toast.error('Σφάλμα μετακίνησης') }
+      return
+    }
+    try {
+      const [updA, updB] = await Promise.all([
+        updateDocSet(s.id, { sort_order: bOrder }),
+        updateDocSet(other.id, { sort_order: aOrder }),
+      ])
+      onSetUpdated(updA)
+      onSetUpdated(updB)
+    } catch { toast.error('Σφάλμα μετακίνησης') }
   }
 
   const grouped = useMemo(() => {
@@ -934,6 +949,7 @@ function SetSidebar({ sets, selectedId, onSelect, isAdmin, onSetCreated, onSetDe
       if (!g[cat]) g[cat] = []
       g[cat].push(s)
     })
+    Object.values(g).forEach(arr => arr.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.id - b.id))
     return g
   }, [sets])
 

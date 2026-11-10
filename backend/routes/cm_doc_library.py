@@ -94,7 +94,7 @@ def _item_to_dict(i: CMDocSetItem) -> dict:
         "item_code": i.item_code,
         "opske_code": i.opske_code,
         "group_code": i.group_code,
-        "group_name": GROUP_NAMES.get(i.group_code or "", i.group_code or ""),
+        "group_name": i.group_name or GROUP_NAMES.get(i.group_code or "", i.group_code or ""),
         "title": i.title,
         "description": i.description,
         "requirement_type": i.requirement_type,
