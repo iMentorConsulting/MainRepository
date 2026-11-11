@@ -11,7 +11,6 @@ interface Activity {
 interface MicrocreditsBusinessPlanModalProps {
   businessId: string
   programId: string
-  activities: Activity[]
   businessHasEmail: boolean
   onClose: () => void
 }
@@ -51,7 +50,7 @@ interface Plan {
   generatedAt: string | null
 }
 
-export function MicrocreditsBusinessPlanModal({ businessId, programId, activities, businessHasEmail, onClose }: MicrocreditsBusinessPlanModalProps) {
+export function MicrocreditsBusinessPlanModal({ businessId, programId, businessHasEmail, onClose }: MicrocreditsBusinessPlanModalProps) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
   const [loading, setLoading] = useState(true)
@@ -79,6 +78,8 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
   const [consultantNotes, setConsultantNotes] = useState('')
   const [generating, setGenerating] = useState(false)
 
+  const [eligibleActivities, setEligibleActivities] = useState<Activity[] | null>(null)
+
   useEffect(() => {
     Promise.all([
       fetch(`/api/businesses/${businessId}/microcredits-plan/questionnaire?programId=${programId}`).then(r => r.json()),
@@ -86,6 +87,7 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
     ])
       .then(([q, p]) => {
         if (q.questionnaire) setQuestionnaire(q.questionnaire)
+        setEligibleActivities(q.eligibleActivities || [])
         if (p.plan) setPlan(p.plan)
       })
       .catch(() => {})
@@ -104,6 +106,7 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          programId,
           selectedKadCodes: selectedKad,
           activityNote: activityNote.trim() || undefined,
           extraInstructions: extraInstructions.trim() || undefined,
@@ -262,9 +265,12 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
                   </div>
                 ) : (
                   <>
-                    <p className="text-xs text-gray-500">Επιλέξτε ποιος/ποιοι ΚΑΔ της επιχείρησης αφορά η αίτηση, ώστε το ερωτηματολόγιο να προσαρμοστεί σε αυτούς.</p>
+                    <p className="text-xs text-gray-500">Επιλέξτε ποιος/ποιοι ΚΑΔ της επιχείρησης αφορά η αίτηση, ώστε το ερωτηματολόγιο να προσαρμοστεί σε αυτούς. Εμφανίζονται μόνο οι ΚΑΔ που είναι επιλέξιμοι για αυτό το πρόγραμμα.</p>
+                    {eligibleActivities && eligibleActivities.length === 0 && (
+                      <p className="text-xs text-amber-600">Κανένας ΚΑΔ της επιχείρησης δεν είναι επιλέξιμος για αυτό το πρόγραμμα.</p>
+                    )}
                     <div className="space-y-1.5 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2">
-                      {activities.map(a => (
+                      {(eligibleActivities || []).map(a => (
                         <label key={a.firmActCode} className="flex items-start gap-2 text-xs">
                           <input
                             type="checkbox"

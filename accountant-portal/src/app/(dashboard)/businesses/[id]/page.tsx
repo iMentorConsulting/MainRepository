@@ -338,7 +338,6 @@ export default function BusinessDetailPage() {
         <MicrocreditsBusinessPlanModal
           businessId={business.id}
           programId={businessPlanProgramId}
-          activities={business.activities || []}
           businessHasEmail={!!business.email}
           onClose={() => setBusinessPlanProgramId(null)}
         />

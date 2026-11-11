@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { isKadCodeEligible } from '@/lib/kad-matching'
 import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -26,7 +27,22 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     where: { businessId: params.id, programId },
     orderBy: { createdAt: 'desc' },
   })
-  return NextResponse.json({ questionnaire })
+
+  // The ΚΑΔ picker in the UI must only offer ΚΑΔ that are actually eligible
+  // for THIS program — a business can have activities that matched some
+  // other program but not this one (or are excluded here specifically), and
+  // tailoring the questionnaire/business-plan's "ΚΑΔ Επένδυσης" to an
+  // ineligible one would be wrong.
+  const program = await prisma.program.findUnique({ where: { id: programId } })
+  const business = program
+    ? await prisma.business.findUnique({ where: { id: params.id }, include: { activities: true } })
+    : null
+  const eligibleActivities = (business?.activities || []).filter(a => program && isKadCodeEligible(a.firmActCode, program))
+
+  return NextResponse.json({
+    questionnaire,
+    eligibleActivities: eligibleActivities.map(a => ({ firmActCode: a.firmActCode, firmActDescr: a.firmActDescr })),
+  })
 }
 
 // Admin-only: deletes the questionnaire (and any business plan drafts built
@@ -80,11 +96,18 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Μη έγκυρο πρόγραμμα — αναμένεται το Ταμείο Μικροπιστώσεων' }, { status: 400 })
   }
 
+  const eligibleSelectedCodes = selectedKadCodes.filter((code: string) =>
+    business.activities.some(a => a.firmActCode === code) && isKadCodeEligible(code, program)
+  )
+  if (eligibleSelectedCodes.length === 0) {
+    return NextResponse.json({ error: 'Οι επιλεγμένοι ΚΑΔ δεν είναι επιλέξιμοι για αυτό το πρόγραμμα' }, { status: 400 })
+  }
+
   const questionnaire = await prisma.microcreditsQuestionnaire.create({
     data: {
       businessId: business.id,
       programId,
-      selectedKadCodes,
+      selectedKadCodes: eligibleSelectedCodes,
       activityNote: activityNote || null,
       questions: questions as any,
       sentAt: new Date(),
