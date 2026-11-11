@@ -747,7 +747,7 @@ export default function ProgramsPage() {
   const isAdmin = session?.user?.role === 'ADMIN'
 
   async function rematchAllPrograms() {
-    if (!confirm('Επανα-ταίριασμα ΟΛΩΝ των ενεργών προγραμμάτων με ΟΛΕΣ τις επιχειρήσεις ΚΑΙ όλες τις επιχειρήσεις ΓΕΜΗ; Μπορεί να πάρει λίγο χρόνο.')) return
+    if (!confirm('Επανα-ταίριασμα ΟΛΩΝ των ενεργών προγραμμάτων με ΟΛΕΣ τις επιχειρήσεις; Μπορεί να πάρει λίγο χρόνο.')) return
     setRematchingAll(true)
     try {
       const res = await fetch('/api/programs/rematch-all', { method: 'POST' })
@@ -760,10 +760,7 @@ export default function ProgramsPage() {
       const breakdown = withNewMatches.length > 0
         ? '\n\n' + withNewMatches.map((r: any) => `• ${r.title}: ${r.newMatches} νέα matches`).join('\n')
         : ''
-      const gemiLine = typeof data.gemiProcessed === 'number'
-        ? `\n\nΓΕΜΗ: ${data.gemiProcessed} επιχειρήσεις ελέγχθηκαν, ${data.gemiNewMatches} νέα matches${data.gemiErrors > 0 ? ` (${data.gemiErrors} σφάλματα)` : ''}.`
-        : ''
-      alert(`Ολοκληρώθηκε: ${data.programsProcessed} προγράμματα, ${data.totalNewMatches} νέα matches.${breakdown}${gemiLine}`)
+      alert(`Ολοκληρώθηκε: ${data.programsProcessed} προγράμματα, ${data.totalNewMatches} νέα matches.${breakdown}`)
     } catch {
       alert('Σφάλμα δικτύου')
     } finally {
