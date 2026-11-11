@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { generateMicrocreditsQuestionnaire } from '@/lib/microcredits-business-plan'
 import { sendEmail } from '@/lib/email'
 
 export const dynamic = 'force-dynamic'
@@ -36,12 +35,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const isStaff = session.user.role === 'ADMIN' || session.user.role === 'CONSULTANT'
   if (!isStaff) return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  const { programId, selectedKadCodes, activityNote } = await request.json().catch(() => ({}))
+  const { programId, selectedKadCodes, activityNote, questions } = await request.json().catch(() => ({}))
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
   }
   if (!Array.isArray(selectedKadCodes) || selectedKadCodes.length === 0) {
     return NextResponse.json({ error: 'Επιλέξτε τουλάχιστον έναν ΚΑΔ' }, { status: 400 })
+  }
+  if (!Array.isArray(questions) || questions.length === 0) {
+    return NextResponse.json({ error: 'Λείπουν οι ερωτήσεις — κάντε πρώτα προεπισκόπηση' }, { status: 400 })
   }
 
   const business = await prisma.business.findUnique({
@@ -56,25 +58,6 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Μη έγκυρο πρόγραμμα — αναμένεται το Ταμείο Μικροπιστώσεων' }, { status: 400 })
   }
 
-  const selectedKad = business.activities
-    .filter(a => selectedKadCodes.includes(a.firmActCode))
-    .map(a => ({ code: a.firmActCode, description: a.firmActDescr || '' }))
-  if (selectedKad.length === 0) {
-    return NextResponse.json({ error: 'Οι επιλεγμένοι ΚΑΔ δεν βρέθηκαν στις δραστηριότητες της επιχείρησης' }, { status: 400 })
-  }
-
-  let questions
-  try {
-    questions = await generateMicrocreditsQuestionnaire({
-      businessName: business.onomasia || business.afm,
-      selectedKad,
-      activityNote: activityNote || null,
-    })
-  } catch (err: any) {
-    console.error('[Microcredits questionnaire] AI generation failed:', err?.message)
-    return NextResponse.json({ error: 'Η δημιουργία του ερωτηματολογίου απέτυχε.' }, { status: 500 })
-  }
-
   const questionnaire = await prisma.microcreditsQuestionnaire.create({
     data: {
       businessId: business.id,
@@ -86,6 +69,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     },
   })
 
+  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
+  const logoHtml = appSetting?.imentorLogoUrl
+    ? `<img src="${appSetting.imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:48px;width:auto;max-width:200px;object-fit:contain;margin:0 0 14px;" />`
+    : `<span style="display:block;font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:17px;margin:0 0 14px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+
   const formUrl = `${APP_URL}/microcredits-questionnaire/${questionnaire.token}`
   const sent = await sendEmail({
     to: business.email,
@@ -93,13 +81,17 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     html: `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#374151;">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
       <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
+        ${logoHtml}
         <h1 style="color:#ffffff;margin:0;font-size:19px;">📋 Ερωτηματολόγιο Επιχειρηματικού Σχεδίου</h1>
       </td></tr>
       </table>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 16px;font-size:15px;">Αγαπητέ/ή <strong>${business.onomasia || ''}</strong>,</p>
         <p style="margin:0 0 20px;font-size:14px;line-height:1.7;">
-          Για να προχωρήσουμε με την αίτησή σας στο <strong>Ταμείο Μικροπιστώσεων (ΤΕΠΙΧ ΙΙΙ)</strong>, χρειαζόμαστε λίγες ακόμη πληροφορίες για την επιχείρησή σας. Παρακαλούμε συμπληρώστε το σύντομο ερωτηματολόγιο στον παρακάτω σύνδεσμο — θα σας πάρει περίπου 10-15 λεπτά.
+          Για να προχωρήσουμε με την αίτησή σας στο <strong>Ταμείο Μικροπιστώσεων (ΤΕΠΙΧ ΙΙΙ)</strong>, χρειαζόμαστε λίγες ακόμη πληροφορίες για την επιχείρησή σας. Παρακαλούμε απαντήστε <strong>πολύ επιγραμματικά</strong> στις παρακάτω ερωτήσεις, ώστε να προχωρήσουμε στη σύνταξη του επιχειρηματικού σχεδίου.
+        </p>
+        <p style="margin:0 0 20px;font-size:14px;line-height:1.7;">
+          Σε περίπτωση που υπάρχουν ερωτήματα στα οποία δεν είστε σε θέση να απαντήσετε αυτή τη στιγμή, μπορείτε απλώς να τα παραλείψετε και να στείλετε το υπόλοιπο ερωτηματολόγιο.
         </p>
         <div style="text-align:center;margin:0 0 20px;">
           <a href="${formUrl}" style="display:inline-block;background:#1e3a8a;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:15px;">Συμπλήρωση Ερωτηματολογίου →</a>

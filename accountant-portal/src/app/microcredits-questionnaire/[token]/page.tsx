@@ -84,7 +84,10 @@ export default function MicrocreditsQuestionnairePage() {
       <div className="max-w-2xl mx-auto space-y-6">
         <div className="bg-white rounded-xl border border-gray-200 p-6">
           <h1 className="text-xl font-bold text-gray-900 mb-1">Ερωτηματολόγιο Επιχειρηματικού Σχεδίου</h1>
-          <p className="text-sm text-gray-500">{businessName} — Ταμείο Μικροπιστώσεων</p>
+          <p className="text-sm text-gray-500 mb-3">{businessName} — Ταμείο Μικροπιστώσεων</p>
+          <p className="text-sm text-gray-600 leading-relaxed">
+            Παρακαλούμε απαντήστε <strong>πολύ επιγραμματικά</strong> στα παρακάτω ερωτήματα, ώστε να προχωρήσουμε στη σύνταξη του επιχειρηματικού σχεδίου. Σε περίπτωση που υπάρχουν ερωτήματα στα οποία δεν είστε σε θέση να απαντήσετε αυτή τη στιγμή, μπορείτε απλώς να τα παραλείψετε και να στείλετε το υπόλοιπο ερωτηματολόγιο.
+          </p>
           {alreadyAnswered && (
             <p className="text-xs text-amber-600 mt-2">Έχετε ήδη υποβάλει απαντήσεις — μπορείτε να τις επεξεργαστείτε και να τις ξαναστείλετε.</p>
           )}

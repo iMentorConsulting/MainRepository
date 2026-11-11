@@ -59,6 +59,9 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
   const [selectedKad, setSelectedKad] = useState<string[]>([])
   const [activityNote, setActivityNote] = useState('')
   const [sendingQuestionnaire, setSendingQuestionnaire] = useState(false)
+  const [draftQuestions, setDraftQuestions] = useState<Question[] | null>(null)
+  const [previewing, setPreviewing] = useState(false)
+  const [extraInstructions, setExtraInstructions] = useState('')
 
   // Step 2: business plan generation
   const [plan, setPlan] = useState<Plan | null>(null)
@@ -85,9 +88,40 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
       .finally(() => setLoading(false))
   }, [businessId, programId])
 
-  async function sendQuestionnaire() {
+  async function previewQuestionnaire() {
     if (selectedKad.length === 0) {
       setError('Επιλέξτε τουλάχιστον έναν ΚΑΔ.')
+      return
+    }
+    setPreviewing(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/businesses/${businessId}/microcredits-plan/questionnaire/preview`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedKadCodes: selectedKad,
+          activityNote: activityNote.trim() || undefined,
+          extraInstructions: extraInstructions.trim() || undefined,
+        }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Η δημιουργία απέτυχε')
+      setDraftQuestions(data.questions)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setPreviewing(false)
+    }
+  }
+
+  function removeDraftQuestion(id: string) {
+    setDraftQuestions(prev => prev ? prev.filter(q => q.id !== id) : prev)
+  }
+
+  async function sendQuestionnaire() {
+    if (!draftQuestions || draftQuestions.length === 0) {
+      setError('Δεν υπάρχουν ερωτήσεις προς αποστολή.')
       return
     }
     setSendingQuestionnaire(true)
@@ -96,7 +130,12 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
       const res = await fetch(`/api/businesses/${businessId}/microcredits-plan/questionnaire`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ programId, selectedKadCodes: selectedKad, activityNote: activityNote.trim() || undefined }),
+        body: JSON.stringify({
+          programId,
+          selectedKadCodes: selectedKad,
+          activityNote: activityNote.trim() || undefined,
+          questions: draftQuestions,
+        }),
       })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) throw new Error(data.error || 'Η αποστολή απέτυχε')
@@ -204,14 +243,66 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
                       <label className="text-xs font-medium text-gray-500 block mb-1">Σημείωση πραγματικής δραστηριότητας (προαιρετικό, αν διαφέρει από την επίσημη περιγραφή ΚΑΔ)</label>
                       <textarea value={activityNote} onChange={e => setActivityNote(e.target.value)} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none" />
                     </div>
-                    <button
-                      onClick={sendQuestionnaire}
-                      disabled={sendingQuestionnaire || !businessHasEmail}
-                      className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
-                    >
-                      <Send size={14} />
-                      {sendingQuestionnaire ? 'Αποστολή...' : 'Αποστολή Ερωτηματολογίου'}
-                    </button>
+
+                    {!draftQuestions && (
+                      <button
+                        onClick={previewQuestionnaire}
+                        disabled={previewing}
+                        className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-gray-100 text-gray-700 text-sm font-medium hover:bg-gray-200 disabled:opacity-60"
+                      >
+                        {previewing ? 'Δημιουργία...' : 'Προεπισκόπηση Ερωτηματολογίου'}
+                      </button>
+                    )}
+
+                    {draftQuestions && (
+                      <div className="space-y-3">
+                        <div className="space-y-2 max-h-72 overflow-y-auto border border-gray-200 rounded-lg p-3">
+                          {Array.from(new Set(draftQuestions.map(q => q.section))).sort((a, b) => a - b).map(section => {
+                            const sectionQuestions = draftQuestions.filter(q => q.section === section)
+                            return (
+                              <div key={section}>
+                                <p className="text-xs font-bold text-indigo-700 mb-1">{section}. {sectionQuestions[0]?.sectionTitle}</p>
+                                {sectionQuestions.map(q => (
+                                  <div key={q.id} className="flex items-start gap-2 mb-1.5">
+                                    <button
+                                      onClick={() => removeDraftQuestion(q.id)}
+                                      title="Αφαίρεση ερώτησης"
+                                      className="shrink-0 mt-0.5 text-gray-300 hover:text-red-500"
+                                    >
+                                      <X size={13} />
+                                    </button>
+                                    <p className={`text-xs whitespace-pre-line ${q.bold ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{q.text}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )
+                          })}
+                        </div>
+
+                        <div>
+                          <label className="text-xs font-medium text-gray-500 block mb-1">Πρόσθετες οδηγίες συγγραφής (προαιρετικό) — π.χ. "αφαίρεσε τις ερωτήσεις για προσωπικό"</label>
+                          <textarea value={extraInstructions} onChange={e => setExtraInstructions(e.target.value)} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none" />
+                        </div>
+
+                        <div className="flex gap-2">
+                          <button
+                            onClick={previewQuestionnaire}
+                            disabled={previewing}
+                            className="flex-1 px-3 py-2 rounded-lg border border-gray-300 text-gray-700 text-sm font-medium hover:bg-gray-50 disabled:opacity-60"
+                          >
+                            {previewing ? 'Αναδημιουργία...' : 'Αναδημιουργία'}
+                          </button>
+                          <button
+                            onClick={sendQuestionnaire}
+                            disabled={sendingQuestionnaire || !businessHasEmail}
+                            className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-60"
+                          >
+                            <Send size={14} />
+                            {sendingQuestionnaire ? 'Αποστολή...' : 'Αποστολή στον Πελάτη'}
+                          </button>
+                        </div>
+                      </div>
+                    )}
                     {!businessHasEmail && <p className="text-xs text-amber-600">Η επιχείρηση δεν έχει καταχωρημένο email.</p>}
                   </>
                 )}
