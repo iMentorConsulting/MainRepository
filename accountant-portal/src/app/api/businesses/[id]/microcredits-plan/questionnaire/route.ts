@@ -29,6 +29,28 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   return NextResponse.json({ questionnaire })
 }
 
+// Admin-only: deletes the questionnaire (and any business plan drafts built
+// from it) so the flow can be re-tested or genuinely restarted from
+// scratch — e.g. the consultant wants to redo it with different ΚΑΔ, or
+// it was sent by mistake during testing.
+export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+  const session = await auth()
+  if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+  if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
+
+  const programId = request.nextUrl.searchParams.get('programId')
+  if (!programId) return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
+
+  await prisma.microcreditsBusinessPlan.deleteMany({
+    where: { businessId: params.id, programId },
+  })
+  await prisma.microcreditsQuestionnaire.deleteMany({
+    where: { businessId: params.id, programId },
+  })
+
+  return NextResponse.json({ ok: true })
+}
+
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

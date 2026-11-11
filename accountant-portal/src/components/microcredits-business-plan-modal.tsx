@@ -1,6 +1,7 @@
 'use client'
 import { useEffect, useState } from 'react'
-import { X, Send, FileText, CheckCircle2, Download, Loader2 } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import { X, Send, FileText, CheckCircle2, Download, Loader2, RotateCcw } from 'lucide-react'
 
 interface Activity {
   firmActCode: string
@@ -51,8 +52,11 @@ interface Plan {
 }
 
 export function MicrocreditsBusinessPlanModal({ businessId, programId, activities, businessHasEmail, onClose }: MicrocreditsBusinessPlanModalProps) {
+  const { data: session } = useSession()
+  const isAdmin = session?.user?.role === 'ADMIN'
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [resetting, setResetting] = useState(false)
 
   // Step 1: questionnaire
   const [questionnaire, setQuestionnaire] = useState<Questionnaire | null>(null)
@@ -117,6 +121,27 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
 
   function removeDraftQuestion(id: string) {
     setDraftQuestions(prev => prev ? prev.filter(q => q.id !== id) : prev)
+  }
+
+  async function resetQuestionnaire() {
+    if (!confirm('Διαγραφή του ερωτηματολογίου (και τυχόν business plan) για αυτήν την επιχείρηση/πρόγραμμα; Δεν αναιρείται.')) return
+    setResetting(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/businesses/${businessId}/microcredits-plan/questionnaire?programId=${programId}`, { method: 'DELETE' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Η επαναφορά απέτυχε')
+      setQuestionnaire(null)
+      setDraftQuestions(null)
+      setPlan(null)
+      setSelectedKad([])
+      setActivityNote('')
+      setExtraInstructions('')
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setResetting(false)
+    }
   }
 
   async function sendQuestionnaire() {
@@ -217,11 +242,23 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, activitie
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-gray-900">Βήμα 1 — Ερωτηματολόγιο</h3>
                 {questionnaire ? (
-                  <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800 flex items-center gap-2">
-                    <CheckCircle2 size={16} className="shrink-0" />
-                    {questionnaire.respondedAt
-                      ? 'Ο πελάτης έχει απαντήσει το ερωτηματολόγιο.'
-                      : 'Το ερωτηματολόγιο εστάλη — αναμονή απάντησης πελάτη.'}
+                  <div className="space-y-2">
+                    <div className="bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-sm text-emerald-800 flex items-center gap-2">
+                      <CheckCircle2 size={16} className="shrink-0" />
+                      {questionnaire.respondedAt
+                        ? 'Ο πελάτης έχει απαντήσει το ερωτηματολόγιο.'
+                        : 'Το ερωτηματολόγιο εστάλη — αναμονή απάντησης πελάτη.'}
+                    </div>
+                    {isAdmin && (
+                      <button
+                        onClick={resetQuestionnaire}
+                        disabled={resetting}
+                        className="flex items-center gap-1.5 text-xs text-gray-400 hover:text-red-600 disabled:opacity-60"
+                      >
+                        <RotateCcw size={12} />
+                        {resetting ? 'Επαναφορά...' : 'Επαναφορά ερωτηματολογίου (διαγραφή)'}
+                      </button>
+                    )}
                   </div>
                 ) : (
                   <>
