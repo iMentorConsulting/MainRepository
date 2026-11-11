@@ -171,19 +171,34 @@ export async function runMatchingForGemi(gemiId: string, programs: Awaited<Retur
   }
 
   let matchCount = 0
-  const qualifiedProgramIds: string[] = []
 
   for (const program of programs) {
     if (!isProgramOpen(program)) continue
 
     const { score, reasons } = matchesBusiness(business, program)
-    if (score <= 0) continue
-    qualifiedProgramIds.push(program.id)
 
     const existing = await prisma.gemiProgramMatch.findUnique({
       where: { gemiId_programId: { gemiId, programId: program.id } },
-      select: { id: true },
+      select: { id: true, status: true },
     })
+
+    if (score <= 0) {
+      // No longer qualifies. If a match row already exists and isn't
+      // already REJECTED, flip it to REJECTED and clear the score/reason
+      // instead of leaving a stale, now-incorrect match in place — mirrors
+      // the Business side's reconcileMatchStatuses(), which forces REJECTED
+      // the moment a criterion genuinely fails, even overriding a
+      // consultant's earlier INTERESTED mark (e.g. after a matching-logic
+      // bug fix makes a previously-"qualifying" ΚΑΔ correctly fail now).
+      // The row is kept (not deleted) so that history/audit trail survives.
+      if (existing && existing.status !== MatchStatus.REJECTED) {
+        await prisma.gemiProgramMatch.update({
+          where: { id: existing.id },
+          data: { matchScore: 0, matchReason: [], status: MatchStatus.REJECTED, updatedAt: new Date() },
+        })
+      }
+      continue
+    }
 
     await prisma.gemiProgramMatch.upsert({
       where: { gemiId_programId: { gemiId, programId: program.id } },
@@ -199,16 +214,6 @@ export async function runMatchingForGemi(gemiId: string, programs: Awaited<Retur
 
     if (!existing) matchCount++
   }
-
-  // Remove stale matches: programs that no longer qualify after criteria
-  // changes. Preserve non-POTENTIAL statuses (INTERESTED etc. carry history).
-  await prisma.gemiProgramMatch.deleteMany({
-    where: {
-      gemiId,
-      status: MatchStatus.POTENTIAL,
-      ...(qualifiedProgramIds.length ? { programId: { notIn: qualifiedProgramIds } } : {}),
-    },
-  })
 
   await prisma.gemiLookup.update({
     where: { id: gemiId },
