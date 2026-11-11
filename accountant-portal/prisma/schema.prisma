@@ -184,6 +184,8 @@ model Business {
   ptoxeusiCases         PtoxeusiCase[]
   financePayments       FinancePayment[]
   leadInterests         BusinessLeadInterest[]
+  microcreditsQuestionnaires MicrocreditsQuestionnaire[]
+  microcreditsBusinessPlans  MicrocreditsBusinessPlan[]
 }
 
 enum ClientType {
@@ -389,6 +391,8 @@ model Program {
   clientCases        ClientCase[]
   matchActionTokens  MatchActionToken[]
   requiredDocuments  ProgramDocument[]
+  microcreditsQuestionnaires MicrocreditsQuestionnaire[]
+  microcreditsBusinessPlans  MicrocreditsBusinessPlan[]
 }
 
 enum ProgramCategory {
@@ -1554,4 +1558,75 @@ model AadeLookupLog {
   createdAt DateTime @default(now())
 
   @@index([afm, createdAt])
+}
+
+// ─── Ταμείο Μικροπιστώσεων: business-plan questionnaire + draft ───────────────
+// Two-step flow for clients who close/pay in the Microcredits program: (1) an
+// AI-tailored questionnaire (built from the specific ΚΑΔ the consultant picks
+// as the application's focus) is sent to the client via a public token link;
+// (2) once answered, the consultant supplies the remaining financial inputs
+// (current turnover/EBITDA/net profit, growth %, loan amount/split) and an AI
+// draft of the three narrative sections of the official business-plan Word
+// template is generated for review before download.
+model MicrocreditsQuestionnaire {
+  id               String    @id @default(cuid())
+  businessId       String
+  business         Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  programId        String
+  program          Program   @relation(fields: [programId], references: [id])
+  token            String    @unique @default(cuid())
+  // Which of the business's own ΚΑΔ the consultant chose as the application's
+  // focus — the questionnaire (and later the business plan's "ΚΑΔ Επένδυσης")
+  // is tailored to these, not just whichever ΚΑΔ happened to match the program.
+  selectedKadCodes String[]
+  // Optional consultant override of the real-world activity when the
+  // official ΚΑΔ description doesn't match what the business actually does
+  // (e.g. a "ελλιμενισμός" ΚΑΔ for a business that actually teaches sailing).
+  activityNote     String?
+  // [{ id, section, text }] — AI-generated, tailored to the selected ΚΑΔ.
+  questions        Json
+  // { [questionId]: answerText } — filled in by the client via the public form.
+  answers          Json?
+  sentAt           DateTime?
+  respondedAt       DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  businessPlans    MicrocreditsBusinessPlan[]
+
+  @@index([businessId, programId])
+}
+
+model MicrocreditsBusinessPlan {
+  id                   String                     @id @default(cuid())
+  businessId           String
+  business             Business                   @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  programId            String
+  program              Program                    @relation(fields: [programId], references: [id])
+  questionnaireId      String?
+  questionnaire        MicrocreditsQuestionnaire? @relation(fields: [questionnaireId], references: [id])
+  // Consultant-supplied baseline financials (current year) — cited directly
+  // in the narrative and used to compute the 3-year projection table.
+  currentRevenue       Float
+  currentEbitda        Float
+  currentNetProfit     Float
+  // Applied as a compounding annual improvement for years t+1, t+2, t+3.
+  annualGrowthPct      Float
+  loanAmount           Float
+  // Πάγια (fixed assets) must not exceed 40% of loanAmount — enforced at the
+  // API level, not just in the UI.
+  fixedAssetsAmount    Float                      @default(0)
+  workingCapitalAmount Float
+  legalRepresentative  String?
+  consultantNotes      String?
+  // AI-drafted narrative, one entry per paragraph (rendered as separate Word
+  // paragraphs in the final .docx, matching the lettered A./B./C. style of
+  // the office's own completed examples).
+  section1_1           String[]                   @default([])
+  section2_1           String[]                   @default([])
+  section2_2           String[]                   @default([])
+  generatedAt          DateTime?
+  createdAt            DateTime                   @default(now())
+  updatedAt            DateTime                   @updatedAt
+
+  @@index([businessId, programId])
 }

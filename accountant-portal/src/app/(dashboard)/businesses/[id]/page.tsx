@@ -11,6 +11,7 @@ import { QuickSendModal } from '@/components/quick-send-modal'
 import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
 import { MicrocreditsEligibilityModal } from '@/components/microcredits-eligibility-modal'
+import { MicrocreditsBusinessPlanModal } from '@/components/microcredits-business-plan-modal'
 import { AgreementModal } from '@/components/agreement-modal'
 import { EligibilityAdviceModal } from '@/components/eligibility-advice-modal'
 import { ArrowLeft, Mail, Phone, MapPin, Calendar, Edit, Send, Trash2, X as XIcon, Plus, Printer, ClipboardList, Scale, Gavel, Database, Calculator, FileText, Lightbulb } from 'lucide-react'
@@ -88,6 +89,7 @@ export default function BusinessDetailPage() {
   const [eligibilityMessage, setEligibilityMessage] = useState(false)
   const [prospectEmailProgram, setProspectEmailProgram] = useState<{ id: string; title: string; category?: string } | null>(null)
   const [microcreditsProgramId, setMicrocreditsProgramId] = useState<string | null>(null)
+  const [businessPlanProgramId, setBusinessPlanProgramId] = useState<string | null>(null)
   const [agreementProgram, setAgreementProgram] = useState<{ id: string; title: string } | null>(null)
   const [adviceProgram, setAdviceProgram] = useState<{ id: string; title: string } | null>(null)
   // ?newCase=1 opens the assignment dialog immediately (e.g. arriving from a GEMI business)
@@ -332,6 +334,16 @@ export default function BusinessDetailPage() {
         />
       )}
 
+      {businessPlanProgramId && (
+        <MicrocreditsBusinessPlanModal
+          businessId={business.id}
+          programId={businessPlanProgramId}
+          activities={business.activities || []}
+          businessHasEmail={!!business.email}
+          onClose={() => setBusinessPlanProgramId(null)}
+        />
+      )}
+
       {agreementProgram && (
         <AgreementModal
           businessId={business.id}
@@ -548,6 +560,15 @@ export default function BusinessDetailPage() {
                         >
                           <Calculator size={12} />
                           Ανάλυση Επιλεξιμότητας Μικροπιστώσεων
+                        </button>
+                      )}
+                      {isStaff && m.program?.category === 'MICROCREDITS' && (
+                        <button
+                          onClick={() => setBusinessPlanProgramId(m.programId)}
+                          className="w-full flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-200 text-emerald-700 text-xs font-medium hover:bg-emerald-50"
+                        >
+                          <FileText size={12} />
+                          Business Plan Μικροπιστώσεων
                         </button>
                       )}
                       {isStaff && (
