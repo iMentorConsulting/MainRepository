@@ -27,6 +27,17 @@ async function fetchViaProxy(url: string, attempt = 1): Promise<Response> {
     await sleep(attempt * 2000)
     return fetchViaProxy(url, attempt + 1)
   }
+
+  // Any other failure (e.g. a transient "This site can't be reached" when
+  // ScrapingAnt's headless browser briefly can't get past the target site's
+  // geo-block/Cloudflare through the DE proxy) is usually a one-off — retry
+  // a couple of times with backoff before giving up, instead of failing the
+  // whole cron run on a single flaky attempt.
+  if (!res.ok && attempt < 3) {
+    await sleep(attempt * 3000)
+    return fetchViaProxy(url, attempt + 1)
+  }
+
   return res
 }
 

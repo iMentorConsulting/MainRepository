@@ -45,6 +45,16 @@ async function fetchViaScrapingAnt(url: string, attempt = 1): Promise<string> {
     return fetchViaScrapingAnt(url, attempt + 1)
   }
 
+  // Any other failure (e.g. a transient "This site can't be reached" when
+  // ScrapingAnt's headless browser briefly can't get past espa.gr's
+  // Cloudflare through the DE proxy) is usually a one-off — retry a couple
+  // of times with backoff before giving up, instead of failing the whole
+  // cron run on a single flaky attempt.
+  if (!res.ok && attempt < 3) {
+    await sleep(attempt * 3000)
+    return fetchViaScrapingAnt(url, attempt + 1)
+  }
+
   if (!res.ok) {
     const body = await res.text().catch(() => '')
     throw new Error(`ScrapingAnt fetch failed: HTTP ${res.status} ${body.slice(0, 200)}`)
