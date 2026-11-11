@@ -39,7 +39,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     programId, questionnaireId,
     currentRevenue, currentEbitda, currentNetProfit, annualGrowthPct,
     loanAmount, workingCapitalAmount, fixedAssetsAmount,
-    legalRepresentative, consultantNotes,
+    legalRepresentative, consultantNotes, owners,
   } = body
 
   if (typeof programId !== 'string' || !programId) {
@@ -125,6 +125,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       fixedAssetsAmount: fixedAssetsNum,
       legalRepresentative: legalRepresentative || null,
       consultantNotes: consultantNotes || null,
+      owners: Array.isArray(owners) ? owners : undefined,
       section1_1: sections.section1_1,
       section2_1: sections.section2_1,
       section2_2: sections.section2_2,

@@ -32,7 +32,13 @@ function replaceSimple(xml: string, token: string, value: string): string {
 // Finds the <w:p ...>...{{TOKEN}}...</w:p> paragraph, then replaces it with
 // one cloned paragraph (same opening tag + <w:pPr>, if any) per entry in
 // `lines`. An empty `lines` array removes the paragraph entirely.
-function replaceMultiParagraph(xml: string, token: string, lines: string[]): string {
+//
+// `spacingAfter` (in twentieths of a point, e.g. 200 = 10pt) adds a blank
+// gap after each cloned paragraph — used for the narrative sections
+// (1.1/2.1/2.2), where each entry is a lettered point (Α., Β., Γ. ...) that
+// reads better with breathing room between points; left unset for compact
+// lists like the ΚΑΔ tables, which shouldn't gain gaps between lines.
+function replaceMultiParagraph(xml: string, token: string, lines: string[], spacingAfter?: number): string {
   const marker = `{{${token}}}`
   const markerIdx = xml.indexOf(marker)
   if (markerIdx === -1) return xml
@@ -50,7 +56,11 @@ function replaceMultiParagraph(xml: string, token: string, lines: string[]): str
   const openTag = openTagMatch[0]
 
   const pPrMatch = originalParagraph.match(/<w:pPr>[\s\S]*?<\/w:pPr>/)
-  const pPr = pPrMatch ? pPrMatch[0] : ''
+  let pPr = pPrMatch ? pPrMatch[0] : ''
+  if (spacingAfter) {
+    const spacingTag = `<w:spacing w:after="${spacingAfter}"/>`
+    pPr = pPr ? pPr.replace('<w:pPr>', `<w:pPr>${spacingTag}`) : `<w:pPr>${spacingTag}</w:pPr>`
+  }
 
   const runStyle = '<w:rFonts w:ascii="Trebuchet MS" w:eastAsia="Trebuchet MS" w:hAnsi="Trebuchet MS" w:cs="Trebuchet MS"/><w:sz w:val="20"/>'
 
@@ -67,6 +77,7 @@ export interface MicrocreditsBusinessPlanDocxData {
   afm: string
   legalRep: string | null
   legalForm: string | null
+  owners: { surname: string; name: string; afm: string; percentage: string }[]
   kadList: { code: string; description: string }[]
   kadInvestment: { code: string; description: string }[]
   foundingDate: string | null
@@ -125,6 +136,18 @@ export async function buildMicrocreditsBusinessPlanDocx(data: MicrocreditsBusine
     ['DATE', data.date],
   ]
 
+  // ΦΟΡΕΙΣ ΕΠΙΧΕΙΡΗΣΗΣ table has exactly 3 rows in the template — fill
+  // whichever the consultant supplied, blank out the rest.
+  for (let i = 0; i < 3; i++) {
+    const owner = data.owners[i]
+    simple.push(
+      [`OWNER${i + 1}_SURNAME`, owner?.surname || ''],
+      [`OWNER${i + 1}_NAME`, owner?.name || ''],
+      [`OWNER${i + 1}_AFM`, owner?.afm || ''],
+      [`OWNER${i + 1}_PCT`, owner?.percentage ? `${owner.percentage}%` : ''],
+    )
+  }
+
   // COMPANY_NAME appears twice (identity table + signature block) — replace
   // both occurrences with the same value via the shared helper, which
   // already replaces every instance of a given marker.
@@ -134,9 +157,9 @@ export async function buildMicrocreditsBusinessPlanDocx(data: MicrocreditsBusine
 
   xml = replaceMultiParagraph(xml, 'KAD_LIST', kadToLines(data.kadList))
   xml = replaceMultiParagraph(xml, 'KAD_INVESTMENT', kadToLines(data.kadInvestment))
-  xml = replaceMultiParagraph(xml, 'SECTION_1_1', data.section1_1)
-  xml = replaceMultiParagraph(xml, 'SECTION_2_1', data.section2_1)
-  xml = replaceMultiParagraph(xml, 'SECTION_2_2', data.section2_2)
+  xml = replaceMultiParagraph(xml, 'SECTION_1_1', data.section1_1, 200)
+  xml = replaceMultiParagraph(xml, 'SECTION_2_1', data.section2_1, 200)
+  xml = replaceMultiParagraph(xml, 'SECTION_2_2', data.section2_2, 200)
 
   zip.file('word/document.xml', xml)
   const buffer = await zip.generateAsync({ type: 'nodebuffer' })

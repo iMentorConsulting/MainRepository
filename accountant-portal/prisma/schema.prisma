@@ -1624,6 +1624,11 @@ model MicrocreditsBusinessPlan {
   workingCapitalAmount Float
   legalRepresentative  String?
   consultantNotes      String?
+  // ΦΟΡΕΙΣ ΕΠΙΧΕΙΡΗΣΗΣ — [{ surname, name, afm, percentage }], up to 3 (the
+  // template's table has exactly 3 rows). Defaults in the UI to the legal
+  // representative at 100% for a sole proprietorship (ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ);
+  // the consultant edits/adds rows for other legal forms with shareholders.
+  owners               Json?
   // AI-drafted narrative, one entry per paragraph (rendered as separate Word
   // paragraphs in the final .docx, matching the lettered A./B./C. style of
   // the office's own completed examples).

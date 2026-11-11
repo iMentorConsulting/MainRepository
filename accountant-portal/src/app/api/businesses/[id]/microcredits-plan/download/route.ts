@@ -48,6 +48,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       afm: business.afm,
       legalRep: plan.legalRepresentative,
       legalForm: business.legalStatusDescr,
+      owners: Array.isArray(plan.owners) ? (plan.owners as any) : [],
       kadList: allKad,
       kadInvestment: kadInvestment.length > 0 ? kadInvestment : allKad,
       foundingDate: business.regdate,

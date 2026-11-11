@@ -12,7 +12,17 @@ interface MicrocreditsBusinessPlanModalProps {
   businessId: string
   programId: string
   businessHasEmail: boolean
+  businessOnomasia?: string | null
+  businessAfm?: string | null
+  businessLegalForm?: string | null
   onClose: () => void
+}
+
+interface Owner {
+  surname: string
+  name: string
+  afm: string
+  percentage: string
 }
 
 interface Question {
@@ -44,13 +54,20 @@ interface Plan {
   fixedAssetsAmount: number
   legalRepresentative: string | null
   consultantNotes: string | null
+  owners: Owner[]
   section1_1: string[]
   section2_1: string[]
   section2_2: string[]
   generatedAt: string | null
 }
 
-export function MicrocreditsBusinessPlanModal({ businessId, programId, businessHasEmail, onClose }: MicrocreditsBusinessPlanModalProps) {
+function splitSoleProprietorName(onomasia: string): { surname: string; name: string } {
+  const parts = onomasia.trim().split(/\s+/)
+  if (parts.length < 2) return { surname: onomasia, name: '' }
+  return { surname: parts[0], name: parts.slice(1).join(' ') }
+}
+
+export function MicrocreditsBusinessPlanModal({ businessId, programId, businessHasEmail, businessOnomasia, businessAfm, businessLegalForm, onClose }: MicrocreditsBusinessPlanModalProps) {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
   const [loading, setLoading] = useState(true)
@@ -76,9 +93,17 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
   const [fixedAssetsAmount, setFixedAssetsAmount] = useState('0')
   const [legalRepresentative, setLegalRepresentative] = useState('')
   const [consultantNotes, setConsultantNotes] = useState('')
+  const [owners, setOwners] = useState<Owner[]>([])
   const [generating, setGenerating] = useState(false)
 
   const [eligibleActivities, setEligibleActivities] = useState<Activity[] | null>(null)
+
+  // Lets the consultant review/correct the client's questionnaire answers
+  // before generating the draft — e.g. to fix an obvious mistake or fill in
+  // something answered by phone instead.
+  const [editedAnswers, setEditedAnswers] = useState<Record<string, string>>({})
+  const [savingAnswers, setSavingAnswers] = useState(false)
+  const [answersSaved, setAnswersSaved] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -86,13 +111,59 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
       fetch(`/api/businesses/${businessId}/microcredits-plan/generate?programId=${programId}`).then(r => r.json()),
     ])
       .then(([q, p]) => {
-        if (q.questionnaire) setQuestionnaire(q.questionnaire)
+        if (q.questionnaire) {
+          setQuestionnaire(q.questionnaire)
+          setEditedAnswers(q.questionnaire.answers || {})
+        }
         setEligibleActivities(q.eligibleActivities || [])
-        if (p.plan) setPlan(p.plan)
+        if (p.plan) {
+          setPlan(p.plan)
+          setOwners(p.plan.owners && p.plan.owners.length > 0 ? p.plan.owners : [])
+        }
+        // Sole proprietorships only have one owner — the business itself —
+        // so default the table to them at 100%, pre-filled from data we
+        // already have, rather than asking the consultant to retype it.
+        if ((!p.plan || !p.plan.owners || p.plan.owners.length === 0) && businessLegalForm?.includes('ΑΤΟΜΙΚ') && businessOnomasia) {
+          const { surname, name } = splitSoleProprietorName(businessOnomasia)
+          setOwners([{ surname, name, afm: businessAfm || '', percentage: '100' }])
+        }
       })
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [businessId, programId])
+  }, [businessId, programId, businessLegalForm, businessOnomasia, businessAfm])
+
+  function updateOwner(index: number, field: keyof Owner, value: string) {
+    setOwners(prev => prev.map((o, i) => i === index ? { ...o, [field]: value } : o))
+  }
+
+  function addOwner() {
+    setOwners(prev => prev.length >= 3 ? prev : [...prev, { surname: '', name: '', afm: '', percentage: '' }])
+  }
+
+  function removeOwner(index: number) {
+    setOwners(prev => prev.filter((_, i) => i !== index))
+  }
+
+  async function saveAnswerCorrections() {
+    setSavingAnswers(true)
+    setError('')
+    try {
+      const res = await fetch(`/api/businesses/${businessId}/microcredits-plan/questionnaire/answers`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId, answers: editedAnswers, markResponded: true }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Η αποθήκευση απέτυχε')
+      setQuestionnaire(prev => prev ? { ...prev, answers: editedAnswers } : prev)
+      setAnswersSaved(true)
+      setTimeout(() => setAnswersSaved(false), 2500)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setSavingAnswers(false)
+    }
+  }
 
   async function previewQuestionnaire() {
     if (selectedKad.length === 0) {
@@ -208,6 +279,7 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
           fixedAssetsAmount: fixedAssetsNum,
           legalRepresentative: legalRepresentative.trim() || undefined,
           consultantNotes: consultantNotes.trim() || undefined,
+          owners: owners.filter(o => o.surname || o.name || o.afm),
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -356,6 +428,45 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
                 <div className="space-y-3 pt-4 border-t border-gray-100">
                   <h3 className="text-sm font-bold text-gray-900">Βήμα 2 — Δημιουργία Business Plan</h3>
 
+                  {questionnaire.questions.length > 0 && (
+                    <details className="border border-gray-200 rounded-lg">
+                      <summary className="px-3 py-2 text-xs font-semibold text-gray-700 cursor-pointer select-none">
+                        Απαντήσεις Ερωτηματολογίου (προβολή/διόρθωση πριν τη δημιουργία)
+                      </summary>
+                      <div className="px-3 pb-3 pt-1 space-y-3 max-h-72 overflow-y-auto">
+                        {Array.from(new Set(questionnaire.questions.map(q => q.section))).sort((a, b) => a - b).map(section => {
+                          const sectionQuestions = questionnaire.questions.filter(q => q.section === section)
+                          return (
+                            <div key={section} className="space-y-2">
+                              <p className="text-xs font-bold text-indigo-700">{section}. {sectionQuestions[0]?.sectionTitle}</p>
+                              {sectionQuestions.map(q => (
+                                <div key={q.id}>
+                                  <label className={`block text-xs mb-1 whitespace-pre-line ${q.bold ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{q.text}</label>
+                                  <textarea
+                                    value={editedAnswers[q.id] || ''}
+                                    onChange={e => setEditedAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                    rows={2}
+                                    className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs"
+                                  />
+                                </div>
+                              ))}
+                            </div>
+                          )
+                        })}
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            onClick={saveAnswerCorrections}
+                            disabled={savingAnswers}
+                            className="px-3 py-1.5 rounded-lg bg-gray-100 text-gray-700 text-xs font-medium hover:bg-gray-200 disabled:opacity-60"
+                          >
+                            {savingAnswers ? 'Αποθήκευση...' : 'Αποθήκευση Διορθώσεων'}
+                          </button>
+                          {answersSaved && <span className="text-xs text-emerald-600">Αποθηκεύτηκε.</span>}
+                        </div>
+                      </div>
+                    </details>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     <div>
                       <label className="text-xs font-medium text-gray-500 block mb-1">Κύκλος εργασιών (€)</label>
@@ -398,6 +509,24 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
                   <div>
                     <label className="text-xs font-medium text-gray-500 block mb-1">Σημειώσεις συμβούλου (προαιρετικό)</label>
                     <textarea value={consultantNotes} onChange={e => setConsultantNotes(e.target.value)} rows={2} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm resize-none" />
+                  </div>
+
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Φορείς Επιχείρησης (μέτοχοι/εταίροι ≥5%)</label>
+                    <div className="space-y-2">
+                      {owners.map((owner, i) => (
+                        <div key={i} className="grid grid-cols-[1fr_1fr_1fr_70px_auto] gap-1.5 items-center">
+                          <input type="text" placeholder="Επώνυμο" value={owner.surname} onChange={e => updateOwner(i, 'surname', e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs" />
+                          <input type="text" placeholder="Όνομα" value={owner.name} onChange={e => updateOwner(i, 'name', e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs" />
+                          <input type="text" placeholder="ΑΦΜ" value={owner.afm} onChange={e => updateOwner(i, 'afm', e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs" />
+                          <input type="number" placeholder="%" value={owner.percentage} onChange={e => updateOwner(i, 'percentage', e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs" />
+                          <button onClick={() => removeOwner(i)} className="text-gray-300 hover:text-red-500"><X size={14} /></button>
+                        </div>
+                      ))}
+                      {owners.length < 3 && (
+                        <button onClick={addOwner} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">+ Προσθήκη φορέα</button>
+                      )}
+                    </div>
                   </div>
 
                   <button

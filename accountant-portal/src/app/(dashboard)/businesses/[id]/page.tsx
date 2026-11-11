@@ -339,6 +339,9 @@ export default function BusinessDetailPage() {
           businessId={business.id}
           programId={businessPlanProgramId}
           businessHasEmail={!!business.email}
+          businessOnomasia={business.onomasia}
+          businessAfm={business.afm}
+          businessLegalForm={business.legalStatusDescr}
           onClose={() => setBusinessPlanProgramId(null)}
         />
       )}
