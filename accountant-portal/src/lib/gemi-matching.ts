@@ -5,6 +5,9 @@ import { normalizeLegalForm } from './legal-forms'
 import { isProgramOpen, resolveRegdate } from './matching'
 import { FARMER_SPECIAL_REGIME_CODE } from './business-filters'
 import { evaluateKadCriterion, hasActiveKadCriterion } from './kad-matching'
+import { mapWithConcurrency } from './concurrency'
+
+const GEMI_MATCH_CONCURRENCY = 20
 
 interface GemiBusinessView {
   id: string
@@ -216,4 +219,28 @@ export async function runMatchingForGemi(gemiId: string, programs: Awaited<Retur
   })
 
   return matchCount
+}
+
+// Bulk re-run of runMatchingForGemi() across every GEMI lead — used by the
+// admin "Rematch Όλα" action so a program/criteria change (e.g. a ΚΑΔ
+// matching fix) also clears out stale GemiProgramMatch rows, not just
+// ProgramMatch rows for claimed Business records. Per-lead errors are
+// swallowed and counted so one bad row can't abort the whole run.
+export async function runMatchingForAllGemi(): Promise<{ processed: number; totalNewMatches: number; errors: number }> {
+  const programs = await loadActivePrograms()
+  const gemiIds = (await prisma.gemiLookup.findMany({ select: { id: true } })).map(g => g.id)
+
+  let totalNewMatches = 0
+  let errors = 0
+
+  await mapWithConcurrency(gemiIds, GEMI_MATCH_CONCURRENCY, async gemiId => {
+    try {
+      totalNewMatches += await runMatchingForGemi(gemiId, programs)
+    } catch (err: any) {
+      errors++
+      console.error(`[Gemi matching] rematch failed for ${gemiId}:`, err?.message)
+    }
+  })
+
+  return { processed: gemiIds.length, totalNewMatches, errors }
 }
