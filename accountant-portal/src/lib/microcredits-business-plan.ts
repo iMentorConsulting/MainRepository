@@ -273,6 +273,34 @@ export interface Projections {
 // Compounds each year-1 baseline by the same annual % for 3 years (t+1..t+3),
 // matching the office's own examples' convention of projecting from the
 // first post-financing year, not the current (pre-financing) year.
+// Shared by the initial send (questionnaire/route.ts) and the manual resend
+// action (questionnaire/resend/route.ts) so the client always gets the exact
+// same email regardless of which action triggered it.
+export function buildQuestionnaireEmailHtml(params: { businessName: string; formUrl: string; logoHtml: string }): string {
+  const { businessName, formUrl, logoHtml } = params
+  return `<div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#374151;">
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+    <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
+      ${logoHtml}
+      <h1 style="color:#ffffff;margin:0;font-size:19px;">📋 Ερωτηματολόγιο Επιχειρηματικού Σχεδίου</h1>
+    </td></tr>
+    </table>
+    <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+      <p style="margin:0 0 16px;font-size:15px;">Αγαπητέ/ή <strong>${businessName}</strong>,</p>
+      <p style="margin:0 0 20px;font-size:14px;line-height:1.7;">
+        Για να προχωρήσουμε με την αίτησή σας στο <strong>Ταμείο Μικροπιστώσεων (ΤΕΠΙΧ ΙΙΙ)</strong>, χρειαζόμαστε λίγες ακόμη πληροφορίες για την επιχείρησή σας. Παρακαλούμε απαντήστε <strong>πολύ επιγραμματικά</strong> στις παρακάτω ερωτήσεις, ώστε να προχωρήσουμε στη σύνταξη του επιχειρηματικού σχεδίου.
+      </p>
+      <p style="margin:0 0 20px;font-size:14px;line-height:1.7;">
+        Σε περίπτωση που υπάρχουν ερωτήματα στα οποία δεν είστε σε θέση να απαντήσετε αυτή τη στιγμή, μπορείτε απλώς να τα παραλείψετε και να στείλετε το υπόλοιπο ερωτηματολόγιο.
+      </p>
+      <div style="text-align:center;margin:0 0 20px;">
+        <a href="${formUrl}" style="display:inline-block;background:#1e3a8a;color:white;padding:14px 32px;border-radius:10px;text-decoration:none;font-weight:bold;font-size:15px;">Συμπλήρωση Ερωτηματολογίου →</a>
+      </div>
+      <p style="margin:0;font-size:13px;color:#6b7280;">Για οποιαδήποτε απορία, επικοινωνήστε μαζί μας.</p>
+    </div>
+  </div>`
+}
+
 export function computeProjections(params: {
   currentRevenue: number
   currentEbitda: number

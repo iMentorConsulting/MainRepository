@@ -1589,6 +1589,12 @@ model MicrocreditsQuestionnaire {
   answers          Json?
   sentAt           DateTime?
   respondedAt       DateTime?
+  // Automatic reminder emails to the client every 2 days while unanswered
+  // (see /api/cron/microcredits-reminders) — tracked so the sweep can tell
+  // who's already due again, and so the consultant can see follow-up
+  // history in the overview list.
+  lastReminderAt   DateTime?
+  reminderCount    Int       @default(0)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
   businessPlans    MicrocreditsBusinessPlan[]
