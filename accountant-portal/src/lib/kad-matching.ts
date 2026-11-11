@@ -47,9 +47,16 @@ function ruleMatches(activityCode: string, rule: string): boolean {
   // form — e.g. "12611" meaning the sector-01 prefix "01.26.11", not a
   // literal sector-12 prefix. A padded business activity code only ever
   // starts with "0" for sectors 01-09 (see normalizeKadLegacy), so trying
-  // this extra candidate is safe: it can never accidentally match a real
-  // sector-10-and-up business — only a genuinely zero-dropped rule.
-  if (!cleanRule.startsWith('0') && cleanRule.length < 8) {
+  // this extra candidate is safe for rules of 3+ digits: it can never
+  // accidentally match a real sector-10-and-up business, only a genuinely
+  // zero-dropped rule. A bare 2-digit rule (e.g. "14", "11") is EXCLUDED
+  // from this fallback — it's always a complete, unambiguous NACE division
+  // code on its own, never an abbreviated form of anything longer, and
+  // treating it as possibly zero-dropped caused false positives: e.g. rule
+  // "14" (wearing apparel) wrongly matched sector-01 livestock ΚΑΔ like
+  // "1472300" (01.47.23, poultry farming) purely because its zero-dropped
+  // digits happen to start with "14" too.
+  if (!cleanRule.startsWith('0') && cleanRule.length >= 3 && cleanRule.length < 8) {
     return activityCode.startsWith('0' + cleanRule)
   }
 

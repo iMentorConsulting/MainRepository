@@ -167,6 +167,34 @@ assert(normalizeKadForComparison('01630104') === '01630104', 'normalizeKadForCom
   )
 }
 
+// Real bug reproduction: ΠΑΤΡΟΓΟΝΙΚΗ ΙΔΙΩΤΙΚΗ ΚΕΦΑΛΑΙΟΥΧΙΚΗ ΕΤΑΙΡΕΙΑ (ΑΦΜ
+// 800865396) is sector 01 (crop/animal production) but was wrongly matched
+// to a manufacturing/services grant whose eligible-ΚΑΔ list is plain 2-digit
+// NACE divisions (10-96, no "01"). A bare 2-digit rule like "14" or "11" was
+// being treated as a POSSIBLE zero-dropped abbreviation (same fallback that
+// correctly handles longer rules like "12611" above), so it wrongly matched
+// any sector-01 ΚΑΔ whose own zero-dropped digits happened to start the
+// same way (e.g. "1472300" = 01.47.23 poultry farming, starts with "14").
+{
+  const manufacturingProgram = {
+    kadRules: ['10', '11', '13', '14', '15', '16', '17', '18', '22', '23', '25', '31', '32', '33', '45', '47', '55', '56', '79', '85', '87', '88', '90', '93', '95', '96'],
+    excludedKadRules: [],
+    excludedKadExceptions: [],
+  }
+  const agriculturalKadCodes = ['1472300', '1191004', '1411001', '1471103', '1482100', '1191001', '1471101']
+  for (const code of agriculturalKadCodes) {
+    assert(
+      evaluateKadCriterion([code], manufacturingProgram).pass === false,
+      `Sector-01 ΚΑΔ ${code} does NOT falsely match a 2-digit rule via the zero-drop fallback`
+    )
+  }
+  // A real manufacturing/services ΚΑΔ in that same eligible list still passes.
+  assert(
+    evaluateKadCriterion(['47111001'], manufacturingProgram).pass === true,
+    'A genuine sector-47 (retail) ΚΑΔ still passes the manufacturing/services eligible list'
+  )
+}
+
 if (failures > 0) {
   console.error(`\n${failures} test(s) failed.`)
   process.exit(1)
