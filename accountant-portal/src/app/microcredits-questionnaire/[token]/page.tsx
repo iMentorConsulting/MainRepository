@@ -1,7 +1,7 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'next/navigation'
-import { CheckCircle2 } from 'lucide-react'
+import { CheckCircle2, Cloud, CloudUpload } from 'lucide-react'
 
 interface Question {
   id: string
@@ -10,6 +10,8 @@ interface Question {
   text: string
   bold: boolean
 }
+
+const AUTOSAVE_DELAY_MS = 1500
 
 export default function MicrocreditsQuestionnairePage() {
   const { token } = useParams<{ token: string }>()
@@ -21,6 +23,13 @@ export default function MicrocreditsQuestionnairePage() {
   const [alreadyAnswered, setAlreadyAnswered] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   const [submitted, setSubmitted] = useState(false)
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle')
+
+  // Tracks the last answers snapshot that's already persisted (either from
+  // the initial load, or from a prior autosave/submit) so the autosave
+  // effect below doesn't fire — or hit the network — for a no-op.
+  const lastSavedRef = useRef<string>('{}')
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
     fetch(`/api/public/microcredits-questionnaire/${token}`)
@@ -29,21 +38,54 @@ export default function MicrocreditsQuestionnairePage() {
         if (!r.ok) throw new Error(data.error || 'Σφάλμα')
         setBusinessName(data.businessName || '')
         setQuestions(data.questions || [])
-        setAnswers(data.answers || {})
+        const loadedAnswers = data.answers || {}
+        setAnswers(loadedAnswers)
+        lastSavedRef.current = JSON.stringify(loadedAnswers)
         setAlreadyAnswered(!!data.respondedAt)
       })
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
   }, [token])
 
+  // Autosave: so closing the tab and coming back later (even from another
+  // device, since this is saved server-side, not just locally) doesn't lose
+  // progress already typed in. Debounced, and skipped entirely if nothing
+  // actually changed since the last save.
+  useEffect(() => {
+    const snapshot = JSON.stringify(answers)
+    if (snapshot === lastSavedRef.current) return
+
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
+    saveTimeoutRef.current = setTimeout(() => {
+      setSaveStatus('saving')
+      fetch(`/api/public/microcredits-questionnaire/${token}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ answers, submit: false }),
+      })
+        .then(r => {
+          if (r.ok) {
+            lastSavedRef.current = snapshot
+            setSaveStatus('saved')
+          } else {
+            setSaveStatus('idle')
+          }
+        })
+        .catch(() => setSaveStatus('idle'))
+    }, AUTOSAVE_DELAY_MS)
+
+    return () => { if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current) }
+  }, [answers, token])
+
   async function submit() {
     setSubmitting(true)
     setError('')
     try {
+      if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current)
       const res = await fetch(`/api/public/microcredits-questionnaire/${token}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ answers }),
+        body: JSON.stringify({ answers, submit: true }),
       })
       if (!res.ok) {
         const data = await res.json().catch(() => ({}))
@@ -88,6 +130,7 @@ export default function MicrocreditsQuestionnairePage() {
           <p className="text-sm text-gray-600 leading-relaxed">
             Παρακαλούμε απαντήστε <strong>πολύ επιγραμματικά</strong> στα παρακάτω ερωτήματα, ώστε να προχωρήσουμε στη σύνταξη του επιχειρηματικού σχεδίου. Σε περίπτωση που υπάρχουν ερωτήματα στα οποία δεν είστε σε θέση να απαντήσετε αυτή τη στιγμή, μπορείτε απλώς να τα παραλείψετε και να στείλετε το υπόλοιπο ερωτηματολόγιο.
           </p>
+          <p className="text-xs text-gray-400 mt-2">Οι απαντήσεις σας αποθηκεύονται αυτόματα καθώς γράφετε — μπορείτε να κλείσετε τη σελίδα και να συνεχίσετε αργότερα.</p>
           {alreadyAnswered && (
             <p className="text-xs text-amber-600 mt-2">Έχετε ήδη υποβάλει απαντήσεις — μπορείτε να τις επεξεργαστείτε και να τις ξαναστείλετε.</p>
           )}
@@ -117,13 +160,19 @@ export default function MicrocreditsQuestionnairePage() {
 
         {error && <p className="text-sm text-red-600">{error}</p>}
 
-        <button
-          onClick={submit}
-          disabled={submitting}
-          className="w-full py-3 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60"
-        >
-          {submitting ? 'Υποβολή...' : 'Υποβολή Απαντήσεων'}
-        </button>
+        <div className="flex items-center justify-between gap-3">
+          <p className="text-xs text-gray-400 flex items-center gap-1.5 min-w-0">
+            {saveStatus === 'saving' && <><CloudUpload size={13} className="animate-pulse shrink-0" /> Αποθήκευση...</>}
+            {saveStatus === 'saved' && <><Cloud size={13} className="shrink-0" /> Αποθηκεύτηκε</>}
+          </p>
+          <button
+            onClick={submit}
+            disabled={submitting}
+            className="py-3 px-6 rounded-lg bg-indigo-600 text-white text-sm font-semibold hover:bg-indigo-700 disabled:opacity-60 shrink-0"
+          >
+            {submitting ? 'Υποβολή...' : 'Υποβολή Απαντήσεων'}
+          </button>
+        </div>
       </div>
     </div>
   )
