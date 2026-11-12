@@ -1,5 +1,7 @@
 import nodemailer from 'nodemailer'
 import { google } from 'googleapis'
+import { auth } from '@/lib/auth'
+import { resolveConsultantFullName } from '@/lib/consultant-name'
 
 const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || ''
 const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || ''
@@ -135,8 +137,42 @@ ${html}
 </html>`
 }
 
+// Every outbound email should show the office phone number somewhere
+// visible; one sent manually by a logged-in consultant/admin (as opposed to
+// an automated/cron send, where there's no session to attribute it to)
+// should also name who to contact. Centralized here so every call site gets
+// it automatically — templates that already render their own contact line
+// (detected by the phone number already being present) are left alone.
+function buildContactFooterHtml(consultantName: string | null): string {
+  return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+  <tr><td style="padding:16px 24px;text-align:center;border-top:1px solid #e5e7eb;">
+    ${consultantName ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280;">Ο σύμβουλός σας: <strong style="color:#374151;">${consultantName}</strong></p>` : ''}
+    <p style="margin:0;font-size:13px;color:#4f46e5;font-weight:600;">📞 <a href="tel:+302810363007" style="color:#4f46e5;text-decoration:none;">2810 363007</a> &nbsp;·&nbsp; <a href="mailto:info@i-mentor.gr" style="color:#4f46e5;text-decoration:none;">info@i-mentor.gr</a></p>
+  </td></tr>
+</table>`
+}
+
+function appendFooter(html: string, footer: string): string {
+  if (/<\/body>/i.test(html)) return html.replace(/<\/body>/i, `${footer}</body>`)
+  return `${html}${footer}`
+}
+
+async function withContactFooter(fragment: string): Promise<string> {
+  if (fragment.includes('363007')) return fragment // template already shows the phone number
+
+  let consultantName: string | null = null
+  try {
+    const session = await auth()
+    consultantName = resolveConsultantFullName(session?.user as any)
+  } catch {
+    // No request context (e.g. called outside a Next.js request) — send
+    // without a consultant name rather than fail the email.
+  }
+  return appendFooter(fragment, buildContactFooterHtml(consultantName))
+}
+
 export async function sendEmail(data: EmailData): Promise<boolean> {
-  const html = wrapEmailDocument(data.html)
+  const html = wrapEmailDocument(await withContactFooter(data.html))
 
   if (googleServiceAccountJson) {
     return sendViaGmailApi(data.to, data.subject, html)
