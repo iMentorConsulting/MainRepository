@@ -279,6 +279,16 @@ class CommunicationLoggedWebhook(BaseModel):
     loggedAt: Optional[str] = None
 
 
+class CaseStatusUpdateWebhook(BaseModel):
+    event: str
+    afm: str
+    onomasia: Optional[str] = None
+    service: str
+    status: str
+    comment: Optional[str] = None
+    occurredAt: Optional[str] = None
+
+
 # ── Business profile cache (AFM → ΑΑΔΕ data, sourced from LOGISTIS) ─────────
 def _business_profile_to_dict(b: CMBusinessProfile) -> dict:
     return {
@@ -618,6 +628,83 @@ def _record_hit(**kw) -> None:
     del _recent_webhook_hits[50:]
 
 
+def _strip_accents_upper(s: str) -> str:
+    import unicodedata
+    nfkd = unicodedata.normalize("NFD", s)
+    return "".join(c for c in nfkd if not unicodedata.combining(c)).upper()
+
+
+def _handle_case_status_update(payload: CaseStatusUpdateWebhook, db: Session) -> dict:
+    from models_cases import CMCaseStatusHistory, CMMessage
+    from pipelines import PIPELINES, get_all_statuses_for_program
+
+    afm = (payload.afm or "").strip()
+    if not afm:
+        return {"found": False, "reason": "missing afm"}
+
+    # Map incoming service label to internal program_category key
+    service_norm = _strip_accents_upper(payload.service or "")
+    program_category = None
+    for key, val in PIPELINES.items():
+        if _strip_accents_upper(key) == service_norm or _strip_accents_upper(val.get("label", "")) == service_norm:
+            program_category = key
+            break
+
+    if program_category is None:
+        log.warning("[portal-webhook] case.status_update: unknown service=%r", payload.service)
+        return {"found": False, "reason": f"unknown service: {payload.service!r}"}
+
+    # Find most recent case by AFM + program_category
+    case = (
+        db.query(CMCase)
+        .filter(CMCase.afm == afm, CMCase.program_category == program_category)
+        .order_by(CMCase.id.desc())
+        .first()
+    )
+    if case is None:
+        log.info("[portal-webhook] case.status_update: no case found afm=%r program=%r", afm, program_category)
+        return {"found": False}
+
+    # Map incoming status string to the exact internal status
+    all_statuses = get_all_statuses_for_program(program_category)
+    incoming_norm = _strip_accents_upper(payload.status or "")
+    matched_status = next((s for s in all_statuses if _strip_accents_upper(s) == incoming_norm), None)
+
+    if matched_status is None:
+        log.warning(
+            "[portal-webhook] case.status_update: status=%r not in pipeline %r",
+            payload.status, program_category,
+        )
+        return {"found": True, "case_id": case.id, "updated": False, "reason": f"unknown status: {payload.status!r}"}
+
+    old_status = case.status
+    case.status = matched_status
+    case.status_changed_at = datetime.utcnow()
+
+    db.add(CMCaseStatusHistory(
+        case_id=case.id,
+        from_status=old_status,
+        to_status=matched_status,
+        changed_at=datetime.utcnow(),
+        changed_by="Logistis (webhook)",
+    ))
+
+    if payload.comment:
+        db.add(CMMessage(
+            case_id=case.id,
+            content=f"[Logistis] {payload.comment}",
+            is_internal=True,
+            author_name="Logistis",
+        ))
+
+    db.commit()
+    log.info(
+        "[portal-webhook] case.status_update: case_id=%s afm=%r %r → %r",
+        case.id, afm, old_status, matched_status,
+    )
+    return {"found": True, "case_id": case.id, "updated": True, "new_status": matched_status}
+
+
 def _norm_event(ev) -> str:
     return (ev or "").strip().lower().replace("_", ".").replace(" ", ".").replace("-", ".")
 
@@ -670,6 +757,16 @@ def receive_portal_webhook(
         res = _handle_communication_logged(data, db)
         _record_hit(event=event, keys=list(payload.keys()), auth_ok=True,
                     outcome=f"communication.logged found={res.get('found')}")
+        return res
+    if ev in ("case.status.update", "case.status_update", "casestatusupdate"):
+        try:
+            data = CaseStatusUpdateWebhook(**{**payload, "event": event or "case.status_update"})
+        except Exception as exc:
+            log.error("[portal-webhook] case.status_update invalid payload: %s", exc)
+            raise HTTPException(status_code=400, detail=f"Μη έγκυρο payload: {exc}")
+        res = _handle_case_status_update(data, db)
+        _record_hit(event=event, keys=list(payload.keys()), auth_ok=True,
+                    outcome=f"case.status_update found={res.get('found')} updated={res.get('updated')}")
         return res
     log.warning("[portal-webhook] UNSUPPORTED event=%r (keys=%s)", event, list(payload.keys()))
     _record_hit(event=event, keys=list(payload.keys()), auth_ok=True, outcome="400 unsupported event")
