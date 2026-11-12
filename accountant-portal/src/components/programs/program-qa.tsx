@@ -2,7 +2,7 @@
 import { useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { MessageCircleQuestion, Send, Loader2, User, X } from 'lucide-react'
+import { MessageCircleQuestion, Send, Loader2, User, X, RotateCcw } from 'lucide-react'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -36,6 +36,15 @@ export function ProgramQA({ programId }: { programId: string }) {
     setClientAfm('')
     setAfmInput('')
     setClientFound(null)
+  }
+
+  // Clears the chat (and any connected client) so a new business can be
+  // examined from scratch, without the previous conversation's context.
+  function resetChat() {
+    setMessages([])
+    setInput('')
+    setError('')
+    disconnectClient()
   }
 
   async function send() {
@@ -78,9 +87,20 @@ export function ProgramQA({ programId }: { programId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 normal-case text-base text-slate-800 font-semibold">
-          <MessageCircleQuestion size={18} className="text-indigo-600" />
-          Ρωτήστε για το Πρόγραμμα
+        <CardTitle className="flex items-center justify-between gap-2 normal-case text-base text-slate-800 font-semibold">
+          <span className="flex items-center gap-2">
+            <MessageCircleQuestion size={18} className="text-indigo-600" />
+            Ρωτήστε για το Πρόγραμμα
+          </span>
+          {(messages.length > 0 || clientAfm) && (
+            <button
+              onClick={resetChat}
+              title="Εκκαθάριση συζήτησης — νέα επιχείρηση"
+              className="flex items-center gap-1 text-xs font-normal text-slate-400 hover:text-red-600 transition-colors"
+            >
+              <RotateCcw size={12} /> Νέα συζήτηση
+            </button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
