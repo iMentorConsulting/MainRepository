@@ -13,7 +13,7 @@ export async function POST(_req: NextRequest) {
 
   const businesses = await prisma.business.findMany({
     where: { iMentorServices: { isEmpty: false } },
-    select: { id: true, iMentorServices: true },
+    select: { id: true, iMentorServices: true, serviceExclusionOverrides: true },
   })
 
   const programs = await prisma.program.findMany({ select: { id: true, title: true } })
@@ -21,6 +21,7 @@ export async function POST(_req: NextRequest) {
 
   for (const business of businesses) {
     for (const program of programs) {
+      if (business.serviceExclusionOverrides.includes(program.id)) continue
       if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
         const { count } = await prisma.programMatch.deleteMany({
           where: { businessId: business.id, programId: program.id, status: 'POTENTIAL' },

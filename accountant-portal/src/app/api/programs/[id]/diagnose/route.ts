@@ -37,17 +37,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     else if (program.startDate && new Date() < program.startDate) reason = `Η περίοδος υποβολής αιτήσεων δεν έχει ξεκινήσει ακόμη (από ${program.startDate.toLocaleDateString('el-GR')}).`
     else if (program.endDate && new Date() > program.endDate) reason = `Η περίοδος υποβολής αιτήσεων έχει λήξει (έως ${program.endDate.toLocaleDateString('el-GR')}).`
     return NextResponse.json({
-      business: { afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
+      business: { id: business.id, afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
       overall: false,
       programClosed: true,
       results: [{ pass: false, criterion: 'Κατάσταση προγράμματος', detail: `${reason} Για αυτό το λόγο δεν δημιουργούνται matches, ακόμη κι αν η επιχείρηση πληροί όλα τα υπόλοιπα κριτήρια.` }],
     })
   }
 
-  // Check if the business has already received this service from I-MENTOR
-  if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
+  // Check if the business has already received this service from I-MENTOR —
+  // unless the consultant already bypassed the exclusion for this exact
+  // business+program (e.g. to let it re-apply).
+  if (businessAlreadyReceivedProgram(business.iMentorServices, program.title) && !business.serviceExclusionOverrides.includes(program.id)) {
     return NextResponse.json({
-      business: { afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
+      business: { id: business.id, afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
       overall: false,
       excludedByService: true,
       results: [{ pass: false, criterion: 'iMentorServices', detail: `Η επιχείρηση έχει ήδη λάβει την υπηρεσία "${business.iMentorServices.join(', ')}" από την I-MENTOR — εξαιρείται από αυτό το πρόγραμμα.` }],
@@ -58,7 +60,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   const overall = results.length === 0 || results.every(r => r.pass)
 
   return NextResponse.json({
-    business: { afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
+    business: { id: business.id, afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
     overall,
     results,
   })

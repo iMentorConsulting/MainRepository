@@ -163,6 +163,13 @@ model Business {
   notes                 String?
   tags                  String[]            @default([])
   iMentorServices       String[]            // services received from I-MENTOR (e.g. ΕΣΠΑ, ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ)
+  // Program IDs this business should still be matched against even though
+  // it already received that service (normally excluded by
+  // businessAlreadyReceivedProgram) — e.g. re-applying to Ταμείο
+  // Μικροπιστώσεων for a second round. Set via the "Έλεγχος Επιλεξιμότητας"
+  // diagnostic tool's bypass action; keeps the iMentorServices history
+  // intact rather than erasing it just to lift the exclusion.
+  serviceExclusionOverrides String[]        @default([])
   excludedFromCampaigns Boolean             @default(false)
   unsubscribeToken      String?             @unique @default(cuid())
   // Set once the "Βρέθηκαν διαθέσιμα προγράμματα" eligibility email (or an

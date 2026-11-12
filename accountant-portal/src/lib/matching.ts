@@ -361,7 +361,9 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
   })
 
   const alreadyReceivedBusinessIds = new Set(
-    businesses.filter(b => businessAlreadyReceivedProgram(b.iMentorServices, program.title)).map(b => b.id)
+    businesses
+      .filter(b => businessAlreadyReceivedProgram(b.iMentorServices, program.title) && !b.serviceExclusionOverrides.includes(program.id))
+      .map(b => b.id)
   )
   const candidates = businesses.filter(
     b => !isInactiveBusiness(b) && !alreadyReceivedBusinessIds.has(b.id)
@@ -552,7 +554,9 @@ export async function runMatchingForBusiness(businessId: string): Promise<{ matc
     }
 
     // Remove stale matches for programs the business has already received from I-MENTOR
-    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
+    // — unless the consultant explicitly bypassed that exclusion for this
+    // business+program (serviceExclusionOverrides), e.g. to re-apply.
+    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title) && !business.serviceExclusionOverrides.includes(program.id)) {
       await prisma.programMatch.deleteMany({
         where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL },
       })

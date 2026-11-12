@@ -167,7 +167,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
   // added tag (or a corrected legal form/ZIP/founding date) leaves stale
   // ProgramMatch rows that never get re-evaluated until the next program
   // edit or bulk rematch.
-  const matchingRelevantFields = ['tags', 'legalStatusDescr', 'postalZipCode', 'regdate', 'iMentorServices']
+  const matchingRelevantFields = ['tags', 'legalStatusDescr', 'postalZipCode', 'regdate', 'iMentorServices', 'serviceExclusionOverrides']
   const shouldRematch = Array.isArray(activities) || matchingRelevantFields.some(f => f in updateData)
   if (shouldRematch) {
     runMatchingForBusiness(business.id).catch(err => console.error('[Businesses] rematch after edit failed:', err?.message))

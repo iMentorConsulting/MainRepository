@@ -49,6 +49,7 @@ export default function ProgramDetailPage() {
   const [diagnosing, setDiagnosing] = useState(false)
   const [diagnoseError, setDiagnoseError] = useState('')
   const [diagnoseResult, setDiagnoseResult] = useState<any>(null)
+  const [bypassingService, setBypassingService] = useState(false)
   const isAdmin = session?.user?.role === 'ADMIN'
   const canDiagnose = isAdmin || session?.user?.role === 'CONSULTANT'
 
@@ -200,6 +201,28 @@ export default function ProgramDetailPage() {
       setDiagnoseError('Σφάλμα ελέγχου')
     } finally {
       setDiagnosing(false)
+    }
+  }
+
+  // Lets the business re-apply for this program despite having already
+  // received the service once (e.g. a second round of Ταμείο
+  // Μικροπιστώσεων) — triggers an immediate rematch so the override takes
+  // effect right away, then re-runs the diagnosis to confirm.
+  async function bypassServiceExclusion() {
+    if (!diagnoseResult?.business?.id) return
+    setBypassingService(true)
+    try {
+      const res = await fetch(`/api/businesses/${diagnoseResult.business.id}/service-exclusion-override`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ programId: id }),
+      })
+      if (res.ok) await runDiagnosis()
+      else setDiagnoseError('Η παράκαμψη απέτυχε')
+    } catch {
+      setDiagnoseError('Η παράκαμψη απέτυχε')
+    } finally {
+      setBypassingService(false)
     }
   }
 
@@ -508,6 +531,11 @@ export default function ProgramDetailPage() {
                         <span className="font-medium">{r.criterion}:</span> {r.detail}
                       </div>
                     ))}
+                    {diagnoseResult.excludedByService && (
+                      <Button size="sm" variant="outline" loading={bypassingService} onClick={bypassServiceExclusion}>
+                        Παράκαμψη — ας ξαναπροχωρήσει σε αυτό το πρόγραμμα
+                      </Button>
+                    )}
                   </div>
                 )}
               </CardContent>
