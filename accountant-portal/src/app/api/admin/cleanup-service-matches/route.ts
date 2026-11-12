@@ -16,11 +16,12 @@ export async function POST(_req: NextRequest) {
     select: { id: true, iMentorServices: true, serviceExclusionOverrides: true },
   })
 
-  const programs = await prisma.program.findMany({ select: { id: true, title: true } })
+  const programs = await prisma.program.findMany({ select: { id: true, title: true, category: true } })
   let removed = 0
 
   for (const business of businesses) {
     for (const program of programs) {
+      if (program.category === 'MICROCREDITS') continue // allowed to re-apply for a second round
       if (business.serviceExclusionOverrides.includes(program.id)) continue
       if (businessAlreadyReceivedProgram(business.iMentorServices, program.title)) {
         const { count } = await prisma.programMatch.deleteMany({

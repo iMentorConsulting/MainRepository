@@ -45,9 +45,14 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   // Check if the business has already received this service from I-MENTOR —
-  // unless the consultant already bypassed the exclusion for this exact
-  // business+program (e.g. to let it re-apply).
-  if (businessAlreadyReceivedProgram(business.iMentorServices, program.title) && !business.serviceExclusionOverrides.includes(program.id)) {
+  // Ταμείο Μικροπιστώσεων (MICROCREDITS) allows re-applying for a second
+  // round, and this is also skipped if the consultant already bypassed the
+  // exclusion for this exact business+program (e.g. to let it re-apply).
+  if (
+    program.category !== 'MICROCREDITS' &&
+    businessAlreadyReceivedProgram(business.iMentorServices, program.title) &&
+    !business.serviceExclusionOverrides.includes(program.id)
+  ) {
     return NextResponse.json({
       business: { id: business.id, afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },
       overall: false,

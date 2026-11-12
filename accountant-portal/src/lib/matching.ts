@@ -360,11 +360,17 @@ export async function runMatchingForProgram(programId: string): Promise<number> 
     include: { activities: true },
   })
 
-  const alreadyReceivedBusinessIds = new Set(
-    businesses
-      .filter(b => businessAlreadyReceivedProgram(b.iMentorServices, program.title) && !b.serviceExclusionOverrides.includes(program.id))
-      .map(b => b.id)
-  )
+  // Ταμείο Μικροπιστώσεων (and any other MICROCREDITS program) allows a
+  // business to re-apply for a second round even after already receiving
+  // the service — the "already received this service" exclusion below does
+  // not apply to that category.
+  const alreadyReceivedBusinessIds = program.category === 'MICROCREDITS'
+    ? new Set<string>()
+    : new Set(
+        businesses
+          .filter(b => businessAlreadyReceivedProgram(b.iMentorServices, program.title) && !b.serviceExclusionOverrides.includes(program.id))
+          .map(b => b.id)
+      )
   const candidates = businesses.filter(
     b => !isInactiveBusiness(b) && !alreadyReceivedBusinessIds.has(b.id)
   )
@@ -553,10 +559,15 @@ export async function runMatchingForBusiness(businessId: string): Promise<{ matc
       continue
     }
 
-    // Remove stale matches for programs the business has already received from I-MENTOR
-    // — unless the consultant explicitly bypassed that exclusion for this
-    // business+program (serviceExclusionOverrides), e.g. to re-apply.
-    if (businessAlreadyReceivedProgram(business.iMentorServices, program.title) && !business.serviceExclusionOverrides.includes(program.id)) {
+    // Remove stale matches for programs the business has already received
+    // from I-MENTOR — except Ταμείο Μικροπιστώσεων (MICROCREDITS), which
+    // allows re-applying for a second round, and any business the
+    // consultant explicitly bypassed this for (serviceExclusionOverrides).
+    if (
+      program.category !== 'MICROCREDITS' &&
+      businessAlreadyReceivedProgram(business.iMentorServices, program.title) &&
+      !business.serviceExclusionOverrides.includes(program.id)
+    ) {
       await prisma.programMatch.deleteMany({
         where: { programId: program.id, businessId, status: MatchStatus.POTENTIAL },
       })
