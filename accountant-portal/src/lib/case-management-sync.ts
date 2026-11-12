@@ -159,13 +159,7 @@ export async function notifyCaseManagementDocument(data: {
 // mapping/translation on either side. Never add a value that isn't one of
 // CM's own (WORKED deliberately left out — not offered to consultants), and
 // never rename one.
-//
-// 'ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ' is sent automatically by
-// /api/businesses/[id]/microcredits-plan/questionnaire the moment the
-// Microcredits questionnaire is emailed to a client — CM must support this
-// exact string as a lead status (see instructions given to the CM
-// developer) before this value starts arriving.
-export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL' | 'ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ'
+export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL'
 
 // Fired every time a consultant sends one of the client-facing emails from a
 // business's program match (program-info email, microcredits eligibility
@@ -261,6 +255,58 @@ export async function notifyCaseManagementCommunication(data: {
     return { delivered: true, found, created }
   } catch (err: any) {
     console.error(`[CaseManagement] communication.logged error for ΑΦΜ ${data.afm}:`, err?.message || err)
+    return { delivered: false }
+  }
+}
+
+// Unlike notifyCaseManagementCommunication (which updates a LEAD on CM's
+// Leads board), this updates the pipeline status of an existing CASE on
+// CM's Cases board — e.g. when the client is sent the Microcredits
+// questionnaire and the case should move to "waiting on the questionnaire".
+// CM is expected to find the case by ΑΦΜ + service (not externalRef — this
+// fires from flows that don't necessarily know the CM case ID) and set its
+// pipeline status to `status`. If no matching case is found, CM should do
+// nothing and reply { found: false } rather than create one.
+export async function notifyCaseManagementCaseStatus(data: {
+  afm: string
+  onomasia?: string | null
+  service: string // byte-for-byte match key, e.g. "Μικροπιστώσεις" — must match how CM's own case records store their service
+  status: string // the exact CM pipeline status string to set
+  comment?: string | null
+  occurredAt?: string | null
+}): Promise<{ delivered: boolean; found?: boolean }> {
+  const url = process.env.CASE_MGMT_WEBHOOK_URL
+  const apiKey = process.env.CASES_API_KEY
+  if (!url || !apiKey) return { delivered: false }
+
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey },
+      body: JSON.stringify({
+        event: 'case.status_update',
+        afm: data.afm,
+        onomasia: data.onomasia ?? null,
+        service: data.service,
+        status: data.status,
+        comment: data.comment ?? null,
+        occurredAt: data.occurredAt || new Date().toISOString(),
+      }),
+    })
+    const responseText = await res.text().catch(() => '')
+    if (!res.ok) {
+      console.error(`[CaseManagement] case.status_update failed for ΑΦΜ ${data.afm}: HTTP ${res.status} ${responseText}`)
+      return { delivered: false }
+    }
+    let found: boolean | undefined
+    try {
+      const body = JSON.parse(responseText)
+      if (typeof body?.found === 'boolean') found = body.found
+    } catch { /* non-JSON response, ignore */ }
+    console.log(`[CaseManagement] case.status_update OK for ΑΦΜ ${data.afm} → "${data.status}"${found === false ? ' (no matching case found)' : ''}`)
+    return { delivered: true, found }
+  } catch (err: any) {
+    console.error(`[CaseManagement] case.status_update error for ΑΦΜ ${data.afm}:`, err?.message || err)
     return { delivered: false }
   }
 }

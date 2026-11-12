@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { isKadCodeEligible } from '@/lib/kad-matching'
 import { sendEmail } from '@/lib/email'
 import { buildQuestionnaireEmailHtml } from '@/lib/microcredits-business-plan'
-import { notifyCaseManagementCommunication } from '@/lib/case-management-sync'
+import { notifyCaseManagementCaseStatus } from '@/lib/case-management-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -132,21 +132,14 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: 'Το ερωτηματολόγιο δημιουργήθηκε αλλά η αποστολή email απέτυχε.', questionnaire }, { status: 502 })
   }
 
-  // Flip the lead's status in Case Management so the team sees at a glance
-  // that this client is now waiting on the questionnaire, not forgotten.
-  notifyCaseManagementCommunication({
+  // Move the matching case on Case Management's Cases board to "waiting on
+  // the questionnaire" — not the Leads board.
+  notifyCaseManagementCaseStatus({
     afm: business.afm,
     onomasia: business.onomasia,
-    email: business.email,
-    phone: business.phone,
-    programTitle: program.title,
-    kind: 'MICROCREDITS',
-    channel: 'EMAIL',
-    subject: `Ερωτηματολόγιο για την αίτησή σας στο Ταμείο Μικροπιστώσεων`,
+    service: 'Μικροπιστώσεις',
+    status: 'Αναμονή Απάντησης Ερωτηματολογίου',
     comment: 'Εστάλη το ερωτηματολόγιο επιχειρηματικού σχεδίου Ταμείου Μικροπιστώσεων στον πελάτη.',
-    leadStatus: 'ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ',
-    sentByName: session.user.name,
-    sentByEmail: session.user.email,
   }).catch(() => {})
 
   return NextResponse.json({ questionnaire })
