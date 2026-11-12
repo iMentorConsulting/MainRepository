@@ -3,6 +3,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { buildQuestionnaireEmailHtml } from '@/lib/microcredits-business-plan'
+import { notifyCaseManagementCommunication } from '@/lib/case-management-sync'
 
 export const dynamic = 'force-dynamic'
 
@@ -25,7 +26,10 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   const questionnaire = await prisma.microcreditsQuestionnaire.findFirst({
     where: { businessId: params.id, programId },
     orderBy: { createdAt: 'desc' },
-    include: { business: { select: { onomasia: true, email: true } } },
+    include: {
+      business: { select: { afm: true, onomasia: true, email: true, phone: true } },
+      program: { select: { title: true } },
+    },
   })
   if (!questionnaire) return NextResponse.json({ error: 'Δεν βρέθηκε ερωτηματολόγιο' }, { status: 404 })
   if (!questionnaire.business.email) {
@@ -50,6 +54,21 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     where: { id: questionnaire.id },
     data: { lastReminderAt: new Date(), reminderCount: { increment: 1 } },
   })
+
+  notifyCaseManagementCommunication({
+    afm: questionnaire.business.afm,
+    onomasia: questionnaire.business.onomasia,
+    email: questionnaire.business.email,
+    phone: questionnaire.business.phone,
+    programTitle: questionnaire.program.title,
+    kind: 'MICROCREDITS',
+    channel: 'EMAIL',
+    subject: `Ερωτηματολόγιο για την αίτησή σας στο Ταμείο Μικροπιστώσεων`,
+    comment: 'Επαναστάλθηκε το ερωτηματολόγιο επιχειρηματικού σχεδίου Ταμείου Μικροπιστώσεων στον πελάτη.',
+    leadStatus: 'ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ',
+    sentByName: session.user.name,
+    sentByEmail: session.user.email,
+  }).catch(() => {})
 
   return NextResponse.json({ questionnaire: updated })
 }

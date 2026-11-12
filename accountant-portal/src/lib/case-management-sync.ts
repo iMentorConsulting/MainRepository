@@ -159,7 +159,13 @@ export async function notifyCaseManagementDocument(data: {
 // mapping/translation on either side. Never add a value that isn't one of
 // CM's own (WORKED deliberately left out — not offered to consultants), and
 // never rename one.
-export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL'
+//
+// 'ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ' is sent automatically by
+// /api/businesses/[id]/microcredits-plan/questionnaire the moment the
+// Microcredits questionnaire is emailed to a client — CM must support this
+// exact string as a lead status (see instructions given to the CM
+// developer) before this value starts arriving.
+export type CmLeadStatus = 'NEW LEAD' | 'CALL' | 'HOT' | 'ACTIVE' | 'DEAL' | 'CANCEL' | 'ΑΝΑΜΟΝΗ ΑΠΑΝΤΗΣΗΣ ΕΡΩΤΗΜΑΤΟΛΟΓΙΟΥ'
 
 // Fired every time a consultant sends one of the client-facing emails from a
 // business's program match (program-info email, microcredits eligibility
