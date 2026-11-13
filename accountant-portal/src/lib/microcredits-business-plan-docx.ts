@@ -29,6 +29,38 @@ function replaceSimple(xml: string, token: string, value: string): string {
   return xml.split(marker).join(escapeXml(value))
 }
 
+const RUN_STYLE = '<w:rFonts w:ascii="Trebuchet MS" w:eastAsia="Trebuchet MS" w:hAnsi="Trebuchet MS" w:cs="Trebuchet MS"/><w:sz w:val="20"/>'
+const RUN_STYLE_BOLD = `${RUN_STYLE}<w:b/><w:bCs/>`
+
+// A line is treated as a bold section/category label — not body text — when
+// it's either "Α. <τίτλος>" / "A. <τίτλος>" (the lettered-point style used
+// throughout section1_1/section2_1, matching the office's own examples
+// exactly: bold label, then a line break, then plain body text) or an
+// ALL-CAPS heading with no lowercase letters (the "ΛΕΙΤΟΥΡΓΙΚΑ ΕΞΟΔΑ (Χ%)" /
+// "ΠΑΓΙΑ (Χ%)" sub-headers used in the deterministic spending breakdown).
+function isLabelLine(line: string): boolean {
+  if (/^[Α-ΩA-Z]\.\s+\S/.test(line)) return true
+  if (/^[Α-ΩA-Z]/.test(line) && line.length <= 60 && !/[a-zα-ω]/.test(line)) return true
+  return false
+}
+
+// Builds the <w:r> runs for one paragraph's text, which may contain
+// embedded "\n" line breaks (rendered as <w:br/> within the SAME paragraph,
+// not separate Word paragraphs — e.g. a bold label line followed by body
+// text, or a header line followed by bullet sub-items). Each line after the
+// first is bold only if isLabelLine() says so (normally just the first).
+function buildParagraphRuns(text: string): string {
+  const lines = text.split('\n')
+  return lines
+    .map((line, i) => {
+      const style = isLabelLine(line) ? RUN_STYLE_BOLD : RUN_STYLE
+      const run = `<w:r><w:rPr>${style}</w:rPr><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r>`
+      const br = i < lines.length - 1 ? `<w:r><w:rPr>${RUN_STYLE}</w:rPr><w:br/></w:r>` : ''
+      return run + br
+    })
+    .join('')
+}
+
 // Finds the <w:p ...>...{{TOKEN}}...</w:p> paragraph, then replaces it with
 // one cloned paragraph (same opening tag + <w:pPr>, if any) per entry in
 // `lines`. An empty `lines` array removes the paragraph entirely.
@@ -62,10 +94,8 @@ function replaceMultiParagraph(xml: string, token: string, lines: string[], spac
     pPr = pPr ? pPr.replace('<w:pPr>', `<w:pPr>${spacingTag}`) : `<w:pPr>${spacingTag}</w:pPr>`
   }
 
-  const runStyle = '<w:rFonts w:ascii="Trebuchet MS" w:eastAsia="Trebuchet MS" w:hAnsi="Trebuchet MS" w:cs="Trebuchet MS"/><w:sz w:val="20"/>'
-
   const clonedParagraphs = lines
-    .map(line => `${openTag}${pPr}<w:r><w:rPr>${runStyle}</w:rPr><w:t xml:space="preserve">${escapeXml(line)}</w:t></w:r></w:p>`)
+    .map(line => `${openTag}${pPr}${buildParagraphRuns(line)}</w:p>`)
     .join('')
 
   return xml.slice(0, pStart) + clonedParagraphs + xml.slice(pEnd)

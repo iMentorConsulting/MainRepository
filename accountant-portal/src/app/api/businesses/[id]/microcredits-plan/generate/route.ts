@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
-import { generateBusinessPlanSections, computeProjections, type QuestionnaireQuestion } from '@/lib/microcredits-business-plan'
+import { generateBusinessPlanSections, computeProjections, buildTimelineSentence, buildExpenseBreakdownParagraphs, type QuestionnaireQuestion, type ExpenseBreakdown, type FixedAssetItem } from '@/lib/microcredits-business-plan'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +40,20 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     currentRevenue, currentEbitda, currentNetProfit, annualGrowthPct,
     loanAmount, workingCapitalAmount, fixedAssetsAmount,
     legalRepresentative, consultantNotes, owners,
+    operatingExpenseBreakdown, fixedAssetItems, implementationMonths,
   } = body
+
+  const breakdown: ExpenseBreakdown = {
+    emporeumata: Number(operatingExpenseBreakdown?.emporeumata) || 0,
+    analosima: Number(operatingExpenseBreakdown?.analosima) || 0,
+    deko: Number(operatingExpenseBreakdown?.deko) || 0,
+    enoikia: Number(operatingExpenseBreakdown?.enoikia) || 0,
+    loipa: Number(operatingExpenseBreakdown?.loipa) || 0,
+  }
+  const assetItems: FixedAssetItem[] = Array.isArray(fixedAssetItems)
+    ? fixedAssetItems.filter((i: any) => i?.description && Number(i.amount) > 0).map((i: any) => ({ description: String(i.description), amount: Number(i.amount) }))
+    : []
+  const months = Number.isFinite(Number(implementationMonths)) && Number(implementationMonths) > 0 ? Number(implementationMonths) : 24
 
   if (typeof programId !== 'string' || !programId) {
     return NextResponse.json({ error: 'Λείπει το πρόγραμμα' }, { status: 400 })
@@ -62,6 +75,15 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
   if (loanAmountNum > 0 && fixedAssetsNum / loanAmountNum > MAX_FIXED_ASSETS_PCT + 0.001) {
     return NextResponse.json({ error: `Τα πάγια δεν μπορούν να υπερβαίνουν το ${MAX_FIXED_ASSETS_PCT * 100}% του συνολικού δανείου` }, { status: 400 })
+  }
+
+  const breakdownTotal = breakdown.emporeumata + breakdown.analosima + breakdown.deko + breakdown.enoikia + breakdown.loipa
+  if (workingCapitalNum > 0 && breakdownTotal > 0 && Math.abs(breakdownTotal - workingCapitalNum) > 1) {
+    return NextResponse.json({ error: 'Η ανάλυση λειτουργικών δαπανών πρέπει να ισούται με το κεφάλαιο κίνησης' }, { status: 400 })
+  }
+  const assetItemsTotal = assetItems.reduce((sum, i) => sum + i.amount, 0)
+  if (fixedAssetsNum > 0 && assetItemsTotal > 0 && Math.abs(assetItemsTotal - fixedAssetsNum) > 1) {
+    return NextResponse.json({ error: 'Η ανάλυση παγίων πρέπει να ισούται με το ποσό παγίων' }, { status: 400 })
   }
 
   const business = await prisma.business.findUnique({
@@ -104,12 +126,25 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       loanAmount: loanAmountNum,
       workingCapitalAmount: workingCapitalNum,
       fixedAssetsAmount: fixedAssetsNum,
+      operatingExpenseBreakdown: breakdownTotal > 0 ? breakdown : null,
+      fixedAssetItems: assetItems.length > 0 ? assetItems : null,
       consultantNotes: consultantNotes || null,
     })
   } catch (err: any) {
     console.error('[Microcredits business plan] AI generation failed:', err?.message)
     return NextResponse.json({ error: 'Η δημιουργία του επιχειρηματικού σχεδίου απέτυχε.' }, { status: 500 })
   }
+
+  // Ε. Χρονοδιάγραμμα (2.1) and the whole of section 2.2 (ΠΙΝΑΚΑΣ ΔΑΠΑΝΩΝ)
+  // are built deterministically from the exact figures above, not by the AI.
+  const section2_1 = [...sections.section2_1, buildTimelineSentence(months)]
+  const section2_2 = buildExpenseBreakdownParagraphs({
+    loanAmount: loanAmountNum,
+    workingCapitalAmount: workingCapitalNum,
+    fixedAssetsAmount: fixedAssetsNum,
+    breakdown,
+    fixedAssetItems: assetItems,
+  })
 
   const plan = await prisma.microcreditsBusinessPlan.create({
     data: {
@@ -126,9 +161,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       legalRepresentative: legalRepresentative || null,
       consultantNotes: consultantNotes || null,
       owners: Array.isArray(owners) ? owners : undefined,
+      operatingExpenseBreakdown: breakdownTotal > 0 ? (breakdown as any) : undefined,
+      fixedAssetItems: assetItems.length > 0 ? (assetItems as any) : undefined,
+      implementationMonths: months,
       section1_1: sections.section1_1,
-      section2_1: sections.section2_1,
-      section2_2: sections.section2_2,
+      section2_1,
+      section2_2,
       generatedAt: new Date(),
     },
   })

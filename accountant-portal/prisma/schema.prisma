@@ -1636,9 +1636,24 @@ model MicrocreditsBusinessPlan {
   // representative at 100% for a sole proprietorship (ΑΤΟΜΙΚΗ ΕΠΙΧΕΙΡΗΣΗ);
   // the consultant edits/adds rows for other legal forms with shareholders.
   owners               Json?
+  // Analytical euro breakdown of workingCapitalAmount across the 5 standard
+  // operating-expense categories — rendered as explicit bullets in section
+  // 2.2 (ΠΙΝΑΚΑΣ ΔΑΠΑΝΩΝ) instead of vague AI prose, per the office's own
+  // filled examples. { emporeumata, analosima, deko, enoikia, loipa } — sums
+  // to workingCapitalAmount (not enforced at the DB level, checked in the UI).
+  operatingExpenseBreakdown Json?
+  // Itemized fixed-asset purchases ([{ description, amount }]), only
+  // meaningful when fixedAssetsAmount > 0 — sums to fixedAssetsAmount.
+  fixedAssetItems      Json?
+  // Standard implementation window stated verbatim in section 2.1's Ε.
+  // Χρονοδιάγραμμα — a short fixed sentence built in code (not AI-authored,
+  // which tended to add speculative claims), editable per case.
+  implementationMonths Int                        @default(24)
   // AI-drafted narrative, one entry per paragraph (rendered as separate Word
   // paragraphs in the final .docx, matching the lettered A./B./C. style of
-  // the office's own completed examples).
+  // the office's own completed examples). section2_2's spending-breakdown
+  // paragraph is built deterministically from operatingExpenseBreakdown/
+  // fixedAssetItems, not AI-authored, so the euro figures are always exact.
   section1_1           String[]                   @default([])
   section2_1           String[]                   @default([])
   section2_2           String[]                   @default([])

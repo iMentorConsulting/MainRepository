@@ -25,6 +25,21 @@ interface Owner {
   percentage: string
 }
 
+interface ExpenseBreakdown {
+  emporeumata: string
+  analosima: string
+  deko: string
+  enoikia: string
+  loipa: string
+}
+
+interface FixedAssetItem {
+  description: string
+  amount: string
+}
+
+const EMPTY_BREAKDOWN: ExpenseBreakdown = { emporeumata: '', analosima: '', deko: '', enoikia: '', loipa: '' }
+
 interface Question {
   id: string
   section: number
@@ -55,6 +70,9 @@ interface Plan {
   legalRepresentative: string | null
   consultantNotes: string | null
   owners: Owner[]
+  operatingExpenseBreakdown: ExpenseBreakdown | null
+  fixedAssetItems: FixedAssetItem[] | null
+  implementationMonths: number
   section1_1: string[]
   section2_1: string[]
   section2_2: string[]
@@ -94,6 +112,9 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
   const [legalRepresentative, setLegalRepresentative] = useState('')
   const [consultantNotes, setConsultantNotes] = useState('')
   const [owners, setOwners] = useState<Owner[]>([])
+  const [expenseBreakdown, setExpenseBreakdown] = useState<ExpenseBreakdown>(EMPTY_BREAKDOWN)
+  const [fixedAssetItems, setFixedAssetItems] = useState<FixedAssetItem[]>([])
+  const [implementationMonths, setImplementationMonths] = useState('24')
   const [generating, setGenerating] = useState(false)
 
   const [eligibleActivities, setEligibleActivities] = useState<Activity[] | null>(null)
@@ -119,6 +140,9 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
         if (p.plan) {
           setPlan(p.plan)
           setOwners(p.plan.owners && p.plan.owners.length > 0 ? p.plan.owners : [])
+          if (p.plan.operatingExpenseBreakdown) setExpenseBreakdown(p.plan.operatingExpenseBreakdown)
+          if (p.plan.fixedAssetItems && p.plan.fixedAssetItems.length > 0) setFixedAssetItems(p.plan.fixedAssetItems)
+          if (p.plan.implementationMonths) setImplementationMonths(String(p.plan.implementationMonths))
         }
         // Sole proprietorships only have one owner — the business itself —
         // so default the table to them at 100%, pre-filled from data we
@@ -142,6 +166,18 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
 
   function removeOwner(index: number) {
     setOwners(prev => prev.filter((_, i) => i !== index))
+  }
+
+  function addFixedAssetItem() {
+    setFixedAssetItems(prev => [...prev, { description: '', amount: '' }])
+  }
+
+  function updateFixedAssetItem(index: number, field: keyof FixedAssetItem, value: string) {
+    setFixedAssetItems(prev => prev.map((item, i) => i === index ? { ...item, [field]: value } : item))
+  }
+
+  function removeFixedAssetItem(index: number) {
+    setFixedAssetItems(prev => prev.filter((_, i) => i !== index))
   }
 
   async function saveAnswerCorrections() {
@@ -252,6 +288,12 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
   const fixedAssetsPct = loanAmountNum > 0 ? (fixedAssetsNum / loanAmountNum) * 100 : 0
   const fixedAssetsTooHigh = fixedAssetsPct > 40.1
 
+  const breakdownTotal = Object.values(expenseBreakdown).reduce((sum, v) => sum + (Number(v) || 0), 0)
+  const breakdownFilled = breakdownTotal > 0
+  const breakdownMismatch = breakdownFilled && Math.abs(breakdownTotal - workingCapitalNum) > 1
+  const assetItemsTotal = fixedAssetItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
+  const assetItemsMismatch = fixedAssetsNum > 0 && assetItemsTotal > 0 && Math.abs(assetItemsTotal - fixedAssetsNum) > 1
+
   async function generatePlan() {
     if (!currentRevenue || !currentEbitda || !currentNetProfit) {
       setError('Συμπληρώστε τα τρέχοντα οικονομικά στοιχεία.')
@@ -259,6 +301,14 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
     }
     if (fixedAssetsTooHigh) {
       setError('Τα πάγια δεν μπορούν να υπερβαίνουν το 40% του συνολικού δανείου.')
+      return
+    }
+    if (breakdownMismatch) {
+      setError('Η ανάλυση λειτουργικών δαπανών πρέπει να ισούται με το κεφάλαιο κίνησης.')
+      return
+    }
+    if (assetItemsMismatch) {
+      setError('Η ανάλυση παγίων πρέπει να ισούται με το ποσό παγίων.')
       return
     }
     setGenerating(true)
@@ -280,6 +330,9 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
           legalRepresentative: legalRepresentative.trim() || undefined,
           consultantNotes: consultantNotes.trim() || undefined,
           owners: owners.filter(o => o.surname || o.name || o.afm),
+          operatingExpenseBreakdown: breakdownFilled ? expenseBreakdown : undefined,
+          fixedAssetItems: fixedAssetItems.filter(i => i.description && Number(i.amount) > 0),
+          implementationMonths: Number(implementationMonths) || 24,
         }),
       })
       const data = await res.json().catch(() => ({}))
@@ -502,6 +555,56 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
                   </p>
 
                   <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">
+                      Ανάλυση Λειτουργικών Δαπανών (προαιρετικό — εμφανίζεται ως bullets στο 2.2, αλλιώς παραλείπεται)
+                    </label>
+                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
+                      {([['emporeumata', 'Εμπορεύματα'], ['analosima', 'Αναλώσιμα'], ['deko', 'ΔΕΚΟ'], ['enoikia', 'Ενοίκια'], ['loipa', 'Λοιπά']] as const).map(([key, label]) => (
+                        <div key={key}>
+                          <label className="text-[10px] text-gray-400 block mb-0.5">{label}</label>
+                          <input
+                            type="number"
+                            value={expenseBreakdown[key]}
+                            onChange={e => setExpenseBreakdown(prev => ({ ...prev, [key]: e.target.value }))}
+                            className="w-full rounded-lg border border-gray-300 px-2 py-1.5 text-xs"
+                          />
+                        </div>
+                      ))}
+                    </div>
+                    {breakdownFilled && (
+                      <p className={`text-xs mt-1 ${breakdownMismatch ? 'text-red-600' : 'text-gray-500'}`}>
+                        Σύνολο: {breakdownTotal.toLocaleString('el-GR')} € {breakdownMismatch && `(πρέπει να ισούται με το κεφάλαιο κίνησης: ${workingCapitalNum.toLocaleString('el-GR')} €)`}
+                      </p>
+                    )}
+                  </div>
+
+                  {fixedAssetsNum > 0 && (
+                    <div>
+                      <label className="text-xs font-medium text-gray-500 block mb-1">Ανάλυση Παγίων (είδος + κόστος)</label>
+                      <div className="space-y-1.5">
+                        {fixedAssetItems.map((item, i) => (
+                          <div key={i} className="grid grid-cols-[1fr_100px_auto] gap-1.5 items-center">
+                            <input type="text" placeholder="π.χ. Ψυγείο" value={item.description} onChange={e => updateFixedAssetItem(i, 'description', e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs" />
+                            <input type="number" placeholder="€" value={item.amount} onChange={e => updateFixedAssetItem(i, 'amount', e.target.value)} className="rounded-lg border border-gray-300 px-2 py-1.5 text-xs" />
+                            <button onClick={() => removeFixedAssetItem(i)} className="text-gray-300 hover:text-red-500"><X size={14} /></button>
+                          </div>
+                        ))}
+                        <button onClick={addFixedAssetItem} className="text-xs text-indigo-600 hover:text-indigo-700 font-medium">+ Προσθήκη είδους παγίου</button>
+                      </div>
+                      {fixedAssetItems.length > 0 && (
+                        <p className={`text-xs mt-1 ${assetItemsMismatch ? 'text-red-600' : 'text-gray-500'}`}>
+                          Σύνολο: {assetItemsTotal.toLocaleString('el-GR')} € {assetItemsMismatch && `(πρέπει να ισούται με τα πάγια: ${fixedAssetsNum.toLocaleString('el-GR')} €)`}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 block mb-1">Χρονοδιάγραμμα υλοποίησης (μήνες)</label>
+                    <input type="number" value={implementationMonths} onChange={e => setImplementationMonths(e.target.value)} className="w-full sm:w-32 rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                  </div>
+
+                  <div>
                     <label className="text-xs font-medium text-gray-500 block mb-1">Νόμιμος Εκπρόσωπος (προαιρετικό)</label>
                     <input type="text" value={legalRepresentative} onChange={e => setLegalRepresentative(e.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
                   </div>
@@ -531,7 +634,7 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
 
                   <button
                     onClick={generatePlan}
-                    disabled={generating || fixedAssetsTooHigh}
+                    disabled={generating || fixedAssetsTooHigh || breakdownMismatch || assetItemsMismatch}
                     className="w-full flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:opacity-60"
                   >
                     <FileText size={14} />
@@ -540,9 +643,9 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
 
                   {plan && (
                     <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 space-y-3 text-xs text-gray-700 max-h-64 overflow-y-auto">
-                      <div><strong>1.1 Συνοπτική Παρουσίαση:</strong>{plan.section1_1.map((p, i) => <p key={i} className="mt-1">{p}</p>)}</div>
-                      <div><strong>2.1 Γενική Περιγραφή:</strong>{plan.section2_1.map((p, i) => <p key={i} className="mt-1">{p}</p>)}</div>
-                      <div><strong>2.2 Πίνακας Δαπανών:</strong>{plan.section2_2.map((p, i) => <p key={i} className="mt-1">{p}</p>)}</div>
+                      <div><strong>1.1 Συνοπτική Παρουσίαση:</strong>{plan.section1_1.map((p, i) => <p key={i} className="mt-1 whitespace-pre-line">{p}</p>)}</div>
+                      <div><strong>2.1 Γενική Περιγραφή:</strong>{plan.section2_1.map((p, i) => <p key={i} className="mt-1 whitespace-pre-line">{p}</p>)}</div>
+                      <div><strong>2.2 Πίνακας Δαπανών:</strong>{plan.section2_2.map((p, i) => <p key={i} className="mt-1 whitespace-pre-line">{p}</p>)}</div>
                     </div>
                   )}
 
