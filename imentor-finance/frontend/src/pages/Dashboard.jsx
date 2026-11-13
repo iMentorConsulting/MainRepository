@@ -154,7 +154,7 @@ export default function Dashboard() {
       if (s.status === 'fulfilled') setSummary(s.value.data);
       if (m.status === 'fulfilled') setMonthly(m.value.data.map(d => ({ ...d, month: parseInt(d.month, 10), name: d.month_name?.slice(0, 3) || '' })));
       if (sv.status === 'fulfilled') setByService(sv.value.data.slice(0, 7));
-      if (ag.status === 'fulfilled') setByAgent(ag.value.data.slice(0, 6));
+      if (ag.status === 'fulfilled') setByAgent(ag.value.data);
       if (dp.status === 'fulfilled') setDeptData(dp.value.data);
     });
   }, [selectedYears, selectedMonths, dateFrom, dateTo]);
