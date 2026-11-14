@@ -129,6 +129,30 @@ export default function AccountantDetailPage() {
     }
   }
 
+  // One-off, global (not scoped to this accountant): Email 6 was added
+  // after many accountants had already been scheduled, so their
+  // onboarding sequence has no step-6 row at all and will never send it —
+  // this backfills ONLY the missing step 6, without touching any
+  // already-sent email 1-5.
+  async function backfillStep6() {
+    setOnboardingLoading(true)
+    setOnboardingMsg('')
+    try {
+      const res = await fetch('/api/admin/onboarding/backfill-step6', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error || 'Σφάλμα')
+      setOnboardingMsg(
+        data.backfilled > 0
+          ? `Προγραμματίστηκε το Email 6 για ${data.backfilled} λογιστές που το είχαν χάσει — θα σταλεί στο επόμενο πέρασμα του cron.`
+          : 'Όλοι οι λογιστές έχουν ήδη το Email 6 προγραμματισμένο/σταλμένο.'
+      )
+    } catch (err: any) {
+      setOnboardingMsg(err.message || 'Σφάλμα')
+    } finally {
+      setOnboardingLoading(false)
+    }
+  }
+
   async function onSubmit(data: FormData) {
     const res = await fetch(`/api/accountants/${id}`, {
       method: 'PUT',
@@ -318,6 +342,16 @@ export default function AccountantDetailPage() {
                 >
                   <RotateCcw size={13} />
                   Ενεργοποίηση σειράς + άμεση αποστολή Email 1
+                </button>
+
+                <button
+                  onClick={backfillStep6}
+                  disabled={onboardingLoading}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-semibold rounded-lg bg-amber-600 text-white hover:bg-amber-700 disabled:opacity-50"
+                  title="Αφορά ΟΛΟΥΣ τους λογιστές, όχι μόνο αυτόν — one-off backfill"
+                >
+                  <Send size={12} />
+                  Backfill Email 6 σε όλους όσους το έχασαν
                 </button>
 
                 {onboardingMsg && (
