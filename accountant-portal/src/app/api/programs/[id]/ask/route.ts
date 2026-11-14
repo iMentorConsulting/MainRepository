@@ -19,12 +19,24 @@ function pct(n: number | null | undefined): string | null {
   return n != null ? `${n.toLocaleString('el-GR')}%` : null
 }
 
-async function extractAttachmentText(dataUrl: string, name: string): Promise<string | null> {
-  if (!dataUrl.startsWith('data:')) return null
-  const commaIdx = dataUrl.indexOf(',')
-  if (commaIdx === -1) return null
+// Accepts either a legacy inline data: URL or — the normal case now — our
+// own "/api/programs/{id}/attachments/{fileId}" download route, in which
+// case the bytes are read straight from ProgramAttachmentFile (same
+// request, no HTTP round-trip) rather than fetched over the network.
+async function extractAttachmentText(url: string, name: string): Promise<string | null> {
+  let buffer: Buffer
+  if (url.startsWith('data:')) {
+    const commaIdx = url.indexOf(',')
+    if (commaIdx === -1) return null
+    buffer = Buffer.from(url.slice(commaIdx + 1), 'base64')
+  } else {
+    const match = url.match(/\/api\/programs\/[^/]+\/attachments\/([^/?]+)/)
+    if (!match) return null
+    const file = await prisma.programAttachmentFile.findUnique({ where: { id: match[1] } })
+    if (!file) return null
+    buffer = Buffer.from(file.data)
+  }
   try {
-    const buffer = Buffer.from(dataUrl.slice(commaIdx + 1), 'base64')
     const { PDFParse } = await import('pdf-parse')
     const path = await import('path')
     const { pathToFileURL } = await import('url')

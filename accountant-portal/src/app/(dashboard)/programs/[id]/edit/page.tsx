@@ -195,9 +195,10 @@ function TagInput({ label, values, onChange, placeholder, bulkImport, pdfImport,
   )
 }
 
-function AddLinkOrPdf({ onAddLink, onAddPdf }: {
+function AddLinkOrPdf({ programId, onAddLink, onAddPdf }: {
+  programId: string
   onAddLink: (title: string, url: string) => void
-  onAddPdf: (title: string, dataUrl: string) => void
+  onAddPdf: (title: string, url: string) => void
 }) {
   const [mode, setMode] = useState<'link' | 'pdf'>('link')
   const [title, setTitle] = useState('')
@@ -214,21 +215,38 @@ function AddLinkOrPdf({ onAddLink, onAddPdf }: {
     setUrl('')
   }
 
+  // Uploads straight to the server, which stores the bytes out-of-line
+  // (ProgramAttachmentFile) and hands back a real download URL — never a
+  // data: URL, which used to bloat every fetch of this program and which
+  // iOS Safari won't even apply a proper filename to.
   async function handlePdf(file: File | null) {
     if (!file) return
     if (!file.type.includes('pdf')) { alert('Παρακαλώ επιλέξτε αρχείο PDF.'); return }
     if (file.size > 20 * 1024 * 1024) { alert('Μέγιστο μέγεθος PDF: 20 MB.'); return }
     const t = title.trim() || file.name.replace(/\.pdf$/i, '')
     setUploading(true)
-    const reader = new FileReader()
-    reader.onload = e => {
-      onAddPdf(t, e.target?.result as string)
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = e => resolve(e.target?.result as string)
+        reader.onerror = () => reject(new Error('Σφάλμα ανάγνωσης αρχείου.'))
+        reader.readAsDataURL(file)
+      })
+      const res = await fetch(`/api/programs/${programId}/attachments`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: t, dataUrl }),
+      })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) throw new Error(data.error || 'Η αποστολή απέτυχε')
+      onAddPdf(t, data.url)
       setTitle('')
+    } catch (err: any) {
+      alert(err.message || 'Η αποστολή απέτυχε')
+    } finally {
       setUploading(false)
       if (fileRef.current) fileRef.current.value = ''
     }
-    reader.onerror = () => { alert('Σφάλμα ανάγνωσης αρχείου.'); setUploading(false) }
-    reader.readAsDataURL(file)
   }
 
   return (
@@ -959,13 +977,14 @@ export default function EditProgramPage() {
 
             {/* Add link */}
             <AddLinkOrPdf
+              programId={String(id)}
               onAddLink={(title, url) => {
                 setAttachmentNames([...attachmentNames, title])
                 setAttachmentUrls([...attachmentUrls, url])
               }}
-              onAddPdf={(title, dataUrl) => {
+              onAddPdf={(title, url) => {
                 setAttachmentNames([...attachmentNames, title])
-                setAttachmentUrls([...attachmentUrls, dataUrl])
+                setAttachmentUrls([...attachmentUrls, url])
               }}
             />
           </CardContent>

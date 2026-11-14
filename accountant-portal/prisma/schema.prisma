@@ -349,8 +349,17 @@ model Program {
   requireTags        String[]
   extraCriteriaIds   String[]
   videoUrls          String[]
+  // Manually-uploaded PDFs are NOT inlined here as base64 data: URLs — that
+  // used to bloat every fetch of this program (and the whole /programs list,
+  // which renders every program's attachments) with multi-MB strings,
+  // visibly slowing the app down, and iOS Safari doesn't honor the
+  // `download` attribute on data: URIs so the "file" it opens has no real
+  // name. Entries here are either an external URL (scraped programs) or
+  // "/api/programs/{id}/attachments/{fileId}" (manually uploaded — the
+  // actual bytes live in ProgramAttachmentFile, fetched only on download).
   attachmentUrls     String[]
   attachmentNames    String[]
+  attachmentFiles    ProgramAttachmentFile[]
   // Free-form important points that don't fit any structured field below.
   keyPoints          String[]
   // Array of { title: string, description: string } — actions/expenses the
@@ -400,6 +409,20 @@ model Program {
   requiredDocuments  ProgramDocument[]
   microcreditsQuestionnaires MicrocreditsQuestionnaire[]
   microcreditsBusinessPlans  MicrocreditsBusinessPlan[]
+}
+
+// Actual bytes of a manually-uploaded program PDF — kept out of the Program
+// row/API payload entirely so viewing/editing a program never ships
+// megabytes of base64 over the wire; fetched only by the dedicated download
+// route when someone actually opens the file.
+model ProgramAttachmentFile {
+  id        String   @id @default(cuid())
+  programId String
+  program   Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  name      String
+  mimeType  String   @default("application/pdf")
+  data      Bytes
+  createdAt DateTime @default(now())
 }
 
 enum ProgramCategory {

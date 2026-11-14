@@ -744,7 +744,29 @@ export default function ProgramsPage() {
   const [newDypaCount, setNewDypaCount] = useState(0)
   const [newAnaptyxiakosCount, setNewAnaptyxiakosCount] = useState(0)
   const [rematchingAll, setRematchingAll] = useState(false)
+  const [migratingAttachments, setMigratingAttachments] = useState(false)
   const isAdmin = session?.user?.role === 'ADMIN'
+
+  // One-off: moves any PDF still inlined as a base64 data: URL (from before
+  // uploads went through /api/programs/[id]/attachments) out of the
+  // Program row — those multi-MB strings were shipped on every fetch of
+  // this page and of each program, which is what was slowing things down,
+  // and iOS Safari doesn't apply a real filename to a data: URL anyway.
+  async function migrateAttachments() {
+    setMigratingAttachments(true)
+    try {
+      const res = await fetch('/api/admin/migrate-program-attachments', { method: 'POST' })
+      const data = await res.json()
+      if (!res.ok) { alert(data.error || 'Σφάλμα'); return }
+      alert(data.filesMigrated > 0
+        ? `Μετακινήθηκαν ${data.filesMigrated} αρχεία (${data.megabytesMoved} MB) από ${data.programsMigrated} προγράμματα.`
+        : 'Δεν βρέθηκαν παλαιά ενσωματωμένα αρχεία — δεν χρειάζεται τίποτα.')
+    } catch {
+      alert('Σφάλμα δικτύου')
+    } finally {
+      setMigratingAttachments(false)
+    }
+  }
 
   async function rematchAllPrograms() {
     if (!confirm('Επανα-ταίριασμα ΟΛΩΝ των ενεργών προγραμμάτων με ΟΛΕΣ τις επιχειρήσεις; Μπορεί να πάρει λίγο χρόνο.')) return
@@ -823,6 +845,10 @@ export default function ProgramsPage() {
             <Button variant="outline" onClick={rematchAllPrograms} disabled={rematchingAll} className="gap-1.5">
               <RefreshCw size={14} className={rematchingAll ? 'animate-spin' : ''} />
               {rematchingAll ? 'Ταίριασμα…' : 'Rematch Όλα'}
+            </Button>
+            <Button variant="outline" onClick={migrateAttachments} disabled={migratingAttachments} className="gap-1.5">
+              <RefreshCw size={14} className={migratingAttachments ? 'animate-spin' : ''} />
+              {migratingAttachments ? 'Βελτιστοποίηση…' : 'Βελτιστοποίηση Συνημμένων'}
             </Button>
             <Link href="/programs/new">
               <Button><Plus size={16} className="mr-2" />Νέο Πρόγραμμα</Button>
