@@ -34,7 +34,6 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     let reason = 'Το πρόγραμμα δεν είναι ενεργό.'
     if (!program.active) reason = 'Το πρόγραμμα είναι ανενεργό (active = false).'
     else if (program.archived) reason = 'Το πρόγραμμα είναι αρχειοθετημένο.'
-    else if (program.startDate && new Date() < program.startDate) reason = `Η περίοδος υποβολής αιτήσεων δεν έχει ξεκινήσει ακόμη (από ${program.startDate.toLocaleDateString('el-GR')}).`
     else if (program.endDate && new Date() > program.endDate) reason = `Η περίοδος υποβολής αιτήσεων έχει λήξει (έως ${program.endDate.toLocaleDateString('el-GR')}).`
     return NextResponse.json({
       business: { id: business.id, afm: business.afm, onomasia: business.onomasia, legalStatusDescr: business.legalStatusDescr, postalZipCode: business.postalZipCode, regdate: business.regdate },

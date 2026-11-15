@@ -237,11 +237,13 @@ function matchesBusiness(
 // A program is "open" (eligible to receive/keep matches) only if:
 //  1. active = true
 //  2. archived = false
-//  3. today falls within startDate..endDate (either bound may be null = open-ended)
+//  3. endDate hasn't passed yet (null = open-ended)
+// startDate does NOT gate matching — a program matches regardless of
+// whether startDate is empty or still in the future. Only endDate (once
+// passed) makes a program unavailable for matching.
 export function isProgramOpen(program: { active: boolean; archived: boolean; startDate: Date | null; endDate: Date | null }): boolean {
   if (!program.active || program.archived) return false
   const now = new Date()
-  if (program.startDate && now < program.startDate) return false
   if (program.endDate && now > program.endDate) return false
   return true
 }
