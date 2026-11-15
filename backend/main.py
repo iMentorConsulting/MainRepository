@@ -41,6 +41,7 @@ from routes.cm_message_templates import router as cm_message_templates_router
 from routes.cm_doc_library import router as cm_doc_library_router
 from routes.cm_case_doc_checklist import router as cm_case_doc_checklist_router
 from routes.cm_settings import router as cm_settings_router
+from routes.cm_lead_assignment import router as cm_lead_assignment_router
 
 load_dotenv()
 
@@ -1085,6 +1086,7 @@ app.include_router(cm_message_templates_router)
 app.include_router(cm_doc_library_router)
 app.include_router(cm_case_doc_checklist_router)
 app.include_router(cm_settings_router)
+app.include_router(cm_lead_assignment_router)
 
 
 try:
@@ -1100,6 +1102,25 @@ try:
         _conn.commit()
 except Exception as _e:
     print(f"[migration] cm_import_blocklist create skipped: {_e}", flush=True)
+
+try:
+    with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_leads ADD COLUMN IF NOT EXISTS auto_assigned_at TIMESTAMP"))
+        _conn.execute(_text("""
+            CREATE TABLE IF NOT EXISTS cm_lead_assignment_rules (
+                id SERIAL PRIMARY KEY,
+                program_category VARCHAR(100),
+                consultant_id INTEGER NOT NULL REFERENCES cm_users(id) ON DELETE CASCADE,
+                weight INTEGER NOT NULL DEFAULT 1,
+                is_active BOOLEAN NOT NULL DEFAULT TRUE,
+                assignment_count INTEGER NOT NULL DEFAULT 0,
+                sort_order INTEGER DEFAULT 0,
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_lead_assignment_rules create skipped: {_e}", flush=True)
 
 try:
     with engine.connect() as _conn:

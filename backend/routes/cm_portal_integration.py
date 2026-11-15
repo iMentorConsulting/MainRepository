@@ -375,6 +375,121 @@ def _upsert_business_profile(db: Session, data: dict) -> Optional[CMBusinessProf
     return profile
 
 
+def _auto_accept_portal_assignment(assignment, target_user, db: Session):
+    """Auto-accept a CMPortalAssignment using the same logic as the manual accept endpoint."""
+    import re as _re2
+    from datetime import date as _date
+    from models_cases import CMLead
+    from routes.cm_leads import (normalize_afm, clean_email, clean_phone,
+                                 find_gemi_lead, program_category_from_title,
+                                 is_valid_program_title, _GEMI_STATUS_RANK)
+
+    today = _date.today()
+    link_tmpl = os.getenv("LOGISTIS_CASE_LINK_TEMPLATE", "https://logistis.i-mentor.gr/cases/{case_number}")
+    portal_link = (link_tmpl.replace("{case_number}", str(assignment.case_number))
+                   if assignment.case_number is not None else None)
+    afm = normalize_afm(assignment.afm)
+
+    _raw_prog_title = (assignment.program_exact_title or "").strip()
+    prog_title = _raw_prog_title if is_valid_program_title(_raw_prog_title) else None
+    if not prog_title and assignment.description and "—" in assignment.description:
+        extracted = assignment.description.split("—", 1)[-1].strip()
+        if len(extracted) > 5:
+            prog_title = extracted
+    if not prog_title and (assignment.program_title or "").strip() and len((assignment.program_title or "").strip()) > 10:
+        prog_title = assignment.program_title.strip()
+    prog_cat = program_category_from_title(prog_title) or _map_program_category(assignment.program_title)
+
+    _TRANSCRIPT_SEP = "--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---"
+    _desc_summary = assignment.description or ""
+    _desc_transcript = None
+    if assignment.description and _TRANSCRIPT_SEP in assignment.description:
+        _parts = assignment.description.split(_TRANSCRIPT_SEP, 1)
+        _desc_summary = _parts[0].strip()
+        _desc_transcript = _parts[1].strip() if len(_parts) > 1 else None
+
+    existing = find_gemi_lead(db, afm, program_title=prog_title, program_category=prog_cat)
+    _matched_existing = False
+
+    if not existing and afm:
+        _cands = db.query(CMLead).filter(
+            CMLead.afm == afm,
+            CMLead.status.notin_(["CANCEL", "DEAL"]),
+        ).order_by(CMLead.id.asc()).all()
+        if prog_title:
+            _pt = prog_title.strip().lower()
+            _by_title = [l for l in _cands if (l.program_title or "").strip().lower() == _pt]
+            if _by_title:
+                existing = max(_by_title, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
+        if not existing and prog_cat and _cands:
+            _by_cat = [l for l in _cands if (l.program or "") == prog_cat]
+            if _by_cat:
+                existing = max(_by_cat, key=lambda l: _GEMI_STATUS_RANK.get(l.status or "", 0))
+        if existing:
+            _matched_existing = True
+
+    _notes_upper = (_desc_summary or "").upper()
+    if existing:
+        lead = existing
+        new_status = "HOT" if assignment.ermis_completed else "NEW LEAD"
+        if _GEMI_STATUS_RANK.get(lead.status or "", 0) < _GEMI_STATUS_RANK.get(new_status, 0):
+            lead.status = new_status
+        elif _matched_existing:
+            lead.status = new_status
+        lead.assigned_agent_id = target_user.id
+        lead.assigned_name = target_user.full_name
+        lead.auto_assigned_at = datetime.utcnow()
+        lead.name = lead.name or assignment.onomasia or f"ΓΕΜΗ {afm}"
+        lead.phone = lead.phone or clean_phone(assignment.phone)
+        lead.email = lead.email or clean_email(assignment.email)
+        lead.program = lead.program or prog_cat
+        lead.program_title = lead.program_title or prog_title
+        lead.service_type = lead.service_type or prog_title or _map_service_type(assignment.program_title) or assignment.case_type
+        _all_text = " ".join(filter(None, [lead.notes, _desc_summary])).upper()
+        if _re2.search(r'\bFB\b', _all_text):
+            lead.source = "Facebook"
+        elif _re2.search(r'\bTIKTOK\b', _all_text):
+            lead.source = "TikTok"
+        elif not _matched_existing:
+            lead.source = lead.source or ("LOGISTIS ΓΕΜΗ" if assignment.ermis_completed else "LOGISTIS")
+        lead.notes = lead.notes or _desc_summary or None
+        lead.ermis_transcript = lead.ermis_transcript or _desc_transcript
+        lead.next_call_date = lead.next_call_date or today
+        lead.portal_case_number = assignment.case_number
+        lead.portal_case_link = portal_link
+        lead.accountant_office = assignment.accountant_office or lead.accountant_office
+    else:
+        lead = CMLead(
+            name=assignment.onomasia or assignment.afm or f"Ανάθεση #{assignment.case_number}",
+            afm=afm,
+            phone=clean_phone(assignment.phone),
+            email=clean_email(assignment.email),
+            program=prog_cat,
+            program_title=prog_title,
+            service_type=prog_title or _map_service_type(assignment.program_title) or assignment.case_type,
+            status="HOT" if assignment.ermis_completed else "NEW LEAD",
+            assigned_agent_id=target_user.id,
+            assigned_name=target_user.full_name,
+            auto_assigned_at=datetime.utcnow(),
+            source=("Facebook" if _re2.search(r'\bFB\b', _notes_upper)
+                    else "TikTok" if _re2.search(r'\bTIKTOK\b', _notes_upper)
+                    else ("LOGISTIS ΓΕΜΗ" if assignment.ermis_completed else "LOGISTIS")),
+            notes=_desc_summary or None,
+            ermis_transcript=_desc_transcript,
+            next_call_date=today,
+            portal_case_number=assignment.case_number,
+            portal_case_link=portal_link,
+            accountant_office=assignment.accountant_office,
+        )
+        db.add(lead)
+
+    db.flush()
+    assignment.status = "auto-accepted"
+    assignment.cm_lead_id = lead.id
+    assignment.resolved_at = datetime.utcnow()
+    db.commit()
+
+
 def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
     assignment = CMPortalAssignment(
         case_number=payload.caseNumber,
@@ -426,6 +541,22 @@ def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
             req.case_number = payload.caseNumber
             req.cm_assignment_id = assignment.id
             db.commit()
+
+    # Auto-assign: if assignment rules are configured for this program, accept immediately
+    _prog_cat_for_assign = _map_program_category(payload.programTitle)
+    try:
+        from routes.cm_lead_assignment import pick_consultant_from_rules
+        auto_consultant = pick_consultant_from_rules(_prog_cat_for_assign, db)
+        if auto_consultant:
+            _auto_accept_portal_assignment(assignment, auto_consultant, db)
+            log.info(
+                "[portal-webhook] case.created auto-accepted assignment_id=%s → consultant=%s",
+                assignment.id, auto_consultant.full_name,
+            )
+            return {"message": "OK", "id": assignment.id, "auto_accepted": True,
+                    "assigned_to": auto_consultant.full_name}
+    except Exception as _exc:
+        log.error("[portal-webhook] auto-assign failed for assignment %s: %s", assignment.id, _exc)
 
     return {"message": "OK", "id": assignment.id}
 

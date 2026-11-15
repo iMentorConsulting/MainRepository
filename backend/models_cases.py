@@ -671,6 +671,9 @@ class CMLead(Base):
     finance_sent_at = Column(DateTime, nullable=True)
     finance_amount_sent = Column(Float, nullable=True)
 
+    # Auto-assignment
+    auto_assigned_at = Column(DateTime, nullable=True)
+
     # Accountant office that referred this lead via LOGISTIS (null = direct client)
     accountant_office = Column(String(200), nullable=True)
 
@@ -956,3 +959,18 @@ class CMAppSetting(Base):
     key = Column(String(100), unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)  # JSON string
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
+class CMLeadAssignmentRule(Base):
+    __tablename__ = "cm_lead_assignment_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    program_category = Column(String(100), nullable=True)   # None = catch-all for any program
+    consultant_id = Column(Integer, ForeignKey("cm_users.id"), nullable=False)
+    weight = Column(Integer, default=1, nullable=False)      # relative weight for round-robin
+    is_active = Column(Boolean, default=True, nullable=False)
+    assignment_count = Column(Integer, default=0, nullable=False)  # tracks round-robin position
+    sort_order = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    consultant = relationship("CMUser", foreign_keys=[consultant_id])

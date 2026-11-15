@@ -29,6 +29,7 @@ import {
 import { changePassword, getMyPayrollTargets } from '../api'
 import toast from 'react-hot-toast'
 import PortalAssignmentAlert from './PortalAssignmentAlert'
+import AutoAssignNotification from './AutoAssignNotification'
 
 const nav = [
   { to: '/', label: 'Dashboard', Icon: HomeIcon, exact: true, adminOnly: true },
@@ -54,6 +55,7 @@ const nav = [
   { to: '/message-templates', label: 'Πρότυπα Μηνυμάτων', Icon: DocumentTextIcon },
   { to: '/doc-library', label: 'Βιβλιοθήκη Δικαιολογητικών', Icon: BookOpenIcon },
   { to: '/service-types-admin', label: 'Τύποι Υπηρεσιών', Icon: AdjustmentsHorizontalIcon, adminOnly: true },
+  { to: '/lead-assignment-rules', label: 'Κανόνες Ανάθεσης', Icon: AdjustmentsHorizontalIcon, adminOnly: true },
 ]
 
 function ChangePasswordModal({ onClose }) {
@@ -145,6 +147,7 @@ export default function Layout({ auth, onLogout }) {
   return (
     <div className="min-h-screen bg-gray-50 flex">
       <PortalAssignmentAlert />
+      <AutoAssignNotification />
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-40 w-64 bg-[#1e3a5f] text-white flex flex-col transition-transform duration-300

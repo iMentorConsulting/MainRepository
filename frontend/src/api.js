@@ -352,4 +352,12 @@ export const putServiceTypeGroups = (data) => api.put('/api/cm/settings/service-
 export const getSettingList = (key) => api.get(`/api/cm/settings/list/${key}`).then(r => r.data)
 export const putSettingList = (key, data) => api.put(`/api/cm/settings/list/${key}`, data).then(r => r.data)
 
+// Lead Assignment Rules
+export const getAssignmentRules = () => api.get('/api/cm/lead-assignment/rules').then(r => r.data)
+export const saveAssignmentRules = (rules) => api.put('/api/cm/lead-assignment/rules', { rules }).then(r => r.data)
+export const resetAssignmentCounts = (program_category) =>
+  api.post(`/api/cm/lead-assignment/reset-counts${program_category !== undefined ? `?program_category=${encodeURIComponent(program_category ?? '')}` : ''}`).then(r => r.data)
+export const getMyAutoAssignNotifications = (since) =>
+  api.get(`/api/cm/lead-assignment/my-notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`).then(r => r.data)
+
 export default api
