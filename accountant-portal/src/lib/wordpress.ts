@@ -236,13 +236,13 @@ function replaceImxHtmlWidget(nodes: any[], html: string): boolean {
 
 // Best-effort cache purge through our custom endpoint (see
 // docs/wp-snippets/logistis-purge-cache.php). Never throws.
-async function purgeWpPageCache(pageId: number): Promise<boolean> {
+async function purgeWpPageCache(pageId: number, all = false): Promise<boolean> {
   if (!WP_URL || !WP_USER || !WP_PASS) return false
   try {
     const res = await fetch(`${WP_URL}/wp-json/logistis/v1/purge-cache`, {
       method: 'POST',
       headers: { Authorization: wpAuth(), 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pageId }),
+      body: JSON.stringify({ pageId, all }),
     })
     return res.ok
   } catch { return false }
@@ -283,6 +283,8 @@ export interface UpdateWpPageResult {
   // The plain public URL serves it too. false while live=true means a page cache is serving the old version.
   liveCached: boolean | null
   purged: boolean
+  // A full-site cache purge was needed (and attempted) because the per-page purge wasn't enough.
+  purgedAll: boolean
   // What the cache-busted public URL actually returned (for diagnosing live=false).
   probe: PageProbe | null
 }
@@ -346,10 +348,17 @@ export async function updateWpPageHtml(pageId: number, opts: {
   const purged = await purgeWpPageCache(pageId)
   const link: string = after.link
   const sep = link.includes('?') ? '&' : '?'
-  const probe = await probePage(`${link}${sep}imxv=${stamp}&nocache=${Date.now()}`, stamp)
+  const check = () => probePage(`${link}${sep}imxv=${stamp}&nocache=${Date.now()}`, stamp)
+  let probe = await check()
+  let purgedAll = false
+  // Still the old HTML → escalate to a full cache purge once and re-check.
+  if (probe && !probe.hasStamp && purged) {
+    purgedAll = await purgeWpPageCache(pageId, true)
+    if (purgedAll) { await new Promise(r => setTimeout(r, 1500)); probe = await check() }
+  }
   const live = probe ? probe.hasStamp : null
   const liveCached = live ? (await probePage(link, stamp))?.hasStamp ?? null : null
-  return { id: pageId, link, stored, live, liveCached, purged, probe }
+  return { id: pageId, link, stored, live, liveCached, purged, purgedAll, probe }
 }
 
 // Upload a file to the WP media library (idempotent per slug) and return its

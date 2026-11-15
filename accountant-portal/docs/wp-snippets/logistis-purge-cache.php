@@ -30,6 +30,19 @@ add_action('rest_api_init', function () {
       if (function_exists('sg_cachepress_purge_cache')) sg_cachepress_purge_cache($url);
       do_action('wpfc_clear_post_cache_by_id', false, $id);
       if (class_exists('autoptimizeCache')) { \autoptimizeCache::clearall(); }
+      // Escalation: the portal asks for a full purge when a per-page purge was not enough.
+      if ($req->get_param('all')) {
+        if (function_exists('wp_cache_flush')) wp_cache_flush();
+        do_action('litespeed_purge_all');
+        if (function_exists('rocket_clean_domain')) rocket_clean_domain();
+        if (function_exists('w3tc_flush_all')) w3tc_flush_all();
+        if (function_exists('wp_cache_clear_cache')) wp_cache_clear_cache();
+        do_action('wpfc_clear_all_cache');
+        do_action('breeze_clear_all_cache');
+        do_action('cache_enabler_clear_site_cache');
+        if (function_exists('sg_cachepress_purge_cache')) sg_cachepress_purge_cache();
+        if (class_exists('\Elementor\Plugin')) { try { \Elementor\Plugin::$instance->files_manager->clear_cache(); } catch (\Throwable $e) {} }
+      }
       return ['ok' => true];
     },
   ]);

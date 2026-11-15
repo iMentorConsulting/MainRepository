@@ -525,6 +525,8 @@ export default function EditProgramPage() {
             if (!pr.hasImx) why = 'η δημόσια σελίδα ΔΕΝ περιέχει καθόλου το HTML του template (σερβίρεται άλλο περιεχόμενο/layout)'
             else if (pr.otherStamp) why = 'σερβίρεται παλαιότερο συγχρονισμένο αντίγραφο (cache)'
             else why = 'σερβίρεται η παλιά (v1) έκδοση — cache που αγνοεί το query string ή Elementor cache'
+            if (!data.purged) why += ' — το snippet «logistis-purge-cache» ΔΕΝ είναι ενεργό στο WP, οπότε δεν έγινε purge'
+            else if (data.purgedAll) why += ' — έγινε και πλήρες purge αλλά η σελίδα παραμένει παλιά (το πρόβλημα δεν είναι τα cache plugins που καθαρίζει το snippet)'
             why += ` [HTTP ${pr.status}${pr.cacheHeaders ? '; ' + pr.cacheHeaders : ''}]`
           }
           msg = `Αποθηκεύτηκε στο WordPress αλλά η δημόσια σελίδα δεν δείχνει το νέο περιεχόμενο: ${why}.`
