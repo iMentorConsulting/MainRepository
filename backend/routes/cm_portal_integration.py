@@ -532,8 +532,13 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         by_title = [l for l in candidates if (l.program_title or "").strip().lower() == pt]
         if by_title:
             lead = by_title[0]
+        # If programTitle was provided but didn't match, do NOT fall back to
+        # prog_cat — a different programTitle means a different program, so a
+        # new lead must be created even when prog_cat is the same broad category.
 
-    if lead is None and prog_cat and candidates:
+    if lead is None and not payload.programTitle and prog_cat and candidates:
+        # Only fall back to program-category matching when no programTitle was
+        # sent (Logistis gave us no title to distinguish programs).
         by_cat = [l for l in candidates if (l.program or "") == prog_cat]
         if by_cat:
             lead = by_cat[0]
