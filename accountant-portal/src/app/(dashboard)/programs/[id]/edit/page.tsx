@@ -519,7 +519,15 @@ export default function EditProgramPage() {
           msg = 'Αποθηκεύτηκε, αλλά ένα page cache σερβίρει ακόμα την παλιά έκδοση — καθάρισε το cache (ή εγκατάστησε το snippet logistis-purge-cache).'
           ok = false
         } else if (data.live === false) {
-          msg = 'Αποθηκεύτηκε στο WordPress αλλά η δημόσια σελίδα δεν δείχνει ακόμα το νέο περιεχόμενο (cache ή διαφορετικό περιεχόμενο που σερβίρεται).'
+          const pr = data.probe
+          let why = 'cache ή διαφορετικό περιεχόμενο που σερβίρεται'
+          if (pr) {
+            if (!pr.hasImx) why = 'η δημόσια σελίδα ΔΕΝ περιέχει καθόλου το HTML του template (σερβίρεται άλλο περιεχόμενο/layout)'
+            else if (pr.otherStamp) why = 'σερβίρεται παλαιότερο συγχρονισμένο αντίγραφο (cache)'
+            else why = 'σερβίρεται η παλιά (v1) έκδοση — cache που αγνοεί το query string ή Elementor cache'
+            why += ` [HTTP ${pr.status}${pr.cacheHeaders ? '; ' + pr.cacheHeaders : ''}]`
+          }
+          msg = `Αποθηκεύτηκε στο WordPress αλλά η δημόσια σελίδα δεν δείχνει το νέο περιεχόμενο: ${why}.`
           ok = false
         } else if (data.live === null) {
           msg = 'Αποθηκεύτηκε στο WordPress (δεν ήταν δυνατός ο έλεγχος της δημόσιας σελίδας).'

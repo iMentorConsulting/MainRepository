@@ -38,7 +38,7 @@ export async function POST(
       ogImageUrl: program.heroImageUrl ?? undefined,
     })
     await prisma.program.update({ where: { id }, data: { wpPageUrl: result.link } })
-    return NextResponse.json({ ok: true, wpPageId: result.id, wpPageUrl: result.link, warnings: rendered.warnings, stored: result.stored, live: result.live, liveCached: result.liveCached, purged: result.purged })
+    return NextResponse.json({ ok: true, wpPageId: result.id, wpPageUrl: result.link, warnings: rendered.warnings, stored: result.stored, live: result.live, liveCached: result.liveCached, purged: result.purged, probe: result.probe })
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err)
     console.error('[WP] update-wp-page failed:', msg)

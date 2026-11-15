@@ -248,11 +248,28 @@ async function purgeWpPageCache(pageId: number): Promise<boolean> {
   } catch { return false }
 }
 
-async function pageHasStamp(url: string, stamp: string): Promise<boolean | null> {
+export interface PageProbe {
+  status: number
+  hasStamp: boolean
+  hasImx: boolean          // the page contains an imx-page wrapper (any version)
+  otherStamp: string | null // a different (older) render stamp found on the page
+  cacheHeaders: string      // cache-related response headers, e.g. "cf-cache-status=HIT; age=312"
+}
+
+async function probePage(url: string, stamp: string): Promise<PageProbe | null> {
   try {
-    const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache', 'User-Agent': 'Mozilla/5.0 (compatible; imentor-sync-check)' }, redirect: 'follow' })
-    if (!res.ok) return null
-    return (await res.text()).includes(stamp)
+    const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache', Pragma: 'no-cache', 'User-Agent': 'Mozilla/5.0 (compatible; imentor-sync-check)' }, redirect: 'follow' })
+    const html = await res.text()
+    const names = ['server', 'age', 'cf-cache-status', 'x-cache', 'x-litespeed-cache', 'x-lscache', 'x-wp-rocket', 'x-sg-cache', 'x-cache-status', 'x-proxy-cache', 'x-varnish', 'x-powered-by', 'cache-control']
+    const cacheHeaders = names.map(n => [n, res.headers.get(n)] as const).filter(([, v]) => v).map(([n, v]) => `${n}=${v}`).join('; ')
+    const m = html.match(/data-imx-render="(r[a-z0-9]+)"/)
+    return {
+      status: res.status,
+      hasStamp: html.includes(stamp),
+      hasImx: html.includes('imx-page'),
+      otherStamp: m && m[1] !== stamp ? m[1] : null,
+      cacheHeaders,
+    }
   } catch { return null }
 }
 
@@ -266,6 +283,8 @@ export interface UpdateWpPageResult {
   // The plain public URL serves it too. false while live=true means a page cache is serving the old version.
   liveCached: boolean | null
   purged: boolean
+  // What the cache-busted public URL actually returned (for diagnosing live=false).
+  probe: PageProbe | null
 }
 
 // Update an existing program page IN PLACE (same page ID, slug, status, menu
@@ -327,9 +346,10 @@ export async function updateWpPageHtml(pageId: number, opts: {
   const purged = await purgeWpPageCache(pageId)
   const link: string = after.link
   const sep = link.includes('?') ? '&' : '?'
-  const live = await pageHasStamp(`${link}${sep}imxv=${stamp}`, stamp)
-  const liveCached = live ? await pageHasStamp(link, stamp) : null
-  return { id: pageId, link, stored, live, liveCached, purged }
+  const probe = await probePage(`${link}${sep}imxv=${stamp}&nocache=${Date.now()}`, stamp)
+  const live = probe ? probe.hasStamp : null
+  const liveCached = live ? (await probePage(link, stamp))?.hasStamp ?? null : null
+  return { id: pageId, link, stored, live, liveCached, purged, probe }
 }
 
 // Upload a file to the WP media library (idempotent per slug) and return its
