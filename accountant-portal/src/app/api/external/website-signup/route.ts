@@ -130,6 +130,7 @@ export async function POST(request: NextRequest) {
   const qActive = pick(searchParams, body, 'Q_acvtive_bus', 'Q_active_bus')
   const qPersonnel = pick(searchParams, body, 'Q_personel', 'Q_personnel')
   const qInvestment = pick(searchParams, body, 'Q_investment')
+  const qStart = pick(searchParams, body, 'Q_start', 'Q_start_date')
   const comment = pick(searchParams, body, 'Comment', 'comment')
   const referrer = pick(searchParams, body, 'referrer', 'referer')
   const postId = pick(searchParams, body, 'POST_ID', 'post_id')
@@ -150,6 +151,7 @@ export async function POST(request: NextRequest) {
     const answers = [
       activity ? `Αντικείμενο δραστηριότητας: ${activity}` : null,
       qActive ? `Ενεργή επιχείρηση: ${qActive}` : null,
+      qStart ? `Έναρξη επιχείρησης (δήλωση πελάτη): ${qStart}` : null,
       qPersonnel ? `Απασχολεί προσωπικό: ${qPersonnel}` : null,
       qInvestment ? `Επένδυση: ${qInvestment}` : null,
       comment ? `Σχόλιο: ${comment}` : null,
@@ -323,6 +325,19 @@ async function processSignup(p: {
 
   // 4. Client outreach: Ερμής link for THIS program, email + Viber.
   const ermisLink = await getOrCreateErmisLink(business.id, program.id)
+  // Hand the form answers to Ερμής as known facts (it is instructed never to
+  // re-ask anything listed in contextSummary).
+  if (p.answers.length) {
+    const tok = await prisma.businessMatchToken.findUnique({
+      where: { businessId_programId: { businessId: business.id, programId: program.id } },
+      select: { contextSummary: true },
+    })
+    const formFacts = ['Απαντήσεις του πελάτη στη φόρμα της ιστοσελίδας:', ...p.answers.map(a => `- ${a}`)].join('\n')
+    await prisma.businessMatchToken.update({
+      where: { businessId_programId: { businessId: business.id, programId: program.id } },
+      data: { contextSummary: [tok?.contextSummary, formFacts].filter(Boolean).join('\n\n') },
+    }).catch(err => console.error('[website-signup] contextSummary failed:', err?.message))
+  }
   const toEmail = business.email || p.email
   const toPhone = business.viberPhone || business.phone || p.phone
   let emailOk = false

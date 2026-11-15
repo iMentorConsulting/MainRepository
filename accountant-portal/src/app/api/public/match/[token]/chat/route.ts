@@ -1,3 +1,4 @@
+import { resolveRegionFromZip } from '@/lib/greek-regions'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, classifyConversation, type ChatMessage } from '@/lib/ermis-agent'
@@ -6,6 +7,16 @@ import { sendErmisWebhook } from '@/lib/ermis-webhook'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
 
 export const dynamic = 'force-dynamic'
+
+// Registered seat (έδρα) from the AADE data we already hold — so Ερμής never
+// has to ask where the business is located.
+function locationLine(b: { postalAddress?: string | null; postalAddressNo?: string | null; postalZipCode?: string | null; postalAreaDescription?: string | null }): string | null {
+  const street = [b.postalAddress, b.postalAddressNo].filter(Boolean).join(' ').trim()
+  const place = [street, b.postalAreaDescription, b.postalZipCode ? `ΤΚ ${b.postalZipCode}` : null].filter(Boolean).join(', ')
+  if (!place) return null
+  const region = resolveRegionFromZip(b.postalZipCode)
+  return `Έδρα επιχείρησης (από ΑΑΔΕ): ${place}${region ? ` — Περιφέρεια: ${region}` : ''}`
+}
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params
@@ -26,6 +37,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       where: { id: matchToken.businessId },
       select: {
         onomasia: true, afm: true, regdate: true, legalStatusDescr: true,
+        postalAddress: true, postalAddressNo: true, postalZipCode: true, postalAreaDescription: true,
         activities: { select: { firmActCode: true, firmActDescr: true } },
       },
     }),
@@ -85,6 +97,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       contextSummary: [
         matchToken.contextSummary,
         business.regdate ? `Ημερομηνία έναρξης επιχείρησης: ${business.regdate}` : null,
+        locationLine(business),
       ].filter(Boolean).join('\n') || null,
       consultant: matchToken.consultant ?? null,
       legalStatusDescr: business.legalStatusDescr ?? null,
