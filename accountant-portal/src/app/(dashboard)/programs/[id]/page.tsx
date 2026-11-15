@@ -187,6 +187,74 @@ export default function ProgramDetailPage() {
     setNotifying(false)
   }
 
+  // Accountants get the usual notification email (unchanged); direct I-MENTOR
+  // clients get an auto-created + sent campaign (template «Αναλυτικό
+  // Προγράμματος», direct variant, no accountant, not yet contacted).
+  async function sendNotificationsAndCampaign() {
+    const acctMatchIds = Array.from(selectedMatchIds)
+    const directMatchIds = Array.from(selectedDirectIds)
+    setNotifying(true)
+    try {
+      let directSummary: any = null
+      if (directMatchIds.length > 0) {
+        const dry = await fetch(`/api/programs/${id}/direct-campaign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchIds: directMatchIds, dryRun: true }),
+        })
+        const d = await dry.json()
+        if (!dry.ok && !d.templateLabel) { alert(d.error || 'Σφάλμα προετοιμασίας καμπάνιας'); return }
+        directSummary = d
+      }
+      const lines = [
+        `• ${acctMatchIds.length} matches → ειδοποίηση λογιστών (email)`,
+        directSummary
+          ? `• Καμπάνια «${directSummary.templateLabel}» σε ${directSummary.recipients} απευθείας πελάτες`
+            + (directSummary.skippedAlreadySent ? ` (παραλείπονται ${directSummary.skippedAlreadySent} που έλαβαν ήδη καμπάνια)` : '')
+            + (directSummary.skippedNoEmail ? ` (παραλείπονται ${directSummary.skippedNoEmail} χωρίς email)` : '')
+          : '',
+      ].filter(Boolean)
+      if (!confirm(`Θα γίνει αποστολή:\n${lines.join('\n')}\n\nΣυνέχεια;`)) return
+
+      let msg = ''
+      if (acctMatchIds.length > 0) {
+        // Only when accountant matches are selected: an empty matchIds array
+        // would make the notify endpoint send ALL pending matches.
+        const res = await fetch(`/api/programs/${id}/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchIds: acctMatchIds }),
+        })
+        const data = await res.json()
+        msg += `Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.\n`
+      }
+      if (directSummary && directSummary.recipients > 0) {
+        const res = await fetch(`/api/programs/${id}/direct-campaign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchIds: directMatchIds }),
+        })
+        const data = await res.json()
+        if (res.ok) {
+          msg += `Η καμπάνια ξεκίνησε για ${data.recipients} απευθείας πελάτες.`
+          setShowPreview(false)
+          setPreviewData(null)
+          setPendingNotifications(0)
+          alert(msg)
+          router.push(`/campaigns/${data.campaignId}?sending=1`)
+          return
+        }
+        msg += `Καμπάνια: ${data.error || 'σφάλμα'}`
+      }
+      setShowPreview(false)
+      setPreviewData(null)
+      setPendingNotifications(0)
+      alert(msg || 'Ολοκληρώθηκε.')
+    } finally {
+      setNotifying(false)
+    }
+  }
+
   async function runDiagnosis() {
     if (!diagnoseAfm.trim()) return
     setDiagnosing(true)
@@ -883,6 +951,18 @@ export default function ProgramDetailPage() {
               </p>
               <div className="flex items-center gap-3">
                 <Button variant="ghost" onClick={() => { setShowPreview(false); setPreviewData(null) }}>Ακύρωση</Button>
+                {selectedDirectIds.size > 0 && (
+                  <Button
+                    onClick={sendNotificationsAndCampaign}
+                    loading={notifying}
+                    disabled={!previewData}
+                    className="bg-purple-600 hover:bg-purple-700 text-white"
+                    title="Ειδοποίηση λογιστών + αυτόματη καμπάνια στους απευθείας πελάτες"
+                  >
+                    <Bell size={14} className="mr-1.5" />
+                    Λογιστές + Καμπάνια ({selectedMatchIds.size}+{selectedDirectIds.size})
+                  </Button>
+                )}
                 <Button
                   onClick={sendNotifications}
                   loading={notifying}
