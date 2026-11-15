@@ -1,3 +1,5 @@
+import { patchFormSection } from '@/lib/wp-form-section'
+
 const WP_URL = (process.env.WORDPRESS_URL ?? '').replace(/\/$/, '')
 const WP_USER = process.env.WORDPRESS_USERNAME ?? ''
 const WP_PASS = process.env.WORDPRESS_APP_PASSWORD ?? ''
@@ -332,9 +334,15 @@ export async function updateWpPageHtml(pageId: number, opts: {
     meta['_yoast_wpseo_opengraph-image'] = opts.ogImageUrl
     meta.rank_math_og_content_image = opts.ogImageUrl
   }
+  return finishWidgetSave(pageId, meta, stamp, opts.metaDesc)
+}
+
+// Saves the edited Elementor tree (+ any extra meta), then VERIFIES it: re-reads
+// the stored data for the stamp, purges caches and probes the public page.
+async function finishWidgetSave(pageId: number, meta: Record<string, unknown>, stamp: string, excerpt?: string): Promise<UpdateWpPageResult> {
   await wpFetch(`/pages/${pageId}`, {
     method: 'POST',
-    body: JSON.stringify({ excerpt: opts.metaDesc, meta }),
+    body: JSON.stringify({ ...(excerpt !== undefined ? { excerpt } : {}), meta }),
   })
 
   // 1) Was it actually stored?
@@ -359,6 +367,48 @@ export async function updateWpPageHtml(pageId: number, opts: {
   const live = probe ? probe.hasStamp : null
   const liveCached = live ? (await probePage(link, stamp))?.hasStamp ?? null : null
   return { id: pageId, link, stored, live, liveCached, purged, purgedAll, probe }
+}
+
+
+function findImxWidget(nodes: any[]): any | null {
+  for (const n of nodes) {
+    if (n?.elType === 'widget' && n.widgetType === 'html' && typeof n.settings?.html === 'string' && n.settings.html.includes('imx-page')) return n
+    if (Array.isArray(n?.elements)) { const f = findImxWidget(n.elements); if (f) return f }
+  }
+  return null
+}
+
+export type PatchFormResult =
+  | ({ patched: true } & UpdateWpPageResult)
+  | { patched: false; skipped: 'already-compact' | 'no-form-section' }
+
+// Replaces only the intro block above the Bitform (and moves the #form anchor to
+// the very end of the HTML) on an EXISTING page of any template version — the
+// rest of the page, SEO and other widgets are untouched.
+export async function patchWpPageFormSection(pageId: number): Promise<PatchFormResult> {
+  const page = await wpFetch(`/pages/${pageId}?context=edit&_fields=id,link,meta`) as any
+  const raw = page?.meta?._elementor_data
+  if (!raw || typeof raw !== 'string') throw new Error('Δεν διαβάστηκε το Elementor layout της σελίδας.')
+  let tree: any[]
+  try { tree = JSON.parse(raw) } catch { throw new Error('Μη έγκυρο Elementor JSON στη σελίδα.') }
+  const widget = findImxWidget(tree)
+  if (!widget) throw new Error('Η σελίδα δεν περιέχει το HTML widget του template (imx-page).')
+
+  const patched = patchFormSection(widget.settings.html as string)
+  if (!('html' in patched)) return { patched: false, skipped: patched.skipped }
+
+  const stamp = `r${Date.now().toString(36)}`
+  let html = patched.html
+  html = /data-imx-render="[^"]*"/.test(html)
+    ? html.replace(/data-imx-render="[^"]*"/, `data-imx-render="${stamp}"`)
+    : html.replace('class="imx-page"', `class="imx-page" data-imx-render="${stamp}"`)
+  widget.settings.html = html
+  const result = await finishWidgetSave(pageId, {
+    _elementor_edit_mode: 'builder',
+    _elementor_template_type: 'wp-page',
+    _elementor_data: JSON.stringify(tree),
+  }, stamp)
+  return { patched: true, ...result }
 }
 
 // Upload a file to the WP media library (idempotent per slug) and return its

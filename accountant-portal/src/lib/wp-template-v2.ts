@@ -5,6 +5,7 @@
 //
 // The legacy template (stored in the DB) is NOT touched by this file.
 import { WP_V2_MARKER } from '@/lib/wp-program-page'
+import { COMPACT_FORM_SECTION } from '@/lib/wp-form-section'
 
 const CSS = `
 .imx-page{--imx-primary:#0b4aa2;--imx-primary-dark:#06347a;--imx-primary-darker:#041e4a;--imx-primary-light:#e8f0fb;--imx-accent:#f59e0b;--imx-accent-dark:#b45309;--imx-accent-light:#fef3c7;--imx-success:#059669;--imx-success-light:#d1fae5;--imx-success-dark:#065f46;--imx-danger:#dc2626;--imx-danger-light:#fee2e2;--imx-danger-dark:#991b1b;--imx-ink:#0f172a;--imx-ink-2:#334155;--imx-muted:#64748b;--imx-line:#e2e8f0;--imx-line-2:#f1f5f9;--imx-bg:#f8fafc;--imx-card:#fff;--imx-radius:16px;--imx-radius-lg:24px;--imx-shadow-sm:0 1px 3px rgba(15,23,42,.06);--imx-shadow:0 4px 12px rgba(15,23,42,.08);--imx-shadow-lg:0 20px 40px rgba(11,74,162,.12);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;color:var(--imx-ink);background:var(--imx-bg);line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -258,14 +259,8 @@ const BODY = `
   </div>
 </div></div></section>
 
-<!-- Η φόρμα bitform μπαίνει manually ΑΜΕΣΩΣ ΜΕΤΑ το HTML widget (δεν αγγίζεται από το sync) -->
-<section class="imx-section imx-anchor" style="background:#fff;border-top:1px solid var(--imx-line);padding-bottom:32px" id="form" aria-labelledby="form-title"><div class="imx-wrap">
-  <div class="imx-section-head" style="margin-bottom:28px"><span class="imx-eyebrow">ΔΩΡΕΑΝ ΕΛΕΓΧΟΣ ΕΠΙΛΕΞΙΜΟΤΗΤΑΣ</span><h2 class="imx-h2" id="form-title">Ξεκινήστε με έναν δωρεάν έλεγχο επιλεξιμότητας</h2>
-  <p class="imx-lead">Στείλτε μας τα βασικά στοιχεία σας και θα επικοινωνήσουμε άμεσα για να σας πούμε αν μπορείτε να ενταχθείτε στο πρόγραμμα «{{TITLE}}» και με ποιο ποσοστό επιδότησης.</p></div>
-  <div class="imx-callout imx-callout--green" style="max-width:760px;margin:0 auto"><div class="imx-callout-title">${ICON('check-circle')}Τι κάνουμε εμείς</div>
-  <div class="imx-callout-body">Σας δίνουμε αναλυτική λίστα δικαιολογητικών μετά τον αρχικό έλεγχο, οργανώνουμε τον φάκελο, συντάσσουμε την πρόταση και αναλαμβάνουμε ολόκληρη την υποβολή στην πλατφόρμα.</div></div>
-  <p style="color:var(--imx-muted);margin:22px auto 0;font-size:12.5px;line-height:1.5;max-width:760px;text-align:center">Συμπληρώστε τη φόρμα που ακολουθεί. Υποβάλλοντάς την, συμφωνείτε να επικοινωνήσει η i-Mentor Consulting μαζί σας για ενημέρωση σχετικά με τη διαδικασία (GDPR).</p>
-</div></section>
+<!-- Η φόρμα bitform μπαίνει manually ΑΜΕΣΩΣ ΜΕΤΑ το HTML widget (δεν αγγίζεται από το sync). Το anchor #form είναι το τελευταίο στοιχείο ώστε να οδηγεί ακριβώς στη φόρμα. -->
+${COMPACT_FORM_SECTION}
 </div>`
 
 export const WP_TEMPLATE_V2_NAME = 'Πρόγραμμα — Πλούσιο v2 (ενσωματωμένο)'

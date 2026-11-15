@@ -63,6 +63,7 @@ export default function WordpressTemplatesPage() {
   const [wpPages, setWpPages] = useState<WpPage[]>([])
   const [loading, setLoading] = useState(true)
   const [bulkSyncing, setBulkSyncing] = useState(false)
+  const [patchingForms, setPatchingForms] = useState(false)
   const [wpPagesLoading, setWpPagesLoading] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -252,6 +253,25 @@ export default function WordpressTemplatesPage() {
     }
   }
 
+  async function patchForms() {
+    if (!confirm('Να γίνει πιο στενό το κείμενο πάνω από τη φόρμα και να μεταφερθεί το anchor #form στο τέλος του HTML, σε ΟΛΕΣ τις συνδεδεμένες σελίδες; Αλλάζει μόνο αυτό το block — το υπόλοιπο περιεχόμενο, το SEO και η φόρμα δεν αγγίζονται.')) return
+    setPatchingForms(true)
+    try {
+      const res = await fetch('/api/wordpress/patch-form-sections', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const d = await res.json()
+      if (res.ok) {
+        const bad = (d.results ?? []).filter((r: any) => r.status === 'failed' || r.status === 'no-form-section' || r.note)
+        showToast(`Ενημερώθηκαν ${d.patched}/${d.total} σελίδες (ήδη στενές: ${d.alreadyCompact})${bad.length ? ` — προσοχή: ${bad.map((b: any) => `${b.title}: ${b.note ?? b.status}`).join('; ').slice(0, 350)}` : ''}`, bad.length === 0)
+      } else {
+        showToast(d.error ?? 'Σφάλμα', false)
+      }
+    } catch {
+      showToast('Σφάλμα δικτύου', false)
+    } finally {
+      setPatchingForms(false)
+    }
+  }
+
   async function deleteTemplate(id: string) {
     if (!confirm('Να διαγραφεί αυτό το template;')) return
     setDeletingId(id)
@@ -297,6 +317,9 @@ export default function WordpressTemplatesPage() {
           <p className="text-gray-500 mt-1 text-sm">Templates Elementor για αυτόματη δημιουργία σελίδων προγραμμάτων</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={patchForms} loading={patchingForms}>
+            <RefreshCw size={14} className="mr-1.5" />Στενή φόρμα (όλες οι σελίδες)
+          </Button>
           <Button variant="outline" size="sm" onClick={bulkSync} loading={bulkSyncing}>
             <RefreshCw size={14} className="mr-1.5" />Συγχρονισμός όλων (v2)
           </Button>
