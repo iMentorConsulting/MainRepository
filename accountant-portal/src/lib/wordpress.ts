@@ -204,6 +204,109 @@ export async function createWpPageFromHtmlTemplate(opts: {
   return { id: data.id, link: data.link }
 }
 
+// Greek-safe slug from a program title (a-z, 0-9, hyphens).
+export function slugifyTitle(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[αάΑΆ]/g, 'a').replace(/[εέΕΈ]/g, 'e').replace(/[ηήΗΉ]/g, 'i')
+    .replace(/[ιίΙΊ]/g, 'i').replace(/[οόΟΌ]/g, 'o').replace(/[υύΥΎ]/g, 'y')
+    .replace(/[ωώΩΏ]/g, 'o').replace(/[θΘ]/g, 'th').replace(/[χΧ]/g, 'ch')
+    .replace(/[ψΨ]/g, 'ps').replace(/[ξΞ]/g, 'x').replace(/[σΣς]/g, 's')
+    .replace(/[κΚ]/g, 'k').replace(/[λΛ]/g, 'l').replace(/[μΜ]/g, 'm')
+    .replace(/[νΝ]/g, 'n').replace(/[πΠ]/g, 'p').replace(/[ρΡ]/g, 'r')
+    .replace(/[τΤ]/g, 't').replace(/[φΦ]/g, 'f').replace(/[βΒ]/g, 'v')
+    .replace(/[γΓ]/g, 'g').replace(/[δΔ]/g, 'd').replace(/[ζΖ]/g, 'z')
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100)
+}
+
+// Walk an Elementor element tree and replace the HTML widget that holds the
+// program page (identified by the "imx-page" wrapper class). Everything else
+// on the page — e.g. the Bitform widget added manually after the HTML — is
+// left untouched.
+function replaceImxHtmlWidget(nodes: any[], html: string): boolean {
+  for (const n of nodes) {
+    if (n?.elType === 'widget' && n.widgetType === 'html' && typeof n.settings?.html === 'string' && n.settings.html.includes('imx-page')) {
+      n.settings.html = html
+      return true
+    }
+    if (Array.isArray(n?.elements) && replaceImxHtmlWidget(n.elements, html)) return true
+  }
+  return false
+}
+
+// Update an existing program page IN PLACE (same page ID, slug, status, menu
+// entry and any other widgets). Only the HTML widget + SEO meta change.
+export async function updateWpPageHtml(pageId: number, opts: {
+  html: string
+  seoTitle: string
+  metaDesc: string
+  focusKeyword: string
+  ogImageUrl?: string
+}): Promise<{ id: number; link: string }> {
+  const page = await wpFetch(`/pages/${pageId}?context=edit&_fields=id,link,meta`) as any
+  const raw = page?.meta?._elementor_data
+  if (!raw || typeof raw !== 'string') {
+    throw new Error('Δεν διαβάστηκε το Elementor layout της σελίδας (meta _elementor_data μη προσβάσιμο) — δεν έγινε καμία αλλαγή.')
+  }
+  let tree: any[]
+  try { tree = JSON.parse(raw) } catch { throw new Error('Μη έγκυρο Elementor JSON στη σελίδα — δεν έγινε καμία αλλαγή.') }
+  if (!replaceImxHtmlWidget(tree, opts.html)) {
+    throw new Error('Η σελίδα δεν περιέχει το HTML widget του template (imx-page) — πιθανόν δημιουργήθηκε με άλλο τρόπο. Δεν έγινε καμία αλλαγή.')
+  }
+  const meta: Record<string, unknown> = {
+    _elementor_data: JSON.stringify(tree),
+    _yoast_wpseo_title: opts.seoTitle,
+    _yoast_wpseo_metadesc: opts.metaDesc,
+    _yoast_wpseo_focuskw: opts.focusKeyword,
+    '_yoast_wpseo_opengraph-title': opts.seoTitle,
+    '_yoast_wpseo_opengraph-description': opts.metaDesc,
+    rank_math_title: opts.seoTitle,
+    rank_math_description: opts.metaDesc,
+    rank_math_focus_keyword: opts.focusKeyword,
+  }
+  if (opts.ogImageUrl && /^https?:\/\//i.test(opts.ogImageUrl)) {
+    meta['_yoast_wpseo_opengraph-image'] = opts.ogImageUrl
+    meta.rank_math_og_content_image = opts.ogImageUrl
+  }
+  const data = await wpFetch(`/pages/${pageId}`, {
+    method: 'POST',
+    body: JSON.stringify({ excerpt: opts.metaDesc, meta }),
+  }) as any
+  return { id: data.id, link: data.link }
+}
+
+// Upload a file to the WP media library (idempotent per slug) and return its
+// public URL. Needs the WP user to have the upload_files capability.
+export async function uploadWpMedia(opts: {
+  slug: string
+  extension: string
+  mimeType: string
+  title: string
+  data: Buffer
+}): Promise<string> {
+  const existing = await wpFetch(`/media?slug=${encodeURIComponent(opts.slug)}&_fields=id,source_url`) as any[]
+  if (Array.isArray(existing) && existing[0]?.source_url) return existing[0].source_url as string
+  if (!WP_URL || !WP_USER || !WP_PASS) throw new Error('WordPress env vars not configured')
+  const filename = `${opts.slug}.${opts.extension}`
+  const res = await fetch(`${WP_URL}/wp-json/wp/v2/media`, {
+    method: 'POST',
+    headers: {
+      Authorization: wpAuth(),
+      'Content-Type': opts.mimeType,
+      'Content-Disposition': `attachment; filename="${filename}"`,
+    },
+    body: new Uint8Array(opts.data),
+  })
+  const text = await res.text()
+  if (!res.ok) throw new Error(`WP media API ${res.status}: ${text.slice(0, 200)}`)
+  const created = JSON.parse(text)
+  // Give it a readable title (best effort).
+  try {
+    await wpFetch(`/media/${created.id}`, { method: 'POST', body: JSON.stringify({ title: opts.title }) })
+  } catch { /* non-fatal */ }
+  return created.source_url as string
+}
+
 // Update the status of an existing WP page (publish / draft / private)
 export async function setWpPageStatus(pageId: number, status: 'publish' | 'draft' | 'private'): Promise<void> {
   await wpFetch(`/pages/${pageId}`, {

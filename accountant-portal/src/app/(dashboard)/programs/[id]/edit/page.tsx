@@ -12,7 +12,7 @@ import { RegionMultiSelect } from '@/components/programs/region-multi-select'
 import { HeroImageUpload } from '@/components/programs/hero-image-upload'
 import { VideoUrlsInput } from '@/components/programs/video-urls-input'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink, Paperclip, Link2 } from 'lucide-react'
+import { ArrowLeft, Plus, X, FileUp, Globe, ExternalLink, Paperclip, Link2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { LEGAL_FORMS } from '@/lib/legal-forms'
 import { ExpenseCategoriesEditor, type ExpenseCategory } from '@/components/programs/expense-categories-editor'
@@ -494,6 +494,37 @@ export default function EditProgramPage() {
     } finally {
       setWpCreating(false)
       setTimeout(() => setWpToast(null), 5000)
+    }
+  }
+
+  async function updateWpPage() {
+    if (!selectedTemplateId) {
+      setWpToast({ msg: 'Επίλεξε template πρώτα', ok: false })
+      setTimeout(() => setWpToast(null), 3000)
+      return
+    }
+    setWpCreating(true)
+    try {
+      const res = await fetch(`/api/programs/${id}/update-wp-page`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ templateId: selectedTemplateId }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        const warnings: string[] = data.warnings ?? []
+        setWpToast({
+          msg: warnings.length ? `Η σελίδα ενημερώθηκε. ⚠️ ${warnings[0]}` : 'Η σελίδα ενημερώθηκε στη θέση της (ίδιο URL, μενού και φόρμα).',
+          ok: warnings.length === 0,
+        })
+      } else {
+        setWpToast({ msg: data.error ?? 'Σφάλμα ενημέρωσης', ok: false })
+      }
+    } catch {
+      setWpToast({ msg: 'Σφάλμα δικτύου', ok: false })
+    } finally {
+      setWpCreating(false)
+      setTimeout(() => setWpToast(null), 7000)
     }
   }
 
@@ -1075,6 +1106,12 @@ export default function EditProgramPage() {
                   <Globe size={15} className="mr-2" />
                   {wpPageId ? 'Αντικατάσταση Σελίδας' : 'Δημιουργία Σελίδας'}
                 </Button>
+                {wpPageId && (
+                  <Button type="button" onClick={updateWpPage} loading={wpCreating} title="Ενημερώνει την υπάρχουσα σελίδα στη θέση της (μόνο για v2 template)">
+                    <RefreshCw size={15} className="mr-2" />
+                    Ενημέρωση Σελίδας
+                  </Button>
+                )}
               </div>
             )}
             <p className="text-xs text-gray-400">

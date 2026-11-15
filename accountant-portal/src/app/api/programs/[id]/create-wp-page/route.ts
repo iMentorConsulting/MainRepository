@@ -6,7 +6,9 @@ import {
   createWpPageFromHtmlTemplate,
   buildProgramReplacements,
   addWpMenuItemAsChild,
+  slugifyTitle,
 } from '@/lib/wordpress'
+import { resolveV2Template, renderV2ForProgram } from '@/lib/wp-template-resolver'
 
 function applyTokens(text: string, replacements: Record<string, string>): string {
   let result = text
@@ -31,6 +33,55 @@ export async function POST(
 
   if (!templateId) {
     return NextResponse.json({ error: 'templateId is required' }, { status: 400 })
+  }
+
+  // Rich v2 templates (built-in or DB template carrying the v2 marker) use the
+  // data-driven renderer. Everything below is the untouched legacy flow.
+  const progForCategory = await prisma.program.findUnique({ where: { id }, select: { category: true, title: true, websiteUrl: true, heroImageUrl: true } })
+  const v2 = progForCategory ? await resolveV2Template(templateId, progForCategory.category) : null
+  if (progForCategory && v2) {
+    try {
+      const rendered = await renderV2ForProgram(id, v2)
+      if (!rendered) return NextResponse.json({ error: 'Program not found' }, { status: 404 })
+      const result = await createWpPageFromHtmlTemplate({
+        title: progForCategory.title,
+        slug: slugifyTitle(progForCategory.title),
+        htmlContent: rendered.html,
+        seoTitle: rendered.seoTitle,
+        metaDesc: rendered.metaDesc,
+        focusKeyword: progForCategory.title,
+        ogImageUrl: progForCategory.heroImageUrl ?? undefined,
+        status: 'publish',
+      })
+      await prisma.program.update({
+        where: { id },
+        data: { wpPageId: result.id, wpPageUrl: result.link, ...(progForCategory.websiteUrl ? {} : { websiteUrl: result.link }) },
+      })
+      const warnings = [...rendered.warnings]
+      if (v2.wpMenuParentTitle) {
+        try {
+          await addWpMenuItemAsChild({
+            parentTitle: v2.wpMenuParentTitle,
+            pageId: result.id,
+            pageTitle: progForCategory.title,
+            ...(v2.wpMenuName ? { menuName: v2.wpMenuName } : {}),
+          })
+        } catch (menuErr) {
+          warnings.push(`Σελίδα δημοσιεύτηκε αλλά αποτυχία προσθήκης στο μενού: ${menuErr instanceof Error ? menuErr.message : String(menuErr)}`)
+        }
+      }
+      return NextResponse.json({
+        wpPageId: result.id,
+        wpPageUrl: result.link,
+        menuWarning: warnings[0],
+        tokenCount: 1,
+        emptyValueTokens: [],
+      })
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err)
+      console.error('[WP] create-wp-page (v2) failed:', msg)
+      return NextResponse.json({ error: msg }, { status: 500 })
+    }
   }
 
   const [program, template] = await Promise.all([
@@ -66,17 +117,7 @@ export async function POST(
   }
 
   // Slug: slugify the title (Greek-safe — keep only alphanumeric + hyphens)
-  const slug = program.title
-    .toLowerCase()
-    .replace(/[αάΑΆ]/g, 'a').replace(/[εέΕΈ]/g, 'e').replace(/[ηήΗΉ]/g, 'i')
-    .replace(/[ιίΙΊ]/g, 'i').replace(/[οόΟΌ]/g, 'o').replace(/[υύΥΎ]/g, 'y')
-    .replace(/[ωώΩΏ]/g, 'o').replace(/[θΘ]/g, 'th').replace(/[χΧ]/g, 'ch')
-    .replace(/[ψΨ]/g, 'ps').replace(/[ξΞ]/g, 'x').replace(/[σΣς]/g, 's')
-    .replace(/[κΚ]/g, 'k').replace(/[λΛ]/g, 'l').replace(/[μΜ]/g, 'm')
-    .replace(/[νΝ]/g, 'n').replace(/[πΠ]/g, 'p').replace(/[ρΡ]/g, 'r')
-    .replace(/[τΤ]/g, 't').replace(/[φΦ]/g, 'f').replace(/[βΒ]/g, 'v')
-    .replace(/[γΓ]/g, 'g').replace(/[δΔ]/g, 'd').replace(/[ζΖ]/g, 'z')
-    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 100)
+  const slug = slugifyTitle(program.title)
 
   try {
     let wpId: number

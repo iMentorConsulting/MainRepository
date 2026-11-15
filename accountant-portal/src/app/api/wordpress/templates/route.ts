@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { BUILTIN_V2_LISTING } from '@/lib/wp-template-resolver'
 
 export async function GET() {
   const session = await auth()
@@ -11,7 +12,8 @@ export async function GET() {
     where: { active: true },
     orderBy: { name: 'asc' },
   })
-  return NextResponse.json(templates)
+  // The built-in rich v2 template is listed first; it lives in code, not the DB.
+  return NextResponse.json([BUILTIN_V2_LISTING, ...templates])
 }
 
 export async function POST(request: NextRequest) {

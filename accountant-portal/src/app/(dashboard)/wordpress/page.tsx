@@ -62,6 +62,7 @@ export default function WordpressTemplatesPage() {
   const [templates, setTemplates] = useState<WpTemplate[]>([])
   const [wpPages, setWpPages] = useState<WpPage[]>([])
   const [loading, setLoading] = useState(true)
+  const [bulkSyncing, setBulkSyncing] = useState(false)
   const [wpPagesLoading, setWpPagesLoading] = useState(false)
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null)
 
@@ -93,7 +94,7 @@ export default function WordpressTemplatesPage() {
     setLoading(true)
     fetch('/api/wordpress/templates')
       .then(r => r.json())
-      .then(d => setTemplates(Array.isArray(d) ? d : []))
+      .then(d => setTemplates(Array.isArray(d) ? d.filter((t: any) => !t.builtin) : []))
       .catch(() => setTemplates([]))
       .finally(() => setLoading(false))
   }
@@ -232,6 +233,25 @@ export default function WordpressTemplatesPage() {
     }
   }
 
+  async function bulkSync() {
+    if (!confirm('Να ενημερωθούν ΟΛΕΣ οι υπάρχουσες σελίδες προγραμμάτων (μη αρχειοθετημένα) με το νέο v2 template; Η ενέργεια αντικαθιστά το περιεχόμενο του HTML widget κάθε σελίδας (το URL, το μενού και η φόρμα διατηρούνται).')) return
+    setBulkSyncing(true)
+    try {
+      const res = await fetch('/api/wordpress/sync-pages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
+      const d = await res.json()
+      if (res.ok) {
+        const failed = (d.results ?? []).filter((r: any) => !r.ok)
+        showToast(`Ενημερώθηκαν ${d.updated}/${d.total} σελίδες${failed.length ? ` — αποτυχία: ${failed.map((f: any) => `${f.title} (${f.error})`).join('; ').slice(0, 300)}` : ''}`, failed.length === 0)
+      } else {
+        showToast(d.error ?? 'Σφάλμα συγχρονισμού', false)
+      }
+    } catch {
+      showToast('Σφάλμα δικτύου', false)
+    } finally {
+      setBulkSyncing(false)
+    }
+  }
+
   async function deleteTemplate(id: string) {
     if (!confirm('Να διαγραφεί αυτό το template;')) return
     setDeletingId(id)
@@ -277,6 +297,9 @@ export default function WordpressTemplatesPage() {
           <p className="text-gray-500 mt-1 text-sm">Templates Elementor για αυτόματη δημιουργία σελίδων προγραμμάτων</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={bulkSync} loading={bulkSyncing}>
+            <RefreshCw size={14} className="mr-1.5" />Συγχρονισμός όλων (v2)
+          </Button>
           <Button variant="outline" size="sm" onClick={loadWpPages} loading={wpPagesLoading}>
             <RefreshCw size={14} className="mr-1.5" />Φόρτωση WP Σελίδων
           </Button>
