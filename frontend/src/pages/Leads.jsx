@@ -1440,8 +1440,8 @@ export default function Leads() {
           </button>
         ))}
       </div>
-      {/* ΕΡΜΗΣ filter chips */}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {/* ΕΡΜΗΣ filter chips — admin only */}
+      {isAdmin && <div className="flex flex-wrap items-center gap-2 mb-3">
         <span className="text-xs text-gray-400 flex items-center gap-1"><SparklesIcon className="w-3.5 h-3.5" />ΕΡΜΗΣ:</span>
         {(() => {
           const ec = options.ermis_status_counts || {}
@@ -1461,7 +1461,7 @@ export default function Leads() {
             </button>
           ))
         })()}
-      </div>
+      </div>}
       {/* Filters */}
       <div className="flex flex-wrap gap-2 mb-3">
         <div className="relative">
