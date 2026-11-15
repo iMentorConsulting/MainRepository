@@ -54,6 +54,12 @@ export async function notifyCaseManagement(data: {
   // session/Viber for it; the transcript arrives via the ermis.completed
   // webhook for the same ΑΦΜ.
   ermis_completed?: boolean
+  // Set by the website signup form: the client was ALREADY sent the Ερμής link
+  // (email/Viber) by Logistis, so CM must not start its own outreach for this
+  // lead. `ermis_link` is that link; `lead_source` identifies the origin.
+  outreach_sent?: boolean
+  ermis_link?: string | null
+  lead_source?: string | null
   // Full Ερμής conversation transcript, appended to description before sending.
   ermis_transcript?: string
   // The exact program title in Logistis (in addition to the coarse

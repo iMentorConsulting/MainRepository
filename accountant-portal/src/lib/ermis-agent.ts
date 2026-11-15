@@ -6,7 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from './prisma'
 import { sendEmail } from './email'
-import { notifyCaseManagement } from './case-management-sync'
+import { notifyCaseManagement, notifyCaseManagementCommunication } from './case-management-sync'
 import { EligibilityQuestion } from './eligibility-questions'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from './business-profile'
 import { resolveRegdate } from './matching'
@@ -320,6 +320,48 @@ async function createPublicClientCase(params: {
   const ermisTranscript = params.history && params.history.length > 0
     ? params.history.map(m => `${m.role === 'user' ? 'ΠΕΛΑΤΗΣ' : 'ΕΡΜΗΣ'}: ${m.text}`).join('\n\n')
     : undefined
+
+  // A case for this business + program may already be open — e.g. opened by the
+  // website signup form (createdById "website-form") before the client even
+  // talked to Ερμής. Attach the screening result to it instead of opening a
+  // duplicate, and update the matching CM lead via communication.logged
+  // (documented to append a note to the existing lead; never create one).
+  const openCase = await prisma.clientCase.findFirst({
+    where: { businessId: params.businessId, programId: params.programId, status: { notIn: ['COMPLETED', 'CANCELLED'] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true, caseNumber: true, description: true },
+  })
+  if (openCase) {
+    await prisma.caseActivity.create({
+      data: {
+        caseId: openCase.id,
+        type: 'EXTERNAL',
+        body: `Ο Ερμής ολοκλήρωσε τη συζήτηση με τον πελάτη: ${description}${ermisTranscript ? `\n\n--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---\n${ermisTranscript}` : ''}`,
+        authorId: adminUser.id,
+        authorName: 'Ερμής (AI)',
+        authorRole: 'ADMIN',
+      },
+    }).catch(err => console.error('[ErmisCase] failed to append activity:', err?.message))
+    await prisma.clientCase.update({
+      where: { id: openCase.id },
+      data: { description: `${openCase.description ? openCase.description + '\n\n' : ''}--- Ερμής ---\n${description}` },
+    }).catch(() => {})
+    autoTagBusinessFromErmis(params.businessId, params.programTitle).catch(() => {})
+    notifyCaseManagementCommunication({
+      afm: profile.afm,
+      onomasia: business.onomasia ?? null,
+      email: business.email || null,
+      phone: business.phone || null,
+      programTitle: params.programTitle,
+      kind: 'ERMIS',
+      channel: 'VIBER',
+      subject: null,
+      comment: `Ο Ερμής ολοκλήρωσε τη συζήτηση με τον πελάτη:\n${description}${ermisTranscript ? `\n\n--- ΠΛΗΡΗΣ ΣΥΝΟΜΙΛΙΑ ΕΡΜΗ ---\n${ermisTranscript}` : ''}`,
+      createIfMissing: false,
+    }).catch(err => console.error('[ErmisCase] CM communication failed:', err?.message))
+    console.log(`[ErmisCase] reused open case #${openCase.caseNumber} instead of creating a duplicate`)
+    return openCase.id
+  }
 
   const clientCase = await prisma.clientCase.create({
     data: {
