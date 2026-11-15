@@ -48,22 +48,21 @@ export async function POST(request: NextRequest) {
   if (!session) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   if (session.user.role !== 'ADMIN') return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
 
-  if (!checkAndConsumeRateLimit(session.user.id)) {
-    return NextResponse.json({ error: 'Έχετε φτάσει το ημερήσιο όριο εξαγωγών AI. Δοκιμάστε ξανά αύριο.' }, { status: 429 })
-  }
-
   const contentType = request.headers.get('content-type') || ''
   let sourceText = ''
   let sourceUrl: string | null = null
+  let skipAi = false
 
   try {
     if (contentType.includes('multipart/form-data')) {
       const formData = await request.formData()
       const file = formData.get('file') as File | null
       if (!file) return NextResponse.json({ error: 'Χωρίς αρχείο' }, { status: 400 })
+      skipAi = formData.get('skipAi') === 'true'
       sourceText = await extractPdfText(file)
     } else {
       const body = await request.json()
+      skipAi = body.skipAi === true
       if (body.announcementId) {
         const espa = await prisma.espaAnnouncement.findUnique({ where: { id: body.announcementId } })
         const dypa = espa ? null : await prisma.dypaAnnouncement.findUnique({ where: { id: body.announcementId } })
@@ -88,6 +87,17 @@ export async function POST(request: NextRequest) {
   }
 
   if (!sourceText.trim()) return NextResponse.json({ error: 'Δεν βρέθηκε κείμενο προς ανάλυση' }, { status: 400 })
+
+  // skipAi: only the PDF's text is needed (e.g. pairing it with an existing,
+  // already hand-verified program as a training example) — no AI call, no
+  // rate-limit quota spent.
+  if (skipAi) {
+    return NextResponse.json({ sourceText: sourceText.slice(0, MAX_SOURCE_TEXT_CHARS), sourceUrl, result: null })
+  }
+
+  if (!checkAndConsumeRateLimit(session.user.id)) {
+    return NextResponse.json({ error: 'Έχετε φτάσει το ημερήσιο όριο εξαγωγών AI. Δοκιμάστε ξανά αύριο.' }, { status: 429 })
+  }
 
   try {
     const result = await extractProgramFields(sourceText)

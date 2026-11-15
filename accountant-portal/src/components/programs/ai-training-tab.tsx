@@ -155,6 +155,15 @@ export function AiTrainingTab() {
   const [newCategory, setNewCategory] = useState('OTHER')
   const [creating, setCreating] = useState(false)
 
+  // "This exact program was created from this exact PDF" — one click,
+  // no AI extraction call involved (the program's already-correct values
+  // ARE the training label), unlike the mode below which runs a fresh AI
+  // guess first.
+  const [trainFile, setTrainFile] = useState<File | null>(null)
+  const [trainProgramId, setTrainProgramId] = useState('')
+  const [training, setTraining] = useState(false)
+  const [trainMsg, setTrainMsg] = useState('')
+
   useEffect(() => {
     fetch('/api/programs')
       .then(r => r.ok ? r.json() : { programs: [] })
@@ -210,6 +219,38 @@ export function AiTrainingTab() {
     }
   }
 
+  function mapProgramToFields(p: any): ExtractedFields {
+    const otherRequirements = (p.otherRequirements || '')
+      .split('\n')
+      .map((l: string) => l.replace(/^\d+\.\s*/, '').trim())
+      .filter(Boolean)
+    return {
+      kadRules: p.kadRules || [],
+      regionRules: p.regionRules || [],
+      zipCodeRules: p.zipCodeRules || [],
+      excludedLegalForms: p.excludedLegalForms || [],
+      minRegdate: p.minRegdate || null,
+      maxRegdate: p.maxRegdate || null,
+      minInvestment: p.minInvestment ?? null,
+      maxInvestment: p.maxInvestment ?? null,
+      minSubsidyPct: p.minSubsidyPct ?? null,
+      maxSubsidyPct: p.maxSubsidyPct ?? null,
+      subsidyNote: p.subsidyNote || null,
+      minInterestRate: p.minInterestRate ?? null,
+      maxInterestRate: p.maxInterestRate ?? null,
+      otherRequirements,
+      totalBudgetEur: p.totalBudgetEur ?? null,
+      implementationMonths: p.implementationMonths ?? null,
+      startDate: p.startDate ? String(p.startDate).slice(0, 10) : null,
+      endDate: p.endDate ? String(p.endDate).slice(0, 10) : null,
+      requireTags: p.requireTags || [],
+      excludeTags: p.excludeTags || [],
+      keyPoints: p.keyPoints || [],
+      fundedActions: p.fundedActions || [],
+      expenseCategories: p.expenseCategories || [],
+    }
+  }
+
   // Lets the admin pair THIS PDF with the real, hand-verified field values
   // of an existing program instead of the AI's own guess — e.g. "here's the
   // program I already created from this exact announcement, train on its
@@ -221,39 +262,52 @@ export function AiTrainingTab() {
       const res = await fetch(`/api/programs/${targetProgramId}`)
       if (!res.ok) { setApplyMsg('Σφάλμα φόρτωσης προγράμματος'); return }
       const p = await res.json()
-      const otherRequirements = (p.otherRequirements || '')
-        .split('\n')
-        .map((l: string) => l.replace(/^\d+\.\s*/, '').trim())
-        .filter(Boolean)
-      setFields({
-        kadRules: p.kadRules || [],
-        regionRules: p.regionRules || [],
-        zipCodeRules: p.zipCodeRules || [],
-        excludedLegalForms: p.excludedLegalForms || [],
-        minRegdate: p.minRegdate || null,
-        maxRegdate: p.maxRegdate || null,
-        minInvestment: p.minInvestment ?? null,
-        maxInvestment: p.maxInvestment ?? null,
-        minSubsidyPct: p.minSubsidyPct ?? null,
-        maxSubsidyPct: p.maxSubsidyPct ?? null,
-        subsidyNote: p.subsidyNote || null,
-        minInterestRate: p.minInterestRate ?? null,
-        maxInterestRate: p.maxInterestRate ?? null,
-        otherRequirements,
-        totalBudgetEur: p.totalBudgetEur ?? null,
-        implementationMonths: p.implementationMonths ?? null,
-        startDate: p.startDate ? String(p.startDate).slice(0, 10) : null,
-        endDate: p.endDate ? String(p.endDate).slice(0, 10) : null,
-        requireTags: p.requireTags || [],
-        excludeTags: p.excludeTags || [],
-        keyPoints: p.keyPoints || [],
-        fundedActions: p.fundedActions || [],
-        expenseCategories: p.expenseCategories || [],
-      })
+      setFields(mapProgramToFields(p))
       setSaved(false)
       setApplyMsg(`Φορτώθηκαν οι τιμές του «${p.title}» — ελέγξτε τα παρακάτω και πατήστε "Αποθήκευση ως παράδειγμα".`)
     } catch {
       setApplyMsg('Σφάλμα φόρτωσης προγράμματος')
+    }
+  }
+
+  // One click, no AI call: "this exact program was created from this exact
+  // PDF" — reads the PDF's text (skipAi), takes the program's real
+  // already-correct values as-is, and saves the pair as a training example
+  // directly. Use this instead of the extraction flow above when you
+  // already trust the program's values more than any fresh AI guess.
+  async function trainFromExistingProgram() {
+    if (!trainFile || !trainProgramId) return
+    setTraining(true)
+    setTrainMsg('')
+    try {
+      const formData = new FormData()
+      formData.append('file', trainFile)
+      formData.append('skipAi', 'true')
+      const extractRes = await fetch('/api/ai-extraction/extract', { method: 'POST', body: formData })
+      const extractData = await extractRes.json()
+      if (!extractRes.ok) throw new Error(extractData.error || 'Σφάλμα ανάγνωσης PDF')
+
+      const programRes = await fetch(`/api/programs/${trainProgramId}`)
+      if (!programRes.ok) throw new Error('Σφάλμα φόρτωσης προγράμματος')
+      const program = await programRes.json()
+
+      const saveRes = await fetch('/api/ai-extraction/examples', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          sourceText: extractData.sourceText,
+          sourceUrl: extractData.sourceUrl,
+          extractedJson: mapProgramToFields(program),
+        }),
+      })
+      if (!saveRes.ok) throw new Error('Σφάλμα αποθήκευσης παραδείγματος')
+
+      setTrainMsg(`Το «${program.title}» καταχωρήθηκε ως παράδειγμα εκπαίδευσης για αυτό το PDF.`)
+      setTrainFile(null)
+    } catch (err: any) {
+      setTrainMsg(err.message || 'Σφάλμα')
+    } finally {
+      setTraining(false)
     }
   }
 
@@ -340,6 +394,28 @@ export function AiTrainingTab() {
         <CardTitle className="flex items-center gap-2"><Sparkles size={18} /> AI Εκπαίδευση Εξαγωγής</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="space-y-2 rounded-lg border border-indigo-200 bg-indigo-50/50 p-3">
+          <p className="text-sm font-semibold text-indigo-900">Αυτό το πρόγραμμα δημιουργήθηκε από αυτό το PDF</p>
+          <p className="text-xs text-indigo-700">
+            Διαλέξτε ένα ήδη δημιουργημένο/διορθωμένο πρόγραμμα και το ακριβές PDF προκήρυξης από το οποίο προήλθε — αποθηκεύεται απευθείας ως παράδειγμα εκπαίδευσης, χωρίς καμία κλήση AI (οι τιμές του προγράμματος είναι ήδη σωστές).
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <input type="file" accept="application/pdf" onChange={e => setTrainFile(e.target.files?.[0] || null)} className="text-sm" />
+            <select className="rounded-lg border border-gray-300 px-3 py-2 text-sm" value={trainProgramId} onChange={e => setTrainProgramId(e.target.value)}>
+              <option value="">— Επιλέξτε πρόγραμμα —</option>
+              {programs.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}
+            </select>
+            <Button type="button" loading={training} disabled={!trainFile || !trainProgramId} onClick={trainFromExistingProgram}>
+              <Sparkles size={14} className="mr-1.5" /> Εκπαίδευση
+            </Button>
+          </div>
+          {trainMsg && <p className="text-sm text-indigo-800">{trainMsg}</p>}
+        </div>
+
+        <hr className="border-gray-100" />
+
+        <p className="text-xs text-gray-500">Ή δοκιμάστε/διορθώστε μια νέα εξαγωγή AI πριν την αποθηκεύσετε ως παράδειγμα:</p>
+
         <div className="flex gap-2">
           <Button type="button" variant={mode === 'upload' ? 'default' : 'outline'} size="sm" onClick={() => setMode('upload')}>Ανέβασμα PDF</Button>
           <Button type="button" variant={mode === 'announcement' ? 'default' : 'outline'} size="sm" onClick={() => setMode('announcement')}>Από Ανακοίνωση</Button>
