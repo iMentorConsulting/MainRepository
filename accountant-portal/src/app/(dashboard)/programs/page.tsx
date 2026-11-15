@@ -674,6 +674,7 @@ function PendingNotificationsTable() {
   const [rows, setRows] = useState<PendingNotificationProgram[]>([])
   const [loading, setLoading] = useState(true)
   const [sendingId, setSendingId] = useState<string | null>(null)
+  const [resultMsg, setResultMsg] = useState<Record<string, { text: string; ok: boolean }>>({})
 
   function load() {
     fetch('/api/programs/pending-notifications')
@@ -692,6 +693,73 @@ function PendingNotificationsTable() {
       setRows(prev => prev.filter(r => r.id !== id))
     } catch {
       // leave the row — admin can retry or open the program
+    } finally {
+      setSendingId(null)
+    }
+  }
+
+  // One click: accountants get the usual notification email; direct I-MENTOR
+  // clients get an auto-created + sent campaign (see /direct-campaign). Stays
+  // on this page — no navigation to the campaign.
+  async function sendWithCampaign(row: PendingNotificationProgram) {
+    setSendingId(row.id)
+    const fail = (text: string) => setResultMsg(prev => ({ ...prev, [row.id]: { text, ok: false } }))
+    try {
+      const pv = await fetch(`/api/programs/${row.id}/notify?preview=true`)
+      const preview = await pv.json()
+      if (!pv.ok) { fail(preview.error || 'Σφάλμα φόρτωσης'); return }
+      const acctMatchIds: string[] = (preview.accountants ?? []).flatMap((a: any) => a.businesses.map((b: any) => b.matchId))
+      const directMatchIds: string[] = (preview.directBusinesses ?? []).map((b: any) => b.matchId)
+
+      let directSummary: any = null
+      if (directMatchIds.length > 0) {
+        const dry = await fetch(`/api/programs/${row.id}/direct-campaign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchIds: directMatchIds, dryRun: true }),
+        })
+        const d = await dry.json()
+        if (!dry.ok && !d.templateLabel) { fail(d.error || 'Σφάλμα προετοιμασίας καμπάνιας'); return }
+        directSummary = d
+      }
+      const lines = [
+        `• ${acctMatchIds.length} matches → ειδοποίηση λογιστών (email)`,
+        directSummary
+          ? `• Καμπάνια «${directSummary.templateLabel}» σε ${directSummary.recipients} απευθείας πελάτες`
+            + (directSummary.skippedAlreadySent ? ` (παραλείπονται ${directSummary.skippedAlreadySent} που έλαβαν ήδη καμπάνια)` : '')
+            + (directSummary.skippedNoEmail ? ` (παραλείπονται ${directSummary.skippedNoEmail} χωρίς email)` : '')
+          : '',
+      ].filter(Boolean)
+      if (!confirm(`«${row.title}»\nΘα γίνει αποστολή:\n${lines.join('\n')}\n\nΣυνέχεια;`)) return
+
+      const parts: string[] = []
+      let ok = true
+      // Skip the notify call when there are no accountant matches: an empty
+      // matchIds list would make the endpoint send ALL pending matches.
+      if (acctMatchIds.length > 0) {
+        const res = await fetch(`/api/programs/${row.id}/notify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchIds: acctMatchIds }),
+        })
+        const data = await res.json()
+        if (res.ok) parts.push(`${data.notified} matches → ${data.accountants} λογιστές`)
+        else { ok = false; parts.push(`Λογιστές: ${data.error || 'σφάλμα'}`) }
+      }
+      if (directSummary && directSummary.recipients > 0) {
+        const res = await fetch(`/api/programs/${row.id}/direct-campaign`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ matchIds: directMatchIds }),
+        })
+        const data = await res.json()
+        if (res.ok) parts.push(`καμπάνια σε ${data.recipients} απευθείας`)
+        else { ok = false; parts.push(`Καμπάνια: ${data.error || 'σφάλμα'}`) }
+      }
+      setResultMsg(prev => ({ ...prev, [row.id]: { text: (ok ? '✓ ' : '⚠ ') + parts.join(' · '), ok } }))
+      if (ok) setTimeout(() => setRows(prev => prev.filter(r => r.id !== row.id)), 4000)
+    } catch {
+      fail('Σφάλμα δικτύου')
     } finally {
       setSendingId(null)
     }
@@ -718,10 +786,19 @@ function PendingNotificationsTable() {
               <td className="px-4 py-2.5 w-36">
                 <span className="bg-green-600 text-white text-xs font-bold rounded-full px-2 py-0.5">{row.pending} εκκρεμ{row.pending === 1 ? 'ή' : 'είς'}</span>
               </td>
-              <td className="px-4 py-2.5 w-40 text-right">
+              <td className="px-4 py-2.5 text-right whitespace-nowrap">
+                {resultMsg[row.id] && (
+                  <span className={`mr-3 text-xs font-medium ${resultMsg[row.id].ok ? 'text-green-700' : 'text-red-700'}`}>{resultMsg[row.id].text}</span>
+                )}
                 <Button size="sm" variant="outline" disabled={sendingId === row.id} onClick={() => sendNow(row.id)} className="gap-1.5">
                   <Send size={12} />
                   {sendingId === row.id ? 'Αποστολή…' : 'Αποστολή'}
+                </Button>
+                <Button size="sm" disabled={sendingId === row.id} onClick={() => sendWithCampaign(row)}
+                  className="gap-1.5 ml-2 bg-purple-600 hover:bg-purple-700 text-white"
+                  title="Ειδοποίηση λογιστών + αυτόματη καμπάνια στους απευθείας πελάτες">
+                  <Bell size={12} />
+                  Λογιστές + Καμπάνια
                 </Button>
               </td>
             </tr>
