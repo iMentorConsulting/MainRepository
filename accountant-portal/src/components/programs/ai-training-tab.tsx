@@ -210,6 +210,53 @@ export function AiTrainingTab() {
     }
   }
 
+  // Lets the admin pair THIS PDF with the real, hand-verified field values
+  // of an existing program instead of the AI's own guess — e.g. "here's the
+  // program I already created from this exact announcement, train on its
+  // actual values" rather than on whatever the fresh extraction produced.
+  async function importFieldsFromProgram() {
+    if (!targetProgramId) return
+    setApplyMsg('')
+    try {
+      const res = await fetch(`/api/programs/${targetProgramId}`)
+      if (!res.ok) { setApplyMsg('Σφάλμα φόρτωσης προγράμματος'); return }
+      const p = await res.json()
+      const otherRequirements = (p.otherRequirements || '')
+        .split('\n')
+        .map((l: string) => l.replace(/^\d+\.\s*/, '').trim())
+        .filter(Boolean)
+      setFields({
+        kadRules: p.kadRules || [],
+        regionRules: p.regionRules || [],
+        zipCodeRules: p.zipCodeRules || [],
+        excludedLegalForms: p.excludedLegalForms || [],
+        minRegdate: p.minRegdate || null,
+        maxRegdate: p.maxRegdate || null,
+        minInvestment: p.minInvestment ?? null,
+        maxInvestment: p.maxInvestment ?? null,
+        minSubsidyPct: p.minSubsidyPct ?? null,
+        maxSubsidyPct: p.maxSubsidyPct ?? null,
+        subsidyNote: p.subsidyNote || null,
+        minInterestRate: p.minInterestRate ?? null,
+        maxInterestRate: p.maxInterestRate ?? null,
+        otherRequirements,
+        totalBudgetEur: p.totalBudgetEur ?? null,
+        implementationMonths: p.implementationMonths ?? null,
+        startDate: p.startDate ? String(p.startDate).slice(0, 10) : null,
+        endDate: p.endDate ? String(p.endDate).slice(0, 10) : null,
+        requireTags: p.requireTags || [],
+        excludeTags: p.excludeTags || [],
+        keyPoints: p.keyPoints || [],
+        fundedActions: p.fundedActions || [],
+        expenseCategories: p.expenseCategories || [],
+      })
+      setSaved(false)
+      setApplyMsg(`Φορτώθηκαν οι τιμές του «${p.title}» — ελέγξτε τα παρακάτω και πατήστε "Αποθήκευση ως παράδειγμα".`)
+    } catch {
+      setApplyMsg('Σφάλμα φόρτωσης προγράμματος')
+    }
+  }
+
   async function saveExample() {
     if (!fields) return
     const res = await fetch('/api/ai-extraction/examples', {
@@ -371,6 +418,9 @@ export function AiTrainingTab() {
                   </select>
                   <Button type="button" variant="outline" onClick={applyToProgram} disabled={!targetProgramId}>
                     Εφαρμογή στο Πρόγραμμα
+                  </Button>
+                  <Button type="button" variant="outline" onClick={importFieldsFromProgram} disabled={!targetProgramId}>
+                    <Sparkles size={14} className="mr-1.5" /> Χρήση τιμών ΑΠΟ το πρόγραμμα (training label)
                   </Button>
                 </div>
               ) : (
