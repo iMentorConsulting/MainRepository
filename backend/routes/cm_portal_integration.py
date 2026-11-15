@@ -518,20 +518,30 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
 
     prog_cat = (payload.program_category or "").strip()
 
-    # Find the most recent non-cancelled lead for this AFM + program_category.
-    # If programTitle is supplied, prefer an exact title match first.
+    log.info(
+        "[comm.logged] MATCH INPUT afm=%r programTitle=%r prog_cat=%r subject=%r comment_preview=%r",
+        afm, payload.programTitle, prog_cat, payload.subject, (payload.comment or "")[:80],
+    )
+
     q = db.query(CMLead).filter(
         CMLead.afm == afm,
         CMLead.status != "CANCEL",
     )
     candidates = q.order_by(CMLead.id.desc()).all()
+    log.info(
+        "[comm.logged] candidates (%d): %s",
+        len(candidates),
+        [(l.id, l.program_title, l.program) for l in candidates],
+    )
 
     lead = None
     if payload.programTitle and candidates:
         pt = payload.programTitle.strip().lower()
         by_title = [l for l in candidates if (l.program_title or "").strip().lower() == pt]
+        log.info("[comm.logged] by_title search pt=%r → found=%d", pt, len(by_title))
         if by_title:
             lead = by_title[0]
+            log.info("[comm.logged] REUSING lead_id=%s via title match", lead.id)
         # If programTitle was provided but didn't match, do NOT fall back to
         # prog_cat — a different programTitle means a different program, so a
         # new lead must be created even when prog_cat is the same broad category.
@@ -540,8 +550,10 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         # Only fall back to program-category matching when no programTitle was
         # sent (Logistis gave us no title to distinguish programs).
         by_cat = [l for l in candidates if (l.program or "") == prog_cat]
+        log.info("[comm.logged] by_cat search prog_cat=%r → found=%d", prog_cat, len(by_cat))
         if by_cat:
             lead = by_cat[0]
+            log.info("[comm.logged] REUSING lead_id=%s via prog_cat match", lead.id)
 
     created = False
     if lead is None:
