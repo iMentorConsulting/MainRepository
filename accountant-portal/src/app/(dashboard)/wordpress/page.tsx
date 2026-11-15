@@ -240,7 +240,7 @@ export default function WordpressTemplatesPage() {
       const res = await fetch('/api/wordpress/sync-pages', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({}) })
       const d = await res.json()
       if (res.ok) {
-        const failed = (d.results ?? []).filter((r: any) => !r.ok)
+        const failed = (d.results ?? []).filter((r: any) => !r.ok || (r.warnings ?? []).length > 0).map((r: any) => ({ ...r, error: r.error ?? r.warnings.join(', ') }))
         showToast(`Ενημερώθηκαν ${d.updated}/${d.total} σελίδες${failed.length ? ` — αποτυχία: ${failed.map((f: any) => `${f.title} (${f.error})`).join('; ').slice(0, 300)}` : ''}`, failed.length === 0)
       } else {
         showToast(d.error ?? 'Σφάλμα συγχρονισμού', false)

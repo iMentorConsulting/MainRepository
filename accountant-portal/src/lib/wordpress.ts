@@ -234,15 +234,52 @@ function replaceImxHtmlWidget(nodes: any[], html: string): boolean {
   return false
 }
 
+// Best-effort cache purge through our custom endpoint (see
+// docs/wp-snippets/logistis-purge-cache.php). Never throws.
+async function purgeWpPageCache(pageId: number): Promise<boolean> {
+  if (!WP_URL || !WP_USER || !WP_PASS) return false
+  try {
+    const res = await fetch(`${WP_URL}/wp-json/logistis/v1/purge-cache`, {
+      method: 'POST',
+      headers: { Authorization: wpAuth(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ pageId }),
+    })
+    return res.ok
+  } catch { return false }
+}
+
+async function pageHasStamp(url: string, stamp: string): Promise<boolean | null> {
+  try {
+    const res = await fetch(url, { headers: { 'Cache-Control': 'no-cache', 'User-Agent': 'Mozilla/5.0 (compatible; imentor-sync-check)' }, redirect: 'follow' })
+    if (!res.ok) return null
+    return (await res.text()).includes(stamp)
+  } catch { return null }
+}
+
+export interface UpdateWpPageResult {
+  id: number
+  link: string
+  // The new HTML is stored in the page's Elementor data (re-read after saving).
+  stored: boolean
+  // The public page (cache-busted URL) serves the new HTML. null = could not check.
+  live: boolean | null
+  // The plain public URL serves it too. false while live=true means a page cache is serving the old version.
+  liveCached: boolean | null
+  purged: boolean
+}
+
 // Update an existing program page IN PLACE (same page ID, slug, status, menu
 // entry and any other widgets). Only the HTML widget + SEO meta change.
+// The result is VERIFIED: a unique render stamp is written into the HTML, then
+// read back from WP storage and from the public page — "HTTP 200" alone has
+// previously reported success while nothing visibly changed.
 export async function updateWpPageHtml(pageId: number, opts: {
   html: string
   seoTitle: string
   metaDesc: string
   focusKeyword: string
   ogImageUrl?: string
-}): Promise<{ id: number; link: string }> {
+}): Promise<UpdateWpPageResult> {
   const page = await wpFetch(`/pages/${pageId}?context=edit&_fields=id,link,meta`) as any
   const raw = page?.meta?._elementor_data
   if (!raw || typeof raw !== 'string') {
@@ -250,10 +287,16 @@ export async function updateWpPageHtml(pageId: number, opts: {
   }
   let tree: any[]
   try { tree = JSON.parse(raw) } catch { throw new Error('Μη έγκυρο Elementor JSON στη σελίδα — δεν έγινε καμία αλλαγή.') }
-  if (!replaceImxHtmlWidget(tree, opts.html)) {
+
+  const stamp = `r${Date.now().toString(36)}`
+  const stampedHtml = opts.html.replace('class="imx-page"', `class="imx-page" data-imx-render="${stamp}"`)
+  if (!replaceImxHtmlWidget(tree, stampedHtml)) {
     throw new Error('Η σελίδα δεν περιέχει το HTML widget του template (imx-page) — πιθανόν δημιουργήθηκε με άλλο τρόπο. Δεν έγινε καμία αλλαγή.')
   }
   const meta: Record<string, unknown> = {
+    // Keep Elementor rendering this page from its builder data.
+    _elementor_edit_mode: 'builder',
+    _elementor_template_type: 'wp-page',
     _elementor_data: JSON.stringify(tree),
     _yoast_wpseo_title: opts.seoTitle,
     _yoast_wpseo_metadesc: opts.metaDesc,
@@ -268,11 +311,25 @@ export async function updateWpPageHtml(pageId: number, opts: {
     meta['_yoast_wpseo_opengraph-image'] = opts.ogImageUrl
     meta.rank_math_og_content_image = opts.ogImageUrl
   }
-  const data = await wpFetch(`/pages/${pageId}`, {
+  await wpFetch(`/pages/${pageId}`, {
     method: 'POST',
     body: JSON.stringify({ excerpt: opts.metaDesc, meta }),
-  }) as any
-  return { id: data.id, link: data.link }
+  })
+
+  // 1) Was it actually stored?
+  const after = await wpFetch(`/pages/${pageId}?context=edit&_fields=id,link,meta`) as any
+  const stored = typeof after?.meta?._elementor_data === 'string' && after.meta._elementor_data.includes(stamp)
+  if (!stored) {
+    throw new Error('Το WordPress απάντησε OK αλλά ΔΕΝ αποθήκευσε το νέο περιεχόμενο (το meta _elementor_data δεν ενημερώθηκε — πιθανόν δεν είναι εγγράψιμο μέσω REST). Δες το snippet στο docs/wp-snippets.')
+  }
+
+  // 2) Purge caches, then check what the public page really serves.
+  const purged = await purgeWpPageCache(pageId)
+  const link: string = after.link
+  const sep = link.includes('?') ? '&' : '?'
+  const live = await pageHasStamp(`${link}${sep}imxv=${stamp}`, stamp)
+  const liveCached = live ? await pageHasStamp(link, stamp) : null
+  return { id: pageId, link, stored, live, liveCached, purged }
 }
 
 // Upload a file to the WP media library (idempotent per slug) and return its

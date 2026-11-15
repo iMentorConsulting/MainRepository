@@ -513,10 +513,19 @@ export default function EditProgramPage() {
       const data = await res.json()
       if (res.ok) {
         const warnings: string[] = data.warnings ?? []
-        setWpToast({
-          msg: warnings.length ? `Η σελίδα ενημερώθηκε. ⚠️ ${warnings[0]}` : 'Η σελίδα ενημερώθηκε στη θέση της (ίδιο URL, μενού και φόρμα).',
-          ok: warnings.length === 0,
-        })
+        let msg = 'Η σελίδα ενημερώθηκε και επαληθεύτηκε στο WordPress.'
+        let ok = warnings.length === 0
+        if (data.live === true && data.liveCached === false) {
+          msg = 'Αποθηκεύτηκε, αλλά ένα page cache σερβίρει ακόμα την παλιά έκδοση — καθάρισε το cache (ή εγκατάστησε το snippet logistis-purge-cache).'
+          ok = false
+        } else if (data.live === false) {
+          msg = 'Αποθηκεύτηκε στο WordPress αλλά η δημόσια σελίδα δεν δείχνει ακόμα το νέο περιεχόμενο (cache ή διαφορετικό περιεχόμενο που σερβίρεται).'
+          ok = false
+        } else if (data.live === null) {
+          msg = 'Αποθηκεύτηκε στο WordPress (δεν ήταν δυνατός ο έλεγχος της δημόσιας σελίδας).'
+        }
+        if (warnings.length) msg += ` ⚠️ ${warnings[0]}`
+        setWpToast({ msg, ok })
       } else {
         setWpToast({ msg: data.error ?? 'Σφάλμα ενημέρωσης', ok: false })
       }

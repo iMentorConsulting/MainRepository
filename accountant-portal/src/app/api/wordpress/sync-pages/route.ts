@@ -44,7 +44,10 @@ export async function POST(request: NextRequest) {
         ogImageUrl: p.heroImageUrl ?? undefined,
       })
       await prisma.program.update({ where: { id: p.id }, data: { wpPageUrl: r.link } })
-      results.push({ id: p.id, title: p.title, ok: true, warnings: rendered.warnings })
+      const w = [...rendered.warnings]
+      if (r.live === false) w.push('η δημόσια σελίδα δεν δείχνει ακόμα το νέο περιεχόμενο')
+      else if (r.live && r.liveCached === false) w.push('page cache σερβίρει παλιά έκδοση')
+      results.push({ id: p.id, title: p.title, ok: true, warnings: w })
     } catch (e) {
       results.push({ id: p.id, title: p.title, ok: false, error: e instanceof Error ? e.message : String(e) })
     }
