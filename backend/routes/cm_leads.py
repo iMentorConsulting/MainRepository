@@ -1009,10 +1009,16 @@ def update_lead(
     db.refresh(l)
 
     # Sync status to LOGISTIS when status changed and lead came from Logistis
-    if "status" in req.dict(exclude_unset=True) and l.portal_case_number:
+    _updated = req.dict(exclude_unset=True)
+    log.info(
+        "[update_lead] lead=%s status_in_update=%s portal_case_number=%r new_status=%r",
+        lead_id, "status" in _updated, l.portal_case_number, l.status,
+    )
+    if "status" in _updated and l.portal_case_number:
         try:
             from routes.cm_portal_integration import push_lead_status_to_logistis
-            push_lead_status_to_logistis(l, consultant_name=current_user.full_name)
+            result = push_lead_status_to_logistis(l, consultant_name=current_user.full_name)
+            log.info("[update_lead] LOGISTIS sync result for lead=%s: %s", lead_id, result)
         except Exception as _exc:
             log.warning("LOGISTIS status sync error for lead %s: %s", lead_id, _exc)
 
