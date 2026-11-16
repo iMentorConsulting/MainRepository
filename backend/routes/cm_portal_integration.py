@@ -203,6 +203,56 @@ def push_portal_status_update(case: CMCase, note: str = None, outcome: str = Non
         return {"sent": False, "reason": str(exc), "request": body, "url": PORTAL_CASES_API_URL}
 
 
+# ── Lead status sync (us → LOGISTIS Portal) ─────────────────────────────────
+
+_LEAD_STATUS_TO_PORTAL = {
+    "NEW LEAD": "Νέο",
+    "WORKED":   "Σε εξέλιξη",
+    "CALL":     "Σε εξέλιξη",
+    "HOT":      "Σε εξέλιξη",
+    "ACTIVE":   "Σε εξέλιξη",
+    "DEAL":     "Ολοκληρωμένο",
+    "CANCEL":   "Ακυρωμένο",
+}
+
+
+def push_lead_status_to_logistis(lead, consultant_name: str = None) -> dict:
+    """Notify LOGISTIS of a lead status change.
+    Safe to call for any lead — skips silently when not linked to Logistis.
+    Uses externalRef = 'lead-{id}' (registered when the assignment was accepted).
+    """
+    if not lead.portal_case_number:
+        return {"sent": False, "reason": "lead has no portal_case_number"}
+    secret = _shared_secret()
+    if not secret:
+        return {"sent": False, "reason": "IMENTOR_PORTAL_API_KEY not set"}
+
+    portal_status = _LEAD_STATUS_TO_PORTAL.get(lead.status or "", "Σε εξέλιξη")
+    body = {
+        "externalRef": f"lead-{lead.id}",
+        "status": portal_status,
+        "cmStatus": lead.status or "",
+    }
+    if consultant_name:
+        body["note"] = f"Κατάσταση άλλαξε σε «{lead.status}» από {consultant_name}"
+
+    try:
+        resp = requests.put(
+            PORTAL_CASES_API_URL,
+            json=body,
+            headers={"x-api-key": secret},
+            timeout=10,
+        )
+        if not resp.ok:
+            log.error("LOGISTIS lead status sync failed %s: %s", resp.status_code, resp.text[:300])
+            return {"sent": False, "reason": f"HTTP {resp.status_code}", "request": body}
+        log.info("LOGISTIS lead status sync OK lead=%s status=%s→%s", lead.id, lead.status, portal_status)
+        return {"sent": True, "request": body}
+    except Exception as exc:
+        log.warning("LOGISTIS lead status sync error lead=%s: %s", lead.id, exc)
+        return {"sent": False, "reason": str(exc), "request": body}
+
+
 # ── Inbound webhook (Portal → us) ────────────────────────────────────────────
 class BusinessActivityIn(BaseModel):
     firmActCode: Optional[str] = None
@@ -488,6 +538,24 @@ def _auto_accept_portal_assignment(assignment, target_user, db: Session):
     assignment.cm_lead_id = lead.id
     assignment.resolved_at = datetime.utcnow()
     db.commit()
+
+    # Register externalRef with Logistis (same as manual accept_assignment)
+    secret = _shared_secret()
+    if secret:
+        try:
+            requests.post(
+                PORTAL_CASES_API_URL,
+                json={
+                    "afm": assignment.afm,
+                    "externalRef": f"lead-{lead.id}",
+                    "status": "ACCEPTED",
+                    "note": f"Αυτόματη ανάθεση lead από το Case Management ({target_user.full_name})",
+                },
+                headers={"x-api-key": secret},
+                timeout=10,
+            )
+        except Exception as _exc:
+            log.warning("LOGISTIS Portal auto-accept push error for lead %s: %s", lead.id, _exc)
 
 
 def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:

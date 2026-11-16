@@ -1007,6 +1007,15 @@ def update_lead(
             l.source = "TikTok"
     db.commit()
     db.refresh(l)
+
+    # Sync status to LOGISTIS when status changed and lead came from Logistis
+    if "status" in req.dict(exclude_unset=True) and l.portal_case_number:
+        try:
+            from routes.cm_portal_integration import push_lead_status_to_logistis
+            push_lead_status_to_logistis(l, consultant_name=current_user.full_name)
+        except Exception as _exc:
+            log.warning("LOGISTIS status sync error for lead %s: %s", lead_id, _exc)
+
     return lead_to_dict(l, include_comments=True)
 
 
