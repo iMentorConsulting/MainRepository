@@ -100,7 +100,11 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   if (!checkApiKey(request)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
 
-  const { externalRef, caseNumber, status, externalStatus, note, dueDate, outcome, resultLink } = await request.json()
+  const input = await request.json()
+  const { externalRef, status, externalStatus, note, dueDate, outcome, resultLink } = input
+  // `portal_case_number` is accepted as an alias of `caseNumber` (the Logistis
+  // case number, e.g. 971 — NOT the long cuid in the case URL).
+  const caseNumber = input.caseNumber ?? input.portal_case_number
   if (!externalRef && !caseNumber) {
     return NextResponse.json({ error: 'externalRef or caseNumber is required' }, { status: 400 })
   }
@@ -108,13 +112,18 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ error: `Invalid status. Valid: ${VALID_STATUSES.join(', ')}` }, { status: 400 })
   }
 
-  const existing = externalRef
-    ? await prisma.clientCase.findUnique({ where: { externalRef } })
-    : await prisma.clientCase.findUnique({ where: { caseNumber: Number(caseNumber) } })
+  // Look up by externalRef first; if that case has not been linked yet (older
+  // cases) fall back to the case number. When BOTH are sent and the case was
+  // found by number, the externalRef is registered on it (see applyExternalUpdate:
+  // it only ever fills an empty externalRef, never overwrites one).
+  let existing = externalRef ? await prisma.clientCase.findUnique({ where: { externalRef } }) : null
+  if (!existing && caseNumber) {
+    existing = await prisma.clientCase.findUnique({ where: { caseNumber: Number(caseNumber) } })
+  }
   if (!existing) return NextResponse.json({ error: 'Case not found' }, { status: 404 })
 
   const updated = await applyExternalUpdate(existing.id, { status, externalStatus, note, dueDate, outcome, resultLink, externalRef })
-  return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, status: updated.status, resultLink: updated.resultLink })
+  return NextResponse.json({ id: updated.id, caseNumber: updated.caseNumber, status: updated.status, resultLink: updated.resultLink, externalRef: updated.externalRef })
 }
 
 // GET /api/external/cases?externalRef=... or ?caseNumber=... — read back case state.
