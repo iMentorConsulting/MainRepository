@@ -695,9 +695,24 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
             else "NEW LEAD"
         )
         # Resolve consultant for assignment (new lead only)
+        # Priority: auto-assignment rules > assignToConsultant from Logistis
         assigned_id = None
         assigned_name = None
-        if payload.assignToConsultant:
+        _effective_prog_cat = prog_cat or _map_program_category(payload.programTitle)
+        try:
+            from routes.cm_lead_assignment import pick_consultant_from_rules
+            auto_consultant = pick_consultant_from_rules(_effective_prog_cat, db)
+            if auto_consultant:
+                assigned_id = auto_consultant.id
+                assigned_name = auto_consultant.full_name
+                log.info(
+                    "[portal-webhook] communication.logged: auto-assigned lead to %s via rules (prog_cat=%r)",
+                    assigned_name, _effective_prog_cat,
+                )
+        except Exception as _exc:
+            log.error("[portal-webhook] communication.logged: auto-assign rules error: %s", _exc)
+
+        if assigned_id is None and payload.assignToConsultant:
             consultant_user = db.query(CMUser).filter(
                 CMUser.full_name == payload.assignToConsultant
             ).first()
@@ -720,6 +735,7 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
             status=initial_status,
             assigned_agent_id=assigned_id,
             assigned_name=assigned_name,
+            auto_assigned_at=datetime.utcnow() if assigned_id else None,
             source="Logistis",
             notes=None,
             next_call_date=(
