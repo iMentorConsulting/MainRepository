@@ -228,11 +228,18 @@ def push_lead_status_to_logistis(lead, consultant_name: str = None) -> dict:
         return {"sent": False, "reason": "IMENTOR_PORTAL_API_KEY not set"}
 
     portal_status = _LEAD_STATUS_TO_PORTAL.get(lead.status or "", "IN_PROGRESS")
-    body = {
+    body: dict = {
         "externalRef": f"lead-{lead.id}",
         "status": portal_status,
-        "cmStatus": lead.status or "",
+        "externalStatus": lead.status or "",
     }
+    # Include portal_case_number so Logistis can find old cases without externalRef
+    # and auto-register the externalRef for future calls
+    if lead.portal_case_number:
+        try:
+            body["portal_case_number"] = int(lead.portal_case_number)
+        except (ValueError, TypeError):
+            body["portal_case_number"] = lead.portal_case_number
     if consultant_name:
         body["note"] = f"Κατάσταση άλλαξε σε «{lead.status}» από {consultant_name}"
 
