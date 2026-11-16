@@ -359,5 +359,7 @@ export const resetAssignmentCounts = (program_category) =>
   api.post(`/api/cm/lead-assignment/reset-counts${program_category !== undefined ? `?program_category=${encodeURIComponent(program_category ?? '')}` : ''}`).then(r => r.data)
 export const getMyAutoAssignNotifications = (since) =>
   api.get(`/api/cm/lead-assignment/my-notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`).then(r => r.data)
+export const syncLogistisStatuses = () =>
+  api.post('/api/cm/leads/sync-logistis-statuses').then(r => r.data)
 
 export default api

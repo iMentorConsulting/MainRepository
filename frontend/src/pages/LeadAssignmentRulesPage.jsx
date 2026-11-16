@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { PlusIcon, TrashIcon, ArrowPathIcon, CheckIcon } from '@heroicons/react/24/outline'
-import { getAssignmentRules, saveAssignmentRules, resetAssignmentCounts, getUsers } from '../api'
+import { getAssignmentRules, saveAssignmentRules, resetAssignmentCounts, getUsers, syncLogistisStatuses } from '../api'
 import toast from 'react-hot-toast'
 
 const PROGRAM_GROUPS = [
@@ -18,6 +18,7 @@ export default function LeadAssignmentRulesPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [dirty, setDirty] = useState(false)
+  const [syncing, setSyncing] = useState(false)
 
   useEffect(() => {
     Promise.all([getAssignmentRules(), getUsers()])
@@ -101,6 +102,20 @@ export default function LeadAssignmentRulesPage() {
     }
   }
 
+  const handleSyncLogistis = async () => {
+    if (!window.confirm('Να συγχρονιστούν οι καταστάσεις όλων των leads στο Logistis;')) return
+    setSyncing(true)
+    try {
+      const result = await syncLogistisStatuses()
+      toast.success(`Συγχρονίστηκαν ${result.synced} από ${result.total} leads στο Logistis`)
+      if (result.failed > 0) toast.error(`${result.failed} leads απέτυχαν`)
+    } catch {
+      toast.error('Σφάλμα συγχρονισμού')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
   const handleResetCounts = async (groupKey) => {
     try {
       await resetAssignmentCounts(groupKey)
@@ -131,14 +146,25 @@ export default function LeadAssignmentRulesPage() {
             Αν δεν υπάρχουν κανόνες για ένα πρόγραμμα, εμφανίζεται popup για χειροκίνητη αποδοχή.
           </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving || !dirty}
-          className="btn-primary flex items-center gap-2 disabled:opacity-50"
-        >
-          <CheckIcon className="w-4 h-4" />
-          {saving ? 'Αποθήκευση…' : 'Αποθήκευση'}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSyncLogistis}
+            disabled={syncing}
+            className="btn-secondary flex items-center gap-2 disabled:opacity-50"
+            title="Συγχρονισμός καταστάσεων όλων των leads στο Logistis (εφάπαξ)"
+          >
+            <ArrowPathIcon className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
+            {syncing ? 'Συγχρονισμός…' : 'Sync Logistis'}
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving || !dirty}
+            className="btn-primary flex items-center gap-2 disabled:opacity-50"
+          >
+            <CheckIcon className="w-4 h-4" />
+            {saving ? 'Αποθήκευση…' : 'Αποθήκευση'}
+          </button>
+        </div>
       </div>
 
       {PROGRAM_GROUPS.map(group => {
