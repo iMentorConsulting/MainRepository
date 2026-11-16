@@ -143,10 +143,15 @@ ${html}
 // should also name who to contact. Centralized here so every call site gets
 // it automatically — templates that already render their own contact line
 // (detected by the phone number already being present) are left alone.
-function buildContactFooterHtml(consultantName: string | null): string {
+// Emails sent by an admin show this neutral team label instead of a person's name.
+const TEAM_FOOTER_LABEL = 'Η ομάδα της I-MENTOR'
+
+function buildContactFooterHtml(consultantName: string | null, teamLabel: string | null = null): string {
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
   <tr><td style="padding:16px 24px;text-align:center;border-top:1px solid #e5e7eb;">
-    ${consultantName ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280;">Ο σύμβουλός σας: <strong style="color:#374151;">${consultantName}</strong></p>` : ''}
+    ${consultantName
+      ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280;">Ο σύμβουλός σας: <strong style="color:#374151;">${consultantName}</strong></p>`
+      : teamLabel ? `<p style="margin:0 0 6px;font-size:12px;color:#374151;"><strong>${teamLabel}</strong></p>` : ''}
     <p style="margin:0;font-size:13px;color:#4f46e5;font-weight:600;">📞 <a href="tel:+302810363007" style="color:#4f46e5;text-decoration:none;">2810 363007</a> &nbsp;·&nbsp; <a href="mailto:info@i-mentor.gr" style="color:#4f46e5;text-decoration:none;">info@i-mentor.gr</a></p>
   </td></tr>
 </table>`
@@ -161,14 +166,16 @@ async function withContactFooter(fragment: string): Promise<string> {
   if (fragment.includes('363007')) return fragment // template already shows the phone number
 
   let consultantName: string | null = null
+  let teamLabel: string | null = null
   try {
     const session = await auth()
     consultantName = resolveConsultantFullName(session?.user as any)
+    if (!consultantName && (session?.user as any)?.role === 'ADMIN') teamLabel = TEAM_FOOTER_LABEL
   } catch {
     // No request context (e.g. called outside a Next.js request) — send
     // without a consultant name rather than fail the email.
   }
-  return appendFooter(fragment, buildContactFooterHtml(consultantName))
+  return appendFooter(fragment, buildContactFooterHtml(consultantName, teamLabel))
 }
 
 export async function sendEmail(data: EmailData): Promise<boolean> {
