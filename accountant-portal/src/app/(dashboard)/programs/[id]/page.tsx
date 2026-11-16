@@ -211,7 +211,8 @@ export default function ProgramDetailPage() {
         directSummary
           ? `• Καμπάνια «${directSummary.templateLabel}» σε ${directSummary.recipients} απευθείας πελάτες`
             + (directSummary.skippedAlreadySent ? ` (παραλείπονται ${directSummary.skippedAlreadySent} που έλαβαν ήδη καμπάνια)` : '')
-            + (directSummary.skippedNoEmail ? ` (παραλείπονται ${directSummary.skippedNoEmail} χωρίς email)` : '')
+            + (directSummary.skippedNoEmail ? ` (${directSummary.skippedNoEmail} χωρίς email — θα σταλεί λίστα στην ομάδα για χειροκίνητη επικοινωνία)` : '')
+            + (directSummary.skippedExcluded ? ` (${directSummary.skippedExcluded} εξαιρούνται από καμπάνιες — θα σταλούν στη λίστα της ομάδας)` : '')
           : '',
       ].filter(Boolean)
       if (!confirm(`Θα γίνει αποστολή:\n${lines.join('\n')}\n\nΣυνέχεια;`)) return
@@ -228,14 +229,14 @@ export default function ProgramDetailPage() {
         const data = await res.json()
         msg += `Εστάλησαν ειδοποιήσεις για ${data.notified} matches σε ${data.accountants} λογιστές.\n`
       }
-      if (directSummary && directSummary.recipients > 0) {
+      if (directSummary) {
         const res = await fetch(`/api/programs/${id}/direct-campaign`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ matchIds: directMatchIds }),
         })
         const data = await res.json()
-        if (res.ok) {
+        if (res.ok && data.started) {
           msg += `Η καμπάνια ξεκίνησε για ${data.recipients} απευθείας πελάτες.`
           setShowPreview(false)
           setPreviewData(null)
@@ -244,7 +245,7 @@ export default function ProgramDetailPage() {
           router.push(`/campaigns/${data.campaignId}?sending=1`)
           return
         }
-        msg += `Καμπάνια: ${data.error || 'σφάλμα'}`
+        msg += res.ok ? 'Δεν υπήρχε κανένας απευθείας πελάτης με email για καμπάνια — οι υπόλοιποι σημειώθηκαν και στάλθηκε λίστα στην ομάδα.' : `Καμπάνια: ${data.error || 'σφάλμα'}`
       }
       setShowPreview(false)
       setPreviewData(null)

@@ -727,7 +727,8 @@ function PendingNotificationsTable() {
         directSummary
           ? `• Καμπάνια «${directSummary.templateLabel}» σε ${directSummary.recipients} απευθείας πελάτες`
             + (directSummary.skippedAlreadySent ? ` (παραλείπονται ${directSummary.skippedAlreadySent} που έλαβαν ήδη καμπάνια)` : '')
-            + (directSummary.skippedNoEmail ? ` (παραλείπονται ${directSummary.skippedNoEmail} χωρίς email)` : '')
+            + (directSummary.skippedNoEmail ? ` (${directSummary.skippedNoEmail} χωρίς email — θα σταλεί λίστα στην ομάδα για χειροκίνητη επικοινωνία)` : '')
+            + (directSummary.skippedExcluded ? ` (${directSummary.skippedExcluded} εξαιρούνται από καμπάνιες — θα σταλούν στη λίστα της ομάδας)` : '')
           : '',
       ].filter(Boolean)
       if (!confirm(`«${row.title}»\nΘα γίνει αποστολή:\n${lines.join('\n')}\n\nΣυνέχεια;`)) return
@@ -746,14 +747,14 @@ function PendingNotificationsTable() {
         if (res.ok) parts.push(`${data.notified} matches → ${data.accountants} λογιστές`)
         else { ok = false; parts.push(`Λογιστές: ${data.error || 'σφάλμα'}`) }
       }
-      if (directSummary && directSummary.recipients > 0) {
+      if (directSummary) {
         const res = await fetch(`/api/programs/${row.id}/direct-campaign`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ matchIds: directMatchIds }),
         })
         const data = await res.json()
-        if (res.ok) parts.push(`καμπάνια σε ${data.recipients} απευθείας`)
+        if (res.ok) parts.push(`καμπάνια σε ${data.recipients} απευθείας${(data.skippedNoEmail || data.skippedExcluded) ? ` (λίστα ${data.skippedNoEmail + data.skippedExcluded} χωρίς αυτόματη ενημέρωση στάλθηκε στην ομάδα)` : ''}`)
         else { ok = false; parts.push(`Καμπάνια: ${data.error || 'σφάλμα'}`) }
       }
       setResultMsg(prev => ({ ...prev, [row.id]: { text: (ok ? '✓ ' : '⚠ ') + parts.join(' · '), ok } }))

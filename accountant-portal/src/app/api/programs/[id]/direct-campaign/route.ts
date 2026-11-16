@@ -3,6 +3,7 @@ import { MatchStatus } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { processCampaignSend } from '@/lib/campaign-send'
+import { sendEmail } from '@/lib/email'
 
 // One-click version of the campaign wizard for "direct" I-MENTOR clients:
 //   template  → the active EMAIL template whose label contains
@@ -45,7 +46,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     where: { id: { in: matchIds }, programId, notified: false, status: { not: MatchStatus.REJECTED } },
     include: { business: { select: { id: true, afm: true, onomasia: true, email: true, accountantId: true, excludedFromCampaigns: true } } },
   })
-  const direct = matches.filter(m => !m.business.accountantId && !m.business.excludedFromCampaigns)
+  const directAll = matches.filter(m => !m.business.accountantId)
+  const direct = directAll.filter(m => !m.business.excludedFromCampaigns)
+  const skippedExcluded = directAll.filter(m => m.business.excludedFromCampaigns)
 
   const alreadySent = direct.length
     ? await prisma.campaignRecipient.findMany({
@@ -65,10 +68,38 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     recipients: recipients.length,
     skippedAlreadySent: skippedAlreadySent.length,
     skippedNoEmail: skippedNoEmail.length,
+    skippedExcluded: skippedExcluded.length,
   }
   if (body.dryRun) return NextResponse.json({ dryRun: true, ...summary })
+
+  // Every direct match that was part of this run is now HANDLED — campaign sent,
+  // already contacted earlier, no email, or excluded. Marking only the campaign
+  // recipients (the previous behaviour) left the skipped ones flagged as
+  // un-notified, so they reappeared as "pending" after every refresh. The ones
+  // that need a human (no email / excluded) are listed in an email to the team.
+  const markHandled = () => prisma.programMatch.updateMany({
+    where: { id: { in: directAll.map(m => m.id) } },
+    data: { notified: true },
+  })
+  const needsHuman = [...skippedNoEmail, ...skippedExcluded]
+  const notifyTeamAboutSkipped = async () => {
+    if (needsHuman.length === 0) return
+    const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
+    const esc = (v: unknown) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    const row = (m: (typeof needsHuman)[number], why: string) =>
+      `<li><a href="${appUrl}/businesses/${m.business.id}">${esc(m.business.onomasia || 'Άγνωστη επιχείρηση')}</a> (ΑΦΜ ${esc(m.business.afm)}) — ${why}</li>`
+    await sendEmail({
+      to: process.env.ADMIN_EMAIL || 'info@i-mentor.gr',
+      subject: `📋 ${needsHuman.length} απευθείας πελάτες χωρίς αυτόματη ενημέρωση — «${program.title}»`,
+      html: `<p>Για το πρόγραμμα <strong>«${esc(program.title)}»</strong> οι παρακάτω απευθείας πελάτες ταιριάζουν αλλά <strong>δεν μπορούσαν να λάβουν την αυτόματη καμπάνια</strong>. Χρειάζονται χειροκίνητη επικοινωνία (π.χ. Viber/τηλέφωνο):</p>
+        <ul>${skippedNoEmail.map(m => row(m, 'χωρίς email')).join('')}${skippedExcluded.map(m => row(m, 'εξαιρείται από καμπάνιες')).join('')}</ul>`,
+    }).catch(() => {})
+  }
+
   if (recipients.length === 0) {
-    return NextResponse.json({ error: 'Κανένας παραλήπτης δεν πληροί τα κριτήρια (χωρίς λογιστή, με email, χωρίς προηγούμενη καμπάνια).', ...summary }, { status: 400 })
+    await markHandled()
+    await notifyTeamAboutSkipped()
+    return NextResponse.json({ started: false, ...summary })
   }
 
   // ── Create + send ───────────────────────────────────────────────────────────
@@ -97,9 +128,8 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   const matchReasonByBusiness = new Map(progMatches.map(m => [m.businessId, m.matchReason]))
 
-  // Direct matches are handled by this campaign — mark them notified so the
-  // pending counter clears and the next notify run doesn't resurface them.
-  await prisma.programMatch.updateMany({ where: { id: { in: recipients.map(m => m.id) } }, data: { notified: true } })
+  await markHandled()
+  await notifyTeamAboutSkipped()
 
   processCampaignSend(campaign, businesses, matchReasonByBusiness, session.user.id)
     .catch(err => console.error(`[Campaign ${created.id}] Background send failed:`, err?.message || err))
