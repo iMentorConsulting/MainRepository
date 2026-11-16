@@ -1526,6 +1526,31 @@ def purge_recent_leads(
     return {"ok": True, "deleted": len(ids)}
 
 
+@router.post("/sync-logistis-statuses")
+def sync_all_logistis_statuses(
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """One-time bulk sync: push current CM status to LOGISTIS for every lead that has a portal_case_number. Admin only."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Μόνο για διαχειριστές")
+    from routes.cm_portal_integration import push_lead_status_to_logistis
+    leads = db.query(CMLead).filter(CMLead.portal_case_number.isnot(None)).all()
+    ok, failed, skipped = 0, 0, 0
+    errors = []
+    for lead in leads:
+        try:
+            result = push_lead_status_to_logistis(lead)
+            if result.get("sent"):
+                ok += 1
+            else:
+                skipped += 1
+        except Exception as exc:
+            failed += 1
+            errors.append({"lead_id": lead.id, "error": str(exc)})
+    return {"total": len(leads), "synced": ok, "skipped": skipped, "failed": failed, "errors": errors[:20]}
+
+
 @router.post("/backfill-programs")
 def backfill_programs(
     current_user: CMUser = Depends(get_current_user),
