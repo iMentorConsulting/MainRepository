@@ -251,7 +251,7 @@ def push_lead_status_to_logistis(lead, consultant_name: str = None) -> dict:
             timeout=10,
         )
         if not resp.ok:
-            log.error("LOGISTIS lead status sync failed %s: %s", resp.status_code, resp.text[:300])
+            log.error("LOGISTIS lead status sync failed %s: %s | body=%s", resp.status_code, resp.text[:300], body)
             return {"sent": False, "reason": f"HTTP {resp.status_code}", "request": body}
         log.info("LOGISTIS lead status sync OK lead=%s status=%s→%s", lead.id, lead.status, portal_status)
         return {"sent": True, "request": body}
