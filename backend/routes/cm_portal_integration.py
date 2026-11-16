@@ -206,13 +206,13 @@ def push_portal_status_update(case: CMCase, note: str = None, outcome: str = Non
 # ── Lead status sync (us → LOGISTIS Portal) ─────────────────────────────────
 
 _LEAD_STATUS_TO_PORTAL = {
-    "NEW LEAD": "Νέο",
-    "WORKED":   "Σε εξέλιξη",
-    "CALL":     "Σε εξέλιξη",
-    "HOT":      "Σε εξέλιξη",
-    "ACTIVE":   "Σε εξέλιξη",
-    "DEAL":     "Ολοκληρωμένο",
-    "CANCEL":   "Ακυρωμένο",
+    "NEW LEAD": "ACCEPTED",
+    "WORKED":   "IN_PROGRESS",
+    "CALL":     "IN_PROGRESS",
+    "HOT":      "IN_PROGRESS",
+    "ACTIVE":   "IN_PROGRESS",
+    "DEAL":     "COMPLETED",
+    "CANCEL":   "CANCELLED",
 }
 
 
@@ -227,7 +227,7 @@ def push_lead_status_to_logistis(lead, consultant_name: str = None) -> dict:
     if not secret:
         return {"sent": False, "reason": "IMENTOR_PORTAL_API_KEY not set"}
 
-    portal_status = _LEAD_STATUS_TO_PORTAL.get(lead.status or "", "Σε εξέλιξη")
+    portal_status = _LEAD_STATUS_TO_PORTAL.get(lead.status or "", "IN_PROGRESS")
     body = {
         "externalRef": f"lead-{lead.id}",
         "status": portal_status,
