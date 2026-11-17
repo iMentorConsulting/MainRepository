@@ -298,7 +298,11 @@ export default function Dashboard() {
       const tB = Object.values(agentData[b]).reduce((s, v) => s + v, 0);
       return tB - tA;
     });
-    return { cols, agents, data: agentData };
+    const colMax = {};
+    for (const ym of cols) {
+      colMax[ym] = Math.max(...agents.map(ag => agentData[ag][ym] || 0));
+    }
+    return { cols, agents, data: agentData, colMax };
   }, [allIncome, matrixYears, matrixMonths]);
 
   return (
@@ -974,9 +978,16 @@ export default function Dashboard() {
                     </td>
                     {agentMatrix.cols.map(ym => {
                       const val = row[ym] || 0;
+                      const isTop = val > 0 && val === agentMatrix.colMax[ym];
                       return (
-                        <td key={ym} className="td text-right tabular-nums text-slate-600 whitespace-nowrap">
-                          {val > 0 ? Math.round(val).toLocaleString('el-GR') + ' €' : <span className="text-slate-200">—</span>}
+                        <td key={ym} className="td text-right tabular-nums whitespace-nowrap"
+                          style={isTop ? { background: '#fef9c3', color: '#854d0e', fontWeight: 700, borderRadius: 6 } : { color: val > 0 ? '#475569' : undefined }}>
+                          {val > 0 ? (
+                            <span style={isTop ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
+                              {isTop && <span style={{ fontSize: 11 }}>🏆</span>}
+                              {Math.round(val).toLocaleString('el-GR')} €
+                            </span>
+                          ) : <span className="text-slate-200">—</span>}
                         </td>
                       );
                     })}
