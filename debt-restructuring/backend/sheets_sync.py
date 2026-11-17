@@ -379,6 +379,16 @@ def sync_leads(db, full: bool = False) -> dict:
                 skipped += 1
                 continue
 
+            # Admin-defined weights decide who receives NEW leads (overrides the name in the sheet).
+            # Not configured / disabled → the consultant from the sheet is kept as before.
+            try:
+                from lead_assignment import pick_next
+                weighted = pick_next(db)
+                if weighted:
+                    fields["assigned_to"] = weighted
+            except Exception as e:
+                print(f"[WARN] weighted lead assignment failed, keeping sheet value: {e}")
+
             lead = Lead(**fields)
             db.add(lead)
             new_leads.append(lead)

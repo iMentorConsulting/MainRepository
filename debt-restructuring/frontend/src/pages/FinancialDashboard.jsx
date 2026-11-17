@@ -21,6 +21,7 @@ import { toast } from 'react-hot-toast'
 import { buildWinbackTemplates } from '../utils/winbackTemplates'
 import PerformanceAnalysisDashboard from '../components/PerformanceAnalysisDashboard'
 import BulkImportForm from '../components/BulkImportForm'
+import LeadDistributionPanel from '../components/LeadDistributionPanel'
 import {
   DEFAULT_PRICING_CONFIG,
   loadPricingConfig,
@@ -471,6 +472,8 @@ export default function FinancialDashboard({ currentEmployee }) {
           </button>
         </div>
       </div>
+
+      <LeadDistributionPanel />
 
       {/* Backup health */}
       {backupInfo && (() => {

@@ -305,7 +305,8 @@ def create_lead_external(
             }
 
     # Auto-allocate to next consultant in round-robin
-    assigned_to = _get_next_consultant(db)
+    from lead_assignment import pick_next
+    assigned_to = pick_next(db) or _get_next_consultant(db)
 
     # Generate Θέμις token
     themis_token = str(uuid.uuid4())

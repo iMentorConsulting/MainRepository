@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, Body
 from sqlalchemy.orm import Session
 from database import get_db
 from models import AppConfig
-from auth_utils import get_current_user
+from auth_utils import get_current_user, require_admin
 
 router = APIRouter(prefix="/config", tags=["config"], dependencies=[Depends(get_current_user)])
 
@@ -83,3 +83,19 @@ def save_lead_links(data: List[Any] = Body(...), db: Session = Depends(get_db)):
         db.add(AppConfig(key="lead_links", value=json.dumps(data)))
     db.commit()
     return data
+
+
+@router.get("/lead-distribution")
+def get_lead_distribution(db: Session = Depends(get_db)):
+    from lead_assignment import get_config
+    return get_config(db)
+
+
+@router.put("/lead-distribution")
+def save_lead_distribution(data: dict = Body(...), db: Session = Depends(get_db), admin: str = Depends(require_admin)):
+    from fastapi import HTTPException
+    from lead_assignment import save_config
+    try:
+        return save_config(db, bool(data.get("enabled")), data.get("weights") or {}, admin)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))

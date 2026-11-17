@@ -84,6 +84,8 @@ export const getPricingConfig = () => api.get('/config/pricing')
 export const putPricingConfig = (data) => api.put('/config/pricing', data)
 export const getLeadTemplates = () => api.get('/config/lead-templates')
 export const putLeadTemplates = (data) => api.put('/config/lead-templates', data)
+export const getLeadDistribution = () => api.get('/config/lead-distribution')
+export const saveLeadDistribution = (data) => api.put('/config/lead-distribution', data)
 export const getLeadLinks = () => api.get('/config/lead-links')
 export const putLeadLinks = (data) => api.put('/config/lead-links', data)
 
