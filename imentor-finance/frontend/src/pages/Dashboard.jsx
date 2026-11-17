@@ -131,6 +131,8 @@ export default function Dashboard() {
   const [allIncome, setAllIncome] = useState([]);
   const [allExpenses, setAllExpenses] = useState([]);
   const [expandedYears, setExpandedYears] = useState(new Set());
+  const [matrixYears, setMatrixYears] = useState([String(new Date().getFullYear())]);
+  const [matrixMonths, setMatrixMonths] = useState([]);
 
   useEffect(() => {
     const buildParams = (base) => {
@@ -272,6 +274,32 @@ export default function Dashboard() {
       }))
       .sort((a, b) => b.year - a.year);
   }, [allIncome, allExpenses]);
+
+  const agentMatrix = useMemo(() => {
+    const years = matrixYears.length > 0 ? matrixYears : [String(new Date().getFullYear())];
+    const monthFilter = new Set(matrixMonths.map(m => m.padStart(2, '0')));
+    const colSet = new Set();
+    const agentData = {};
+    for (const r of allIncome) {
+      const d = r.sale_date || '';
+      const y = d.slice(0, 4);
+      const mo = d.slice(5, 7);
+      if (!years.includes(y)) continue;
+      if (monthFilter.size > 0 && !monthFilter.has(mo)) continue;
+      const ym = `${y}-${mo}`;
+      colSet.add(ym);
+      const agent = (r.sales_agent || '—').trim();
+      if (!agentData[agent]) agentData[agent] = {};
+      agentData[agent][ym] = (agentData[agent][ym] || 0) + parseFloat(r.amount_collected || 0);
+    }
+    const cols = [...colSet].sort();
+    const agents = Object.keys(agentData).sort((a, b) => {
+      const tA = Object.values(agentData[a]).reduce((s, v) => s + v, 0);
+      const tB = Object.values(agentData[b]).reduce((s, v) => s + v, 0);
+      return tB - tA;
+    });
+    return { cols, agents, data: agentData };
+  }, [allIncome, matrixYears, matrixMonths]);
 
   return (
     <div className="page">
@@ -892,6 +920,97 @@ export default function Dashboard() {
           </div>
         );
       })()}
+
+      {/* Agent × Month matrix */}
+      <div className="card overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex flex-wrap items-center gap-3">
+          <h2 className="section-title mb-0 mr-2">Πωλήσεις ανά Σύμβουλο &amp; Μήνα</h2>
+          <MultiSelectDropdown
+            label="Έτος"
+            options={Array.from({ length: 6 }, (_, i) => ({ value: String(new Date().getFullYear() - i), label: String(new Date().getFullYear() - i) }))}
+            selected={matrixYears}
+            onChange={setMatrixYears}
+            getKey={o => o.value}
+            getLabel={o => o.label}
+          />
+          <MultiSelectDropdown
+            label="Περίοδος"
+            options={[
+              { value: '1', label: 'Ιανουάριος' }, { value: '2', label: 'Φεβρουάριος' },
+              { value: '3', label: 'Μάρτιος' }, { value: '4', label: 'Απρίλιος' },
+              { value: '5', label: 'Μάιος' }, { value: '6', label: 'Ιούνιος' },
+              { value: '7', label: 'Ιούλιος' }, { value: '8', label: 'Αύγουστος' },
+              { value: '9', label: 'Σεπτέμβριος' }, { value: '10', label: 'Οκτώβριος' },
+              { value: '11', label: 'Νοέμβριος' }, { value: '12', label: 'Δεκέμβριος' },
+            ]}
+            selected={matrixMonths}
+            onChange={setMatrixMonths}
+            getKey={o => o.value}
+            getLabel={o => o.label}
+          />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr>
+                <th className="th sticky left-0 bg-white z-10 min-w-[120px]">Σύμβουλος</th>
+                {agentMatrix.cols.map(ym => {
+                  const [y, mo] = ym.split('-');
+                  const label = MONTH_NAMES_SHORT[parseInt(mo, 10) - 1] + ' ' + y.slice(2);
+                  return <th key={ym} className="th text-right whitespace-nowrap">{label}</th>;
+                })}
+                <th className="th text-right whitespace-nowrap bg-slate-50">Σύνολο</th>
+              </tr>
+            </thead>
+            <tbody>
+              {agentMatrix.agents.map((agent, i) => {
+                const row = agentMatrix.data[agent];
+                const total = agentMatrix.cols.reduce((s, ym) => s + (row[ym] || 0), 0);
+                return (
+                  <tr key={agent} className={i % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}>
+                    <td className="td sticky left-0 font-semibold text-slate-700 whitespace-nowrap"
+                      style={{ background: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                      {agent}
+                    </td>
+                    {agentMatrix.cols.map(ym => {
+                      const val = row[ym] || 0;
+                      return (
+                        <td key={ym} className="td text-right tabular-nums text-slate-600 whitespace-nowrap">
+                          {val > 0 ? Math.round(val).toLocaleString('el-GR') + ' €' : <span className="text-slate-200">—</span>}
+                        </td>
+                      );
+                    })}
+                    <td className="td text-right tabular-nums font-bold text-emerald-700 whitespace-nowrap bg-slate-50">
+                      {Math.round(total).toLocaleString('el-GR')} €
+                    </td>
+                  </tr>
+                );
+              })}
+              {agentMatrix.agents.length === 0 && (
+                <tr><td colSpan={agentMatrix.cols.length + 2} className="td text-center text-slate-400 py-8">Δεν υπάρχουν δεδομένα</td></tr>
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="border-t-2 border-slate-200">
+                <td className="td sticky left-0 bg-slate-100 font-bold text-slate-700">Σύνολο</td>
+                {agentMatrix.cols.map(ym => {
+                  const colTotal = agentMatrix.agents.reduce((s, ag) => s + (agentMatrix.data[ag][ym] || 0), 0);
+                  return (
+                    <td key={ym} className="td text-right tabular-nums font-bold text-slate-700 whitespace-nowrap bg-slate-100">
+                      {Math.round(colTotal).toLocaleString('el-GR')} €
+                    </td>
+                  );
+                })}
+                <td className="td text-right tabular-nums font-bold text-emerald-800 whitespace-nowrap bg-slate-100">
+                  {Math.round(agentMatrix.agents.reduce((s, ag) =>
+                    s + agentMatrix.cols.reduce((cs, ym) => cs + (agentMatrix.data[ag][ym] || 0), 0), 0
+                  )).toLocaleString('el-GR')} €
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
     </div>
   );
 }
