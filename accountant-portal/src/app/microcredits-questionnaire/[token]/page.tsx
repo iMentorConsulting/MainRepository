@@ -9,6 +9,8 @@ interface Question {
   sectionTitle: string
   text: string
   bold: boolean
+  kind?: string
+  prefill?: string
 }
 
 const AUTOSAVE_DELAY_MS = 1500
@@ -38,9 +40,14 @@ export default function MicrocreditsQuestionnairePage() {
         if (!r.ok) throw new Error(data.error || 'Σφάλμα')
         setBusinessName(data.businessName || '')
         setQuestions(data.questions || [])
-        const loadedAnswers = data.answers || {}
+        const loadedAnswers: Record<string, string> = { ...(data.answers || {}) }
+        // Pre-fill the optional spend-breakdown box with the category lines so
+        // the client only types amounts.
+        for (const q of (data.questions || []) as Question[]) {
+          if (q.prefill && !loadedAnswers[q.id]) loadedAnswers[q.id] = q.prefill
+        }
         setAnswers(loadedAnswers)
-        lastSavedRef.current = JSON.stringify(loadedAnswers)
+        lastSavedRef.current = JSON.stringify(data.answers || {})
         setAlreadyAnswered(!!data.respondedAt)
       })
       .catch(err => setError(err.message))
@@ -141,7 +148,11 @@ export default function MicrocreditsQuestionnairePage() {
           return (
             <div key={section} className="bg-white rounded-xl border border-gray-200 p-6 space-y-4">
               <h2 className="text-sm font-bold text-indigo-700 uppercase tracking-wide">{section}. {sectionQuestions[0]?.sectionTitle}</h2>
-              {sectionQuestions.map(q => (
+              {sectionQuestions.map(q => q.kind === 'info' ? (
+                <div key={q.id} className="rounded-lg border-l-4 border-amber-400 bg-amber-50 px-4 py-3 text-sm text-amber-900 whitespace-pre-line leading-relaxed">
+                  {q.text}
+                </div>
+              ) : (
                 <div key={q.id}>
                   <label className={`block text-sm mb-1.5 whitespace-pre-line ${q.bold ? 'font-semibold text-gray-900' : 'text-gray-700'}`}>
                     {q.text}
@@ -149,7 +160,7 @@ export default function MicrocreditsQuestionnairePage() {
                   <textarea
                     value={answers[q.id] || ''}
                     onChange={e => setAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                    rows={q.bold ? 2 : 3}
+                    rows={q.prefill ? 8 : q.bold ? 2 : 3}
                     className="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"
                   />
                 </div>

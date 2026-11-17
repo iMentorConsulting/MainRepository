@@ -49,6 +49,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     deko: Number(operatingExpenseBreakdown?.deko) || 0,
     enoikia: Number(operatingExpenseBreakdown?.enoikia) || 0,
     loipa: Number(operatingExpenseBreakdown?.loipa) || 0,
+    prwtesYles: Number(operatingExpenseBreakdown?.prwtesYles) || 0,
+    misthodosia: Number(operatingExpenseBreakdown?.misthodosia) || 0,
+    efka: Number(operatingExpenseBreakdown?.efka) || 0,
   }
   const assetItems: FixedAssetItem[] = Array.isArray(fixedAssetItems)
     ? fixedAssetItems.filter((i: any) => i?.description && Number(i.amount) > 0).map((i: any) => ({ description: String(i.description), amount: Number(i.amount) }))
@@ -77,7 +80,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     return NextResponse.json({ error: `Τα πάγια δεν μπορούν να υπερβαίνουν το ${MAX_FIXED_ASSETS_PCT * 100}% του συνολικού δανείου` }, { status: 400 })
   }
 
-  const breakdownTotal = breakdown.emporeumata + breakdown.analosima + breakdown.deko + breakdown.enoikia + breakdown.loipa
+  const breakdownTotal = Object.values(breakdown).reduce((sum, v) => sum + (v || 0), 0)
   if (workingCapitalNum > 0 && breakdownTotal > 0 && Math.abs(breakdownTotal - workingCapitalNum) > 1) {
     return NextResponse.json({ error: 'Η ανάλυση λειτουργικών δαπανών πρέπει να ισούται με το κεφάλαιο κίνησης' }, { status: 400 })
   }

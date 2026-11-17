@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useSession } from 'next-auth/react'
 import { X, Send, FileText, CheckCircle2, Download, Loader2, RotateCcw } from 'lucide-react'
+import { parseFundingAmount, parseFundingDistribution, isUnanswered } from '@/lib/microcredits-funding'
 
 interface Activity {
   firmActCode: string
@@ -27,7 +28,10 @@ interface Owner {
 
 interface ExpenseBreakdown {
   emporeumata: string
+  prwtesYles: string
   analosima: string
+  misthodosia: string
+  efka: string
   deko: string
   enoikia: string
   loipa: string
@@ -38,7 +42,7 @@ interface FixedAssetItem {
   amount: string
 }
 
-const EMPTY_BREAKDOWN: ExpenseBreakdown = { emporeumata: '', analosima: '', deko: '', enoikia: '', loipa: '' }
+const EMPTY_BREAKDOWN: ExpenseBreakdown = { emporeumata: '', prwtesYles: '', analosima: '', misthodosia: '', efka: '', deko: '', enoikia: '', loipa: '' }
 
 interface Question {
   id: string
@@ -46,6 +50,8 @@ interface Question {
   sectionTitle: string
   text: string
   bold: boolean
+  kind?: string
+  prefill?: string
 }
 
 interface Questionnaire {
@@ -140,7 +146,7 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
         if (p.plan) {
           setPlan(p.plan)
           setOwners(p.plan.owners && p.plan.owners.length > 0 ? p.plan.owners : [])
-          if (p.plan.operatingExpenseBreakdown) setExpenseBreakdown(p.plan.operatingExpenseBreakdown)
+          if (p.plan.operatingExpenseBreakdown) setExpenseBreakdown({ ...EMPTY_BREAKDOWN, ...p.plan.operatingExpenseBreakdown })
           if (p.plan.fixedAssetItems && p.plan.fixedAssetItems.length > 0) setFixedAssetItems(p.plan.fixedAssetItems)
           if (p.plan.implementationMonths) setImplementationMonths(String(p.plan.implementationMonths))
         }
@@ -293,6 +299,23 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
   const breakdownMismatch = breakdownFilled && Math.abs(breakdownTotal - workingCapitalNum) > 1
   const assetItemsTotal = fixedAssetItems.reduce((sum, i) => sum + (Number(i.amount) || 0), 0)
   const assetItemsMismatch = fixedAssetsNum > 0 && assetItemsTotal > 0 && Math.abs(assetItemsTotal - fixedAssetsNum) > 1
+
+  // Client's answers to the fixed "Χρήση Χρηματοδότησης" questions (if the
+  // questionnaire was generated with them) — used to prefill the plan inputs.
+  const fundingQuestions: Question[] = (questionnaire?.questions)?.filter(q => q.kind === 'funding_amount' || q.kind === 'funding_distribution') ?? []
+
+  function prefillFromQuestionnaire() {
+    const qs = (questionnaire?.questions as Question[] | undefined) ?? []
+    const amountQ = qs.find(q => q.kind === 'funding_amount')
+    const distQ = qs.find(q => q.kind === 'funding_distribution')
+    const amount = amountQ ? parseFundingAmount(editedAnswers[amountQ.id] || '') : null
+    const dist = distQ && !isUnanswered(distQ, editedAnswers[distQ.id]) ? parseFundingDistribution(editedAnswers[distQ.id]) : {}
+    if (amount && amount >= 1000) setLoanAmount(String(amount))
+    if (Object.keys(dist).length > 0) {
+      setExpenseBreakdown({ ...EMPTY_BREAKDOWN, ...Object.fromEntries(Object.entries(dist).map(([k, v]) => [k, String(v)])) })
+    }
+    if (!amount && Object.keys(dist).length === 0) setError('Ο πελάτης δεν έχει δώσει ποσό ή κατανομή στο ερωτηματολόγιο.')
+  }
 
   async function generatePlan() {
     if (!currentRevenue || !currentEbitda || !currentNetProfit) {
@@ -495,12 +518,14 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
                               {sectionQuestions.map(q => (
                                 <div key={q.id}>
                                   <label className={`block text-xs mb-1 whitespace-pre-line ${q.bold ? 'font-semibold text-gray-900' : 'text-gray-600'}`}>{q.text}</label>
-                                  <textarea
-                                    value={editedAnswers[q.id] || ''}
-                                    onChange={e => setEditedAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
-                                    rows={2}
-                                    className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs"
-                                  />
+                                  {q.kind !== 'info' && (
+                                    <textarea
+                                      value={editedAnswers[q.id] || ''}
+                                      onChange={e => setEditedAnswers(prev => ({ ...prev, [q.id]: e.target.value }))}
+                                      rows={q.prefill ? 6 : 2}
+                                      className="w-full rounded-lg border border-gray-300 px-2.5 py-1.5 text-xs"
+                                    />
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -558,8 +583,8 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
                     <label className="text-xs font-medium text-gray-500 block mb-1">
                       Ανάλυση Λειτουργικών Δαπανών (προαιρετικό — εμφανίζεται ως bullets στο 2.2, αλλιώς παραλείπεται)
                     </label>
-                    <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-                      {([['emporeumata', 'Εμπορεύματα'], ['analosima', 'Αναλώσιμα'], ['deko', 'ΔΕΚΟ'], ['enoikia', 'Ενοίκια'], ['loipa', 'Λοιπά']] as const).map(([key, label]) => (
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                      {([['emporeumata', 'Εμπορεύματα'], ['prwtesYles', 'Πρώτες ύλες'], ['analosima', 'Αναλώσιμα'], ['misthodosia', 'Μισθοδοσία'], ['efka', 'ΕΦΚΑ'], ['deko', 'ΔΕΚΟ'], ['enoikia', 'Ενοίκια'], ['loipa', 'Λοιπά']] as const).map(([key, label]) => (
                         <div key={key}>
                           <label className="text-[10px] text-gray-400 block mb-0.5">{label}</label>
                           <input
@@ -571,6 +596,14 @@ export function MicrocreditsBusinessPlanModal({ businessId, programId, businessH
                         </div>
                       ))}
                     </div>
+                    {fundingQuestions.length > 0 && (
+                      <button type="button" onClick={prefillFromQuestionnaire} className="mt-2 text-xs text-indigo-700 hover:underline">
+                        ↓ Προσυμπλήρωση ποσού & κατανομής από τις απαντήσεις του πελάτη
+                      </button>
+                    )}
+                    {(Number(expenseBreakdown.misthodosia) > 0 || Number(expenseBreakdown.efka) > 0) && (
+                      <p className="text-xs mt-1 text-amber-700">⚠ Με δαπάνες μισθοδοσίας/ΕΦΚΑ ο δικαιούχος δεσμεύεται να μη μειώσει το προσωπικό για 2 έτη — βεβαιωθείτε ότι το γνωρίζει.</p>
+                    )}
                     {breakdownFilled && (
                       <p className={`text-xs mt-1 ${breakdownMismatch ? 'text-red-600' : 'text-gray-500'}`}>
                         Σύνολο: {breakdownTotal.toLocaleString('el-GR')} € {breakdownMismatch && `(πρέπει να ισούται με το κεφάλαιο κίνησης: ${workingCapitalNum.toLocaleString('el-GR')} €)`}

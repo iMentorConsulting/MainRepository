@@ -11,6 +11,9 @@
 //      no AI involved, so the numbers are always exactly reproducible.
 import Anthropic from '@anthropic-ai/sdk'
 import { z } from 'zod'
+import { buildFundingUseQuestions, isUnanswered, type QuestionKind } from '@/lib/microcredits-funding'
+
+export { parseFundingDistribution, parseFundingAmount, isUnanswered, FUNDING_CATEGORY_LINES } from '@/lib/microcredits-funding'
 
 const MAX_RESPONSE_TOKENS = 8_000
 
@@ -20,6 +23,12 @@ export interface QuestionnaireQuestion {
   sectionTitle: string
   text: string
   bold: boolean
+  // Set only on the deterministic "Χρήση Χρηματοδότησης" section (see
+  // buildFundingUseQuestions). 'info' = read-only notice, no answer box.
+  kind?: QuestionKind
+  // Starting text for the answer box (e.g. the category lines of the optional
+  // spend breakdown, so the client only has to type amounts).
+  prefill?: string
 }
 
 const questionnaireSchema = z.object({
@@ -79,19 +88,20 @@ const QUESTIONNAIRE_SYSTEM_PROMPT = `Είσαι βοηθός που συντάσ
 2. Παρεχόμενες Υπηρεσίες/Προϊόντα (checklist προσαρμοσμένο στη δραστηριότητα — τι ακριβώς κάνει/πουλάει, ποιο είναι το κύριο)
 3. Πελατολόγιο (τύποι πελατών, πώς τους βρίσκει — ΠΑΝΤΑ συμπεριέλαβε και τις δύο: πόσους πελάτες εξυπηρετεί κατά μέσο όρο ημερησίως/μηνιαίως, και ποιο είναι το μέσο έσοδο ανά πελάτη)
 4. Εξοπλισμός (τι βασικό εξοπλισμό διαθέτει — ζήτα τη λίστα ως σύντομα bullet-items, π.χ. "Ψυγεία / ψυκτικοί θάλαμοι", όχι μία γενική πρόταση· αν χρειάζεται αναβάθμιση)
-5. Λειτουργικά Έξοδα & Συνεργασίες (checklist βασικών κατηγοριών λειτουργικών εξόδων προσαρμοσμένο στη δραστηριότητα, π.χ. αγορές εμπορευμάτων, μισθοδοσία/αμοιβές συνεργατών, ενοίκιο/λειτουργικά εγκαταστάσεων, αναλώσιμα, λοιπά· ΚΑΙ ερώτηση για 1-2 βασικούς προμηθευτές/συνεργάτες — να αναφερθούν οι επωνυμίες τους)
+5. Λειτουργικά Έξοδα & Συνεργασίες — ΥΠΟΧΡΕΩΤΙΚΗ ενότητα (ποτέ μην την παραλείψεις). ΠΡΩΤΗ ερώτηση, bold=true: «Ποια είναι τα βασικά λειτουργικά έξοδα της επιχείρησής σας;» με bullet παραδείγματα ΠΡΟΣΑΡΜΟΣΜΕΝΑ στη δραστηριότητα, που να περιλαμβάνουν πάντα: εμπορεύματα, πρώτες ύλες/αναλώσιμα, μισθοδοσία προσωπικού, ΕΦΚΑ/ασφαλιστικές εισφορές, ΔΕΚΟ (ρεύμα, νερό, θέρμανση, τηλεφωνία), ενοίκιο, λοιπά — ο πελάτης απλώς αναφέρει ΠΟΙΕΣ κατηγορίες έχει (ΟΧΙ ποσά σε €). Μετά, ΚΑΙ ερώτηση για 1-2 βασικούς προμηθευτές/συνεργάτες — να αναφερθούν οι επωνυμίες τους.
 6. Διαδικτυακή Παρουσία (διαθέτει ιστοσελίδα/επαγγελματικούς λογαριασμούς σε μέσα κοινωνικής δικτύωσης· πραγματοποιεί πωλήσεις μέσω διαδικτύου/πλατφορμών delivery)
-7. Χρήση Χρηματοδότησης (€3.000 – €25.000) — ζήτα ΑΝΑΛΥΤΙΚΟ διαχωρισμό του αιτούμενου ποσού σε δύο ξεχωριστές ερωτήσεις με bold=true: (α) ποσό για πάγιο εξοπλισμό σε €, (β) ποσό για λειτουργικές δαπάνες/κεφάλαιο κίνησης σε € — ΟΧΙ ένα ενιαίο ποσό με checklist κατηγοριών όπως πριν. Πρόσθεσε και ανοιχτή ερώτηση πώς θα βοηθήσει συγκεκριμένα η χρηματοδότηση τη λειτουργία της επιχείρησης.
+ΜΗΝ συμπεριλάβεις ενότητα για τη Χρήση Χρηματοδότησης (ποσό, κατηγορίες δαπανών, κατανομή) — προστίθεται αυτόματα στο τέλος από το σύστημα με σταθερό κείμενο.
 
 ΜΗΝ συμπεριλάβεις ενότητα "Σχέδιο Ανάπτυξης" (στόχος ανάπτυξης/ανταγωνιστικό πλεονέκτημα) — αφαιρέθηκε οριστικά, το γραφείο τη συντάσσει μόνο του.
 
-Για την ενότητα 7 (Χρήση Χρηματοδότησης), ΠΟΛΥ ΣΗΜΑΝΤΙΚΟ πλαίσιο (για τη δική σου κρίση, όχι για να το γράψεις στον πελάτη): στην πράξη, το ~90% των αιτήσεων γραφείου καλύπτει ΑΠΟΚΛΕΙΣΤΙΚΑ ΛΕΙΤΟΥΡΓΙΚΕΣ ΔΑΠΑΝΕΣ (κεφάλαιο κίνησης) — ΟΧΙ πάγια/εξοπλισμό/ανακαινίσεις/επενδυτικού τύπου δαπάνες, και μόνο όταν δεν υπάρχουν αρκετές λειτουργικές ανάγκες ορίζεται ποσό παγίων. Δαπάνες μισθοδοσίας συγγενών α΄/β΄ βαθμού δεν είναι επιλέξιμες και δεν πρέπει να υπάρξει μείωση προσωπικού — μην ρωτάς τον πελάτη γι' αυτά, απλώς μην τα προτείνεις ως κατηγορία δαπάνης στην ενότητα 5.
+Πλαίσιο για τη δική σου κρίση (όχι για να το γράψεις στον πελάτη): στην πράξη το ~90% των αιτήσεων γραφείου καλύπτει ΑΠΟΚΛΕΙΣΤΙΚΑ ΛΕΙΤΟΥΡΓΙΚΕΣ ΔΑΠΑΝΕΣ. Δαπάνες μισθοδοσίας συγγενών α΄/β΄ βαθμού δεν είναι επιλέξιμες — μην ρωτάς τον πελάτη γι' αυτά, απλώς μην τα προτείνεις ως κατηγορία δαπάνης στην ενότητα 5.
 
 Οι ερωτήσεις πρέπει να είναι ΣΥΓΚΕΚΡΙΜΕΝΕΣ για τη δραστηριότητα που σου δίνεται (ΚΑΔ + τυχόν σημείωση συμβούλου) — όχι γενικές.
 
 Μορφή: κάθε ενότητα έχει μια λίστα ερωτήσεων. Μέσα στο "text" μιας ερώτησης μπορείς να συμπεριλάβεις bullet επιλογές σε ξεχωριστές γραμμές (με \\n) όταν βοηθάει (π.χ. "Ποιες ακριβώς υπηρεσίες παρέχει η επιχείρηση;\\n- Επιλογή Α\\n- Επιλογή Β"). Σήμανε bold=true μόνο στις 2-3 πιο καθοριστικές ερωτήσεις ανά ενότητα.
 
 Κάλεσε το εργαλείο "build_questionnaire".`
+
 
 export async function generateMicrocreditsQuestionnaire(params: {
   businessName: string
@@ -144,7 +154,12 @@ ${params.extraInstructions ? `\nΠρόσθετες οδηγίες από τον 
       })
     }
   }
-  return questions
+  // Drop any funding-use section the model wrote anyway, then add the fixed one.
+  const kept = questions.filter(q => !/χρήση\s+χρηματοδότησης/i.test(q.sectionTitle))
+  const nextSection = kept.reduce((m, q) => Math.max(m, q.section), 0) + 1
+  const funding = buildFundingUseQuestions(nextSection)
+  const withFunding = [...kept, ...funding.map((q, i) => ({ ...q, id: '' }))]
+  return withFunding.map((q, i) => ({ ...q, id: `q${i + 1}` }))
 }
 
 // ─── Business-plan narrative drafting ──────────────────────────────────────
@@ -174,6 +189,10 @@ export interface ExpenseBreakdown {
   deko: number
   enoikia: number
   loipa: number
+  // Added later — optional so previously saved plans (stored without them) stay valid.
+  prwtesYles?: number
+  misthodosia?: number
+  efka?: number
 }
 
 export interface FixedAssetItem {
@@ -232,7 +251,7 @@ export async function generateBusinessPlanSections(input: BusinessPlanInput): Pr
   const qaLines = input.questions
     .map(q => {
       const answer = input.answers[q.id]
-      return answer ? `[${q.sectionTitle}] ${q.text.split('\n')[0]} → ${answer}` : null
+      return answer && !isUnanswered(q, answer) ? `[${q.sectionTitle}] ${q.text.split('\n')[0]} → ${answer}` : null
     })
     .filter(Boolean)
     .join('\n')
@@ -243,6 +262,7 @@ export async function generateBusinessPlanSections(input: BusinessPlanInput): Pr
 
   const categoryLabels: Record<keyof ExpenseBreakdown, string> = {
     emporeumata: 'αγορά εμπορευμάτων', analosima: 'αναλώσιμα', deko: 'ΔΕΚΟ', enoikia: 'ενοίκιο', loipa: 'λοιπά λειτουργικά έξοδα',
+    prwtesYles: 'πρώτες ύλες', misthodosia: 'μισθοδοσία προσωπικού', efka: 'ΕΦΚΑ / ασφαλιστικές εισφορές',
   }
   const activeCategories = input.operatingExpenseBreakdown
     ? (Object.keys(categoryLabels) as (keyof ExpenseBreakdown)[])
@@ -321,11 +341,12 @@ export function buildExpenseBreakdownParagraphs(params: {
   ]
 
   const categoryLabels: [keyof ExpenseBreakdown, string][] = [
-    ['emporeumata', 'Εμπορεύματα'], ['analosima', 'Αναλώσιμα'], ['deko', 'ΔΕΚΟ'], ['enoikia', 'Ενοίκια'], ['loipa', 'Λοιπά λειτουργικά'],
+    ['emporeumata', 'Εμπορεύματα'], ['prwtesYles', 'Πρώτες ύλες'], ['analosima', 'Αναλώσιμα'], ['misthodosia', 'Μισθοδοσία προσωπικού'],
+    ['efka', 'ΕΦΚΑ / ασφαλιστικές εισφορές'], ['deko', 'ΔΕΚΟ'], ['enoikia', 'Ενοίκια'], ['loipa', 'Λοιπά λειτουργικά'],
   ]
   const activeCategoryLines = categoryLabels
     .filter(([key]) => (breakdown[key] || 0) > 0)
-    .map(([key, label]) => `- ${label}: ${eur(breakdown[key])}`)
+    .map(([key, label]) => `- ${label}: ${eur(breakdown[key] || 0)}`)
   if (activeCategoryLines.length > 0) {
     paragraphs.push([`ΛΕΙΤΟΥΡΓΙΚΑ ΕΞΟΔΑ (${workingCapitalPct}%)`, ...activeCategoryLines].join('\n'))
   }
