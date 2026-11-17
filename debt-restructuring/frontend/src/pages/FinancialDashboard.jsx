@@ -95,6 +95,8 @@ const STATUS_LABELS = {
   lost:      { label: 'Χαμένο',      cls: 'bg-gray-100 text-gray-400' },
 }
 
+const fmtEur0 = (v) => (v ?? 0).toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })
+
 export default function FinancialDashboard({ currentEmployee }) {
   const [cases, setCases] = useState([])
   const [loading, setLoading] = useState(true)
@@ -1038,7 +1040,14 @@ export default function FinancialDashboard({ currentEmployee }) {
                   const txtColor = pct == null ? 'text-gray-500' : pct >= 100 ? 'text-green-700' : pct >= 70 ? 'text-blue-700' : 'text-amber-600'
                   return (
                     <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2 px-3 font-medium text-gray-700">{emp.name}</td>
+                      <td className="py-2 px-3 font-medium text-gray-700">
+                        {emp.name}
+                        {(emp.new_sales != null || emp.implementation != null) && (
+                          <div className="text-xs font-normal text-gray-400">
+                            Νέες: {fmtEur0(emp.new_sales)} | Υλοποίηση: {fmtEur0(emp.implementation)}
+                          </div>
+                        )}
+                      </td>
                       <td className="py-2 px-3 text-right text-gray-600">{emp.target?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
                       <td className="py-2 px-3 text-right font-semibold text-gray-800">{emp.sales_to_date?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</td>
                       <td className={`py-2 px-3 text-right font-bold ${txtColor}`}>{pct != null ? `${Math.round(pct)}%` : '—'}</td>

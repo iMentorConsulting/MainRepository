@@ -132,6 +132,12 @@ export default function Layout({ auth, onLogout }) {
                   <span className="text-blue-300">Εισπράξεις</span>
                   <span className="text-white font-semibold">{myTarget.sales_to_date?.toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}</span>
                 </div>
+                {(myTarget.new_sales != null || myTarget.implementation != null) && (
+                  <div className="text-[11px] text-blue-300 pt-0.5">
+                    Νέες: {(myTarget.new_sales ?? 0).toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                    {' | '}Υλοποίηση: {(myTarget.implementation ?? 0).toLocaleString('el-GR', { style: 'currency', currency: 'EUR', maximumFractionDigits: 0 })}
+                  </div>
+                )}
                 <div className="h-1.5 rounded-full bg-blue-700 overflow-hidden mt-1">
                   <div className={`h-full rounded-full ${barColor}`} style={{ width: `${pct != null ? Math.min(100, pct) : 0}%` }} />
                 </div>
