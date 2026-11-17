@@ -559,6 +559,22 @@ def _detect_prog(status, service_type):
     return 'ΕΣΠΑ'
 
 with SessionLocal() as _db:
+    from models_cases import CMLead as _CMLead
+    from routes.cm_leads import program_category_from_title as _pcat
+    _lead_fixed = 0
+    for _l in _db.query(_CMLead).all():
+        title = _l.program_title or _l.service_type
+        if not title:
+            continue
+        derived = _pcat(title)
+        if derived and derived != (_l.program or ''):
+            _l.program = derived
+            _lead_fixed += 1
+    if _lead_fixed:
+        _db.commit()
+        print(f"[migration] Re-categorised {_lead_fixed} leads based on program_title/service_type")
+
+with SessionLocal() as _db:
     from models_cases import CMCase as _CMCase
     _fixed = 0
     for _c in _db.query(_CMCase).all():
