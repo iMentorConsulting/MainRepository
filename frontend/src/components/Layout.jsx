@@ -201,6 +201,12 @@ export default function Layout({ auth, onLogout }) {
               <div className="h-1 bg-white/10 rounded-full overflow-hidden">
                 <div className={`h-1 rounded-full transition-all ${barColor}`} style={{ width: `${pct}%` }} />
               </div>
+              {(d.new_sales != null || d.implementation != null) && (
+                <div className="flex gap-3 mt-1.5 text-[10px] text-white/40">
+                  {d.new_sales != null && <span>Νέες: {fmtEur(d.new_sales)}</span>}
+                  {d.implementation != null && <span>Υλοπ.: {fmtEur(d.implementation)}</span>}
+                </div>
+              )}
             </div>
           )
         })()}
