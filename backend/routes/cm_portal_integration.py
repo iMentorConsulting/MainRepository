@@ -84,6 +84,7 @@ def _assignment_to_dict(a: CMPortalAssignment) -> dict:
 
 _PROGRAM_CATEGORY_MAP = [
     ("ΜΙΚΡΟΠΙΣΤΩΣ", "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"),
+    ("LEADER",      "LEADER"),
     ("ΕΣΠΑ",        "ΕΣΠΑ"),
     ("ΔΥΠΑ",        "ΔΥΠΑ"),
     ("ΟΑΕΔ",        "ΔΥΠΑ"),

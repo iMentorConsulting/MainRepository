@@ -15,7 +15,7 @@ import toast from 'react-hot-toast'
 
 const PAGE_SIZE = 100
 
-const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ']
+const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'LEADER']
 const FINAL_STATUSES = new Set(['ΟΛΟΚΛΗΡΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΠΑΡΑΙΤΗΣΗ', 'ΠΑΓΩΜΕΝΗ ΥΠΟΘΕΣΗ', 'ΑΚΥΡΩΣΗ', 'ΑΠΟΡΡΙΨΗ', 'ΜΗ ΕΠΙΛΕΞΙΜΟΣ', 'ΟΧΙ ΕΝΔΙΑΦΕΡΟΝ'])
 const PROG_COLOR = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-700',
@@ -23,6 +23,7 @@ const PROG_COLOR = {
   ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ: 'bg-purple-100 text-purple-700',
   ΑΝΑΚΑΙΝΙΖΩ: 'bg-orange-100 text-orange-700',
   'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ': 'bg-teal-100 text-teal-700',
+  LEADER: 'bg-lime-100 text-lime-700',
 }
 
 function followUpCellClass(dateStr) {

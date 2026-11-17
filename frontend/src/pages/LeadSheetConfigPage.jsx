@@ -5,7 +5,7 @@ import {
 import { ArrowPathIcon, EyeIcon, PlusIcon, TrashIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ', 'LEADER']
 const LOGICAL_FIELDS = ['name', 'phone', 'phone2', 'email', 'afm', 'service_type', 'total_amount', 'source', 'notes', 'assigned_to', 'next_call_date', 'status', 'created_date']
 
 function ConfigCard({ program, initial, onSaved }) {

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { getMetaPages, createMetaPage, updateMetaPage, deleteMetaPage, getMetaLeadLog, getUsers, getMetaCapiSettings, updateMetaCapiSettings } from '../api'
 import toast from 'react-hot-toast'
 
-const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ']
+const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'LEADER']
 const WEBHOOK_URL = `${window.location.origin}/api/meta/webhook`
 
 const EMPTY_FORM = {

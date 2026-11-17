@@ -3,7 +3,7 @@ import { getMessageTemplates, getAllMessageTemplates, createMessageTemplate, upd
 import { PlusIcon, TrashIcon, CheckIcon, ArrowsUpDownIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAMS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'LEADER']
 
 function TemplateCard({ template, onSaved, onDeleted, isAdmin }) {
   const [form, setForm] = useState({

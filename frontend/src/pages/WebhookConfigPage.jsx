@@ -10,7 +10,7 @@ import {
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'LEADER']
 
 const LEAD_FIELDS = [
   { key: 'name', label: 'Ονοματεπώνυμο' },

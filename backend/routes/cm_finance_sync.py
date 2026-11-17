@@ -43,6 +43,7 @@ VALID_IMPORT_STATUSES = (
     set(OLD_STATUS_MAP.keys())
     | set(get_all_statuses_for_program("ΕΣΠΑ"))
     | set(get_all_statuses_for_program("ΔΥΠΑ"))
+    | set(get_all_statuses_for_program("LEADER"))
     | set(get_all_statuses_for_program("ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"))
     | set(get_all_statuses_for_program("ΑΝΑΚΑΙΝΙΖΩ"))
 )

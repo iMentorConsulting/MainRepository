@@ -131,6 +131,8 @@ def program_category_from_title(title):
         return "ΔΥΠΑ"
     if "ΑΝΑΚΑΙΝ" in t:
         return "ΑΝΑΚΑΙΝΙΖΩ"
+    if "LEADER" in t:
+        return "LEADER"
     if "ΕΣΠΑ" in t:
         return "ΕΣΠΑ"
     return None

@@ -45,12 +45,13 @@ _STATUS_SYNONYMS = {
 }
 
 
-CANONICAL_PROGRAMS = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ"]
+CANONICAL_PROGRAMS = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ", "LEADER"]
 # ASCII aliases so external callers (Pabbly) never need Greek chars in the URL
 PROGRAM_ALIASES = {
     "MIKRO": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MIKROPISTOSEIS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "MICROLOANS": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ",
     "DYPA": "ΔΥΠΑ", "ESPA": "ΕΣΠΑ",
     "ANAKAINIZW": "ΑΝΑΚΑΙΝΙΖΩ", "ANAKAINIZO": "ΑΝΑΚΑΙΝΙΖΩ", "RENOVATE": "ΑΝΑΚΑΙΝΙΖΩ",
+    "LEADER": "LEADER",
 }
 # Keyword fragments (accent-stripped) that uniquely identify a canonical program.
 # Used when exact/substring matching fails (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" shares no
@@ -60,6 +61,7 @@ _PROGRAM_KEYWORDS = {
     "ΔΥΠΑ":            ["ΔΥΠΑ", "ΟΑΕΔ", "ΑΝΕΡΓ", "ΠΡΟΣΛΗΨ"],
     "ΕΣΠΑ":            ["ΕΣΠΑ"],
     "ΑΝΑΚΑΙΝΙΖΩ":      ["ΑΝΑΚΑΙΝ"],
+    "LEADER":          ["LEADER"],
 }
 
 

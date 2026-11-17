@@ -3,7 +3,7 @@ import { getPendingItemTemplates, createPendingItemTemplate, updatePendingItemTe
 import { ClipboardDocumentListIcon, PlusIcon, TrashIcon, XMarkIcon, PencilIcon } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
-const PROG_CATS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
+const PROG_CATS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'LEADER']
 const PROG_COLORS = {
   ΕΣΠΑ: 'bg-blue-100 text-blue-800 border-blue-200',
   ΔΥΠΑ: 'bg-green-100 text-green-800 border-green-200',

@@ -152,10 +152,10 @@ function KpiTile({ label, value, sub, accent='#4f46e5', subGreen, subRed }) {
 // ── palettes ──────────────────────────────────────────────────────────────────
 
 const CAT=['#4f46e5','#0891b2','#059669','#d97706','#7c3aed','#dc2626','#0d9488','#9333ea','#db2777','#65a30d']
-const PROG_C={'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ':'#4f46e5','ΔΥΠΑ':'#0891b2','ΕΣΠΑ':'#059669','ΑΝΑΚΑΙΝΙΖΩ':'#d97706'}
+const PROG_C={'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ':'#4f46e5','ΔΥΠΑ':'#0891b2','ΕΣΠΑ':'#059669','ΑΝΑΚΑΙΝΙΖΩ':'#d97706','LEADER':'#16a34a'}
 const STATUS_C={'NEW LEAD':'#fbbf24','CALL':'#60a5fa','HOT':'#f87171','ACTIVE':'#fb923c','DEAL':'#34d399','CANCEL':'#9ca3af'}
 
-const PROG_CATS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ','ΔΥΠΑ','ΕΣΠΑ','ΑΝΑΚΑΙΝΙΖΩ']
+const PROG_CATS = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ','ΔΥΠΑ','ΕΣΠΑ','ΑΝΑΚΑΙΝΙΖΩ','LEADER']
 const ALL_STATUSES = ['NEW LEAD','CALL','HOT','ACTIVE','DEAL','CANCEL']
 
 const CHART_PERIODS = [

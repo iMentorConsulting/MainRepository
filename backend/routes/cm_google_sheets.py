@@ -32,8 +32,10 @@ def _detect_program(status: str, service_type: str) -> str:
         return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
     if 'ΔΥΠΑ' in st or 'ΟΑΕΔ' in st or 'DYPA' in st:
         return 'ΔΥΠΑ'
+    if 'LEADER' in st:
+        return 'LEADER'
     if status:
-        for prog in ('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ'):
+        for prog in ('ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'LEADER'):
             if status in get_all_statuses_for_program(prog):
                 return prog
     return 'ΕΣΠΑ'

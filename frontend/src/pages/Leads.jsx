@@ -200,7 +200,7 @@ function CommentComposer({ onSubmit }) {
   )
 }
 
-const PROGRAMS_LIST = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAMS_LIST = ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'LEADER']
 
 function TemplateManagerModal({ onClose }) {
   const [templates, setTemplates] = useState([])
@@ -550,6 +550,7 @@ const categoryFromTitle = title => {
   if (t.includes('ΜΙΚΡΟ')) return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
   if (t.includes('ΔΥΠΑ') || t.includes('ΟΑΕΔ') || t.includes('DYPA') || t.includes('ΑΝΕΡΓ') || t.includes('ΠΡΟΣΛΗΨ')) return 'ΔΥΠΑ'
   if (t.includes('ΑΝΑΚΑΙΝ')) return 'ΑΝΑΚΑΙΝΙΖΩ'
+  if (t.includes('LEADER')) return 'LEADER'
   if (t.includes('ΕΣΠΑ')) return 'ΕΣΠΑ'
   return null
 }

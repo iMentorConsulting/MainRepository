@@ -146,9 +146,10 @@ const PROGRAM_OPTIONS = [
   { value: 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', label: 'ΔΥΠΑ Προσλήψεων' },
   { value: 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', label: 'Μικροπιστώσεις' },
   { value: 'ΑΝΑΚΑΙΝΙΖΩ', label: 'Ανακαινίζω' },
+  { value: 'LEADER', label: 'LEADER' },
 ]
 
-const NON_ANA_PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ']
+const NON_ANA_PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'LEADER']
 
 function SortTh({ label, col, sortCol, sortDir, onSort, className = '' }) {
   const active = sortCol === col

@@ -103,7 +103,7 @@ def delete_sla_entry(
 # ── Daily lead summary Viber notification ─────────────────────────────────────
 
 ADMIN_VIBER_PHONE = "6952101541"
-_PROGRAM_ORDER = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ"]
+_PROGRAM_ORDER = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ", "LEADER"]
 
 
 @router.post("/daily-lead-notify")

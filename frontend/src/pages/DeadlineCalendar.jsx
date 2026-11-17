@@ -13,7 +13,7 @@ function isoToday() {
   return new Date().toISOString().slice(0, 10)
 }
 
-const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ']
+const PROGRAMS = ['ΕΣΠΑ', 'ΔΥΠΑ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΑΝΑΚΑΙΝΙΖΩ', 'LEADER']
 
 export default function DeadlineCalendar() {
   const navigate = useNavigate()

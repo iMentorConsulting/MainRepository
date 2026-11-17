@@ -550,6 +550,8 @@ def _detect_prog(status, service_type):
         return 'ΔΥΠΑ'
     if 'ΑΝΑΚΑΙΝ' in st:
         return 'ΑΝΑΚΑΙΝΙΖΩ'
+    if 'LEADER' in st:
+        return 'LEADER'
     if status in _UNIQUE_MIKRO:
         return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
     if status in _UNIQUE_DYPA:
@@ -563,7 +565,7 @@ with SessionLocal() as _db:
         if _c.status in _OSM:
             _c.status = _OSM[_c.status]
         _correct = _detect_prog(_c.status, _c.service_type)
-        if _c.program_category and _c.program_category not in (None, 'ΕΣΠΑ') and _correct == 'ΕΣΠΑ':
+        if _c.program_category and _c.program_category not in (None, 'ΕΣΠΑ', 'LEADER') and _correct == 'ΕΣΠΑ':
             _correct = _c.program_category
         if _c.program_category != _correct:
             _c.program_category = _correct
@@ -965,7 +967,7 @@ def _run_daily_lead_notify():
     from models_cases import CMLead as _CMLead
     from datetime import date as _date, timedelta as _td
     _ADMIN_PHONE = "6952101541"
-    _PROGRAM_ORDER = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ"]
+    _PROGRAM_ORDER = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΔΥΠΑ", "ΕΣΠΑ", "ΑΝΑΚΑΙΝΙΖΩ", "LEADER"]
     db = SessionLocal()
     try:
         yesterday = _date.today() - _td(days=1)

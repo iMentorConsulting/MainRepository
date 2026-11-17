@@ -9,6 +9,7 @@ const PROGRAM_GROUPS = [
   { key: 'ΔΥΠΑ', label: 'ΔΥΠΑ / ΟΑΕΔ' },
   { key: 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ', label: 'ΔΥΠΑ Προσλήψεων' },
   { key: 'ΑΝΑΚΑΙΝΙΖΩ', label: 'Ανακαινίζω' },
+  { key: 'LEADER', label: 'LEADER' },
   { key: null, label: 'Catch-all (οποιοδήποτε πρόγραμμα)' },
 ]
 
