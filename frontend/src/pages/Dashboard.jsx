@@ -682,7 +682,15 @@ export default function Dashboard() {
                     <tr key={emp.name} className="hover:bg-gray-50">
                       <td className="px-4 py-2.5 font-medium text-gray-900 whitespace-nowrap">{emp.name}</td>
                       <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmtInt(emp.target)}</td>
-                      <td className="px-4 py-2.5 text-gray-600 whitespace-nowrap">{fmtInt(emp.sales_to_date)}</td>
+                      <td className="px-4 py-2.5 whitespace-nowrap">
+                        <div>{fmtInt(emp.sales_to_date)}</div>
+                        {(emp.new_sales != null || emp.implementation != null) && (
+                          <div className="text-xs text-gray-400 mt-0.5 flex gap-2">
+                            {emp.new_sales != null && <span>Νέες: {fmtInt(emp.new_sales)}</span>}
+                            {emp.implementation != null && <span>Υλοπ.: {fmtInt(emp.implementation)}</span>}
+                          </div>
+                        )}
+                      </td>
                       <td className="px-4 py-2.5 whitespace-nowrap">
                         <div className="flex items-center gap-2">
                           <div className="flex-1 min-w-[80px] bg-gray-100 rounded-full h-2 overflow-hidden">

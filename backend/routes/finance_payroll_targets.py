@@ -24,6 +24,8 @@ class EmployeeTarget(BaseModel):
     target: float
     sales_to_date: float
     achievement_pct: Optional[float] = None
+    new_sales: Optional[float] = None
+    implementation: Optional[float] = None
 
 
 class PayrollTargetsPayload(BaseModel):
