@@ -783,7 +783,14 @@ def filter_options(
         if len(v) >= 40:
             return True
         resolved = _rp2(v)
-        return not (resolved and resolved != v)
+        if not resolved or resolved == v:
+            return True
+        # Allow titles that start with a canonical program name followed by more text
+        # (e.g. "LEADER ΠΕΛΛΑΣ", "ΕΣΠΑ ΜΑΚΕΔΟΝΙΑΣ") — these are real program titles,
+        # not short aliases.
+        if v.upper().startswith(resolved.upper() + " ") or v.upper().startswith(resolved.upper() + "-"):
+            return True
+        return False
     program_titles = sorted(
         {p[0] for p in _pt_rows if _pt_ok(p[0])} |
         {p[0] for p in _st_rows if p[0] and program_category_from_title(p[0])}
