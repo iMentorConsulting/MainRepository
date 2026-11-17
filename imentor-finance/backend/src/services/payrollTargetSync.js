@@ -43,7 +43,11 @@ async function buildEmployeeTargets() {
 
     sequelize.query(`
       SELECT UPPER(TRIM(sales_agent)) AS agent_key,
-             COALESCE(SUM(COALESCE(amount_collected, 0)), 0) AS sales
+             COALESCE(SUM(COALESCE(amount_collected, 0)), 0) AS sales,
+             COALESCE(SUM(CASE WHEN UPPER(TRIM(targeting_category)) IN ('ΑΙΤΗΣΗ', 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ')
+               THEN COALESCE(amount_collected, 0) ELSE 0 END), 0) AS new_sales,
+             COALESCE(SUM(CASE WHEN UPPER(TRIM(targeting_category)) IN ('ΥΛΟΠΟΙΗΣΗ', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ')
+               THEN COALESCE(amount_collected, 0) ELSE 0 END), 0) AS implementation
       FROM income
       WHERE sale_date BETWEEN :monthStart AND :monthEnd
         AND sales_agent IS NOT NULL AND TRIM(sales_agent) <> ''
@@ -126,13 +130,15 @@ async function buildEmployeeTargets() {
       target = amount > 0 ? parseFloat((amount * mult).toFixed(2)) : 0;
     }
 
-    const sr    = salesRows.find(r => normalizeKey(r.agent_key) === normKey);
-    const sales = parseFloat(sr?.sales || 0);
+    const sr             = salesRows.find(r => normalizeKey(r.agent_key) === normKey);
+    const sales          = parseFloat(sr?.sales || 0);
+    const new_sales      = parseFloat(sr?.new_sales || 0);
+    const implementation = parseFloat(sr?.implementation || 0);
     const achievement_pct = target > 0 ? parseFloat(((sales / target) * 100).toFixed(1)) : null;
 
     if (target === 0 && sales === 0) continue; // skip employees with no data this month
 
-    employeeData.push({ name: employee, target, sales_to_date: sales, achievement_pct });
+    employeeData.push({ name: employee, target, sales_to_date: sales, new_sales, implementation, achievement_pct });
   }
 
   return {
