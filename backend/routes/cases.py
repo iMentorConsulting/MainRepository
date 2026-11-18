@@ -161,6 +161,8 @@ def case_to_dict(c: CMCase, include_related: bool = False, sla_map: dict = None,
         "total_msgs_sent": 0,
         "last_msg_at": None,
         "has_documents": _has_documents,
+        "finance_sent_at": fmt_dt(c.finance_sent_at),
+        "finance_amount_sent": c.finance_amount_sent,
     }
 
     if include_related:
@@ -1190,3 +1192,122 @@ def delete_budget_category(
     db.delete(cat)
     db.commit()
     return {"message": "Κατηγορία διαγράφηκε"}
+
+
+# ---------------------------------------------------------------------------
+# Case → Finance intake
+# ---------------------------------------------------------------------------
+
+class CaseFinancePayload(BaseModel):
+    invoice_type: str
+    amount_collected: float
+    vat_amount: float
+    organization: str
+    service_type: str
+    targeting_category: str
+    work_status: str
+    description: str
+    sale_date: Optional[str] = None
+    source_referral: Optional[str] = None
+    address: Optional[str] = None
+    city: Optional[str] = None
+    amount_application: Optional[float] = None
+    amount_implementation: Optional[float] = None
+
+
+@router.post("/{case_id}/send-to-finance")
+def send_case_to_finance(
+    case_id: int,
+    body: CaseFinancePayload,
+    db: Session = Depends(get_db),
+    current_user: CMUser = Depends(get_current_user),
+):
+    import os, requests, logging
+    _logger = logging.getLogger(__name__)
+
+    case = db.query(CMCase).filter(CMCase.id == case_id).first()
+    if not case:
+        raise HTTPException(status_code=404, detail="Υπόθεση δεν βρέθηκε")
+
+    api_key = os.getenv("LEAD_INTAKE_API_KEY", "")
+    if not api_key:
+        raise HTTPException(status_code=422, detail="LEAD_INTAKE_API_KEY not configured on server")
+
+    sale_date = body.sale_date or date.today().isoformat()
+    external_id = f"case-{case_id}-{sale_date.replace('-', '')}-{body.invoice_type}"
+
+    def _trim(s, n=255):
+        return (s or "")[:n]
+
+    agent_name = case.assigned_agent.full_name if case.assigned_agent else current_user.username
+
+    payload = {
+        "external_id": _trim(external_id, 200),
+        "source": "case_management",
+        "customer_name": _trim(case.client_name),
+        "vat_number": _trim(case.afm),
+        "phone": _trim(case.phone),
+        "email": _trim(case.email),
+        "sales_agent": _trim(agent_name),
+        "sale_date": sale_date,
+        "source_referral": _trim(body.source_referral or ""),
+        "invoice_type": _trim(body.invoice_type, 50),
+        "amount_collected": body.amount_collected,
+        "vat_amount": body.vat_amount,
+        "organization": _trim(body.organization, 100),
+        "service_type": _trim(body.service_type),
+        "targeting_category": _trim(body.targeting_category),
+        "work_status": _trim(body.work_status),
+        "description": _trim(body.description),
+    }
+    if body.address:
+        payload["address"] = _trim(body.address)
+    if body.city:
+        payload["city"] = _trim(body.city)
+    if body.amount_application is not None:
+        payload["amount_application"] = body.amount_application
+    if body.amount_implementation is not None:
+        payload["amount_implementation"] = body.amount_implementation
+
+    finance_url = os.getenv("FINANCE_APP_URL", "https://finance.i-mentor.gr")
+    try:
+        resp = requests.post(
+            f"{finance_url}/api/lead-intake",
+            json=payload,
+            headers={"x-api-key": api_key},
+            timeout=15,
+        )
+        resp.raise_for_status()
+    except requests.exceptions.HTTPError as exc:
+        r = exc.response
+        if r is not None and r.status_code == 404:
+            raise HTTPException(status_code=422, detail="Η υπηρεσία των Οικονομικών δεν είναι ακόμα έτοιμη.")
+        detail = r.text[:400] if r is not None else str(exc)
+        raise HTTPException(status_code=422, detail=f"Finance API error: {detail}")
+    except Exception as exc:
+        raise HTTPException(status_code=422, detail=f"Finance API unreachable: {exc}")
+
+    try:
+        finance_resp = resp.json() if resp.content else {}
+    except Exception:
+        finance_resp = {"raw": resp.text[:200]}
+
+    case.finance_sent_at = datetime.utcnow()
+    case.finance_amount_sent = body.amount_collected
+    db.commit()
+
+    try:
+        from routes.cm_notifications import _send_viber as _sv
+        _amount = f"{body.amount_collected:,.2f} €"
+        _agent = current_user.full_name or current_user.username
+        _sv("6973315365", (
+            f"💰 Νέα αποστολή στα Οικονομικά (Υπόθεση)\n"
+            f"Πελάτης: {case.client_name or '—'}\n"
+            f"Ποσό: {_amount}\n"
+            f"Σύμβουλος: {_agent}\n"
+            f"Πρόγραμμα: {body.service_type or case.program_category or '—'}"
+        ))
+    except Exception as _ve:
+        _logger.warning("Finance Viber notify failed: %s", _ve)
+
+    return {"ok": True, "external_id": external_id, "finance_response": finance_resp}
