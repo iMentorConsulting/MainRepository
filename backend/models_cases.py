@@ -92,6 +92,10 @@ class CMCase(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow)
 
+    # Finance intake tracking
+    finance_sent_at = Column(DateTime, nullable=True)
+    finance_amount_sent = Column(Float, nullable=True)
+
     # Relationships
     assigned_agent = relationship("CMUser", back_populates="assigned_cases")
     tasks = relationship("CMTask", back_populates="case", cascade="all, delete-orphan")
