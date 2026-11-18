@@ -1433,6 +1433,14 @@ except Exception as _e:
 
 try:
     with engine.connect() as _conn:
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS finance_sent_at TIMESTAMP"))
+        _conn.execute(_text("ALTER TABLE cm_cases ADD COLUMN IF NOT EXISTS finance_amount_sent FLOAT"))
+        _conn.commit()
+except Exception as _e:
+    print(f"[migration] cm_cases finance_sent skipped: {_e}", flush=True)
+
+try:
+    with engine.connect() as _conn:
         _conn.execute(_text(
             "UPDATE cm_leads SET assigned_name = 'Στριλιγκά Ελευθερία' WHERE assigned_name = 'ELEFTHERIA'"
         ))
