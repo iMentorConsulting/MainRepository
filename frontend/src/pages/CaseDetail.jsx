@@ -1,13 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useNavigate, useLocation } from 'react-router-dom'
 import { PIPELINES } from '../pipelines'
-import { getPipelines } from '../api'
+import { getPipelines, syncCaseToPortal, getCaseDocChecklists } from '../api'
 import PaymentsTab from '../components/PaymentsTab'
 import MessagesTab from '../components/MessagesTab'
 import DocumentsTab from '../components/DocumentsTab'
 import BudgetTab from '../components/BudgetTab'
 import PendingItemsTab from '../components/PendingItemsTab'
 import ModificationsTab from '../components/ModificationsTab'
+import AnakainizwTab from './AnakainizwTab'
+import DypaHiringTab from './DypaHiringTab'
+import DocChecklistTab from '../components/DocChecklistTab'
 import {
   ArrowLeftIcon,
   ExclamationTriangleIcon,
@@ -47,6 +50,9 @@ import {
   deleteBudgetCategory,
   togglePortal,
   regeneratePortalToken,
+  sendCaseToFinance,
+  getServiceTypeGroups,
+  getSettingList,
 } from '../api'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -66,7 +72,7 @@ function getStatusGroupsForProgram(program, livePipelines) {
   )
 }
 
-const TABS = [
+const BASE_TABS = [
   'Επισκόπηση',
   'Εκκρεμότητες',
   'Tasks',
@@ -76,6 +82,13 @@ const TABS = [
   'Προϋπολογισμός',
   'Portal',
 ]
+const getTabs = (programCategory) => {
+  if (programCategory === 'ΑΝΑΚΑΙΝΙΖΩ')
+    return ['Επισκόπηση', 'Ανακαινίζω', 'Εκκρεμότητες', 'Tasks', 'Τροποποιήσεις', 'Μηνύματα', 'Έγγραφα', 'Προϋπολογισμός', 'Portal']
+  if (programCategory === 'ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ')
+    return ['Επισκόπηση', 'ΔΥΠΑ Πρόσληψη', 'Εκκρεμότητες', 'Tasks', 'Τροποποιήσεις', 'Μηνύματα', 'Έγγραφα', 'Προϋπολογισμός', 'Portal']
+  return BASE_TABS
+}
 
 const PRIORITY_COLORS = {
   urgent: 'bg-red-100 text-red-700',
@@ -124,6 +137,277 @@ const fmt = (n) =>
 
 const fmtDate = (d) =>
   d ? new Date(d).toLocaleDateString('el-GR') : '—'
+
+// ─── CaseFinanceModal ─────────────────────────────────────────────────────────
+
+const DEFAULT_SERVICE_TYPE_GROUPS = [
+  { label: 'ΣΥΜΒΟΥΛΕΥΤΙΚΗ', items: ['ΣΥΜΒΟΥΛΕΥΤΙΚΗ'] },
+  { label: 'ΔΑΝΕΙΑ', items: ['BUSINESS PLAN', 'ΔΑΝΕΙΟΔΟΤΗΣΕΙΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΤΕΠΙΧ'] },
+  {
+    label: 'ΕΠΙΧΟΡΗΓΗΣΕΙΣ', items: [
+      'ΔΥΠΑ 18-29', 'ΔΥΠΑ ΠΡΟΣΛΗΨΗΣ ΠΡΟΣΩΠΙΚΟΥ', 'ΕΠΙΧΕΙΡΩ ΠΡΑΣΙΝΑ ΚΡΗΤΗ',
+      'ΕΠΙΧΕΙΡΩ ΣΤΕΡΕΑ', 'ΕΣΠΑ ΚΑΤΑΔΥΤΙΚΟΥ ΤΟΥΡΙΣΜΟΥ', 'ΕΣΠΑ ΜΑΚΕΔΟΝΙΑΣ',
+      'ΕΣΠΑ ΝΟΤΙΟΥ ΑΙΓΑΙΟΥ', 'ΕΣΠΑ ΠΤΥΧΙΟΥΧΩΝ', 'ΕΣΠΑ ΤΟΥΡΙΣΜΟΣ 2024', 'ΞΕΚΙΝΩ ΕΠΙΧΕΙΡΗΜΑΤΙΚΑ',
+      'ΟΑΕΔ 30-59', 'ΠΑΡΑΓΟΥΜΕ ΣΤΗΝ ΕΛΛΑΔΑ', 'ΠΑΡΑΣΤΑΤΙΚΕΣ ΤΕΧΝΕΣ',
+      'ΠΡΑΣΙΝΗ ΠΑΡΑΓΩΓΙΚΗ ΕΠΕΝΔΥΣΗ',
+    ],
+  },
+]
+const DEFAULT_WORK_STATUSES = [
+  'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ', 'ΕΓΚΡΙΣΗ - ΠΡΙΝ ΤΟ 1ο ΑΙΤΗΜΑ', 'ΣΕ 1ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
+  'ΣΕ 2ο ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ', 'ΣΕ ΤΕΛΙΚΟ ΑΙΤΗΜΑ ΕΛΕΓΧΟΥ',
+]
+const DEFAULT_DESCRIPTIONS = [
+  'Αίτηση & Συμβ. υποστήριξη για το πρόγραμμα ΔΥΠΑ 18-29',
+  'Αίτηση & Συμβ. Υποστήριξη για το πρόγραμμα ΔΥΠΑ 30-59',
+  'Αίτηση & Συμβ. υποστήριξη για το πρόγραμμα ΔΥΠΑ Πρόσληψης Προσωπικού',
+  'Αίτηση & Συμβ. Υποστήριξη για το Ταμείο Μικροπιστώσεων',
+  'Αίτηση & Συμβ. Υποστήριξη για Τραπεζική Χρηματοδότηση',
+  'ΜΕΤΡΗΤΑ',
+  'Συμβουλευτική υποστήριξη για την παρακολούθηση της υλοποίησης του επενδυτικού σχεδίου',
+  'Συμβουλευτική Υποστήριξη για την Υποβολή Αίτησης Επενδυτικού Σχεδίου',
+  'ΣΥΜΒΟΥΛΕΥΤΙΚΕΣ ΥΠΗΡΕΣΙΕΣ',
+]
+const DEFAULT_SOURCE_REFERRALS = [
+  'FACEBOOK', 'GOOGLE', 'LOGISTIS.I-MENTOR.GR', 'NEWSLETTER',
+  'TIKTOK', 'WEBSITE', 'ΣΥΣΤΑΣΗ', 'ΤΗΛΕΦΩΝΟ', 'ΥΦΙΣΤΑΜΕΝΟΣ ΠΕΛΑΤΗΣ',
+]
+
+function CaseFinanceModal({ caseData, onClose, onSuccess }) {
+  const today = new Date().toISOString().slice(0, 10)
+  const [serviceTypeGroups, setServiceTypeGroups] = useState(DEFAULT_SERVICE_TYPE_GROUPS)
+  const [workStatuses, setWorkStatuses] = useState(DEFAULT_WORK_STATUSES)
+  const [descriptions, setDescriptions] = useState(DEFAULT_DESCRIPTIONS)
+  const [sourceReferrals, setSourceReferrals] = useState(DEFAULT_SOURCE_REFERRALS)
+  useEffect(() => {
+    getServiceTypeGroups().then(setServiceTypeGroups).catch(() => {})
+    getSettingList('work_statuses').then(setWorkStatuses).catch(() => {})
+    getSettingList('descriptions').then(setDescriptions).catch(() => {})
+    getSettingList('source_referrals').then(setSourceReferrals).catch(() => {})
+  }, [])
+
+  const [f, setF] = useState({
+    invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
+    amount_collected: '',
+    organization: 'I-MENTOR',
+    service_type: caseData?.service_type || '',
+    targeting_category: 'ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ',
+    work_status: DEFAULT_WORK_STATUSES[0],
+    description: '',
+    sale_date: today,
+    source_referral: '',
+    address: '',
+    city: '',
+    amount_application: '',
+    amount_implementation: '',
+  })
+  const [busy, setBusy] = useState(false)
+
+  const vatAmount = f.invoice_type === 'ΑΝΕΥ' ? 0 : (parseFloat(f.amount_collected) || 0) * 0.24
+  const set = (k, v) => setF(prev => ({ ...prev, [k]: v }))
+
+  const submit = async () => {
+    if (!f.amount_collected || isNaN(parseFloat(f.amount_collected))) {
+      toast.error('Εισάγετε ποσό'); return
+    }
+    if (!f.service_type) { toast.error('Επιλέξτε τύπο υπηρεσίας'); return }
+    if (!f.description) { toast.error('Επιλέξτε περιγραφή'); return }
+    if (f.invoice_type === 'ΑΝΕΥ' && !f.address) { toast.error('Απαιτείται διεύθυνση για ΑΝΕΥ'); return }
+    setBusy(true)
+    try {
+      const payload = {
+        invoice_type: f.invoice_type,
+        amount_collected: parseFloat(f.amount_collected),
+        vat_amount: parseFloat(vatAmount.toFixed(2)),
+        organization: f.organization,
+        service_type: f.service_type,
+        targeting_category: f.targeting_category,
+        work_status: f.work_status,
+        description: f.description,
+        sale_date: f.sale_date || today,
+        source_referral: f.source_referral || undefined,
+      }
+      if (f.invoice_type === 'ΑΝΕΥ') { payload.address = f.address; payload.city = f.city }
+      if (f.amount_application) payload.amount_application = parseFloat(f.amount_application)
+      if (f.amount_implementation) payload.amount_implementation = parseFloat(f.amount_implementation)
+      await sendCaseToFinance(caseData.id, payload)
+      toast.success('Εστάλη στα Οικονομικά!')
+      onSuccess?.()
+      onClose()
+    } catch (e) {
+      toast.error(e.response?.data?.detail || 'Σφάλμα αποστολής στα Οικονομικά')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="p-4 border-b font-bold flex items-center gap-2">
+          💰 Αποστολή στα Οικονομικά
+          <span className="ml-auto text-sm font-normal text-gray-500">{caseData?.client_name}</span>
+        </div>
+        <div className="p-4 space-y-3">
+          {/* Pre-filled read-only info */}
+          <div className="grid grid-cols-2 gap-2 bg-gray-50 rounded-lg p-3 text-sm">
+            <div><span className="text-gray-500">Πελάτης:</span> <b>{caseData?.client_name || '—'}</b></div>
+            <div><span className="text-gray-500">ΑΦΜ:</span> <b>{caseData?.afm || '—'}</b></div>
+            <div><span className="text-gray-500">Τηλ:</span> <b>{caseData?.phone || '—'}</b></div>
+            <div><span className="text-gray-500">Email:</span> <b>{caseData?.email || '—'}</b></div>
+          </div>
+
+          {/* Invoice type */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Τύπος παραστατικού *</label>
+            <div className="flex gap-2">
+              {['ΤΙΜΟΛΟΓΙΟ', 'ΑΠΟΔΕΙΞΗ', 'ΑΝΕΥ'].map(t => (
+                <button key={t} type="button"
+                  className={`px-3 py-1.5 rounded-lg text-sm border font-medium transition-colors ${f.invoice_type === t ? 'bg-indigo-600 text-white border-indigo-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => set('invoice_type', t)}>
+                  {t}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Amount + VAT */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Ποσό εισπραχθέν (€) *</label>
+              <input type="number" min="0" step="0.01" value={f.amount_collected}
+                onChange={e => set('amount_collected', e.target.value)}
+                className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="π.χ. 500.00" />
+            </div>
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">ΦΠΑ 24% (αυτόματο)</label>
+              <input readOnly value={f.invoice_type === 'ΑΝΕΥ' ? '0.00' : vatAmount.toFixed(2)}
+                className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 text-gray-500" />
+            </div>
+          </div>
+
+          {/* Address — only for ΑΝΕΥ */}
+          {f.invoice_type === 'ΑΝΕΥ' && (
+            <div className="grid grid-cols-2 gap-2 border-l-4 border-amber-400 pl-3">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Διεύθυνση *</label>
+                <input value={f.address} onChange={e => set('address', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Οδός & Αριθμός" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Πόλη</label>
+                <input value={f.city} onChange={e => set('city', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="Πόλη" />
+              </div>
+            </div>
+          )}
+
+          {/* Organization */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Εταιρεία *</label>
+            <div className="flex gap-2">
+              {['I-MENTOR', 'ΑΠΟΣΤΟΛΑΚΗΣ'].map(o => (
+                <button key={o} type="button"
+                  className={`px-3 py-1.5 rounded-lg text-sm border font-medium transition-colors ${f.organization === o ? 'bg-green-600 text-white border-green-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => set('organization', o)}>
+                  {o}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Service type */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Τύπος υπηρεσίας *</label>
+            <select value={f.service_type} onChange={e => set('service_type', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Επιλέξτε —</option>
+              {serviceTypeGroups.map(g => (
+                <optgroup key={g.label} label={g.label}>
+                  {g.items.map(s => <option key={s} value={s}>{s}</option>)}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+
+          {/* Targeting category */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Κατηγορία στόχευσης *</label>
+            <div className="flex gap-2">
+              {['ΠΩΛΗΣΗ ΑΙΤΗΣΗΣ', 'ΠΩΛΗΣΗ ΥΛΟΠΟΙΗΣΗΣ'].map(c => (
+                <button key={c} type="button"
+                  className={`px-3 py-1.5 rounded-lg text-sm border font-medium transition-colors ${f.targeting_category === c ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 hover:bg-gray-50'}`}
+                  onClick={() => set('targeting_category', c)}>
+                  {c}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Work status */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Κατάσταση εργασίας *</label>
+            <select value={f.work_status} onChange={e => set('work_status', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              {workStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Περιγραφή *</label>
+            <select value={f.description} onChange={e => set('description', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Επιλέξτε —</option>
+              {descriptions.map(d => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </div>
+
+          {/* Source referral */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Πηγή σύστασης</label>
+            <select value={f.source_referral} onChange={e => set('source_referral', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm">
+              <option value="">— Επιλέξτε —</option>
+              {sourceReferrals.map(s => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </div>
+
+          {/* Sale date */}
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Ημερομηνία πώλησης</label>
+            <input type="date" value={f.sale_date} onChange={e => set('sale_date', e.target.value)}
+              className="w-full px-3 py-2 border rounded-lg text-sm" />
+          </div>
+
+          {/* Optional breakdown */}
+          <details className="text-sm">
+            <summary className="cursor-pointer text-gray-500 hover:text-gray-700">Προαιρετικά ποσά (αίτηση / υλοποίηση)</summary>
+            <div className="grid grid-cols-2 gap-2 mt-2">
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Ποσό αίτησης (€)</label>
+                <input type="number" min="0" step="0.01" value={f.amount_application}
+                  onChange={e => set('amount_application', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Ποσό υλοποίησης (€)</label>
+                <input type="number" min="0" step="0.01" value={f.amount_implementation}
+                  onChange={e => set('amount_implementation', e.target.value)}
+                  className="w-full px-3 py-2 border rounded-lg text-sm" placeholder="0.00" />
+              </div>
+            </div>
+          </details>
+        </div>
+
+        <div className="p-4 border-t flex justify-end gap-2">
+          <button onClick={onClose} className="btn-secondary text-sm" disabled={busy}>Άκυρο</button>
+          <button onClick={submit} disabled={busy} className="btn-primary text-sm flex items-center gap-1">
+            {busy ? '…' : '💰 Αποστολή στα Οικονομικά'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
@@ -247,6 +531,37 @@ function DypaMilestoneTimeline({ startDate }) {
   )
 }
 
+// ─── LOGISTIS Portal sync button ──────────────────────────────────────────────
+
+function PortalSyncButton({ caseId, caseNumber }) {
+  const [syncing, setSyncing] = useState(false)
+
+  const handleSync = async () => {
+    setSyncing(true)
+    try {
+      const res = await syncCaseToPortal(caseId)
+      if (res.sent) {
+        toast.success('Στάλθηκε ενημέρωση στο LOGISTIS Portal')
+      } else {
+        toast.error(`Αποτυχία: ${res.reason || 'άγνωστο σφάλμα'}`, { duration: 8000 })
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.detail || 'Σφάλμα επικοινωνίας με LOGISTIS Portal')
+    } finally {
+      setSyncing(false)
+    }
+  }
+
+  return (
+    <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 border rounded-lg px-3 py-2">
+      <span>Συνδεδεμένη με LOGISTIS Portal — Υπόθεση #{caseNumber}</span>
+      <button type="button" onClick={handleSync} disabled={syncing} className="btn-secondary text-xs px-2 py-1">
+        {syncing ? 'Αποστολή...' : 'Συγχρονισμός με Portal'}
+      </button>
+    </div>
+  )
+}
+
 // ─── Overview Tab ─────────────────────────────────────────────────────────────
 
 function OverviewTab({ caseData, users, onSaved, livePipelines }) {
@@ -271,6 +586,7 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
     dypa_start_date: '',
   })
   const [saving, setSaving] = useState(false)
+  const [showFinanceModal, setShowFinanceModal] = useState(false)
 
   // Populate form when caseData arrives / changes
   useEffect(() => {
@@ -334,6 +650,14 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
   const paidPct = totalAgreed > 0 ? Math.min(100, (totalPaid / totalAgreed) * 100) : 0
 
   return (
+    <>
+    {showFinanceModal && (
+      <CaseFinanceModal
+        caseData={caseData}
+        onClose={() => setShowFinanceModal(false)}
+        onSuccess={() => {}}
+      />
+    )}
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
       {/* Left — editable form */}
       <div className="lg:col-span-2 bg-white rounded-xl border p-6 space-y-4">
@@ -383,8 +707,23 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
                   </optgroup>
                 ))}
               </select>
+              {(() => {
+                const desc = livePipelines?.[caseData?.program_category]?.status_descriptions?.[form.status]
+                if (!desc) return null
+                return (
+                  <p className="mt-1.5 text-xs text-blue-700 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 leading-relaxed">
+                    <span className="font-semibold">Αυτοματοποιημένη ενημέρωση πελάτη:</span> {desc}
+                  </p>
+                )
+              })()}
             </FormField>
           </div>
+
+          {caseData?.portal_case_number && (
+            <div className="md:col-span-2">
+              <PortalSyncButton caseId={caseData.id} caseNumber={caseData.portal_case_number} />
+            </div>
+          )}
 
           <FormField label="Ύψος Επένδυσης (€)">
             <input
@@ -568,6 +907,16 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
               />
             </div>
           </div>
+
+          {/* Send to Finance button */}
+          <div className="mt-4 pt-4 border-t">
+            <button
+              onClick={() => setShowFinanceModal(true)}
+              className="w-full flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-indigo-50 text-indigo-700 border border-indigo-200 hover:bg-indigo-100 transition-colors"
+            >
+              💰 Αποστολή στα Οικονομικά
+            </button>
+          </div>
         </div>
 
         {/* ΔΥΠΑ milestone timeline */}
@@ -609,6 +958,7 @@ function OverviewTab({ caseData, users, onSaved, livePipelines }) {
         </div>
       </div>
     </div>
+    </>
   )
 }
 
@@ -1031,6 +1381,7 @@ export default function CaseDetail() {
   const [livePipelines, setLivePipelines] = useState(_cachedPipelines)
   const [loading, setLoading] = useState(true)
   const [activeTab, setActiveTab] = useState('Επισκόπηση')
+  const [hasActiveChecklist, setHasActiveChecklist] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -1043,6 +1394,12 @@ export default function CaseDetail() {
     } finally {
       setLoading(false)
     }
+  }, [id])
+
+  useEffect(() => {
+    getCaseDocChecklists(id)
+      .then(rows => setHasActiveChecklist(rows.some(r => r.status === 'active')))
+      .catch(() => {})
   }, [id])
 
   useEffect(() => {
@@ -1106,8 +1463,13 @@ export default function CaseDetail() {
       <div className="bg-white rounded-xl border p-5">
         <div className="flex flex-wrap items-start gap-3">
           <div className="flex-1 min-w-0">
-            <h1 className="text-2xl font-bold text-gray-900 truncate">
+            <h1 className="text-2xl font-bold text-gray-900 truncate flex items-center gap-2 flex-wrap">
               {caseData.client_name}
+              {caseData.portal_case_number && (
+                <span className="text-xs px-2.5 py-1 rounded-full font-bold bg-purple-600 text-white tracking-wide" title={`LOGISTIS Portal — Υπόθεση #${caseData.portal_case_number}`}>
+                  🔗 LOGISTIS #{caseData.portal_case_number}
+                </span>
+              )}
             </h1>
             <div className="flex flex-wrap items-center gap-2 mt-2">
               <span className="text-xs px-2.5 py-1 rounded-full font-medium bg-blue-100 text-blue-800">
@@ -1141,7 +1503,7 @@ export default function CaseDetail() {
       {/* Tab bar */}
       <div className="border-b bg-white rounded-t-xl overflow-hidden">
         <nav className="flex -mb-px overflow-x-auto">
-          {TABS.map((tab) => (
+          {[...getTabs(caseData?.program_category), ...(hasActiveChecklist ? ['Δικαιολογητικά Αίτησης'] : [])].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -1189,11 +1551,20 @@ export default function CaseDetail() {
           <TasksTab caseId={id} users={users} />
         )}
 
+        {activeTab === 'Ανακαινίζω' && <AnakainizwTab caseId={id} />}
+        {activeTab === 'ΔΥΠΑ Πρόσληψη' && <DypaHiringTab caseId={id} />}
         {activeTab === 'Τροποποιήσεις' && <ModificationsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Μηνύματα' && <MessagesTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Έγγραφα' && <DocumentsTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Προϋπολογισμός' && <BudgetTab caseId={id} caseData={caseData} onRefresh={load} />}
         {activeTab === 'Portal' && <PortalTab caseData={caseData} onRefresh={load} />}
+        {activeTab === 'Δικαιολογητικά Αίτησης' && (
+          <DocChecklistTab
+            caseId={id}
+            caseData={caseData}
+            onChecklistHidden={() => setHasActiveChecklist(false)}
+          />
+        )}
       </div>
     </div>
   )

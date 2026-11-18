@@ -1,106 +1,366 @@
 import axios from 'axios'
 
-const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || '/api',
-  headers: { 'Content-Type': 'application/json' },
-})
+const BASE = import.meta.env.VITE_API_URL || ''
 
-// Attach auth token to every request
+const api = axios.create({ baseURL: BASE, timeout: 30000 })
+
+const SESSION_HOURS = 8
+
 api.interceptors.request.use((config) => {
-  try {
-    const auth = JSON.parse(localStorage.getItem('auth') || 'null')
-    if (auth?.token) config.headers.Authorization = `Bearer ${auth.token}`
-  } catch {}
+  const auth = getAuth()
+  if (!auth?.token) return config
+  // Client-side expiry check — log out before even sending the request
+  if (auth.expires_at && Date.now() > auth.expires_at) {
+    clearAuth()
+    window.location.href = '/?session_expired=1'
+    return Promise.reject(new Error('Session expired'))
+  }
+  config.headers.Authorization = `Bearer ${auth.token}`
   return config
 })
 
-// Auto-logout on 401
 api.interceptors.response.use(
   (r) => r,
   (err) => {
     if (err.response?.status === 401) {
-      localStorage.removeItem('auth')
-      window.location.reload()
+      clearAuth()
+      window.location.href = '/?session_expired=1'
     }
     return Promise.reject(err)
   }
 )
 
+export const getAuth = () => {
+  try { return JSON.parse(localStorage.getItem('cm_auth') || 'null') } catch { return null }
+}
+export const setAuth = (data) => {
+  const expires_at = Date.now() + SESSION_HOURS * 60 * 60 * 1000
+  localStorage.setItem('cm_auth', JSON.stringify({ ...data, expires_at }))
+}
+export const clearAuth = () => localStorage.removeItem('cm_auth')
+
 // Auth
-export const getTenants = () => api.get('/auth/tenants')
-export const login = (data) => api.post('/auth/login', data)
+export const login = (username, password) =>
+  api.post('/api/cm/auth/login', { username, password }).then(r => r.data)
+export const getMe = () => api.get('/api/cm/auth/me').then(r => r.data)
+export const changePassword = (current_password, new_password) =>
+  api.post('/api/cm/auth/change-password', { current_password, new_password }).then(r => r.data)
 
-// Units
-export const getUnits = (params) => api.get('/units/', { params })
-export const createUnit = (data) => api.post('/units/', data)
-export const updateUnit = (id, data) => api.put(`/units/${id}`, data)
-export const deleteUnit = (id) => api.delete(`/units/${id}`)
+// Users
+export const getUsers = () => api.get('/api/cm/users/').then(r => r.data)
+export const createUser = (data) => api.post('/api/cm/users/', data).then(r => r.data)
+export const updateUser = (id, data) => api.put(`/api/cm/users/${id}`, data).then(r => r.data)
+export const deleteUser = (id) => api.delete(`/api/cm/users/${id}`).then(r => r.data)
 
-// Customers
-export const getCustomers = (params) => api.get('/customers/', { params })
-export const createCustomer = (data) => api.post('/customers/', data)
-export const updateCustomer = (id, data) => api.put(`/customers/${id}`, data)
-export const deleteCustomer = (id) => api.delete(`/customers/${id}`)
+// Cases
+export const getCases = (params) => api.get('/api/cm/cases/', { params }).then(r => r.data)
+export const getCaseFilterOptions = () => api.get('/api/cm/cases/filter-options').then(r => r.data)
+export const getCase = (id) => api.get(`/api/cm/cases/${id}`).then(r => r.data)
+export const createCase = (data) => api.post('/api/cm/cases/', data).then(r => r.data)
+export const updateCase = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)
+export const deleteCase = (id) => api.delete(`/api/cm/cases/${id}`).then(r => r.data)
+export const mergeCases = (caseIdA, caseIdB) => api.post('/api/cm/cases/merge', { case_id_a: caseIdA, case_id_b: caseIdB }).then(r => r.data)
 
-// Bookings
-export const getBookings = (params) => api.get('/bookings/', { params })
-export const createBooking = (data) => api.post('/bookings/', data)
-export const updateBooking = (id, data) => api.put(`/bookings/${id}`, data)
-export const deleteBooking = (id) => api.delete(`/bookings/${id}`)
+// Tasks
+export const getTasks = (caseId) => api.get(`/api/cm/cases/${caseId}/tasks`).then(r => r.data)
+export const createTask = (caseId, data) => api.post(`/api/cm/cases/${caseId}/tasks`, data).then(r => r.data)
+export const updateTask = (caseId, taskId, data) => api.put(`/api/cm/cases/${caseId}/tasks/${taskId}`, data).then(r => r.data)
+export const deleteTask = (caseId, taskId) => api.delete(`/api/cm/cases/${caseId}/tasks/${taskId}`).then(r => r.data)
 
-// Bookings Excel
-export const exportBookings = (params) => api.get('/bookings/export/excel', { params, responseType: 'blob' })
-export const downloadTemplate = () => api.get('/bookings/template/excel', { responseType: 'blob' })
-export const importBookings = (file) => {
+// Payments
+export const getPayments = (caseId) => api.get(`/api/cm/cases/${caseId}/payments`).then(r => r.data)
+export const createPayment = (caseId, data) => api.post(`/api/cm/cases/${caseId}/payments`, data).then(r => r.data)
+export const deletePayment = (caseId, payId) => api.delete(`/api/cm/cases/${caseId}/payments/${payId}`).then(r => r.data)
+
+// Messages
+export const getMessages = (caseId) => api.get(`/api/cm/cases/${caseId}/messages`).then(r => r.data)
+export const createMessage = (caseId, data) => api.post(`/api/cm/cases/${caseId}/messages`, data).then(r => r.data)
+export const deleteMessage = (caseId, msgId) => api.delete(`/api/cm/cases/${caseId}/messages/${msgId}`).then(r => r.data)
+
+// Documents
+export const getDocuments = (caseId) => api.get(`/api/cm/cases/${caseId}/documents`).then(r => r.data)
+export const createDocument = (caseId, data) => api.post(`/api/cm/cases/${caseId}/documents`, data).then(r => r.data)
+export const updateDocument = (caseId, docId, data) => api.put(`/api/cm/cases/${caseId}/documents/${docId}`, data).then(r => r.data)
+export const deleteDocument = (caseId, docId) => api.delete(`/api/cm/cases/${caseId}/documents/${docId}`).then(r => r.data)
+
+// Budget Categories
+export const getBudgetCategories = (caseId) => api.get(`/api/cm/cases/${caseId}/budget-categories`).then(r => r.data)
+export const createBudgetCategory = (caseId, data) => api.post(`/api/cm/cases/${caseId}/budget-categories`, data).then(r => r.data)
+export const updateBudgetCategory = (caseId, catId, data) => api.put(`/api/cm/cases/${caseId}/budget-categories/${catId}`, data).then(r => r.data)
+export const deleteBudgetCategory = (caseId, catId) => api.delete(`/api/cm/cases/${caseId}/budget-categories/${catId}`).then(r => r.data)
+
+// Dashboard
+export const getDashboardStats = () => api.get('/api/cm/dashboard/stats').then(r => r.data)
+export const getPortalActivity = () => api.get('/api/cm/dashboard/portal-activity').then(r => r.data)
+
+// Google Sheets
+export const previewSheet = () => api.get('/api/cm/sheets/preview').then(r => r.data)
+export const importFromSheet = () => api.post('/api/cm/sheets/import').then(r => r.data)
+export const syncPaidFromSheet = () => api.post('/api/cm/sheets/sync-paid').then(r => r.data)
+export const syncAgentsFromSheet = () =>
+  api.post('/api/cm/sheets/sync-agents').then(r => r.data)
+export const getServiceTypes = () => api.get('/api/cm/sheets/service-types').then(r => r.data)
+export const diagnoseSkippedSheetRows = (serviceType) =>
+  api.get('/api/cm/sheets/diagnose-skipped', { params: serviceType ? { service_type: serviceType } : {} }).then(r => r.data)
+export const assignPrograms = (assignments) =>
+  api.post('/api/cm/sheets/assign-programs', { assignments }).then(r => r.data)
+export const syncInvestmentFromSheet = () => api.post('/api/cm/sheets/sync-investment').then(r => r.data)
+export const previewAnakainizwSheet = () => api.get('/api/cm/sheets/preview-anakainizw').then(r => r.data)
+export const importAnakainizwSheet = (selectedRows) => api.post('/api/cm/sheets/import-anakainizw', { selected_rows: selectedRows || [] }).then(r => r.data)
+export const getAnakainizwHeaders = () => api.get('/api/cm/sheets/anakainizw-headers').then(r => r.data)
+export const syncSaleDatesFromSheet = () => api.post('/api/cm/sheets/sync-sale-dates').then(r => r.data)
+export const getAutoRefreshStatus = () => api.get('/api/cm/sheets/auto-refresh-status').then(r => r.data)
+export const fixAnakainizwProgram = () => api.post('/api/cm/sheets/fix-anakainizw-program').then(r => r.data)
+export const deleteNonKenoAnakainizw = () => api.post('/api/cm/sheets/delete-non-keno-anakainizw').then(r => r.data)
+
+// Anakainizw case data
+export const getAnakainizwData = (caseId) => api.get(`/api/cm/anakainizw/${caseId}`).then(r => r.data)
+export const updateAnakainizwData = (caseId, data) => api.put(`/api/cm/anakainizw/${caseId}`, data).then(r => r.data)
+
+// ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ hiring tracking
+export const getDypaHiringData = (caseId) => api.get(`/api/cm/dypa-hiring/${caseId}`).then(r => r.data)
+export const updateDypaHiringData = (caseId, data) => api.put(`/api/cm/dypa-hiring/${caseId}`, data).then(r => r.data)
+
+// Notifications
+export const sendNotification = (caseId, data) => api.post(`/api/cm/notifications/send/${caseId}`, data).then(r => r.data)
+export const sendBulkNotification = (data) => api.post('/api/cm/notifications/send-bulk', data).then(r => r.data)
+export const getNotificationLogs = (caseId) =>
+  api.get('/api/cm/notifications/logs', { params: caseId ? { case_id: caseId } : {} }).then(r => r.data)
+export const getNotificationTemplates = () => api.get('/api/cm/notifications/templates').then(r => r.data)
+
+// Admin SLA
+export const getSLAConfig = () => api.get('/api/cm/admin/sla').then(r => r.data)
+export const updateSLAConfig = (entries) => api.put('/api/cm/admin/sla', { entries }).then(r => r.data)
+export const deleteSLAEntry = (status) => api.delete(`/api/cm/admin/sla/${encodeURIComponent(status)}`).then(r => r.data)
+
+// Notification template CRUD
+export const createTemplate = (data) => api.post('/api/cm/notifications/templates', data).then(r => r.data)
+export const updateTemplate = (id, data) => api.put(`/api/cm/notifications/templates/${id}`, data).then(r => r.data)
+export const deleteTemplate = (id) => api.delete(`/api/cm/notifications/templates/${id}`).then(r => r.data)
+
+export const sendSLANotifications = (data) => api.post('/api/cm/notifications/send-sla', data).then(r => r.data)
+
+// Pending Item Templates (admin)
+export const getPendingItemTemplates = (programCategory) =>
+  api.get('/api/cm/admin/pending-templates', { params: programCategory ? { program_category: programCategory } : {} }).then(r => r.data)
+export const createPendingItemTemplate = (data) => api.post('/api/cm/admin/pending-templates', data).then(r => r.data)
+export const updatePendingItemTemplate = (id, data) => api.put(`/api/cm/admin/pending-templates/${id}`, data).then(r => r.data)
+export const deletePendingItemTemplate = (id) => api.delete(`/api/cm/admin/pending-templates/${id}`).then(r => r.data)
+
+// Per-case pending items
+export const getCasePendingItems = (caseId) => api.get(`/api/cm/cases/${caseId}/pending-items`).then(r => r.data)
+export const createCasePendingItem = (caseId, data) => api.post(`/api/cm/cases/${caseId}/pending-items`, data).then(r => r.data)
+export const updateCasePendingItem = (caseId, itemId, data) => api.put(`/api/cm/cases/${caseId}/pending-items/${itemId}`, data).then(r => r.data)
+export const deleteCasePendingItem = (caseId, itemId) => api.delete(`/api/cm/cases/${caseId}/pending-items/${itemId}`).then(r => r.data)
+export const notifyCasePendingItems = (caseId, data) => api.post(`/api/cm/cases/${caseId}/pending-items/notify`, data).then(r => r.data)
+export const getAllPendingOverview = (params = {}) => api.get('/api/cm/pending-items/all', { params }).then(r => r.data)
+export const patchCaseField = (id, data) => api.put(`/api/cm/cases/${id}`, data).then(r => r.data)
+
+// Modifications
+export const getCaseModifications = (caseId) => api.get(`/api/cm/cases/${caseId}/modifications`).then(r => r.data)
+export const createCaseModification = (caseId, data) => api.post(`/api/cm/cases/${caseId}/modifications`, data).then(r => r.data)
+export const updateCaseModification = (caseId, modId, data) => api.put(`/api/cm/cases/${caseId}/modifications/${modId}`, data).then(r => r.data)
+export const deleteCaseModification = (caseId, modId) => api.delete(`/api/cm/cases/${caseId}/modifications/${modId}`).then(r => r.data)
+
+// Client Portal
+export const getPortalCase = (token) =>
+  axios.get(`${BASE}/api/cm/portal/public/${token}`).then(r => r.data)
+export const recordPortalVisit = (token, afm) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/visit`, { afm }).then(r => r.data)
+export const getPortalRelatedCases = (token) =>
+  axios.get(`${BASE}/api/cm/portal/public/${token}/related-cases`).then(r => r.data)
+export const togglePortal = (caseId) => api.post(`/api/cm/portal/${caseId}/toggle`).then(r => r.data)
+export const regeneratePortalToken = (caseId) => api.post(`/api/cm/portal/${caseId}/regenerate-token`).then(r => r.data)
+export const bulkActivateNotify = (data) => api.post('/api/cm/portal/bulk-activate-notify', data).then(r => r.data)
+export const activateAllPortals = () => api.post('/api/cm/portal/activate-all').then(r => r.data)
+
+// Pipeline config
+export const getPipelines = () => api.get('/api/cm/admin/pipeline').then(r => r.data)
+export const updatePipeline = (program, data) => api.put(`/api/cm/admin/pipeline/${program}`, data).then(r => r.data)
+export const submitPortalNps = (token, score) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/nps`, { score }).then(r => r.data)
+export const recordPortalReviewClick = (token) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/review-click`).then(r => r.data)
+export const submitPortalMessage = (token, content) =>
+  axios.post(`${BASE}/api/cm/portal/public/${token}/message`, { content }).then(r => r.data)
+export const uploadPortalFile = (token, file, source = 'portal_general') => {
   const fd = new FormData()
   fd.append('file', file)
-  return api.post('/bookings/import/excel', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  fd.append('source', source)
+  return axios.post(`${BASE}/api/cm/portal/public/${token}/upload`, fd).then(r => r.data)
 }
 
-// Reports
-export const getDashboard = () => api.get('/reports/dashboard')
-export const getOccupancy = (params) => api.get('/reports/occupancy', { params })
-export const getByChannel = (params) => api.get('/reports/by-channel', { params })
-export const getFinancial = (params) => api.get('/reports/financial', { params })
-export const getPriceAnalytics = (params) => api.get('/reports/price-analytics', { params })
+export const uploadConsultantDocument = (caseId, file, name = '', documentType = '', notes = '', portalVisible = false) => {
+  const fd = new FormData()
+  fd.append('file', file)
+  if (name) fd.append('name', name)
+  if (documentType) fd.append('document_type', documentType)
+  if (notes) fd.append('notes', notes)
+  fd.append('portal_visible', portalVisible ? 'true' : 'false')
+  return api.post(`/api/cm/cases/${caseId}/documents/upload`, fd).then(r => r.data)
+}
+export const submitAnakainizwIntake = (token, data) =>
+  axios.put(`${BASE}/api/cm/portal/public/${token}/anakainizw-intake`, data).then(r => r.data)
 
-// AI Advisor
-export const recommendUnit = (data) => api.post('/ai/recommend-unit', data)
-export const getGapAlerts = (params) => api.get('/ai/gap-alerts', { params })
-export const getBookingAlerts = () => api.get('/ai/booking-alerts')
+// Analytics
+export const getAnalyticsOverview = () => api.get('/api/cm/analytics/overview').then(r => r.data)
+export const getAnalyticsMilestones = (days = 90) => api.get(`/api/cm/analytics/milestones?days=${days}`).then(r => r.data)
+export const getAnalyticsCalendar = () => api.get('/api/cm/analytics/calendar').then(r => r.data)
 
-// Cleaning
-export const getDailyTasks = (params) => api.get('/cleaning/daily', { params })
-export const getCleaningSettings = () => api.get('/cleaning/settings')
-export const saveCleaningSettings = (data) => api.put('/cleaning/settings', data)
+// Work Lists
+export const getWorkLists = () => api.get('/api/cm/worklists').then(r => r.data)
+export const createWorkList = (data) => api.post('/api/cm/worklists', data).then(r => r.data)
+export const updateWorkList = (id, data) => api.put(`/api/cm/worklists/${id}`, data).then(r => r.data)
+export const deleteWorkList = (id) => api.delete(`/api/cm/worklists/${id}`).then(r => r.data)
+export const getWorkListCases = (id) => api.get(`/api/cm/worklists/${id}/cases`).then(r => r.data)
+export const getAllTasks = (status) => api.get('/api/cm/worklists/all-tasks/list', { params: status ? { status } : {} }).then(r => r.data)
 
-// iCal sync
-export const syncIcalAll = () => api.post('/ical/sync')
-export const syncIcalUnit = (unitId) => api.post(`/ical/sync/${unitId}`)
+// Portal Files (admin)
+export const getPortalFiles = (caseId) => api.get(`/api/cm/cases/${caseId}/portal-files`).then(r => r.data)
+export const uploadPortalAdminFile = (caseId, formData) =>
+  api.post(`/api/cm/cases/${caseId}/portal-files`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+export const replacePortalFile = (caseId, fileId, formData) =>
+  api.post(`/api/cm/cases/${caseId}/portal-files/${fileId}/replace`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+export const updatePortalFileMeta = (caseId, fileId, formData) =>
+  api.put(`/api/cm/cases/${caseId}/portal-files/${fileId}`, formData, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r => r.data)
+export const deletePortalFile = (caseId, fileId) => api.delete(`/api/cm/cases/${caseId}/portal-files/${fileId}`).then(r => r.data)
+export const getPortalFileDownloadUrl = (caseId, fileId) => `/api/cm/cases/${caseId}/portal-files/${fileId}/download`
 
-// Guest Portal — admin side
-export const getPortalSettings = () => api.get('/portal/settings')
-export const savePortalSettings = (data) => api.put('/portal/settings', data)
-export const getLicense = () => api.get('/portal/license')
-export const getPortalGuide = () => api.get('/portal/guide')
-export const createGuideItem = (data) => api.post('/portal/guide', data)
-export const updateGuideItem = (id, data) => api.put(`/portal/guide/${id}`, data)
-export const deleteGuideItem = (id) => api.delete(`/portal/guide/${id}`)
-export const getPortalRecommendations = () => api.get('/portal/recommendations')
-export const createRecommendation = (data) => api.post('/portal/recommendations', data)
-export const updateRecommendation = (id, data) => api.put(`/portal/recommendations/${id}`, data)
-export const deleteRecommendation = (id) => api.delete(`/portal/recommendations/${id}`)
-export const getMarketplace = () => api.get('/portal/marketplace')
-export const createMarketplaceItem = (data) => api.post('/portal/marketplace', data)
-export const updateMarketplaceItem = (id, data) => api.put(`/portal/marketplace/${id}`, data)
-export const deleteMarketplaceItem = (id) => api.delete(`/portal/marketplace/${id}`)
-export const getServiceRequests = () => api.get('/portal/requests')
-export const updateServiceRequest = (id, data) => api.put(`/portal/requests/${id}`, data)
-export const getConversations = () => api.get('/portal/messages')
-export const getConversation = (bookingId) => api.get(`/portal/messages/${bookingId}`)
-export const sendManagerMessage = (bookingId, data) => api.post(`/portal/messages/${bookingId}`, data)
-export const getPortalLink = (bookingId) => api.get(`/portal/bookings/${bookingId}/portal`)
-export const sendPortalEmail = (bookingId, data) => api.post(`/portal/bookings/${bookingId}/send-portal`, data)
-export const getPortalAnalytics = () => api.get('/portal/analytics')
+// Finance App Sync
+export const getFinanceSyncStatus = () => api.get('/api/cm/finance-sync/status').then(r => r.data)
+export const previewFinanceSync = () => api.get('/api/cm/finance-sync/preview').then(r => r.data)
+export const runFinanceSync = () => api.post('/api/cm/finance-sync/run').then(r => r.data)
+export const undoFinanceSync = () => api.post('/api/cm/finance-sync/undo').then(r => r.data)
+export const getFinanceSyncServiceTypes = () => api.get('/api/cm/finance-sync/service-types').then(r => r.data)
+export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance-sync/service-types', items).then(r => r.data)
+
+// Payroll Targets (Finance → CM)
+export const getMyPayrollTargets = () => api.get('/api/finance/payroll-targets/me').then(r => r.data)
+export const getAllPayrollTargets = () => api.get('/api/finance/payroll-targets/all').then(r => r.data)
+
+// Webhook Sources (website form → lead)
+export const getWebhookSources = () => api.get('/api/cm/webhook-sources').then(r => r.data)
+export const createWebhookSource = (data) => api.post('/api/cm/webhook-sources', data).then(r => r.data)
+export const updateWebhookSource = (id, data) => api.put(`/api/cm/webhook-sources/${id}`, data).then(r => r.data)
+export const deleteWebhookSource = (id) => api.delete(`/api/cm/webhook-sources/${id}`).then(r => r.data)
+export const regenerateWebhookToken = (id) => api.post(`/api/cm/webhook-sources/${id}/regenerate-token`).then(r => r.data)
+export const getWebhookLogs = (id) => api.get(`/api/cm/webhook-sources/${id}/logs`).then(r => r.data)
+
+// LOGISTIS Portal integration
+export const getPendingPortalAssignments = () => api.get('/api/cm/portal-integration/pending').then(r => r.data)
+export const acceptPortalAssignment = (id, assigned_to_id = null) => api.post(`/api/cm/portal-integration/${id}/accept`, { assigned_to_id }).then(r => r.data)
+export const dismissPortalAssignment = (id) => api.post(`/api/cm/portal-integration/${id}/dismiss`).then(r => r.data)
+export const syncCaseToPortal = (caseId) => api.post(`/api/cm/portal-integration/cases/${caseId}/sync`).then(r => r.data)
+export const createPortalAssignmentRequest = (payload) => api.post('/api/cm/portal-integration/assignment-requests', payload).then(r => r.data)
+export const getPortalAssignmentRequests = () => api.get('/api/cm/portal-integration/assignment-requests').then(r => r.data)
+
+// Leads
+export const getLeads = (params) => api.get('/api/cm/leads/', { params }).then(r => r.data)
+export const getLeadFilterOptions = () => api.get('/api/cm/leads/filter-options').then(r => r.data)
+export const getLeadStats = (params) => api.get('/api/cm/leads/stats', { params }).then(r => r.data)
+export const getLead = (id) => api.get(`/api/cm/leads/${id}`).then(r => r.data)
+export const createLead = (data) => api.post('/api/cm/leads/', data).then(r => r.data)
+export const updateLead = (id, data) => api.put(`/api/cm/leads/${id}`, data).then(r => r.data)
+export const deleteLead = (id) => api.delete(`/api/cm/leads/${id}`).then(r => r.data)
+export const getLeadComments = (id) => api.get(`/api/cm/leads/${id}/comments`).then(r => r.data)
+export const addLeadComment = (id, content) => api.post(`/api/cm/leads/${id}/comments`, { content }).then(r => r.data)
+export const editLeadComment = (id, commentId, content) => api.put(`/api/cm/leads/${id}/comments/${commentId}`, { content }).then(r => r.data)
+export const deleteLeadComment = (id, commentId) => api.delete(`/api/cm/leads/${id}/comments/${commentId}`).then(r => r.data)
+export const sendLeadMessage = (id, payload) => api.post(`/api/cm/leads/${id}/send`, payload).then(r => r.data)
+export const bulkSendLeadMessage = (payload) => api.post('/api/cm/leads/bulk-notify', payload, { timeout: 300000 }).then(r => r.data)
+export const bulkOnboardLeads = (payload) => api.post('/api/cm/leads/bulk-onboard', payload, { timeout: 300000 }).then(r => r.data)
+
+// Onboarding (public — no auth token)
+export const getOnboardInfo = (token) => axios.get(`${BASE}/api/cm/leads/public/${token}`).then(r => r.data)
+export const submitOnboardAfm = (token, afm) => axios.post(`${BASE}/api/cm/leads/public/${token}`, { afm }).then(r => r.data)
+export const convertLeadToCase = (id) => api.post(`/api/cm/leads/${id}/convert-to-case`).then(r => r.data)
+export const getLeadDuplicates = (id) => api.get(`/api/cm/leads/${id}/duplicates`).then(r => r.data)
+export const mergeLeads = (id, otherId) => api.post(`/api/cm/leads/${id}/merge/${otherId}`).then(r => r.data)
+export const mergeDuplicateLeads = (dryRun) => api.post('/api/cm/leads/merge-duplicates', null, { params: dryRun ? { dry_run: true } : {}, timeout: 120000 }).then(r => r.data)
+export const startLeadErmis = (id, payload) => api.post(`/api/cm/leads/${id}/ermis/start`, payload || {}, { timeout: 45000 }).then(r => r.data)
+export const resendLeadErmisLink = (id, payload) => api.post(`/api/cm/leads/${id}/ermis/resend-link`, payload || {}).then(r => r.data)
+export const bulkStartErmis = (lead_ids, channel = 'both') => api.post('/api/cm/leads/ermis/bulk-start', { lead_ids, channel }).then(r => r.data)
+export const bulkResendErmis = (lead_ids, channel = 'both') => api.post('/api/cm/leads/ermis/bulk-resend', { lead_ids, channel }).then(r => r.data)
+export const retryErmisErrors = () => api.post('/api/cm/leads/ermis/retry-errors').then(r => r.data)
+export const backfillErmisTranscripts = () => api.post('/api/cm/leads/backfill-ermis-transcripts').then(r => r.data)
+export const dedupLeads = () => api.post('/api/cm/leads/dedup').then(r => r.data)
+export const normalizeConsultants = () => api.post('/api/cm/leads/normalize-consultants').then(r => r.data)
+export const upgradeWorkedLeads = () => api.post('/api/cm/leads/upgrade-worked').then(r => r.data)
+export const downgradeWorkedLeads = () => api.post('/api/cm/leads/downgrade-worked').then(r => r.data)
+export const fetchLeadErmisTranscript = (id) => api.post(`/api/cm/leads/${id}/ermis/fetch-transcript`).then(r => r.data)
+export const backfillPrograms = () => api.post('/api/cm/leads/backfill-programs').then(r => r.data)
+export const syncErmisToSiblings = (id) => api.post(`/api/cm/leads/${id}/ermis/sync-siblings`).then(r => r.data)
+export const pullErmisFromSibling = (id) => api.post(`/api/cm/leads/${id}/ermis/pull-from-sibling`).then(r => r.data)
+export const getLeadErmisTranscript = (id) => api.get(`/api/cm/leads/${id}/ermis/transcript`).then(r => r.data)
+export const getLeadReportDailyVolume = (days) => api.get('/api/cm/leads/reports/daily-volume', { params: days ? { days } : {} }).then(r => r.data)
+export const getLeadReportStatusDistribution = () => api.get('/api/cm/leads/reports/status-distribution').then(r => r.data)
+export const getLeadReportEmployeePerformance = () => api.get('/api/cm/leads/reports/employee-performance').then(r => r.data)
+
+// Leads — Google Sheets sync config
+export const getLeadSheetConfigs = () => api.get('/api/cm/leads-sync/configs').then(r => r.data)
+export const saveLeadSheetConfig = (program, data) => api.put(`/api/cm/leads-sync/configs/${encodeURIComponent(program)}`, data).then(r => r.data)
+export const setLeadSheetWatermark = (program, row) => api.patch(`/api/cm/leads-sync/configs/${encodeURIComponent(program)}/watermark?row=${row}`).then(r => r.data)
+export const purgeRecentLeads = (program, sinceMinutes) => api.post('/api/cm/leads/purge-recent', null, { params: { program, since_minutes: sinceMinutes }, timeout: 60000 }).then(r => r.data)
+export const getLeadSyncStatus = () => api.get('/api/cm/leads-sync/status').then(r => r.data)
+export const previewLeadSync = (program) => api.get('/api/cm/leads-sync/preview', { params: program ? { program } : {}, timeout: 180000 }).then(r => r.data)
+export const runLeadSync = () => api.post('/api/cm/leads-sync/run', null, { timeout: 300000 }).then(r => r.data)
+export const runLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/run/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
+export const refreshLeadSyncProgram = (program) => api.post(`/api/cm/leads-sync/refresh/${encodeURIComponent(program)}`, null, { timeout: 300000 }).then(r => r.data)
+
+export const sendLeadToFinance = (leadId, payload) => api.post(`/api/cm/leads/${leadId}/send-to-finance`, payload).then(r => r.data)
+export const sendCaseToFinance = (caseId, payload) => api.post(`/api/cm/cases/${caseId}/send-to-finance`, payload).then(r => r.data)
+export const cloneLead = (leadId) => api.post(`/api/cm/leads/${leadId}/clone`).then(r => r.data)
+
+// Meta Lead Ads integration
+export const getMetaPages = () => api.get('/api/cm/meta-pages').then(r => r.data)
+export const createMetaPage = (data) => api.post('/api/cm/meta-pages', data).then(r => r.data)
+export const updateMetaPage = (id, data) => api.put(`/api/cm/meta-pages/${id}`, data).then(r => r.data)
+export const deleteMetaPage = (id) => api.delete(`/api/cm/meta-pages/${id}`).then(r => r.data)
+export const getMetaLeadLog = (limit = 50) => api.get('/api/cm/meta-leads-log', { params: { limit } }).then(r => r.data)
+export const getMetaCapiSettings = () => api.get('/api/cm/meta-capi').then(r => r.data)
+export const updateMetaCapiSettings = (data) => api.put('/api/cm/meta-capi', data).then(r => r.data)
+
+export const getMessageTemplates = () => api.get('/api/cm/message-templates').then(r => r.data)
+export const getAllMessageTemplates = () => api.get('/api/cm/message-templates/all').then(r => r.data)
+export const createMessageTemplate = (data) => api.post('/api/cm/message-templates', data).then(r => r.data)
+export const updateMessageTemplate = (id, data) => api.put(`/api/cm/message-templates/${id}`, data).then(r => r.data)
+export const deleteMessageTemplate = (id) => api.delete(`/api/cm/message-templates/${id}`).then(r => r.data)
+
+// Document Library
+export const getDocSets = () => api.get('/api/cm/doc-sets').then(r => r.data)
+export const getDocSet = (id) => api.get(`/api/cm/doc-sets/${id}`).then(r => r.data)
+export const createDocSet = (data) => api.post('/api/cm/doc-sets', data).then(r => r.data)
+export const updateDocSet = (id, data) => api.put(`/api/cm/doc-sets/${id}`, data).then(r => r.data)
+export const deleteDocSet = (id) => api.delete(`/api/cm/doc-sets/${id}`).then(r => r.data)
+export const createDocSetItem = (setId, data) => api.post(`/api/cm/doc-sets/${setId}/items`, data).then(r => r.data)
+export const updateDocSetItem = (setId, itemId, data) => api.put(`/api/cm/doc-sets/${setId}/items/${itemId}`, data).then(r => r.data)
+export const deleteDocSetItem = (setId, itemId) => api.delete(`/api/cm/doc-sets/${setId}/items/${itemId}`).then(r => r.data)
+export const reorderDocSetItems = (setId, orderedIds) => api.post(`/api/cm/doc-sets/${setId}/reorder`, { ordered_ids: orderedIds }).then(r => r.data)
+export const getDocLibMeta = () => api.get('/api/cm/doc-library/meta').then(r => r.data)
+
+// Case Document Checklists
+export const getCaseDocChecklists = (caseId) => api.get(`/api/cm/cases/${caseId}/doc-checklists`).then(r => r.data)
+export const createCaseDocChecklist = (caseId, data) => api.post(`/api/cm/cases/${caseId}/doc-checklists`, data).then(r => r.data)
+export const getCaseDocChecklist = (caseId, checklistId) => api.get(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`).then(r => r.data)
+export const updateCaseDocChecklist = (caseId, checklistId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`, data).then(r => r.data)
+export const deleteCaseDocChecklist = (caseId, checklistId) => api.delete(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}`).then(r => r.data)
+export const updateCaseDocChecklistItem = (caseId, checklistId, itemId, data) => api.put(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/items/${itemId}`, data).then(r => r.data)
+export const sendChecklistEmail = (caseId, checklistId) => api.post(`/api/cm/cases/${caseId}/doc-checklists/${checklistId}/send-email`).then(r => r.data)
+
+// App Settings
+export const getServiceTypeGroups = () => api.get('/api/cm/settings/service-types').then(r => r.data)
+export const putServiceTypeGroups = (data) => api.put('/api/cm/settings/service-types', data).then(r => r.data)
+export const getSettingList = (key) => api.get(`/api/cm/settings/list/${key}`).then(r => r.data)
+export const putSettingList = (key, data) => api.put(`/api/cm/settings/list/${key}`, data).then(r => r.data)
+
+// Lead Assignment Rules
+export const getAssignmentRules = () => api.get('/api/cm/lead-assignment/rules').then(r => r.data)
+export const saveAssignmentRules = (rules) => api.put('/api/cm/lead-assignment/rules', { rules }).then(r => r.data)
+export const resetAssignmentCounts = (program_category) =>
+  api.post(`/api/cm/lead-assignment/reset-counts${program_category !== undefined ? `?program_category=${encodeURIComponent(program_category ?? '')}` : ''}`).then(r => r.data)
+export const getMyAutoAssignNotifications = (since) =>
+  api.get(`/api/cm/lead-assignment/my-notifications${since ? `?since=${encodeURIComponent(since)}` : ''}`).then(r => r.data)
+export const syncLogistisStatuses = () =>
+  api.post('/api/cm/leads/sync-logistis-statuses').then(r => r.data)
 
 export default api
