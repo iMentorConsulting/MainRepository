@@ -298,8 +298,13 @@ async def meta_webhook_receive(request: Request, db: Session = Depends(get_db)):
                 phone = fields.get("phone")
 
                 if name or phone:
+                    # Normalize program to canonical category (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" → "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ")
+                    raw_program = fields.get("program")
+                    program_for_rules = _detect_program_from_text(raw_program) if raw_program else None
+                    if not program_for_rules:
+                        program_for_rules = raw_program
                     # Try assignment rules first; fall back to page-level default
-                    auto_consultant = pick_consultant_from_rules(fields.get("program"), db)
+                    auto_consultant = pick_consultant_from_rules(program_for_rules, db)
                     if auto_consultant:
                         assigned_id = auto_consultant.id
                         assigned_name_val = auto_consultant.full_name
