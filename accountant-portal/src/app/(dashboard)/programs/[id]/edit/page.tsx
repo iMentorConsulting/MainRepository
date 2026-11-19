@@ -51,6 +51,8 @@ const schema = z.object({
   internalNotes: z.string().optional(),
   pricingNote: z.string().optional(),
   ermisInstructions: z.string().optional(),
+  acceptsNewBusiness: z.boolean().default(false),
+  newBusinessNote: z.string().optional(),
   monthlyAmount: z.string().optional(),
   subsidyMonths: z.string().optional(),
   totalBenefit: z.string().optional(),
@@ -430,6 +432,8 @@ export default function EditProgramPage() {
           internalNotes: program.internalNotes || '',
           pricingNote: program.pricingNote || '',
           ermisInstructions: program.ermisInstructions || '',
+          acceptsNewBusiness: program.acceptsNewBusiness ?? false,
+          newBusinessNote: program.newBusinessNote || '',
           monthlyAmount: program.monthlyAmount || '',
           subsidyMonths: program.subsidyMonths || '',
           totalBenefit: program.totalBenefit || '',
@@ -940,6 +944,16 @@ export default function EditProgramPage() {
                 Οδηγίες συμπεριφοράς ειδικά για αυτό το πρόγραμμα (π.χ. τόνος, τι να τονίσει/αποφύγει). Προστίθενται απευθείας στις οδηγίες του Ερμή, δεν εμφανίζονται πουθενά δημόσια.
               </p>
               <Textarea {...register('ermisInstructions')} rows={3} placeholder="π.χ. Δώσε έμφαση στην ταχύτητα έγκρισης. Μην αναφέρεις το πρόγραμμα Χ ως εναλλακτική." />
+            </div>
+            <div>
+              <label className="flex items-center gap-2 text-sm font-medium text-gray-700 mb-1">
+                <input type="checkbox" {...register('acceptsNewBusiness')} className="rounded border-gray-300" />
+                Δέχεται και υπό ίδρυση επιχειρήσεις (νέα επιχείρηση)
+              </label>
+              <p className="text-sm text-gray-500 mb-2">
+                Αν η επιχείρηση του πελάτη δεν πληροί τα κριτήρια ως υφιστάμενη, ο Ερμής θα του πει ότι μπορεί να είναι επιλέξιμος μόνο αν ξεκινήσει νέα επιχείρηση, και θα αναφέρει τις προϋποθέσεις που γράφετε εδώ.
+              </p>
+              <Textarea {...register('newBusinessNote')} rows={3} placeholder="π.χ. Απαιτείται έναρξη δραστηριότητας πριν την υποβολή αίτησης, με ΚΑΔ από τη λίστα του προγράμματος. Δεν πρέπει να έχει υπάρξει προηγούμενη δραστηριότητα στον ίδιο κλάδο." />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Απαιτούμενα Έγγραφα (Ερμής)</label>

@@ -288,34 +288,60 @@ export async function POST(request: NextRequest) {
       // Immediate client-facing Viber — "here's what you're eligible for,
       // go chat with Ermis" — separate from the ermis-reminders cron's later
       // "still there?" nudge. Approved wording, see ermis-program-payload.ts.
-      const contactPhoneStr = lead?.phone || lead?.phone2 || null
+      //
+      // The program the lead ASKED about always gets the Ερμής link, even when
+      // the automatic matching rated the business ineligible for it — Ερμής
+      // assesses by conversation (and knows when a program also accepts
+      // υπό ίδρυση businesses). It is sent with neutral wording, never as
+      // "you are eligible". Contact details fall back to what Logistis
+      // already holds when the lead payload has none.
+      const contactRecord = await prisma.business.findUnique({
+        where: { id: business!.id },
+        select: { email: true, phone: true, viberPhone: true },
+      })
+      const contactPhoneStr = lead?.phone || lead?.phone2 || contactRecord?.viberPhone || contactRecord?.phone || null
+      const contactEmailStr = lead?.email || contactRecord?.email || null
+
+      const primaryIsEligible = matchedPrograms.some(p => p.isPrimary && p.isEligible)
+      const requestedOnly = primaryIsEligible ? [] : [{
+        title: dbProgram!.title,
+        chatUrl,
+        description: buildProgramDescription(dbProgram!),
+      }]
+
       const eligibleForViber = matchedPrograms.filter(p => p.isEligible && p.chatUrl)
-      if (contactPhoneStr && eligibleForViber.length > 0) {
+      if (contactPhoneStr && (eligibleForViber.length > 0 || requestedOnly.length > 0)) {
         const text = buildErmisViberMessage({
           businessName: business!.onomasia || business!.commercialTitle || afmStr,
           eligiblePrograms: eligibleForViber.map(p => ({ title: p.title, chatUrl: p.chatUrl })),
+          requestedPrograms: requestedOnly.map(p => ({ title: p.title, chatUrl: p.chatUrl })),
           consultant: consultant || lead?.consultant || null,
         })
         sendViberMessage({ to: contactPhoneStr, text, senderName: 'iMentor Consulting' })
           .catch(err => console.error('[ErmisSession] client Viber failed:', err?.message))
+      } else {
+        console.warn(`[ErmisSession] no client Viber sent for ΑΦΜ ${afmStr}: phone=${contactPhoneStr ? 'yes' : 'NONE'} eligible=${eligibleForViber.length} requested=${requestedOnly.length}`)
       }
 
-      // Same "here's what you're eligible for" event, as an email — clients
-      // without Viber (or who miss it) still get told.
-      const contactEmailStr = lead?.email || null
+      // Same event, as an email — clients without Viber (or who miss it) still get told.
       const eligibleForEmail = matchedPrograms.filter(p => p.isEligible)
-      if (contactEmailStr && eligibleForEmail.length > 0) {
+      if (contactEmailStr && (eligibleForEmail.length > 0 || requestedOnly.length > 0)) {
         const businessName = business!.onomasia || business!.commercialTitle || afmStr
         sendEmail({
           to: contactEmailStr,
-          subject: buildErmisEligibilitySubject(businessName, eligibleForEmail.length),
+          subject: eligibleForEmail.length > 0
+            ? buildErmisEligibilitySubject(businessName, eligibleForEmail.length)
+            : `${businessName} — Το αίτημά σας για «${dbProgram!.title}»`,
           html: buildErmisEligibilityEmailHtml({
             businessName,
             eligiblePrograms: eligibleForEmail.map(p => ({ title: p.title, chatUrl: p.chatUrl, description: p.description })),
+            requestedPrograms: requestedOnly,
             consultant: consultant || lead?.consultant || null,
             businessDetails: buildAadeBusinessDetails(business!),
           }),
         }).catch(err => console.error('[ErmisSession] client email failed:', err?.message))
+      } else {
+        console.warn(`[ErmisSession] no client email sent for ΑΦΜ ${afmStr}: email=${contactEmailStr ? 'yes' : 'NONE'} eligible=${eligibleForEmail.length} requested=${requestedOnly.length}`)
       }
 
       const profile = await buildBusinessProfilePayload(business!)

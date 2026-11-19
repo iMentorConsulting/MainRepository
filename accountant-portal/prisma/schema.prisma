@@ -380,6 +380,13 @@ model Program {
   // program (e.g. tone, things to emphasize/avoid, special handling) — injected
   // directly into its system prompt, never shown on the public page.
   ermisInstructions  String?
+  // The program also accepts "υπό ίδρυση" applicants (people who have NOT yet
+  // started the business). When true, Ερμής tells a client who fails the
+  // criteria as an EXISTING business that they could still qualify, but only
+  // by starting a new business. newBusinessNote holds the specific conditions
+  // (e.g. "απαιτείται έναρξη δραστηριότητας πριν την υποβολή, ΚΑΔ από τη λίστα Χ").
+  acceptsNewBusiness Boolean            @default(false)
+  newBusinessNote    String?
   // Fallback target for the /api/external/leads webhook when a form
   // submission doesn't include (or doesn't match) a program-name field —
   // each Bitform lead form normally names its target Program explicitly, so

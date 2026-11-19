@@ -66,15 +66,24 @@ const NUMBER_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6�
 export function buildErmisViberMessage(params: {
   businessName: string
   eligiblePrograms: ErmisViberProgramEntry[]
+  // Programs the client ASKED about that the automatic matching did NOT rate
+  // eligible. They still get the Ερμής link (it can assess by conversation),
+  // but with neutral wording — never "you are eligible".
+  requestedPrograms?: ErmisViberProgramEntry[]
   consultant?: string | null
 }): string {
-  const { businessName, eligiblePrograms, consultant } = params
+  const { businessName, eligiblePrograms, requestedPrograms = [], consultant } = params
   const shown = eligiblePrograms.slice(0, MAX_VIBER_PROGRAMS)
   const extra = eligiblePrograms.length - shown.length
 
   const lines: string[] = [`Αγαπητέ/ή ${businessName},`, '']
 
-  if (shown.length <= 1) {
+  if (eligiblePrograms.length === 0 && requestedPrograms.length > 0) {
+    lines.push('Λάβαμε το αίτημά σας για το πρόγραμμα:')
+    lines.push('')
+    requestedPrograms.forEach(p => { lines.push(`🎯 «${p.title}»`); lines.push(p.chatUrl || ''); lines.push('') })
+    lines.push('🤖 Μιλήστε με τον «Ερμή» μας για ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας (~2 λεπτά).')
+  } else if (shown.length <= 1) {
     const program = shown[0]
     lines.push('🔍 Ελέγξαμε την επιχείρησή σας και έχουμε καλά νέα! Βρήκαμε πρόγραμμα επιχορήγησης για το οποίο πιθανώς είστε επιλέξιμοι:')
     lines.push('')
@@ -92,6 +101,11 @@ export function buildErmisViberMessage(params: {
     })
     if (extra > 0) lines.push(`...και ${extra} ακόμη!`, '')
     lines.push('🤖 Μιλήστε με τον «Ερμή» μας — ΔΩΡΕΑΝ έλεγχος (~2 λεπτά) για κάθε πρόγραμμα!')
+  }
+
+  if (eligiblePrograms.length > 0 && requestedPrograms.length > 0) {
+    lines.push('', 'Για το πρόγραμμα που ζητήσατε, μπορείτε επίσης να κάνετε ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας με τον «Ερμή»:')
+    requestedPrograms.forEach(p => { lines.push(`«${p.title}»`); lines.push(p.chatUrl || '') })
   }
 
   if (consultant) {
@@ -160,10 +174,37 @@ export function buildErmisEligibilitySubject(businessName: string, programCount:
 export function buildErmisEligibilityEmailHtml(params: {
   businessName: string
   eligiblePrograms: ErmisEmailProgramEntry[]
+  // Programs the client asked about that the automatic matching did not rate
+  // eligible — neutral wording, same Ερμής link (see buildErmisViberMessage).
+  requestedPrograms?: ErmisEmailProgramEntry[]
   consultant?: string | null
   businessDetails?: AadeBusinessDetails
 }): string {
-  const { businessName, eligiblePrograms, consultant, businessDetails } = params
+  const { businessName, eligiblePrograms, requestedPrograms = [], consultant, businessDetails } = params
+  const cardOf = (p: ErmisEmailProgramEntry) => `
+    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
+      <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${p.title}</p>
+      <p style="margin:0 0 16px;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${p.description}</p>
+      ${p.chatUrl ? `<a href="${p.chatUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:11px 26px;border-radius:8px;">🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος</a>` : ''}
+    </div>`
+
+  if (eligiblePrograms.length === 0 && requestedPrograms.length > 0) {
+    return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
+      <div style="background:#1e3a8a;padding:24px 28px;border-radius:12px 12px 0 0;">
+        <h1 style="margin:0;color:#fff;font-size:19px;">Το αίτημά σας για πρόγραμμα επιχορήγησης</h1>
+      </div>
+      <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
+        <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${businessName},</p>
+        <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
+          Λάβαμε το αίτημά σας για ${requestedPrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : 'τα παρακάτω προγράμματα'}. Μιλήστε με τον ψηφιακό μας σύμβουλο, τον «Ερμή», για έναν ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας (~2 λεπτά):
+        </p>
+        ${requestedPrograms.map(cardOf).join('')}
+        ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
+        <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
+      </div>
+    </div>`
+  }
 
   const cards = eligiblePrograms.map(p => `
     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
@@ -184,6 +225,7 @@ export function buildErmisEligibilityEmailHtml(params: {
         </p>
         ${buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${cards}
+        ${requestedPrograms.length > 0 ? `<p style="margin:8px 0 12px;font-size:14px;color:#4b5563;line-height:1.6;">Για το πρόγραμμα που ζητήσατε μπορείτε επίσης να κάνετε ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας με τον «Ερμή»:</p>${requestedPrograms.map(cardOf).join('')}` : ''}
         ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
         <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
       </div>
