@@ -456,5 +456,72 @@ router.delete('/:id', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
+// POST /repair-orphans — find income records with no service_agreement_id and link or
+// create a ServiceAgreement for each distinct (customer_name, service_type) group.
+// Returns a summary of what was created/linked so the caller can verify.
+router.post('/repair-orphans', async (req, res) => {
+  try {
+    // All orphan income records grouped by (customer_name, service_type)
+    const orphanGroups = await sequelize.query(`
+      SELECT
+        TRIM(customer_name)             AS customer_name,
+        TRIM(COALESCE(service_type,'')) AS service_type,
+        MAX(vat_number)    FILTER (WHERE vat_number IS NOT NULL AND vat_number <> '') AS vat_number,
+        MAX(sales_agent)   FILTER (WHERE sales_agent IS NOT NULL AND sales_agent <> '') AS sales_agent,
+        MAX(source_referral) FILTER (WHERE source_referral IS NOT NULL)                AS source_referral,
+        MAX(targeting_category) FILTER (WHERE targeting_category IS NOT NULL)          AS targeting_category,
+        MAX(amount_application)                                                         AS amount_application,
+        MAX(amount_implementation)                                                      AS amount_implementation,
+        ARRAY_AGG(id ORDER BY id)                                                       AS income_ids
+      FROM income
+      WHERE service_agreement_id IS NULL
+        AND customer_name IS NOT NULL AND TRIM(customer_name) <> ''
+      GROUP BY TRIM(customer_name), TRIM(COALESCE(service_type,''))
+      ORDER BY customer_name
+    `, { type: QueryTypes.SELECT });
+
+    const created = [];
+    const linked  = [];
+    const errors  = [];
+
+    for (const g of orphanGroups) {
+      try {
+        // Try to find an existing active SA for this customer
+        const findWhere = g.vat_number
+          ? { vat_number: g.vat_number, ...(g.service_type ? { service_type: g.service_type } : {}), status: { [Op.notIn]: ['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΔΕΝ ΠΡΟΧΩΡΗΣΕ'] } }
+          : { customer_name: g.customer_name, ...(g.service_type ? { service_type: g.service_type } : {}), status: { [Op.notIn]: ['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΔΕΝ ΠΡΟΧΩΡΗΣΕ'] } };
+        let sa = await ServiceAgreement.findOne({ where: findWhere, order: [['createdAt', 'DESC']] });
+        let action = 'linked';
+        if (!sa) {
+          sa = await ServiceAgreement.create({
+            customer_name:         g.customer_name,
+            vat_number:            g.vat_number            || null,
+            service_type:          g.service_type          || null,
+            sales_agent:           g.sales_agent           || null,
+            folder_agent:          g.sales_agent           || null,
+            source_referral:       g.source_referral       || null,
+            targeting_category:    g.targeting_category    || null,
+            amount_application:    g.amount_application    || null,
+            amount_implementation: g.amount_implementation || null,
+            status: 'ΕΝΕΡΓΟ',
+          });
+          action = 'created';
+        }
+        // Update all orphan income records to point to this SA
+        await sequelize.query(
+          `UPDATE income SET service_agreement_id = :saId WHERE id = ANY(:ids)`,
+          { replacements: { saId: sa.id, ids: g.income_ids }, type: QueryTypes.UPDATE }
+        );
+        const entry = { sa_id: sa.id, customer_name: g.customer_name, service_type: g.service_type, income_ids: g.income_ids, action };
+        if (action === 'created') created.push(entry); else linked.push(entry);
+      } catch (e) {
+        errors.push({ customer_name: g.customer_name, error: e.message });
+      }
+    }
+
+    res.json({ created_count: created.length, linked_count: linked.length, error_count: errors.length, created, linked, errors });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
 module.exports = router;
 module.exports.checkAndAutoStatus = checkAndAutoStatus;
