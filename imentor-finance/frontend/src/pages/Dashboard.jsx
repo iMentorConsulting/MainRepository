@@ -63,6 +63,16 @@ const fmtGR = n => n != null ? Math.round(n).toLocaleString('el-GR') + ' €' : 
 
 const MONTH_NAMES_SHORT = ['Ιαν','Φεβ','Μαρ','Απρ','Μαι','Ιουν','Ιουλ','Αυγ','Σεπ','Οκτ','Νοε','Δεκ'];
 
+// Same normalization as backend: maps Greek lookalike letters to ASCII so names match across encodings
+const normalizeKey = n => {
+  if (!n) return '';
+  return n.trim().toUpperCase()
+    .replace(/Α/g,'A').replace(/Β/g,'B').replace(/Ε/g,'E').replace(/Ζ/g,'Z')
+    .replace(/Η/g,'H').replace(/Ι/g,'I').replace(/Κ/g,'K').replace(/Μ/g,'M')
+    .replace(/Ν/g,'N').replace(/Ο/g,'O').replace(/Ρ/g,'R').replace(/Τ/g,'T')
+    .replace(/Υ/g,'Y').replace(/Χ/g,'X');
+};
+
 function KPICard({ label, value, sub, type }) {
   const styles = {
     income:  { bg: 'linear-gradient(135deg, #10b981, #059669)', shadow: '0 8px 32px rgba(16,185,129,0.25)' },
@@ -133,6 +143,7 @@ export default function Dashboard() {
   const [expandedYears, setExpandedYears] = useState(new Set());
   const [matrixYears, setMatrixYears] = useState([String(new Date().getFullYear())]);
   const [matrixMonths, setMatrixMonths] = useState([]);
+  const [payrollByYear, setPayrollByYear] = useState({});
 
   useEffect(() => {
     const buildParams = (base) => {
@@ -197,6 +208,28 @@ export default function Dashboard() {
     api.get('/income', { params: { limit: 9999 } }).then(r => setAllIncome(r.data?.data || [])).catch(() => {});
     api.get('/expenses', { params: { limit: 9999 } }).then(r => setAllExpenses(r.data?.data || [])).catch(() => {});
   }, []);
+
+  // Fetch payroll targets for each year shown in the matrix (cached per year)
+  useEffect(() => {
+    const years = matrixYears.length > 0 ? matrixYears : [String(new Date().getFullYear())];
+    for (const y of years) {
+      setPayrollByYear(prev => {
+        if (prev[y]) return prev; // already loaded
+        api.get(`/reports/payroll?year=${y}`).then(r => {
+          const map = {};
+          for (const emp of (r.data || [])) {
+            const key = normalizeKey(emp.agent);
+            if (!map[key]) map[key] = {};
+            for (const mo of (emp.monthly || [])) {
+              if (mo.target > 0) map[key][mo.month] = mo.target;
+            }
+          }
+          setPayrollByYear(p => ({ ...p, [y]: map }));
+        }).catch(() => {});
+        return prev;
+      });
+    }
+  }, [matrixYears]);
 
   const chartData = useMemo(() => {
     const nowDate = new Date();
@@ -302,8 +335,18 @@ export default function Dashboard() {
     for (const ym of cols) {
       colMax[ym] = Math.max(...agents.map(ag => agentData[ag][ym] || 0));
     }
-    return { cols, agents, data: agentData, colMax };
-  }, [allIncome, matrixYears, matrixMonths]);
+    // Build target lookup: normKey -> ym -> target (from payroll settings)
+    const targetLookup = {};
+    for (const ym of cols) {
+      const [y, mo] = ym.split('-');
+      const yearMap = payrollByYear[y] || {};
+      for (const [normKey, monthMap] of Object.entries(yearMap)) {
+        if (!targetLookup[normKey]) targetLookup[normKey] = {};
+        if (monthMap[mo]) targetLookup[normKey][ym] = monthMap[mo];
+      }
+    }
+    return { cols, agents, data: agentData, colMax, targetLookup };
+  }, [allIncome, matrixYears, matrixMonths, payrollByYear]);
 
   return (
     <div className="page">
@@ -979,14 +1022,33 @@ export default function Dashboard() {
                     {agentMatrix.cols.map(ym => {
                       const val = row[ym] || 0;
                       const isTop = val > 0 && val === agentMatrix.colMax[ym];
+                      const normKey = normalizeKey(agent);
+                      const target = agentMatrix.targetLookup[normKey]?.[ym] || 0;
+                      const achPct = target > 0 && val > 0 ? Math.round(val / target * 100) : null;
+                      const badgeStyle = achPct === null ? null : achPct >= 100
+                        ? { bg: '#d1fae5', color: '#065f46' }
+                        : achPct >= 80
+                          ? { bg: '#fef3c7', color: '#92400e' }
+                          : { bg: '#fee2e2', color: '#991b1b' };
                       return (
                         <td key={ym} className="td text-right tabular-nums whitespace-nowrap"
                           style={isTop ? { background: '#fef9c3', color: '#854d0e', fontWeight: 700, borderRadius: 6 } : { color: val > 0 ? '#475569' : undefined }}>
                           {val > 0 ? (
-                            <span style={isTop ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
-                              {isTop && <span style={{ fontSize: 11 }}>🏆</span>}
-                              {Math.round(val).toLocaleString('el-GR')} €
-                            </span>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                              <span style={isTop ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
+                                {isTop && <span style={{ fontSize: 11 }}>🏆</span>}
+                                {Math.round(val).toLocaleString('el-GR')} €
+                              </span>
+                              {badgeStyle && (
+                                <span style={{
+                                  fontSize: 10, fontWeight: 700, lineHeight: 1.4,
+                                  padding: '1px 5px', borderRadius: 10,
+                                  background: badgeStyle.bg, color: badgeStyle.color,
+                                }}>
+                                  {achPct}%
+                                </span>
+                              )}
+                            </div>
                           ) : <span className="text-slate-200">—</span>}
                         </td>
                       );
