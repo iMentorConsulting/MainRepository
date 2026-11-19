@@ -25,30 +25,36 @@ class RulesBatchIn(BaseModel):
     rules: List[RuleIn]
 
 
-def pick_consultant_from_rules(program_category: Optional[str], db: Session) -> Optional[CMUser]:
+def pick_consultant_from_rules(
+    program_category: Optional[str],
+    db: Session,
+    canonical_fallback: Optional[str] = None,
+) -> Optional[CMUser]:
     """
     Weighted round-robin: find the active rule with the lowest assignment_count/weight ratio.
-    Tries specific program rules first; falls back to catch-all (program_category IS NULL).
+    Lookup order:
+      1. Exact match on program_category
+      2. canonical_fallback (e.g. "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ" when program is "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ"),
+         only tried when it differs from program_category
+      3. Catch-all rules (program_category IS NULL)
     Returns the CMUser to assign to, and increments that rule's assignment_count.
     Returns None if no rules are configured for this program.
     """
-    rules = (
-        db.query(CMLeadAssignmentRule)
-        .filter(
-            CMLeadAssignmentRule.is_active == True,
-            CMLeadAssignmentRule.program_category == program_category,
-        )
-        .all()
-    )
-    if not rules:
-        rules = (
+    def _query(cat):
+        return (
             db.query(CMLeadAssignmentRule)
             .filter(
                 CMLeadAssignmentRule.is_active == True,
-                CMLeadAssignmentRule.program_category == None,
+                CMLeadAssignmentRule.program_category == cat,
             )
             .all()
         )
+
+    rules = _query(program_category)
+    if not rules and canonical_fallback and canonical_fallback != program_category:
+        rules = _query(canonical_fallback)
+    if not rules:
+        rules = _query(None)
     if not rules:
         return None
 
