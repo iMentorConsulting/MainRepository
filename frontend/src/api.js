@@ -233,6 +233,7 @@ export const runFinanceSync = () => api.post('/api/cm/finance-sync/run').then(r 
 export const undoFinanceSync = () => api.post('/api/cm/finance-sync/undo').then(r => r.data)
 export const getFinanceSyncServiceTypes = () => api.get('/api/cm/finance-sync/service-types').then(r => r.data)
 export const updateFinanceSyncServiceTypes = (items) => api.put('/api/cm/finance-sync/service-types', items).then(r => r.data)
+export const lookupFinanceSyncAfm = (afm) => api.get(`/api/cm/finance-sync/lookup?afm=${encodeURIComponent(afm)}`).then(r => r.data)
 
 // Payroll Targets (Finance → CM)
 export const getMyPayrollTargets = () => api.get('/api/finance/payroll-targets/me').then(r => r.data)

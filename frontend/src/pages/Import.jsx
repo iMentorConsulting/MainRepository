@@ -12,9 +12,10 @@ import {
   ClockIcon,
   ArrowUturnLeftIcon,
   BoltIcon,
+  MagnifyingGlassIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
-import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync, getFinanceSyncServiceTypes, updateFinanceSyncServiceTypes, diagnoseSkippedSheetRows } from '../api'
+import { previewSheet, importFromSheet, syncPaidFromSheet, syncAgentsFromSheet, getServiceTypes, assignPrograms, syncInvestmentFromSheet, syncSaleDatesFromSheet, getAutoRefreshStatus, previewAnakainizwSheet, importAnakainizwSheet, getAnakainizwHeaders, getFinanceSyncStatus, previewFinanceSync, runFinanceSync, undoFinanceSync, getFinanceSyncServiceTypes, updateFinanceSyncServiceTypes, diagnoseSkippedSheetRows, lookupFinanceSyncAfm } from '../api'
 
 const PREVIEW_COLUMNS = [
   { key: 'client_name', label: 'Πελάτης' },
@@ -101,6 +102,12 @@ export default function Import() {
   const [savingServiceTypes, setSavingServiceTypes] = useState(false)
   const [showServiceTypes, setShowServiceTypes] = useState(false)
 
+  // AFM lookup state
+  const [lookupAfm, setLookupAfm] = useState('')
+  const [lookupResult, setLookupResult] = useState(null)
+  const [loadingLookup, setLoadingLookup] = useState(false)
+  const [lookupError, setLookupError] = useState(null)
+
   useEffect(() => {
     getAutoRefreshStatus().then(setAutoRefreshStatus).catch(() => {})
     getFinanceSyncStatus().then(setFinanceSyncStatus).catch(() => {})
@@ -174,6 +181,21 @@ export default function Import() {
       toast.error(msg)
     } finally {
       setLoadingFinanceRun(false)
+    }
+  }
+
+  const handleAfmLookup = async () => {
+    if (!lookupAfm.trim()) return
+    setLoadingLookup(true)
+    setLookupResult(null)
+    setLookupError(null)
+    try {
+      const data = await lookupFinanceSyncAfm(lookupAfm.trim())
+      setLookupResult(data)
+    } catch (err) {
+      setLookupError(err.response?.data?.detail || err.message || 'Σφάλμα')
+    } finally {
+      setLoadingLookup(false)
     }
   }
 
@@ -675,6 +697,53 @@ export default function Import() {
                   Ανανέωση από Finance App
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* AFM lookup */}
+        <div className="border border-gray-200 rounded-lg p-4 space-y-3">
+          <p className="text-sm font-medium text-gray-700">Αναζήτηση ΑΦΜ στο Finance App</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={lookupAfm}
+              onChange={e => setLookupAfm(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && handleAfmLookup()}
+              placeholder="ΑΦΜ π.χ. 133581565"
+              className="flex-1 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            />
+            <button
+              onClick={handleAfmLookup}
+              disabled={loadingLookup || !lookupAfm.trim()}
+              className="flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+            >
+              {loadingLookup ? <Spinner /> : <MagnifyingGlassIcon className="w-4 h-4" />}
+              Αναζήτηση
+            </button>
+          </div>
+          {lookupError && <p className="text-sm text-red-600">{lookupError}</p>}
+          {lookupResult && (
+            <div className="text-sm space-y-2">
+              <p className="text-gray-500">Σύνολο εγγραφών από finance app: <strong>{lookupResult.total_records_from_finance}</strong></p>
+              {lookupResult.matches_by_afm?.length === 0 ? (
+                <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700">
+                  <strong>ΔΕΝ ΒΡΕΘΗΚΕ</strong> — Το ΑΦΜ δεν υπάρχει στα δεδομένα που στέλνει το finance app.
+                  {lookupResult.note && <p className="mt-1 text-xs">{lookupResult.note}</p>}
+                </div>
+              ) : (
+                lookupResult.matches_by_afm.map((m, i) => (
+                  <div key={i} className={`rounded-lg border px-4 py-3 space-y-1 ${m.would_be_imported ? 'bg-green-50 border-green-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                    <p className={`font-semibold ${m.would_be_imported ? 'text-green-700' : 'text-yellow-700'}`}>
+                      {m.would_be_imported ? '✓ Θα εισαχθεί κανονικά' : '⚠ Φιλτράρεται — δεν θα εισαχθεί'}
+                    </p>
+                    <p><span className="text-gray-500">Τύπος υπηρεσίας:</span> <strong>{m.raw_record.service_type || '(κενό)'}</strong> — {m.service_type_enabled ? 'ενεργός ✓' : 'ΑΠΕΝΕΡΓΟΠΟΙΗΜΕΝΟΣ ✗'}</p>
+                    <p><span className="text-gray-500">Work status:</span> <strong>{m.raw_record.work_status || '(κενό)'}</strong> — {m.work_status_in_valid_list ? 'αποδεκτό ✓' : 'ΔΕΝ ΕΙΝΑΙ ΣΤΗΝ ΛΙΣΤΑ ✗'}</p>
+                    <p><span className="text-gray-500">Πελάτης:</span> {m.raw_record.customer_name} | ΑΦΜ: {m.raw_record.vat_number || '(κενό)'}</p>
+                    <p><span className="text-gray-500">Πληρωθέν:</span> {m.raw_record.total_paid}€</p>
+                  </div>
+                ))
+              )}
             </div>
           )}
         </div>
