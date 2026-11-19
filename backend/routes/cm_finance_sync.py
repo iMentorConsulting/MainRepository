@@ -436,6 +436,51 @@ def finance_sync_status(current_user: CMUser = Depends(get_current_user)):
     return _last_sync
 
 
+@router.get("/lookup")
+def lookup_finance_record(
+    afm: str,
+    current_user: CMUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Debug: fetch raw finance records and find a specific client by AFM."""
+    if current_user.role != "admin":
+        raise HTTPException(status_code=403, detail="Απαιτούνται δικαιώματα διαχειριστή")
+    try:
+        records = _fetch_finance_records()
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Finance app error: {exc}")
+
+    enabled = _get_enabled_service_types(db)
+    afm_clean = afm.strip()
+
+    matches = [r for r in records if (r.get("vat_number") or "").strip() == afm_clean]
+
+    if not matches:
+        # Try by name fragment too
+        return {
+            "total_records_from_finance": len(records),
+            "matches_by_afm": [],
+            "note": f"ΑΦΜ {afm_clean} δεν βρέθηκε στα δεδομένα που στέλνει το finance app. "
+                    "Πιθανόν η εγγραφή δεν έχει service_agreement ή το ΑΦΜ δεν είναι καταχωρημένο στο income record.",
+        }
+
+    result = []
+    for r in matches:
+        svc = (r.get("service_type") or "").strip()
+        ws = (r.get("work_status") or "").strip()
+        result.append({
+            "raw_record": r,
+            "service_type_enabled": svc in enabled,
+            "work_status_in_valid_list": not ws or ws in VALID_IMPORT_STATUSES,
+            "would_be_imported": svc in enabled and (not ws or ws in VALID_IMPORT_STATUSES),
+        })
+
+    return {
+        "total_records_from_finance": len(records),
+        "matches_by_afm": result,
+    }
+
+
 @router.get("/service-types")
 def get_finance_service_types(
     current_user: CMUser = Depends(get_current_user),
