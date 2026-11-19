@@ -1,9 +1,10 @@
 #!/bin/bash
-# Εκκίνηση συστήματος διαχείρισης κρατήσεων
+# iMentor Consulting - Case Management App
+# Local development startup
 
 set -e
 
-echo "🏨 Εκκίνηση Συστήματος Διαχείρισης Κρατήσεων..."
+echo "► iMentor Consulting Case Management - Local Dev"
 
 # Backend
 echo "► Εγκατάσταση Python dependencies..."
@@ -28,12 +29,12 @@ FRONTEND_PID=$!
 cd ..
 
 echo ""
-echo "✅ Το σύστημα εκκινήθηκε!"
-echo "   Frontend: http://localhost:5173"
-echo "   Backend API: http://localhost:8000"
-echo "   API Docs: http://localhost:8000/docs"
+echo "✅ Εκκινήθηκε!"
+echo "   App:     http://localhost:5173"
+echo "   API:     http://localhost:8000"
+echo "   Docs:    http://localhost:8000/docs"
 echo ""
-echo "Πατήστε Ctrl+C για τερματισμό."
+echo "Ctrl+C για τερματισμό."
 
 trap "kill $BACKEND_PID $FRONTEND_PID 2>/dev/null; exit 0" SIGINT SIGTERM
 wait
