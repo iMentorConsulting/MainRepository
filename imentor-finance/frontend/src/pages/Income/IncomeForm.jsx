@@ -172,6 +172,15 @@ export default function IncomeForm({ record, onSave, onCancel, isDuplicate = fal
   };
 
   const onSubmit = async data => {
+    // Warn when no service agreement is linked — record won't appear in CM sync
+    if (!selectedAgreementId && !data.service_agreement_id) {
+      const ok = window.confirm(
+        'Δεν έχει επιλεγεί Συμφωνία Πελάτη.\n\n' +
+        'Χωρίς συμφωνία η εγγραφή ΔΕΝ θα εμφανιστεί στο σύστημα διαχείρισης υποθέσεων (CM sync).\n\n' +
+        'Συνέχεια χωρίς συμφωνία;'
+      );
+      if (!ok) return;
+    }
     try {
       if (!customerLinked && !record?.id && data.customer_name) {
         try {
