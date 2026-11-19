@@ -29,6 +29,7 @@ from sqlalchemy.orm import Session
 from auth_cases import get_current_user
 from database import get_db, engine
 from models_cases import CMMetaPageConfig, CMMetaLeadLog, CMLead, CMUser
+from routes.cm_lead_assignment import pick_consultant_from_rules
 from sqlalchemy import text as _sql
 
 log = logging.getLogger(__name__)
@@ -297,6 +298,17 @@ async def meta_webhook_receive(request: Request, db: Session = Depends(get_db)):
                 phone = fields.get("phone")
 
                 if name or phone:
+                    # Try assignment rules first; fall back to page-level default
+                    auto_consultant = pick_consultant_from_rules(fields.get("program"), db)
+                    if auto_consultant:
+                        assigned_id = auto_consultant.id
+                        assigned_name_val = auto_consultant.full_name
+                        auto_assigned_at_val = datetime.utcnow()
+                    else:
+                        assigned_id = cfg.assigned_agent_id
+                        assigned_name_val = cfg.assigned_agent.full_name if cfg.assigned_agent else None
+                        auto_assigned_at_val = None
+
                     lead = CMLead(
                         name=name,
                         phone=phone,
@@ -307,8 +319,9 @@ async def meta_webhook_receive(request: Request, db: Session = Depends(get_db)):
                         notes=fields.get("notes"),
                         source="Meta Ads",
                         status="NEW LEAD",
-                        assigned_agent_id=cfg.assigned_agent_id,
-                        assigned_name=cfg.assigned_agent.full_name if cfg.assigned_agent else None,
+                        assigned_agent_id=assigned_id,
+                        assigned_name=assigned_name_val,
+                        auto_assigned_at=auto_assigned_at_val,
                     )
                     db.add(lead)
                     db.flush()
