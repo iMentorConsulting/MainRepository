@@ -127,6 +127,46 @@ function ProgramMapEditor({ programMap, onChange }) {
   )
 }
 
+function CampaignMapEditor({ campaignMap, onChange }) {
+  const [rows, setRows] = useState(() =>
+    Object.entries(campaignMap || {}).map(([k, v]) => ({ keyword: k, title: v }))
+  )
+  const sync = (newRows) => {
+    setRows(newRows)
+    const map = {}
+    newRows.forEach(r => { if (r.keyword.trim() && r.title.trim()) map[r.keyword.trim()] = r.title.trim() })
+    onChange(map)
+  }
+  const add = () => sync([...rows, { keyword: '', title: '' }])
+  const del = (i) => sync(rows.filter((_, j) => j !== i))
+  const upd = (i, k, v) => sync(rows.map((r, j) => j === i ? { ...r, [k]: v } : r))
+  return (
+    <div className="space-y-2">
+      {rows.map((r, i) => (
+        <div key={i} className="flex gap-2 items-center">
+          <input
+            className="flex-1 border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+            placeholder="Λέξη στο όνομα καμπάνιας (π.χ. Πέλλας)"
+            value={r.keyword}
+            onChange={e => upd(i, 'keyword', e.target.value)}
+          />
+          <span className="text-gray-400 text-xs">→</span>
+          <input
+            className="flex-1 border rounded px-2 py-1 text-xs focus:ring-1 focus:ring-blue-500"
+            placeholder="Τίτλος προγράμματος (π.χ. LEADER ΠΕΛΛΑΣ)"
+            value={r.title}
+            onChange={e => upd(i, 'title', e.target.value)}
+          />
+          <button onClick={() => del(i)} className="text-red-400 hover:text-red-600 p-1"><TrashIcon className="w-3.5 h-3.5" /></button>
+        </div>
+      ))}
+      <button onClick={add} className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800">
+        <PlusIcon className="w-3.5 h-3.5" /> Προσθήκη καμπάνιας
+      </button>
+    </div>
+  )
+}
+
 function SourceModal({ source, onClose, onSaved }) {
   const isNew = !source
   const [form, setForm] = useState({
@@ -135,6 +175,9 @@ function SourceModal({ source, onClose, onSaved }) {
     default_program_title: source?.default_program_title || '',
     field_map: source?.field_map || {},
     program_map: source?.program_map || {},
+    campaign_map: source?.campaign_map || {},
+    auto_assign: source?.auto_assign ?? false,
+    source_label: source?.source_label || '',
     enabled: source?.enabled ?? true,
     notes: source?.notes || '',
   })
@@ -209,6 +252,25 @@ function SourceModal({ source, onClose, onSaved }) {
               />
               <label htmlFor="enabled" className="text-sm font-medium text-gray-700">Ενεργό</label>
             </div>
+            <div className="flex items-center gap-2 pt-2">
+              <input
+                type="checkbox"
+                id="auto_assign"
+                checked={form.auto_assign}
+                onChange={e => setForm(f => ({ ...f, auto_assign: e.target.checked }))}
+                className="rounded"
+              />
+              <label htmlFor="auto_assign" className="text-sm font-medium text-gray-700">Αυτόματη ανάθεση (κανόνες)</label>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ετικέτα πηγής</label>
+              <input
+                className="w-full border rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                placeholder="π.χ. Meta Ads"
+                value={form.source_label}
+                onChange={e => setForm(f => ({ ...f, source_label: e.target.value }))}
+              />
+            </div>
           </div>
 
           {/* Field mapping */}
@@ -236,6 +298,19 @@ function SourceModal({ source, onClose, onSaved }) {
             <ProgramMapEditor
               programMap={form.program_map}
               onChange={v => setForm(f => ({ ...f, program_map: v }))}
+            />
+          </div>
+
+          {/* Campaign mapping */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-800 mb-2">Αντιστοίχιση Καμπάνιας → Πρόγραμμα</h3>
+            <p className="text-xs text-gray-500 mb-3">
+              Για Meta Ads μέσω Pabbly: στείλτε το πεδίο <code>campaign_name</code>. Αν το όνομα καμπάνιας περιέχει τη λέξη-κλειδί
+              (χωρίς διάκριση τόνων/πεζών), το lead παίρνει τον αντίστοιχο τίτλο προγράμματος. Υπερισχύει η μακρύτερη λέξη.
+            </p>
+            <CampaignMapEditor
+              campaignMap={form.campaign_map}
+              onChange={v => setForm(f => ({ ...f, campaign_map: v }))}
             />
           </div>
 

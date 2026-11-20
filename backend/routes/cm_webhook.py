@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user
 from database import get_db
+from routes.cm_lead_assignment import pick_consultant_from_rules
 from models_cases import CMWebhookSource, CMWebhookLog, CMLead, CMUser
 
 log = logging.getLogger(__name__)
@@ -71,7 +72,35 @@ def _detect_program(value: str, program_map: dict | None) -> str | None:
         return "ΔΥΠΑ"
     if "ΕΣΠΑ" in v:
         return "ΕΣΠΑ"
+    if "LEADER" in v:
+        return "LEADER"
     return None
+
+
+_CAMPAIGN_KEYS = ("campaign_name", "campaign", "utm_campaign", "καμπανια", "ονομα_καμπανιας")
+
+
+def _match_campaign(raw: dict, campaign_map: dict | None) -> tuple[str | None, str | None]:
+    """Return (campaign_name, program_title) for the payload's campaign.
+
+    Keywords are matched accent/case-insensitively as substrings of the
+    campaign name; the longest matching keyword wins so that e.g.
+    "leader πελλας" beats a generic "leader" entry.
+    """
+    name = None
+    for k, v in raw.items():
+        if str(k).lower().strip() in _CAMPAIGN_KEYS and v and str(v).strip():
+            name = str(v).strip()
+            break
+    if not name or not campaign_map:
+        return name, None
+    n = _strip_accents(name)
+    best = None
+    for kw, title in campaign_map.items():
+        k = _strip_accents(str(kw).strip())
+        if k and k in n and (best is None or len(k) > best[0]):
+            best = (len(k), title)
+    return name, (best[1] if best else None)
 
 
 # ── Field mapping ─────────────────────────────────────────────────────────────
@@ -149,7 +178,7 @@ def _clean_email(e):
     return s or None
 
 
-def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, default_program: str | None, default_program_title: str | None = None) -> dict:
+def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, default_program: str | None, default_program_title: str | None = None, campaign_map: dict | None = None) -> dict:
     """Translate a raw form payload into a CMLead field dict.
 
     Multiple form fields can map to the same target.  For 'notes' they are
@@ -226,6 +255,14 @@ def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, de
     # Program title (specific program name from the website, e.g. "Ενίσχυση Βορείου Αιγαίου")
     if "program_title" in single:
         lead_fields["program_title"] = single["program_title"]
+
+    # program_title — campaign name (Meta Ads) beats the source default
+    campaign_name, campaign_title = _match_campaign(raw, campaign_map)
+    if campaign_name:
+        lead_fields["_campaign_name"] = campaign_name
+        lead_fields["_campaign_matched"] = bool(campaign_title)
+    if "program_title" not in lead_fields and campaign_title:
+        lead_fields["program_title"] = campaign_title
 
     # program_title — fall back to source default when payload provides none
     if "program_title" not in lead_fields and default_program_title:
@@ -342,7 +379,7 @@ async def debug_webhook_lead(token: str, request: Request, db: Session = Depends
             raw = dict(form)
     except Exception:
         raise HTTPException(status_code=400, detail="Could not parse request body")
-    fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title)
+    fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title, source.campaign_map)
     has_contact = bool(fields.get("name") or fields.get("phone"))
     return {
         "source_name": source.name,
@@ -383,7 +420,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
         log.warning("[webhook] source '%s' payload is not a dict: %r", source.name, raw)
         raise HTTPException(status_code=400, detail="Expected a JSON object or form fields")
 
-    fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title)
+    fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title, source.campaign_map)
     log.info("[webhook] source '%s' mapped fields: %s", source.name, {k: v for k, v in fields.items() if v})
 
     def _write_log(lead_created: bool, lead_id: int | None, skip_reason: str | None):
@@ -421,6 +458,23 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
         _write_log(False, None, "no_contact_info")
         return {"ok": True, "created": False, "reason": "no_contact_info"}
 
+    campaign_name = fields.pop("_campaign_name", None)
+    campaign_matched = fields.pop("_campaign_matched", False)
+    if campaign_name and not campaign_matched and source.campaign_map:
+        log.warning("[webhook][campaign] source '%s': campaign %r matched no keyword — using source defaults",
+                    source.name, campaign_name)
+    assigned_id = assigned_name = auto_at = None
+    if source.auto_assign:
+        prog = fields.get("program")
+        consultant = pick_consultant_from_rules(
+            prog, db, canonical_fallback=_detect_program(prog, None) if prog else None
+        )
+        if consultant:
+            assigned_id, assigned_name, auto_at = consultant.id, consultant.full_name, datetime.utcnow()
+            log.info("[webhook][assign] source '%s' program=%r → %s", source.name, prog, assigned_name)
+        else:
+            log.warning("[webhook][assign] source '%s' program=%r → NO rule match", source.name, prog)
+
     lead = CMLead(
         name=fields.get("name"),
         phone=fields.get("phone"),
@@ -432,7 +486,10 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
         program=fields.get("program"),
         program_title=fields.get("program_title"),
         status="NEW LEAD",
-        source=f"website:{source.name}",
+        source=source.source_label or f"website:{source.name}",
+        assigned_agent_id=assigned_id,
+        assigned_name=assigned_name,
+        auto_assigned_at=auto_at,
     )
     db.add(lead)
     db.commit()
@@ -469,6 +526,9 @@ def _source_dict(s: CMWebhookSource) -> dict:
         "default_program_title": s.default_program_title,
         "field_map": s.field_map or {},
         "program_map": s.program_map or {},
+        "campaign_map": s.campaign_map or {},
+        "auto_assign": bool(s.auto_assign),
+        "source_label": s.source_label,
         "enabled": s.enabled,
         "notes": s.notes,
         "created_at": s.created_at.isoformat() if s.created_at else None,
@@ -482,6 +542,9 @@ class WebhookSourceCreate(BaseModel):
     default_program_title: Optional[str] = None
     field_map: Optional[Dict[str, str]] = None
     program_map: Optional[Dict[str, str]] = None
+    campaign_map: Optional[Dict[str, str]] = None
+    auto_assign: bool = False
+    source_label: Optional[str] = None
     enabled: bool = True
     notes: Optional[str] = None
 
@@ -492,6 +555,9 @@ class WebhookSourceUpdate(BaseModel):
     default_program_title: Optional[str] = None
     field_map: Optional[Dict[str, str]] = None
     program_map: Optional[Dict[str, str]] = None
+    campaign_map: Optional[Dict[str, str]] = None
+    auto_assign: Optional[bool] = None
+    source_label: Optional[str] = None
     enabled: Optional[bool] = None
     notes: Optional[str] = None
 
@@ -519,6 +585,9 @@ def create_webhook_source(
         default_program_title=payload.default_program_title,
         field_map=payload.field_map,
         program_map=payload.program_map,
+        campaign_map=payload.campaign_map,
+        auto_assign=payload.auto_assign,
+        source_label=payload.source_label,
         enabled=payload.enabled,
         notes=payload.notes,
     )

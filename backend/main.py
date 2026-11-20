@@ -831,6 +831,9 @@ try:
         """))
         _conn.commit()
         _conn.execute(_text("ALTER TABLE cm_webhook_sources ADD COLUMN IF NOT EXISTS default_program_title VARCHAR(300)"))
+        _conn.execute(_text("ALTER TABLE cm_webhook_sources ADD COLUMN IF NOT EXISTS campaign_map JSONB"))
+        _conn.execute(_text("ALTER TABLE cm_webhook_sources ADD COLUMN IF NOT EXISTS auto_assign BOOLEAN DEFAULT FALSE"))
+        _conn.execute(_text("ALTER TABLE cm_webhook_sources ADD COLUMN IF NOT EXISTS source_label VARCHAR(60)"))
         _conn.commit()
         _conn.execute(_text("""
             CREATE TABLE IF NOT EXISTS cm_webhook_logs (

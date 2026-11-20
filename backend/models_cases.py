@@ -596,6 +596,15 @@ class CMWebhookSource(Base):
     # e.g. {"εσπα": "ΕΣΠΑ", "μικροπιστωσεις": "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"}
     program_map = Column(JSON, nullable=True)
 
+    # JSON map: campaign-name keyword → specific program title
+    # e.g. {"leader πελλας": "LEADER ΠΕΛΛΑΣ"}.  Matched (accent/case-insensitive,
+    # contains) against the campaign_name sent in the payload; longest keyword wins.
+    campaign_map = Column(JSON, nullable=True)
+    # Run weighted round-robin assignment rules on new leads from this source
+    auto_assign = Column(Boolean, default=False)
+    # Lead.source label override (e.g. "Meta Ads"); default is "website:<name>"
+    source_label = Column(String(60), nullable=True)
+
     enabled = Column(Boolean, default=True)
     notes = Column(Text, nullable=True)
 
