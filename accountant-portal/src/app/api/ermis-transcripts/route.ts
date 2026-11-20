@@ -66,6 +66,9 @@ export async function GET(request: NextRequest) {
             callbackUrl: true,
           },
           orderBy: { createdAt: 'desc' },
+          // Only the newest skip+PAGE_SIZE rows can land on this page after the
+          // merge below — never load (and ship chatLog JSON for) the whole table.
+          take: skip + PAGE_SIZE,
         })
       : Promise.resolve([]),
     includeBiz ? prisma.businessMatchToken.count({ where: bizWhere }) : Promise.resolve(0),
@@ -79,6 +82,7 @@ export async function GET(request: NextRequest) {
             gemi: { select: { id: true, onomasia: true, afm: true, claimedBusinessId: true } },
           },
           orderBy: { createdAt: 'desc' },
+          take: skip + PAGE_SIZE,
         })
       : Promise.resolve([]),
     includeGemi ? prisma.gemiMatchToken.count({ where: gemiWhere }) : Promise.resolve(0),

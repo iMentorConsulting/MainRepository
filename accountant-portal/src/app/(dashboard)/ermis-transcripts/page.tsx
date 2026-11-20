@@ -1,5 +1,5 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import Link from 'next/link'
 import { Search, MessageSquare, CheckCircle2 } from 'lucide-react'
 import { Table, TableHead, TableBody, TableRow, Th, Td } from '@/components/ui/table'
@@ -64,18 +64,28 @@ export default function ErmisTranscriptsPage() {
       .catch(() => {})
   }, [])
 
+  // Responses can arrive out of order (e.g. the slow unfiltered first load
+  // finishing AFTER the filtered request) — only the latest request may update
+  // the table, otherwise the list shows rows that don't match the filters.
+  const requestSeq = useRef(0)
+
   const fetchTranscripts = useCallback(async () => {
+    const seq = ++requestSeq.current
     setLoading(true)
     const params = new URLSearchParams({ page: String(page) })
     if (search) params.set('search', search)
     if (caseAssignedFilter) params.set('caseAssigned', caseAssignedFilter)
     if (sourceFilter) params.set('source', sourceFilter)
     if (programFilter) params.set('programId', programFilter)
-    const res = await fetch(`/api/ermis-transcripts?${params}`)
-    const data = await res.json()
-    setTranscripts(data.transcripts || [])
-    setTotal(data.total || 0)
-    setLoading(false)
+    try {
+      const res = await fetch(`/api/ermis-transcripts?${params}`)
+      const data = await res.json()
+      if (seq !== requestSeq.current) return
+      setTranscripts(data.transcripts || [])
+      setTotal(data.total || 0)
+    } finally {
+      if (seq === requestSeq.current) setLoading(false)
+    }
   }, [page, search, caseAssignedFilter, sourceFilter, programFilter])
 
   useEffect(() => { fetchTranscripts() }, [fetchTranscripts])
