@@ -362,6 +362,29 @@ def _find_existing(db: Session, fields: dict) -> CMLead | None:
     return None
 
 
+async def _read_payload(request: Request, content_type: str) -> dict:
+    """Body (JSON or form) merged with URL query parameters.
+
+    Query parameters let no-code tools that only offer "Set Parameters"
+    (e.g. Pabbly) post leads; body values win on conflict.
+    """
+    body: Any = {}
+    try:
+        if "json" in content_type:
+            body = await request.json()
+        else:
+            body = dict(await request.form())
+    except Exception:
+        if not request.query_params:
+            raise HTTPException(status_code=400, detail="Could not parse request body")
+        body = {}
+    if body is None:
+        body = {}
+    if not isinstance(body, dict):
+        return body  # caller rejects non-dict payloads
+    return {**dict(request.query_params), **body}
+
+
 # ── Public webhook endpoint ───────────────────────────────────────────────────
 
 @router_public.post("/lead/{token}/debug")
@@ -371,14 +394,7 @@ async def debug_webhook_lead(token: str, request: Request, db: Session = Depends
     if not source:
         raise HTTPException(status_code=404, detail="Webhook source not found")
     content_type = request.headers.get("content-type", "")
-    try:
-        if "json" in content_type:
-            raw = await request.json()
-        else:
-            form = await request.form()
-            raw = dict(form)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not parse request body")
+    raw = await _read_payload(request, content_type)
     fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title, source.campaign_map)
     has_contact = bool(fields.get("name") or fields.get("phone"))
     return {
@@ -403,14 +419,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
 
     # Accept both JSON and form-encoded payloads
     content_type = request.headers.get("content-type", "")
-    try:
-        if "json" in content_type:
-            raw = await request.json()
-        else:
-            form = await request.form()
-            raw = dict(form)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Could not parse request body")
+    raw = await _read_payload(request, content_type)
 
     log.info("[webhook] source '%s' received payload (content-type: %s) keys=%s",
              source.name, content_type, list(raw.keys()) if isinstance(raw, dict) else type(raw).__name__)
