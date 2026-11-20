@@ -1124,9 +1124,10 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
     const total_true_cost = employeeRows.reduce((s, r) => s + r.true_cost, 0);
     const total_target = employeeRows.reduce((s, r) => s + r.target, 0);
     const total_sales = employeeRows.reduce((s, r) => s + r.sales, 0);
+    const total_amount = employeeRows.reduce((s, r) => s + r.amount, 0);
 
     return { month: m, month_name: MONTH_NAMES[i], isFuture, employeeRows,
-      total_salary, total_bonus, total_subsidy, total_ika, total_true_cost, total_target, total_sales,
+      total_salary, total_bonus, total_subsidy, total_ika, total_true_cost, total_target, total_sales, total_amount,
       hasData: total_salary + total_bonus > 0 || total_target > 0 || total_sales > 0 };
   });
 
@@ -1135,7 +1136,8 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
     subsidy: s.subsidy + r.total_subsidy,
     ika: s.ika + r.total_ika, true_cost: s.true_cost + r.total_true_cost,
     target: s.target + r.total_target, sales: s.sales + r.total_sales,
-  }), { salary: 0, bonus: 0, subsidy: 0, ika: 0, true_cost: 0, target: 0, sales: 0 });
+    amount: s.amount + r.total_amount,
+  }), { salary: 0, bonus: 0, subsidy: 0, ika: 0, true_cost: 0, target: 0, sales: 0, amount: 0 });
 
   const hasBonus = summaryRows.some(r => r.total_bonus > 0);
   const hasSubsidy = summaryRows.some(r => r.total_subsidy < 0);
@@ -1161,6 +1163,7 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
               <th className="th w-8"></th>
               <th className="th">Μήνας</th>
               <th className="th text-right">Μισθός & Επίδομα</th>
+              <th className="th text-right text-indigo-700">Πληρωθέν</th>
               {hasBonus && <th className="th text-right text-violet-600">Bonus</th>}
               {hasSubsidy && <th className="th text-right text-emerald-600">Επιδότηση</th>}
               {hasIka && <th className="th text-right text-orange-600">ΙΚΑ</th>}
@@ -1191,6 +1194,9 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                   <td className="td font-semibold text-slate-700">{row.month_name} {year}</td>
                   <td className="td text-right">
                     {row.total_salary > 0 ? <span className="font-bold text-indigo-600">{fmt(row.total_salary)}</span> : <span className="text-slate-300">—</span>}
+                  </td>
+                  <td className="td text-right">
+                    {row.total_amount > 0 ? <span className="font-bold text-indigo-700">{fmt(row.total_amount)}</span> : <span className="text-slate-300">—</span>}
                   </td>
                   {hasBonus && (
                     <td className="td text-right">
@@ -1257,6 +1263,9 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
                     <td className="td text-right text-xs">
                       {er.salary_amount > 0 ? <span className="text-indigo-500">{fmt(er.salary_amount)}</span> : <span className="text-slate-300">—</span>}
                     </td>
+                    <td className="td text-right text-xs">
+                      {er.amount > 0 ? <span className="font-semibold text-indigo-700">{fmt(er.amount)}</span> : <span className="text-slate-300">—</span>}
+                    </td>
                     {hasBonus && (
                       <td className="td text-right text-xs">
                         {er.bonus_amount > 0 ? <span className="text-violet-500">{fmt(er.bonus_amount)}</span> : <span className="text-slate-300">—</span>}
@@ -1316,6 +1325,7 @@ function PayrollSummaryTable({ data, year, currentYear, currentMonthIdx }) {
               <td className="td"></td>
               <td className="td font-black text-slate-800 uppercase text-xs tracking-wide">ΣΥΝΟΛΟ {year}</td>
               <td className="td text-right font-black text-indigo-700">{fmt(grand.salary)}</td>
+              <td className="td text-right font-black text-indigo-700">{grand.amount > 0 ? fmt(grand.amount) : '—'}</td>
               {hasBonus && <td className="td text-right font-black text-violet-600">{grand.bonus > 0 ? fmt(grand.bonus) : '—'}</td>}
               {hasSubsidy && <td className="td text-right font-black text-emerald-600">{grand.subsidy < 0 ? fmt(grand.subsidy) : '—'}</td>}
               {hasIka && <td className="td text-right font-black text-orange-600">{grand.ika > 0 ? fmt(grand.ika) : '—'}</td>}
