@@ -348,8 +348,11 @@ export default function Dashboard() {
       return tB - tA;
     });
     const colMax = {};
+    const colSecond = {};
     for (const ym of cols) {
-      colMax[ym] = Math.max(...agents.map(ag => agentData[ag][ym] || 0));
+      const vals = agents.map(ag => agentData[ag][ym] || 0).filter(v => v > 0).sort((a, b) => b - a);
+      colMax[ym] = vals[0] || 0;
+      colSecond[ym] = vals[1] || 0;
     }
     // Build target lookup from payroll settings: normKey -> ym -> target
     const targetLookup = {};
@@ -372,7 +375,7 @@ export default function Dashboard() {
         if (monthMap[ym] > 0) amountLookup[normKey][ym] = monthMap[ym];
       }
     }
-    return { cols, agents, data: agentData, colMax, targetLookup, amountLookup };
+    return { cols, agents, data: agentData, colMax, colSecond, targetLookup, amountLookup };
   }, [allIncome, matrixYears, matrixMonths, payrollByYear, payrollCostsByYear]);
 
   return (
@@ -1050,6 +1053,7 @@ export default function Dashboard() {
                     {agentMatrix.cols.map(ym => {
                       const val = row[ym] || 0;
                       const isTop = val > 0 && val === agentMatrix.colMax[ym];
+                      const isSecond = !isTop && val > 0 && agentMatrix.colSecond[ym] > 0 && val === agentMatrix.colSecond[ym];
                       const normKey = normalizeKey(agent);
                       const target = agentMatrix.targetLookup[normKey]?.[ym] || 0;
                       const payrollAmt = agentMatrix.amountLookup[normKey]?.[ym] || 0;
@@ -1059,14 +1063,20 @@ export default function Dashboard() {
                         : achPct >= 80
                           ? { bg: '#fef3c7', color: '#92400e' }
                           : { bg: '#fee2e2', color: '#991b1b' };
+                      const cellStyle = isTop
+                        ? { background: '#fef9c3', color: '#854d0e', fontWeight: 700, borderRadius: 6 }
+                        : isSecond
+                          ? { background: '#f1f5f9', color: '#475569', fontWeight: 600, borderRadius: 6 }
+                          : { color: val > 0 ? '#475569' : undefined };
                       return (
                         <td key={ym} className="td text-right tabular-nums whitespace-nowrap"
-                          style={isTop ? { background: '#fef9c3', color: '#854d0e', fontWeight: 700, borderRadius: 6 } : { color: val > 0 ? '#475569' : undefined }}>
+                          style={cellStyle}>
                           {val > 0 || payrollAmt > 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
                               {val > 0 && (
-                                <span style={isTop ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
+                                <span style={(isTop || isSecond) ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
                                   {isTop && <span style={{ fontSize: 11 }}>🏆</span>}
+                                  {isSecond && <span style={{ fontSize: 11 }}>🥈</span>}
                                   {Math.round(val).toLocaleString('el-GR')} €
                                 </span>
                               )}
