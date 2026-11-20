@@ -98,8 +98,9 @@ export function buildEligibilityEmailHtml(params: {
 // *specific* reasons this business qualifies (its actual ΚΑΔ/region/ΤΚ/
 // founding date, pulled from the stored ProgramMatch.matchReason), never the
 // program's full eligible-ΚΑΔ/ΤΚ/legal-form rule lists.
-export function buildProspectProgramEmailSubject(businessName: string | null, programTitle: string): string {
+export function buildProspectProgramEmailSubject(businessName: string | null, programTitle: string, newBusiness = false): string {
   const name = businessName || 'Η επιχείρησή σας'
+  if (newBusiness) return `${name} — Το πρόγραμμα «${programTitle}» για υπό ίδρυση επιχειρήσεις`
   return `${name} — Είστε επιλέξιμοι για το πρόγραμμα «${programTitle}»`
 }
 
@@ -189,15 +190,26 @@ export function buildProspectProgramEmailHtml(params: {
   customMessage?: string | null
   investmentAmount?: number | null
   imentorLogoUrl?: string | null
+  // Set when the business has NO match for this program but the program also
+  // accepts υπό ίδρυση businesses: the email then says "you can join by
+  // starting a new business" (with the program's own conditions) instead of
+  // "you are eligible".
+  newBusiness?: { note: string | null } | null
 }): string {
-  const { businessName, businessDetails, program, matchReasons, extraCriteriaLabels = [], requiredDocuments = [], customMessage, investmentAmount, imentorLogoUrl } = params
+  const { businessName, businessDetails, program, matchReasons, extraCriteriaLabels = [], requiredDocuments = [], customMessage, investmentAmount, imentorLogoUrl, newBusiness } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
   const brandLeft = imentorLogoUrl
     ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
     : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
 
-  const reasonsBlock = matchReasons.length > 0
+  const reasonsBlock = newBusiness
+    ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
+         <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#1e40af;">ℹ️ Για υπό ίδρυση επιχειρήσεις</p>
+         <p style="margin:0;font-size:13.5px;color:#1e3a8a;line-height:1.7;">Το πρόγραμμα απευθύνεται και σε επιχειρήσεις που δεν έχουν ακόμα ξεκινήσει. Μπορείτε να ενταχθείτε <strong>μόνο εφόσον ξεκινήσετε νέα επιχείρηση</strong>.</p>
+         ${newBusiness.note ? `<p style="margin:10px 0 0;font-size:13.5px;color:#1e3a8a;line-height:1.7;white-space:pre-line;">${newBusiness.note}</p>` : ''}
+       </div>`
+    : matchReasons.length > 0
     ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:18px 20px;margin-bottom:20px;">
          <p style="margin:0 0 8px;font-size:13px;font-weight:700;color:#166534;">✔️ Γιατί είστε επιλέξιμοι</p>
          <ul style="margin:0;padding-left:18px;">
@@ -383,13 +395,15 @@ export function buildProspectProgramEmailHtml(params: {
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
       <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
         ${brandLeft}
-        <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">✅ Είστε επιλέξιμοι για επιχορήγηση</h1>
+        <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">${newBusiness ? 'ℹ️ Πρόγραμμα για υπό ίδρυση επιχειρήσεις' : '✅ Είστε επιλέξιμοι για επιχορήγηση'}</h1>
       </td></tr>
       </table>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${name},</p>
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
-          Ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:
+          ${newBusiness
+            ? 'Σας ενημερώνουμε για το παρακάτω πρόγραμμα, το οποίο απευθύνεται και σε υπό ίδρυση επιχειρήσεις. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:'
+            : 'Ελέγξαμε τα στοιχεία της επιχείρησής σας και είστε επιλέξιμοι για το παρακάτω πρόγραμμα. Σας παραθέτω όλες τις διαθέσιμες πληροφορίες:'}
         </p>
         ${customMessage ? `<div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:10px;padding:14px 16px;margin:0 0 20px;">
           <p style="margin:0;font-size:14px;color:#3730a3;line-height:1.7;white-space:pre-line;">${customMessage}</p>

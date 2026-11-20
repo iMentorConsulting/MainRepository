@@ -39,26 +39,43 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       program: { include: { requiredDocuments: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] } } },
     },
   })
-  if (!match || match.status === 'REJECTED') {
-    return NextResponse.json({ error: 'Η επιχείρηση δεν είναι επιλέξιμη για αυτό το πρόγραμμα' }, { status: 400 })
+  // Normal path: the business matched this program. Otherwise it may still be
+  // addressed — but only for programs that also accept υπό ίδρυση businesses.
+  let program: NonNullable<typeof match>['program']
+  let matchReasons: string[] = []
+  let newBusiness: { note: string | null } | null = null
+  if (match && match.status !== 'REJECTED') {
+    program = match.program
+    matchReasons = match.matchReason
+  } else {
+    const p = await prisma.program.findUnique({
+      where: { id: programId },
+      include: { requiredDocuments: { orderBy: [{ order: 'asc' }, { createdAt: 'asc' }] } },
+    })
+    if (!p || !p.active || !p.acceptsNewBusiness) {
+      return NextResponse.json({ error: 'Η επιχείρηση δεν είναι επιλέξιμη για αυτό το πρόγραμμα' }, { status: 400 })
+    }
+    program = p
+    newBusiness = { note: p.newBusinessNote }
   }
 
   const businessDetails = buildAadeBusinessDetails(business)
   const [appSetting, extraCriteria] = await Promise.all([
     prisma.appSetting.findUnique({ where: { id: 'main' } }),
-    match.program.extraCriteriaIds.length > 0
-      ? prisma.eligibilityCriterion.findMany({ where: { id: { in: match.program.extraCriteriaIds } }, select: { label: true } })
+    program.extraCriteriaIds.length > 0
+      ? prisma.eligibilityCriterion.findMany({ where: { id: { in: program.extraCriteriaIds } }, select: { label: true } })
       : Promise.resolve([]),
   ])
 
-  const subject = buildProspectProgramEmailSubject(business.onomasia, match.program.title)
+  const subject = buildProspectProgramEmailSubject(business.onomasia, program.title, !!newBusiness)
   const html = buildProspectProgramEmailHtml({
     businessName: business.onomasia,
     businessDetails,
-    program: match.program,
-    matchReasons: match.matchReason,
+    program,
+    matchReasons,
+    newBusiness,
     extraCriteriaLabels: extraCriteria.map(c => c.label),
-    requiredDocuments: match.program.requiredDocuments,
+    requiredDocuments: program.requiredDocuments,
     customMessage: typeof customMessage === 'string' && customMessage.trim() ? customMessage.trim() : null,
     investmentAmount: typeof investmentAmount === 'number' && investmentAmount > 0 ? investmentAmount : null,
     imentorLogoUrl: appSetting?.imentorLogoUrl,
@@ -90,11 +107,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         onomasia: business.onomasia,
         email: business.email,
         phone: business.phone,
-        programTitle: match.program.title,
+        programTitle: program.title,
         kind: 'PROGRAM_EMAIL',
         channel: 'EMAIL',
         subject,
-        comment: `Εστάλη αναλυτικό email για το πρόγραμμα «${match.program.title}».`,
+        comment: newBusiness ? `Εστάλη αναλυτικό email για το πρόγραμμα «${program.title}» (υπό ίδρυση επιχείρηση).` : `Εστάλη αναλυτικό email για το πρόγραμμα «${program.title}».`,
         leadStatus: (cmLeadStatus || null) as CmLeadStatus | null,
         reminderDate: cmReminderDate || null,
         createIfMissing: cmCreateIfMissing !== false,

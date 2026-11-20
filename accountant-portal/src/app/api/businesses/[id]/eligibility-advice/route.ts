@@ -30,26 +30,39 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   })
   if (!business) return NextResponse.json({ error: 'Δεν βρέθηκε η επιχείρηση' }, { status: 404 })
 
+  const programSelect = {
+    title: true, category: true,
+    minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
+    minInvestment: true, maxInvestment: true,
+    monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
+    expenseCategories: true, investmentPricingBrackets: true,
+  } as const
+
   const [match, appSetting, matchToken] = await Promise.all([
     prisma.programMatch.findUnique({
       where: { programId_businessId: { programId, businessId: business.id } },
-      include: {
-        program: {
-          select: {
-            title: true, category: true,
-            minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
-            minInvestment: true, maxInvestment: true,
-            monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
-            expenseCategories: true, investmentPricingBrackets: true,
-          },
-        },
-      },
+      include: { program: { select: programSelect } },
     }),
     prisma.appSetting.findUnique({ where: { id: 'main' } }),
     prisma.businessMatchToken.findUnique({ where: { businessId_programId: { businessId: business.id, programId } }, select: { chatLog: true } }),
   ])
-  if (!match || match.status === 'REJECTED') {
-    return NextResponse.json({ error: 'Η επιχείρηση δεν είναι επιλέξιμη για αυτό το πρόγραμμα' }, { status: 400 })
+  // Normal path: matched. Otherwise only for programs that also accept υπό ίδρυση businesses.
+  let program: NonNullable<typeof match>['program']
+  let matchReasons: string[] = []
+  let newBusiness: { note: string | null } | null = null
+  if (match && match.status !== 'REJECTED') {
+    program = match.program
+    matchReasons = match.matchReason
+  } else {
+    const p = await prisma.program.findUnique({
+      where: { id: programId },
+      select: { ...programSelect, active: true, acceptsNewBusiness: true, newBusinessNote: true },
+    })
+    if (!p || !p.active || !p.acceptsNewBusiness) {
+      return NextResponse.json({ error: 'Η επιχείρηση δεν είναι επιλέξιμη για αυτό το πρόγραμμα' }, { status: 400 })
+    }
+    program = p
+    newBusiness = { note: p.newBusinessNote }
   }
 
   const detectedAmount = extractDiscussedAmount(matchToken?.chatLog)
@@ -58,11 +71,12 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     ? (matchToken!.chatLog as any[]).filter(m => m && typeof m.text === 'string' && (m.role === 'user' || m.role === 'assistant')).map(m => ({ role: m.role, text: m.text }))
     : []
 
-  const subject = buildEligibilityAdviceSubject(business.onomasia, match.program.title)
+  const subject = buildEligibilityAdviceSubject(business.onomasia, program.title)
   const html = buildEligibilityAdviceEmailHtml({
     businessName: business.onomasia,
-    program: match.program,
-    matchReasons: match.matchReason,
+    program,
+    matchReasons,
+    newBusiness,
     ermisDiscussedAmount,
     investmentAmount: typeof investmentAmount === 'number' && investmentAmount > 0 ? investmentAmount : null,
     customMessage: typeof customMessage === 'string' && customMessage.trim() ? customMessage.trim() : null,
@@ -96,11 +110,11 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         onomasia: business.onomasia,
         email: business.email,
         phone: business.phone,
-        programTitle: match.program.title,
+        programTitle: program.title,
         kind: 'ADVICE',
         channel: 'EMAIL',
         subject,
-        comment: `Εστάλη email «Ενημέρωση & Επόμενα Βήματα» για το πρόγραμμα «${match.program.title}».`,
+        comment: `Εστάλη email «Ενημέρωση & Επόμενα Βήματα» για το πρόγραμμα «${program.title}»${newBusiness ? ' (υπό ίδρυση επιχείρηση)' : ''}.`,
         leadStatus: (cmLeadStatus || null) as CmLeadStatus | null,
         reminderDate: cmReminderDate || null,
         createIfMissing: cmCreateIfMissing !== false,

@@ -12,6 +12,7 @@ import { EligibilityMessageModal } from '@/components/eligibility-message-modal'
 import { ProspectProgramEmailModal } from '@/components/prospect-program-email-modal'
 import { MicrocreditsEligibilityModal } from '@/components/microcredits-eligibility-modal'
 import { SorefsisCheckModal } from '@/components/sorefsis-check-modal'
+import { NewBusinessProgramPicker, useNewBusinessPrograms } from '@/components/new-business-program-picker'
 import { MicrocreditsBusinessPlanModal } from '@/components/microcredits-business-plan-modal'
 import { AgreementModal } from '@/components/agreement-modal'
 import { EligibilityAdviceModal } from '@/components/eligibility-advice-modal'
@@ -92,6 +93,7 @@ export default function BusinessDetailPage() {
   const [microcreditsProgramId, setMicrocreditsProgramId] = useState<string | null>(null)
   // Program whose Microcredits analysis is waiting for the sorefsis de-minimis check dialog.
   const [sorefsisPendingProgramId, setSorefsisPendingProgramId] = useState<string | null>(null)
+  const [newBizPickerOpen, setNewBizPickerOpen] = useState(false)
   const [businessPlanProgramId, setBusinessPlanProgramId] = useState<string | null>(null)
   const [agreementProgram, setAgreementProgram] = useState<{ id: string; title: string } | null>(null)
   const [adviceProgram, setAdviceProgram] = useState<{ id: string; title: string } | null>(null)
@@ -103,6 +105,7 @@ export default function BusinessDetailPage() {
   const { data: session } = useSession()
   const isAdmin = session?.user?.role === 'ADMIN'
   const isStaff = isAdmin || session?.user?.role === 'CONSULTANT'
+  const newBizPrograms = useNewBusinessPrograms(String(id), !!isStaff)
   const [tagOptions, setTagOptions] = useState<{ id: string; label: string; active: boolean }[]>([])
   const [tagSelect, setTagSelect] = useState('')
   const [criteriaMap, setCriteriaMap] = useState<Record<string, string>>({})
@@ -314,6 +317,16 @@ export default function BusinessDetailPage() {
         <EligibilityMessageModal
           businessIds={[business.id]}
           onClose={() => setEligibilityMessage(false)}
+        />
+      )}
+
+      {newBizPickerOpen && newBizPrograms && (
+        <NewBusinessProgramPicker
+          zip={newBizPrograms.zip}
+          programs={newBizPrograms.programs}
+          onClose={() => setNewBizPickerOpen(false)}
+          onProgramEmail={p => setProspectEmailProgram(p)}
+          onAdvice={p => setAdviceProgram(p)}
         />
       )}
 
@@ -543,6 +556,16 @@ export default function BusinessDetailPage() {
               </Card>
             )
           })()}
+
+          {isStaff && newBizPrograms && newBizPrograms.programs.length > 0 && (
+            <button
+              onClick={() => setNewBizPickerOpen(true)}
+              className="self-start text-xs text-indigo-700 hover:underline"
+              title="Για επιχειρήσεις χωρίς match, ανενεργές ή φυσικά πρόσωπα"
+            >
+              ✉ Email για πρόγραμμα υπό ίδρυση…
+            </button>
+          )}
 
           {/* Matches */}
           {business.programMatches && business.programMatches.filter((m: any) => m.status !== 'REJECTED').length > 0 && (

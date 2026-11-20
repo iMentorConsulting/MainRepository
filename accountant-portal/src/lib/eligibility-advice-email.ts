@@ -101,8 +101,10 @@ export function buildEligibilityAdviceEmailHtml(params: {
   // Section B's questions — defaults to DEFAULT_ADVICE_QUESTIONS when
   // omitted/empty.
   questions?: string[]
+  // See buildProspectProgramEmailHtml: no match, but the program accepts υπό ίδρυση businesses.
+  newBusiness?: { note: string | null } | null
 }): string {
-  const { businessName, program, matchReasons, ermisDiscussedAmount, investmentAmount, customMessage, imentorLogoUrl } = params
+  const { businessName, program, matchReasons, ermisDiscussedAmount, investmentAmount, customMessage, imentorLogoUrl, newBusiness } = params
   const questions = params.questions && params.questions.length > 0 ? params.questions : DEFAULT_ADVICE_QUESTIONS
   const name = businessName || 'Αγαπητέ/ή πελάτη'
   const isDypa = program.category === 'DYPA'
@@ -112,14 +114,19 @@ export function buildEligibilityAdviceEmailHtml(params: {
     : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
 
   // A.1 — why they're eligible
-  const reasonsHtml = matchReasons.length > 0
+  const reasonsHtml = newBusiness
+    ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 18px;">
+         <p style="margin:0;font-size:14px;color:#1e3a8a;line-height:1.7;">Το πρόγραμμα απευθύνεται και σε επιχειρήσεις που δεν έχουν ακόμα ξεκινήσει. Μπορείτε να ενταχθείτε <strong>μόνο εφόσον ξεκινήσετε νέα επιχείρηση</strong>.</p>
+         ${newBusiness.note ? `<p style="margin:10px 0 0;font-size:13.5px;color:#1e3a8a;line-height:1.7;white-space:pre-line;">${newBusiness.note}</p>` : ''}
+       </div>`
+    : matchReasons.length > 0
     ? `<div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:16px 18px;">
          <ul style="margin:0;padding-left:18px;">
            ${matchReasons.map(r => `<li style="font-size:13.5px;color:#166534;line-height:1.8;">${r}</li>`).join('')}
          </ul>
        </div>`
     : `<p style="margin:0;font-size:14px;color:#374151;line-height:1.7;">Η επιχείρησή σας πληροί τις βασικές προϋποθέσεις του προγράμματος.</p>`
-  const sectionA1 = section('1. Είστε επιλέξιμοι — οι λόγοι', reasonsHtml)
+  const sectionA1 = section(newBusiness ? '1. Υπό ίδρυση επιχειρήσεις — πώς μπορείτε να ενταχθείτε' : '1. Είστε επιλέξιμοι — οι λόγοι', reasonsHtml)
 
   // A.2 — how much the grant is worth
   let sectionA2 = ''
