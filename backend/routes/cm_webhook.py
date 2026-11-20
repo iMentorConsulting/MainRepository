@@ -385,6 +385,36 @@ async def _read_payload(request: Request, content_type: str) -> dict:
     return {**dict(request.query_params), **body}
 
 
+async def _enrich_campaign(raw, db: Session) -> None:
+    """If the payload has leadgen_id (+ page_id) but no campaign name, look the
+    campaign up from Meta's Graph API using the stored page access token."""
+    if not isinstance(raw, dict):
+        return
+    if any(str(k).lower().strip() in _CAMPAIGN_KEYS and raw.get(k) for k in raw):
+        return
+    leadgen_id = str(raw.get("leadgen_id") or "").strip()
+    if not leadgen_id:
+        return
+    from models_cases import CMMetaPageConfig
+    from routes.cm_meta_leads import _fetch_lead
+    from starlette.concurrency import run_in_threadpool
+    page_id = str(raw.get("page_id") or "").strip()
+    q = db.query(CMMetaPageConfig).filter(CMMetaPageConfig.enabled == True)
+    cfg = (q.filter(CMMetaPageConfig.page_id == page_id).first() if page_id else None) or q.first()
+    if not cfg:
+        log.warning("[webhook][campaign] no Meta page config to look up leadgen_id=%s", leadgen_id)
+        return
+    data = await run_in_threadpool(_fetch_lead, leadgen_id, cfg.page_access_token)
+    if not data:
+        log.warning("[webhook][campaign] Graph lookup failed for leadgen_id=%s", leadgen_id)
+        return
+    if data.get("campaign_name"):
+        raw["campaign_name"] = data["campaign_name"]
+    if data.get("ad_name") and not raw.get("ad_name"):
+        raw["ad_name"] = data["ad_name"]
+    log.info("[webhook][campaign] leadgen_id=%s → campaign=%r", leadgen_id, data.get("campaign_name"))
+
+
 # ── Public webhook endpoint ───────────────────────────────────────────────────
 
 @router_public.post("/lead/{token}/debug")
@@ -395,6 +425,7 @@ async def debug_webhook_lead(token: str, request: Request, db: Session = Depends
         raise HTTPException(status_code=404, detail="Webhook source not found")
     content_type = request.headers.get("content-type", "")
     raw = await _read_payload(request, content_type)
+    await _enrich_campaign(raw, db)
     fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title, source.campaign_map)
     has_contact = bool(fields.get("name") or fields.get("phone"))
     return {
@@ -420,6 +451,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     # Accept both JSON and form-encoded payloads
     content_type = request.headers.get("content-type", "")
     raw = await _read_payload(request, content_type)
+    await _enrich_campaign(raw, db)
 
     log.info("[webhook] source '%s' received payload (content-type: %s) keys=%s",
              source.name, content_type, list(raw.keys()) if isinstance(raw, dict) else type(raw).__name__)
@@ -428,6 +460,13 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     if not isinstance(raw, dict):
         log.warning("[webhook] source '%s' payload is not a dict: %r", source.name, raw)
         raise HTTPException(status_code=400, detail="Expected a JSON object or form fields")
+
+    leadgen_id = str(raw.get("leadgen_id") or "").strip()[:50]
+    if leadgen_id:
+        from models_cases import CMMetaLeadLog
+        if db.query(CMMetaLeadLog).filter(CMMetaLeadLog.leadgen_id == leadgen_id).first():
+            log.info("[webhook] leadgen_id=%s already processed — skipping", leadgen_id)
+            return {"ok": True, "created": False, "reason": "duplicate_leadgen_id"}
 
     fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title, source.campaign_map)
     log.info("[webhook] source '%s' mapped fields: %s", source.name, {k: v for k, v in fields.items() if v})
@@ -504,6 +543,18 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
     db.commit()
     db.refresh(lead)
     log.info("[webhook] created lead %d from source '%s'", lead.id, source.name)
+    if leadgen_id:
+        try:
+            from models_cases import CMMetaLeadLog
+            db.add(CMMetaLeadLog(
+                page_id=str(raw.get("page_id") or "")[:50], form_id=str(raw.get("form_id") or "")[:50],
+                leadgen_id=leadgen_id, ad_name=raw.get("ad_name"), campaign_name=campaign_name,
+                raw_payload=raw, lead_id=lead.id, status="pabbly",
+            ))
+            db.commit()
+        except Exception as _me:
+            log.warning("[webhook] could not write meta lead log: %s", _me)
+            db.rollback()
     _write_log(True, lead.id, None)
 
     # Auto-trigger ΕΡΜΗΣ pre-screening (non-blocking background thread).
