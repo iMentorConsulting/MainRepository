@@ -385,16 +385,16 @@ async def _read_payload(request: Request, content_type: str) -> dict:
     return {**dict(request.query_params), **body}
 
 
-async def _enrich_campaign(raw, db: Session) -> None:
+async def _enrich_campaign(raw, db: Session) -> str:
     """If the payload has leadgen_id (+ page_id) but no campaign name, look the
     campaign up from Meta's Graph API using the stored page access token."""
     if not isinstance(raw, dict):
-        return
+        return "payload_not_object"
     if any(str(k).lower().strip() in _CAMPAIGN_KEYS and raw.get(k) for k in raw):
-        return
+        return "campaign_name_sent_in_payload"
     leadgen_id = str(raw.get("leadgen_id") or "").strip()
     if not leadgen_id:
-        return
+        return "no_leadgen_id_in_payload"
     from models_cases import CMMetaPageConfig
     from routes.cm_meta_leads import _fetch_lead
     from starlette.concurrency import run_in_threadpool
@@ -403,16 +403,17 @@ async def _enrich_campaign(raw, db: Session) -> None:
     cfg = (q.filter(CMMetaPageConfig.page_id == page_id).first() if page_id else None) or q.first()
     if not cfg:
         log.warning("[webhook][campaign] no Meta page config to look up leadgen_id=%s", leadgen_id)
-        return
+        return "no_enabled_meta_page_config"
     data = await run_in_threadpool(_fetch_lead, leadgen_id, cfg.page_access_token)
     if not data:
         log.warning("[webhook][campaign] Graph lookup failed for leadgen_id=%s", leadgen_id)
-        return
+        return "graph_api_error (token expired/missing leads permission, or lead not found)"
     if data.get("campaign_name"):
         raw["campaign_name"] = data["campaign_name"]
     if data.get("ad_name") and not raw.get("ad_name"):
         raw["ad_name"] = data["ad_name"]
     log.info("[webhook][campaign] leadgen_id=%s → campaign=%r", leadgen_id, data.get("campaign_name"))
+    return "ok" if data.get("campaign_name") else "graph_ok_but_no_campaign_name (test lead or not from an ad)"
 
 
 # ── Public webhook endpoint ───────────────────────────────────────────────────
@@ -425,7 +426,7 @@ async def debug_webhook_lead(token: str, request: Request, db: Session = Depends
         raise HTTPException(status_code=404, detail="Webhook source not found")
     content_type = request.headers.get("content-type", "")
     raw = await _read_payload(request, content_type)
-    await _enrich_campaign(raw, db)
+    campaign_lookup = await _enrich_campaign(raw, db)
     fields = _map_payload(raw, source.field_map, source.program_map, source.default_program, source.default_program_title, source.campaign_map)
     has_contact = bool(fields.get("name") or fields.get("phone"))
     return {
@@ -433,6 +434,7 @@ async def debug_webhook_lead(token: str, request: Request, db: Session = Depends
         "content_type": content_type,
         "raw_keys": list(raw.keys()) if isinstance(raw, dict) else [],
         "raw_payload": raw,
+        "campaign_lookup": campaign_lookup,
         "mapped_fields": fields,
         "would_create": has_contact,
         "skip_reason": None if has_contact else "no_contact_info",
