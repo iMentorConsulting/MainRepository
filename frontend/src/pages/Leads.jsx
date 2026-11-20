@@ -521,7 +521,7 @@ function NewLeadModal({ options, onClose, onCreated }) {
           <input placeholder="Ποσό (€)" value={form.total_amount} onChange={e => set('total_amount', e.target.value)} className="px-3 py-2 border rounded-lg text-sm" />
           <select value={form.program} onChange={e => set('program', e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
             <option value="">— Πρόγραμμα —</option>
-            {(options.programs || ['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ']).map(p => <option key={p} value={p}>{p}</option>)}
+            {(options.programs || PROGRAMS_LIST).map(p => <option key={p} value={p}>{p}</option>)}
           </select>
           <select value={form.assigned_name} onChange={e => set('assigned_name', e.target.value)} className="px-3 py-2 border rounded-lg text-sm">
             <option value="">— Σύμβουλος —</option>
@@ -992,7 +992,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
             </div>
             <select value={form.program} onChange={e => setForm(f => ({ ...f, program: e.target.value }))} className="px-2 py-1.5 border rounded text-sm">
               <option value="">— Πρόγραμμα —</option>
-              {['ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΔΥΠΑ', 'ΕΣΠΑ', 'ΑΝΑΚΑΙΝΙΖΩ'].map(p => <option key={p} value={p}>{p}</option>)}
+              {PROGRAMS_LIST.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             <>
               <input
