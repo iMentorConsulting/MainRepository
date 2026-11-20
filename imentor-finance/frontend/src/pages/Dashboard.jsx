@@ -1034,6 +1034,7 @@ export default function Dashboard() {
                   return <th key={ym} className="th text-right whitespace-nowrap">{label}</th>;
                 })}
                 <th className="th text-right whitespace-nowrap bg-slate-50">Σύνολο</th>
+                <th className="th sticky right-0 bg-white z-10 min-w-[120px]">Σύμβουλος</th>
               </tr>
             </thead>
             <tbody>
@@ -1091,11 +1092,15 @@ export default function Dashboard() {
                     <td className="td text-right tabular-nums font-bold text-emerald-700 whitespace-nowrap bg-slate-50">
                       {Math.round(total).toLocaleString('el-GR')} €
                     </td>
+                    <td className="td sticky right-0 font-semibold text-slate-700 whitespace-nowrap"
+                      style={{ background: i % 2 === 0 ? '#fff' : '#f9fafb' }}>
+                      {agent}
+                    </td>
                   </tr>
                 );
               })}
               {agentMatrix.agents.length === 0 && (
-                <tr><td colSpan={agentMatrix.cols.length + 2} className="td text-center text-slate-400 py-8">Δεν υπάρχουν δεδομένα</td></tr>
+                <tr><td colSpan={agentMatrix.cols.length + 3} className="td text-center text-slate-400 py-8">Δεν υπάρχουν δεδομένα</td></tr>
               )}
             </tbody>
             <tfoot>
@@ -1114,6 +1119,7 @@ export default function Dashboard() {
                     s + agentMatrix.cols.reduce((cs, ym) => cs + (agentMatrix.data[ag][ym] || 0), 0), 0
                   )).toLocaleString('el-GR')} €
                 </td>
+                <td className="td sticky right-0 bg-slate-100 font-bold text-slate-700">Σύνολο</td>
               </tr>
             </tfoot>
           </table>
