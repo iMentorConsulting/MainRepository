@@ -221,7 +221,9 @@ export default function Dashboard() {
             const key = normalizeKey(emp.agent);
             if (!map[key]) map[key] = {};
             for (const mo of (emp.monthly || [])) {
-              if (mo.target > 0) map[key][mo.month] = mo.target;
+              if (mo.target > 0 || mo.amount > 0) {
+                map[key][mo.month] = { target: mo.target || 0, amount: mo.amount || 0 };
+              }
             }
           }
           setPayrollByYear(p => ({ ...p, [y]: map }));
@@ -335,17 +337,23 @@ export default function Dashboard() {
     for (const ym of cols) {
       colMax[ym] = Math.max(...agents.map(ag => agentData[ag][ym] || 0));
     }
-    // Build target lookup: normKey -> ym -> target (from payroll settings)
+    // Build target/amount lookups: normKey -> ym -> value (from payroll settings)
     const targetLookup = {};
+    const amountLookup = {};
     for (const ym of cols) {
       const [y, mo] = ym.split('-');
       const yearMap = payrollByYear[y] || {};
       for (const [normKey, monthMap] of Object.entries(yearMap)) {
         if (!targetLookup[normKey]) targetLookup[normKey] = {};
-        if (monthMap[mo]) targetLookup[normKey][ym] = monthMap[mo];
+        if (!amountLookup[normKey]) amountLookup[normKey] = {};
+        const entry = monthMap[mo];
+        if (entry) {
+          if (entry.target > 0) targetLookup[normKey][ym] = entry.target;
+          if (entry.amount > 0) amountLookup[normKey][ym] = entry.amount;
+        }
       }
     }
-    return { cols, agents, data: agentData, colMax, targetLookup };
+    return { cols, agents, data: agentData, colMax, targetLookup, amountLookup };
   }, [allIncome, matrixYears, matrixMonths, payrollByYear]);
 
   return (
@@ -1024,6 +1032,7 @@ export default function Dashboard() {
                       const isTop = val > 0 && val === agentMatrix.colMax[ym];
                       const normKey = normalizeKey(agent);
                       const target = agentMatrix.targetLookup[normKey]?.[ym] || 0;
+                      const payrollAmt = agentMatrix.amountLookup[normKey]?.[ym] || 0;
                       const achPct = target > 0 && val > 0 ? Math.round(val / target * 100) : null;
                       const badgeStyle = achPct === null ? null : achPct >= 100
                         ? { bg: '#d1fae5', color: '#065f46' }
@@ -1033,12 +1042,14 @@ export default function Dashboard() {
                       return (
                         <td key={ym} className="td text-right tabular-nums whitespace-nowrap"
                           style={isTop ? { background: '#fef9c3', color: '#854d0e', fontWeight: 700, borderRadius: 6 } : { color: val > 0 ? '#475569' : undefined }}>
-                          {val > 0 ? (
+                          {val > 0 || payrollAmt > 0 ? (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
-                              <span style={isTop ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
-                                {isTop && <span style={{ fontSize: 11 }}>🏆</span>}
-                                {Math.round(val).toLocaleString('el-GR')} €
-                              </span>
+                              {val > 0 && (
+                                <span style={isTop ? { display: 'inline-flex', alignItems: 'center', gap: 3 } : {}}>
+                                  {isTop && <span style={{ fontSize: 11 }}>🏆</span>}
+                                  {Math.round(val).toLocaleString('el-GR')} €
+                                </span>
+                              )}
                               {badgeStyle && (
                                 <span style={{
                                   fontSize: 10, fontWeight: 700, lineHeight: 1.4,
@@ -1046,6 +1057,11 @@ export default function Dashboard() {
                                   background: badgeStyle.bg, color: badgeStyle.color,
                                 }}>
                                   {achPct}%
+                                </span>
+                              )}
+                              {payrollAmt > 0 && (
+                                <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, lineHeight: 1.3 }}>
+                                  μισθ: {Math.round(payrollAmt).toLocaleString('el-GR')}€
                                 </span>
                               )}
                             </div>
