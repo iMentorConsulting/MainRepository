@@ -144,6 +144,7 @@ export default function Dashboard() {
   const [matrixYears, setMatrixYears] = useState([String(new Date().getFullYear())]);
   const [matrixMonths, setMatrixMonths] = useState([]);
   const [payrollByYear, setPayrollByYear] = useState({});
+  const [payrollCostsByYear, setPayrollCostsByYear] = useState({});
 
   useEffect(() => {
     const buildParams = (base) => {
@@ -209,7 +210,7 @@ export default function Dashboard() {
     api.get('/expenses', { params: { limit: 9999 } }).then(r => setAllExpenses(r.data?.data || [])).catch(() => {});
   }, []);
 
-  // Fetch payroll targets for each year shown in the matrix (cached per year)
+  // Fetch payroll targets and actual payroll costs for each year shown in the matrix (cached per year)
   useEffect(() => {
     const years = matrixYears.length > 0 ? matrixYears : [String(new Date().getFullYear())];
     for (const y of years) {
@@ -221,12 +222,25 @@ export default function Dashboard() {
             const key = normalizeKey(emp.agent);
             if (!map[key]) map[key] = {};
             for (const mo of (emp.monthly || [])) {
-              if (mo.target > 0 || mo.amount > 0) {
-                map[key][mo.month] = { target: mo.target || 0, amount: mo.amount || 0 };
-              }
+              if (mo.target > 0) map[key][mo.month] = { target: mo.target || 0 };
             }
           }
           setPayrollByYear(p => ({ ...p, [y]: map }));
+        }).catch(() => {});
+        return prev;
+      });
+      setPayrollCostsByYear(prev => {
+        if (prev[y]) return prev; // already loaded
+        api.get(`/reports/payroll-suppliers?year=${y}`).then(r => {
+          const map = {};
+          for (const row of (r.data || [])) {
+            const key = normalizeKey(row.upper_supplier || row.raw_supplier || '');
+            if (!key) continue;
+            const ym = row.year_month; // 'YYYY-MM'
+            if (!map[key]) map[key] = {};
+            map[key][ym] = (map[key][ym] || 0) + parseFloat(row.total || 0);
+          }
+          setPayrollCostsByYear(p => ({ ...p, [y]: map }));
         }).catch(() => {});
         return prev;
       });
@@ -348,21 +362,18 @@ export default function Dashboard() {
         if (entry && entry.target > 0) targetLookup[normKey][ym] = entry.target;
       }
     }
-    // Build payroll amount lookup from actual ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ expenses
+    // Build payroll amount lookup from pre-aggregated /payroll-suppliers data
     const amountLookup = {};
-    for (const exp of allExpenses) {
-      if (exp.category !== 'ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ') continue;
-      const supplier = exp.supplier || '';
-      if (!supplier) continue;
-      const normKey = normalizeKey(supplier);
-      const d = exp.date || '';
-      if (!d || d.length < 7) continue;
-      const ym = d.slice(0, 7);
-      if (!amountLookup[normKey]) amountLookup[normKey] = {};
-      amountLookup[normKey][ym] = (amountLookup[normKey][ym] || 0) + parseFloat(exp.amount || 0);
+    for (const ym of cols) {
+      const [y] = ym.split('-');
+      const yearMap = payrollCostsByYear[y] || {};
+      for (const [normKey, monthMap] of Object.entries(yearMap)) {
+        if (!amountLookup[normKey]) amountLookup[normKey] = {};
+        if (monthMap[ym] > 0) amountLookup[normKey][ym] = monthMap[ym];
+      }
     }
     return { cols, agents, data: agentData, colMax, targetLookup, amountLookup };
-  }, [allIncome, matrixYears, matrixMonths, payrollByYear, allExpenses]);
+  }, [allIncome, matrixYears, matrixMonths, payrollByYear, payrollCostsByYear]);
 
   return (
     <div className="page">
