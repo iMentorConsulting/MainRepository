@@ -123,10 +123,14 @@ def _strip_title_accents(s: str) -> str:
 
 
 def program_category_from_title(title):
-    """Map a program title to one of the 4 CM categories. Accent-insensitive."""
+    """Map a program title to a CM program category. Accent-insensitive."""
     t = _strip_title_accents(title or "")
     if "ΜΙΚΡΟ" in t:
         return "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"
+    # Hiring programs ("πρόσληψη/πρόσληψης…") have their own category/pipeline.
+    # LEADER titles are left to the LEADER rule below.
+    if "ΠΡΟΣΛΗΨ" in t and "LEADER" not in t:
+        return "ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ"
     if "ΔΥΠΑ" in t or "ΟΑΕΔ" in t or "DYPA" in t or "ΑΝΕΡΓ" in t or "ΠΡΟΣΛΗΨ" in t:
         return "ΔΥΠΑ"
     if "ΑΝΑΚΑΙΝ" in t:

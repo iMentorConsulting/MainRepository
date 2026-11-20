@@ -68,7 +68,9 @@ def _detect_program(value: str, program_map: dict | None) -> str | None:
         return "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"
     if "ΑΝΑΚΑΙΝ" in v:
         return "ΑΝΑΚΑΙΝΙΖΩ"
-    if "ΔΥΠΑ" in v or "ΟΑΕΔ" in v or "ΑΝΕΡΓ" in v or "ΠΡΟΣΛΗΨ" in v:
+    if "ΠΡΟΣΛΗΨ" in v and "LEADER" not in v:
+        return "ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ"
+    if "ΔΥΠΑ" in v or "ΟΑΕΔ" in v or "ΑΝΕΡΓ" in v:
         return "ΔΥΠΑ"
     if "ΕΣΠΑ" in v:
         return "ΕΣΠΑ"
