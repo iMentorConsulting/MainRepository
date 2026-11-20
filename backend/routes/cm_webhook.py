@@ -393,7 +393,7 @@ def _graph_get(path: str, fields: str, token: str):
     import requests as _rq
     try:
         r = _rq.get(f"https://graph.facebook.com/v19.0/{path}",
-                    params={"fields": fields, "access_token": token}, timeout=15)
+                    params={"fields": fields, "access_token": "".join((token or "").split())}, timeout=15)
         if r.ok:
             return r.json(), None
         try:
