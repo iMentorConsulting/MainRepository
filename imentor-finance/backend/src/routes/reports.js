@@ -457,6 +457,7 @@ router.get('/payroll-suppliers', async (req, res) => {
       FROM expenses
       WHERE date BETWEEN :start AND :end
         AND UPPER(TRIM(category)) LIKE '%ΜΙΣΘΟΔΟΣΙΑ%ΕΡΓΑΤΙΚΑ%'
+        AND amount > 0
       GROUP BY supplier, TO_CHAR(date, 'YYYY-MM')
       ORDER BY supplier, year_month
     `, { replacements: { start: `${year}-01-01`, end: `${year}-12-31` }, type: QueryTypes.SELECT });
