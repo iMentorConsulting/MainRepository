@@ -1108,9 +1108,29 @@ export default function Dashboard() {
                 <td className="td sticky left-0 bg-slate-100 font-bold text-slate-700">Σύνολο</td>
                 {agentMatrix.cols.map(ym => {
                   const colTotal = agentMatrix.agents.reduce((s, ag) => s + (agentMatrix.data[ag][ym] || 0), 0);
+                  const colTarget = agentMatrix.agents.reduce((s, ag) => s + (agentMatrix.targetLookup[normalizeKey(ag)]?.[ym] || 0), 0);
+                  const colPayroll = agentMatrix.agents.reduce((s, ag) => s + (agentMatrix.amountLookup[normalizeKey(ag)]?.[ym] || 0), 0);
+                  const colPct = colTarget > 0 && colTotal > 0 ? Math.round(colTotal / colTarget * 100) : null;
+                  const pctStyle = colPct === null ? null : colPct >= 100
+                    ? { bg: '#d1fae5', color: '#065f46' }
+                    : colPct >= 80
+                      ? { bg: '#fef3c7', color: '#92400e' }
+                      : { bg: '#fee2e2', color: '#991b1b' };
                   return (
-                    <td key={ym} className="td text-right tabular-nums font-bold text-slate-700 whitespace-nowrap bg-slate-100">
-                      {Math.round(colTotal).toLocaleString('el-GR')} €
+                    <td key={ym} className="td text-right tabular-nums whitespace-nowrap bg-slate-100">
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 2 }}>
+                        <span className="font-bold text-slate-700">{Math.round(colTotal).toLocaleString('el-GR')} €</span>
+                        {pctStyle && (
+                          <span style={{ fontSize: 10, fontWeight: 700, lineHeight: 1.4, padding: '1px 5px', borderRadius: 10, background: pctStyle.bg, color: pctStyle.color }}>
+                            {colPct}%
+                          </span>
+                        )}
+                        {colPayroll > 0 && (
+                          <span style={{ fontSize: 9, color: '#94a3b8', fontWeight: 500, lineHeight: 1.3 }}>
+                            μισθ: {Math.round(colPayroll).toLocaleString('el-GR')}€
+                          </span>
+                        )}
+                      </div>
                     </td>
                   );
                 })}
