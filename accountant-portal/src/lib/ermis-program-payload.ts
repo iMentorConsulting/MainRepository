@@ -199,6 +199,7 @@ export function buildErmisEligibilityEmailHtml(params: {
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
           Λάβαμε το αίτημά σας για ${requestedPrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : 'τα παρακάτω προγράμματα'}. Μιλήστε με τον ψηφιακό μας σύμβουλο, τον «Ερμή», για έναν ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας (~2 λεπτά):
         </p>
+        ${buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${requestedPrograms.map(cardOf).join('')}
         ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
         <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>

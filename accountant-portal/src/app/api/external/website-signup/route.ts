@@ -6,7 +6,8 @@ import { getOrCreateErmisLink } from '@/lib/ermis'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
-import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { buildBusinessProfilePayload, buildAadeBusinessDetails, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { buildErmisEligibilityEmailHtml, buildErmisViberMessage, buildProgramDescription } from '@/lib/ermis-program-payload'
 
 // Inbound webhook for the UNIVERSAL signup form (Bitform) that sits under every
 // auto-created program page on i-mentor.gr. The form is the same on every page;
@@ -342,20 +343,32 @@ async function processSignup(p: {
   const toPhone = business.viberPhone || business.phone || p.phone
   let emailOk = false
   let viberOk = false
+  // Same branded Ερμής emails / Viber text the CM flow uses (neutral "your request
+  // for program X" wording — the client asked for this program, we don't claim
+  // they're eligible). See ermis-program-payload.ts.
+  const fullForCard = await prisma.business.findUnique({ where: { id: business.id }, select: BUSINESS_PROFILE_SELECT })
+  const requested = [{ title: program.title, chatUrl: ermisLink, description: buildProgramDescription(program) }]
   if (toEmail) {
     emailOk = await sendEmail({
       to: toEmail,
-      subject: `Συνεχίστε με τον Ερμή για το «${program.title}» — I-MENTOR`,
-      html: `<p>Γεια σας,</p>
-        <p>Ευχαριστούμε που ενδιαφερθήκατε για το πρόγραμμα <strong>«${esc(program.title)}»</strong>. Μιλήστε τώρα με τον ψηφιακό μας σύμβουλο, τον Ερμή, για να δούμε αμέσως αν και πώς μπορείτε να ενταχθείτε:</p>
-        <p><a href="${ermisLink}">${ermisLink}</a></p>
-        <p>Ένας σύμβουλος της I-MENTOR θα επικοινωνήσει επίσης μαζί σας.</p>`,
+      subject: `${label} — Το αίτημά σας για «${program.title}»`,
+      html: buildErmisEligibilityEmailHtml({
+        businessName: label,
+        eligiblePrograms: [],
+        requestedPrograms: requested,
+        businessDetails: fullForCard ? buildAadeBusinessDetails(fullForCard) : undefined,
+      }),
     }).catch(() => false)
   }
   if (toPhone) {
     const r = await sendViberMessage({
       to: toPhone,
-      text: `Γεια σας! Ευχαριστούμε που ενδιαφερθήκατε για το πρόγραμμα «${program.title}». Μιλήστε τώρα με τον Ερμή για να δούμε αν μπορείτε να ενταχθείτε: ${ermisLink}`,
+      text: buildErmisViberMessage({
+        businessName: label,
+        eligiblePrograms: [],
+        requestedPrograms: requested.map(x => ({ title: x.title, chatUrl: x.chatUrl })),
+      }),
+      senderName: 'iMentor Consulting',
     }).catch(() => ({ ok: false, reason: 'exception' }))
     viberOk = r.ok
   }
