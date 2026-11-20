@@ -77,6 +77,7 @@ def _detect_program(value: str, program_map: dict | None) -> str | None:
     return None
 
 
+_TRACKING_KEYS = {"page_id", "leadgen_id", "form_id", "adgroup_id", "ad_id", "entry_id"}
 _CAMPAIGN_KEYS = ("campaign_name", "campaign", "utm_campaign", "καμπανια", "ονομα_καμπανιας")
 
 
@@ -208,6 +209,8 @@ def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, de
             continue
         # Skip Typeform/form-builder unfilled placeholder values like ${b14-3}
         if re.fullmatch(r"\$\{[^}]+\}", v):
+            continue
+        if key.lower().strip() in _TRACKING_KEYS:
             continue
         target = _target(key)
         if not target or target not in _LEAD_FIELDS:
@@ -385,35 +388,66 @@ async def _read_payload(request: Request, content_type: str) -> dict:
     return {**dict(request.query_params), **body}
 
 
+def _graph_get(path: str, fields: str, token: str):
+    """GET graph.facebook.com/<path>; returns (json|None, error_text|None)."""
+    import requests as _rq
+    try:
+        r = _rq.get(f"https://graph.facebook.com/v19.0/{path}",
+                    params={"fields": fields, "access_token": token}, timeout=15)
+        if r.ok:
+            return r.json(), None
+        try:
+            msg = r.json().get("error", {}).get("message") or r.text[:200]
+        except Exception:
+            msg = r.text[:200]
+        return None, f"HTTP {r.status_code}: {msg}"
+    except Exception as exc:
+        return None, f"request failed: {exc}"
+
+
 async def _enrich_campaign(raw, db: Session) -> str:
-    """If the payload has leadgen_id (+ page_id) but no campaign name, look the
+    """If the payload has leadgen_id / ad_id but no campaign name, look the
     campaign up from Meta's Graph API using the stored page access token."""
     if not isinstance(raw, dict):
         return "payload_not_object"
     if any(str(k).lower().strip() in _CAMPAIGN_KEYS and raw.get(k) for k in raw):
         return "campaign_name_sent_in_payload"
     leadgen_id = str(raw.get("leadgen_id") or "").strip()
-    if not leadgen_id:
-        return "no_leadgen_id_in_payload"
+    ad_id = str(raw.get("ad_id") or raw.get("adgroup_id") or "").strip()
+    if not leadgen_id and not ad_id:
+        return "no_leadgen_id_or_ad_id_in_payload"
     from models_cases import CMMetaPageConfig
-    from routes.cm_meta_leads import _fetch_lead
     from starlette.concurrency import run_in_threadpool
     page_id = str(raw.get("page_id") or "").strip()
     q = db.query(CMMetaPageConfig).filter(CMMetaPageConfig.enabled == True)
     cfg = (q.filter(CMMetaPageConfig.page_id == page_id).first() if page_id else None) or q.first()
     if not cfg:
-        log.warning("[webhook][campaign] no Meta page config to look up leadgen_id=%s", leadgen_id)
+        log.warning("[webhook][campaign] no Meta page config for page_id=%s", page_id)
         return "no_enabled_meta_page_config"
-    data = await run_in_threadpool(_fetch_lead, leadgen_id, cfg.page_access_token)
-    if not data:
-        log.warning("[webhook][campaign] Graph lookup failed for leadgen_id=%s", leadgen_id)
-        return "graph_api_error (token expired/missing leads permission, or lead not found)"
-    if data.get("campaign_name"):
-        raw["campaign_name"] = data["campaign_name"]
-    if data.get("ad_name") and not raw.get("ad_name"):
-        raw["ad_name"] = data["ad_name"]
-    log.info("[webhook][campaign] leadgen_id=%s → campaign=%r", leadgen_id, data.get("campaign_name"))
-    return "ok" if data.get("campaign_name") else "graph_ok_but_no_campaign_name (test lead or not from an ad)"
+    errors = []
+    campaign = None
+    if leadgen_id:
+        data, err = await run_in_threadpool(_graph_get, leadgen_id, "campaign_name,ad_name", cfg.page_access_token)
+        if err:
+            errors.append(f"lead lookup: {err}")
+        elif data:
+            campaign = data.get("campaign_name")
+            if data.get("ad_name") and not raw.get("ad_name"):
+                raw["ad_name"] = data["ad_name"]
+    if not campaign and ad_id:
+        data, err = await run_in_threadpool(_graph_get, ad_id, "name,campaign{name}", cfg.page_access_token)
+        if err:
+            errors.append(f"ad lookup: {err}")
+        elif data:
+            campaign = (data.get("campaign") or {}).get("name")
+            if data.get("name") and not raw.get("ad_name"):
+                raw["ad_name"] = data["name"]
+    if campaign:
+        raw["campaign_name"] = campaign
+        log.info("[webhook][campaign] leadgen_id=%s ad_id=%s → campaign=%r", leadgen_id, ad_id, campaign)
+        return "ok"
+    log.warning("[webhook][campaign] leadgen_id=%s ad_id=%s no campaign: %s", leadgen_id, ad_id, errors)
+    return "no_campaign_found; " + " | ".join(errors) if errors else "graph_ok_but_no_campaign_name (test lead or not from an ad)"
 
 
 # ── Public webhook endpoint ───────────────────────────────────────────────────
