@@ -51,11 +51,15 @@ def pick_consultant_from_rules(
         )
 
     rules = _query(program_category)
+    log.info("[auto-assign] exact query program_category=%r → %d rules", program_category, len(rules))
     if not rules and canonical_fallback and canonical_fallback != program_category:
         rules = _query(canonical_fallback)
+        log.info("[auto-assign] canonical_fallback=%r → %d rules", canonical_fallback, len(rules))
     if not rules:
         rules = _query(None)
+        log.info("[auto-assign] catch-all → %d rules", len(rules))
     if not rules:
+        log.warning("[auto-assign] no rules found for program_category=%r", program_category)
         return None
 
     best = min(rules, key=lambda r: (r.assignment_count / max(r.weight, 1), r.id))
@@ -64,6 +68,7 @@ def pick_consultant_from_rules(
         log.warning("[auto-assign] rule %s consultant_id=%s not found", best.id, best.consultant_id)
         return None
     best.assignment_count += 1
+    log.info("[auto-assign] selected rule id=%s program=%r → consultant %s (count now %s)", best.id, best.program_category, consultant.full_name, best.assignment_count)
     return consultant
 
 

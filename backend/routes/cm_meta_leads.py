@@ -303,16 +303,22 @@ async def meta_webhook_receive(request: Request, db: Session = Depends(get_db)):
                     # specific rule before falling back to the generic "ΔΥΠΑ" rule.
                     raw_program = fields.get("program")
                     canonical_program = _detect_program_from_text(raw_program) if raw_program else None
+                    log.info(
+                        "[meta][assign] leadgen_id=%s page=%s raw_program=%r canonical=%r default_program=%r",
+                        leadgen_id, page_id, raw_program, canonical_program, cfg.default_program,
+                    )
                     # Try assignment rules first; fall back to page-level default
                     auto_consultant = pick_consultant_from_rules(raw_program, db, canonical_fallback=canonical_program)
                     if auto_consultant:
                         assigned_id = auto_consultant.id
                         assigned_name_val = auto_consultant.full_name
                         auto_assigned_at_val = datetime.utcnow()
+                        log.info("[meta][assign] leadgen_id=%s → rule match → %s (id=%s)", leadgen_id, assigned_name_val, assigned_id)
                     else:
                         assigned_id = cfg.assigned_agent_id
                         assigned_name_val = cfg.assigned_agent.full_name if cfg.assigned_agent else None
                         auto_assigned_at_val = None
+                        log.warning("[meta][assign] leadgen_id=%s → NO rule match → fallback page agent %s (id=%s)", leadgen_id, assigned_name_val, assigned_id)
 
                     lead = CMLead(
                         name=name,
