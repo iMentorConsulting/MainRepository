@@ -1080,8 +1080,18 @@ def delete_lead(
     l = db.query(CMLead).filter(CMLead.id == lead_id).first()
     if not l:
         raise HTTPException(status_code=404, detail="Το lead δεν βρέθηκε")
-    db.delete(l)
-    db.commit()
+    try:
+        # Meta/Pabbly lead logs reference the lead; detach them (the leadgen_id
+        # row stays so a retry of the same lead is still treated as a duplicate).
+        from models_cases import CMMetaLeadLog
+        db.query(CMMetaLeadLog).filter(CMMetaLeadLog.lead_id == lead_id).update(
+            {CMMetaLeadLog.lead_id: None}, synchronize_session=False)
+        db.delete(l)
+        db.commit()
+    except Exception as exc:
+        db.rollback()
+        log.exception("[leads] delete failed for lead %s", lead_id)
+        raise HTTPException(status_code=409, detail=f"Σφάλμα διαγραφής: {str(exc)[:200]}")
     return {"ok": True}
 
 

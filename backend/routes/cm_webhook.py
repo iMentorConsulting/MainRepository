@@ -17,7 +17,7 @@ import re
 import secrets
 import unicodedata
 import logging
-from datetime import datetime
+from datetime import datetime, date
 from typing import Optional, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -570,6 +570,7 @@ async def receive_webhook_lead(token: str, request: Request, db: Session = Depen
         program=fields.get("program"),
         program_title=fields.get("program_title"),
         status="NEW LEAD",
+        next_call_date=date.today() if (leadgen_id or campaign_name) else None,  # Meta leads: reminder = today
         source=source.source_label or f"website:{source.name}",
         assigned_agent_id=assigned_id,
         assigned_name=assigned_name,
