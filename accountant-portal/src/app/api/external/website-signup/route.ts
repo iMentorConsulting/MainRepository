@@ -7,7 +7,7 @@ import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
 import { buildBusinessProfilePayload, buildAadeBusinessDetails, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
-import { buildErmisEligibilityEmailHtml, buildErmisViberMessage, buildProgramDescription } from '@/lib/ermis-program-payload'
+import { buildErmisEligibilityEmailHtml, buildErmisEligibilitySubject, buildErmisViberMessage, buildProgramDescription } from '@/lib/ermis-program-payload'
 
 // Inbound webhook for the UNIVERSAL signup form (Bitform) that sits under every
 // auto-created program page on i-mentor.gr. The form is the same on every page;
@@ -258,7 +258,7 @@ async function processSignup(p: {
   const label = business.onomasia || p.name || business.afm
 
   // 1. Matching engine (all programs) — same as the AFM-update form.
-  await runMatchingForBusiness(business.id).catch(err => console.error('[website-signup] matching failed:', err?.message))
+  const matching = await runMatchingForBusiness(business.id).catch(err => { console.error('[website-signup] matching failed:', err?.message); return null })
 
   // Unidentified program → no guessing. Alert and stop.
   if (!p.program) {
@@ -347,14 +347,33 @@ async function processSignup(p: {
   // for program X" wording — the client asked for this program, we don't claim
   // they're eligible). See ermis-program-payload.ts.
   const fullForCard = await prisma.business.findUnique({ where: { id: business.id }, select: BUSINESS_PROFILE_SELECT })
-  const requested = [{ title: program.title, chatUrl: ermisLink, description: buildProgramDescription(program) }]
+  // Like the Case Management flow: besides the program of the page the client came
+  // from, the client is also told about every OTHER program the matching found
+  // them eligible for (each with its own Ερμής link). The page's program comes
+  // first — as "eligible" if the matching agrees, otherwise as a neutral "your
+  // request" entry.
+  const MAX_EXTRA_PROGRAMS = 5
+  const eligibleResults = (matching?.results ?? []).filter(r => r.eligible)
+  const pageIsEligible = eligibleResults.some(r => r.program.id === program.id)
+  const otherEligible = eligibleResults.filter(r => r.program.id !== program.id).slice(0, MAX_EXTRA_PROGRAMS)
+  const otherEntries = await Promise.all(otherEligible.map(async r => ({
+    title: r.program.title,
+    chatUrl: await getOrCreateErmisLink(business.id, r.program.id),
+    description: buildProgramDescription(r.program),
+  })))
+  const pageEntry = { title: program.title, chatUrl: ermisLink, description: buildProgramDescription(program) }
+  const eligibleEntries = [...(pageIsEligible ? [pageEntry] : []), ...otherEntries]
+  const requested = pageIsEligible ? [] : [pageEntry]
+
   if (toEmail) {
     emailOk = await sendEmail({
       to: toEmail,
-      subject: `${label} — Το αίτημά σας για «${program.title}»`,
+      subject: eligibleEntries.length > 0
+        ? buildErmisEligibilitySubject(label, eligibleEntries.length)
+        : `${label} — Το αίτημά σας για «${program.title}»`,
       html: buildErmisEligibilityEmailHtml({
         businessName: label,
-        eligiblePrograms: [],
+        eligiblePrograms: eligibleEntries,
         requestedPrograms: requested,
         businessDetails: fullForCard ? buildAadeBusinessDetails(fullForCard) : undefined,
       }),
@@ -365,7 +384,7 @@ async function processSignup(p: {
       to: toPhone,
       text: buildErmisViberMessage({
         businessName: label,
-        eligiblePrograms: [],
+        eligiblePrograms: eligibleEntries.map(x => ({ title: x.title, chatUrl: x.chatUrl })),
         requestedPrograms: requested.map(x => ({ title: x.title, chatUrl: x.chatUrl })),
       }),
       senderName: 'iMentor Consulting',
