@@ -765,7 +765,10 @@ def filter_options(
 ):
     from models_cases import CMUser as _U
     agents = db.query(_U.id, _U.full_name).all()
-    programs = [p[0] for p in db.query(CMLead.program).distinct().all() if p[0]]
+    # Always offer every program category, plus any other value present in the data
+    _canonical = ["ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ", "ΕΣΠΑ", "ΔΥΠΑ", "ΔΥΠΑ-ΠΡΟΣΛΗΨΗΣ", "ΑΝΑΚΑΙΝΙΖΩ", "LEADER"]
+    _present = {p[0] for p in db.query(CMLead.program).distinct().all() if p[0]}
+    programs = _canonical + sorted(_present - set(_canonical))
     _pt_rows = db.query(CMLead.program_title).filter(CMLead.program_title.isnot(None)).distinct().all()
     # Include service_type only when it resolves to a known program category —
     # this excludes ERMIS summaries, free-text notes, and other non-title values.
