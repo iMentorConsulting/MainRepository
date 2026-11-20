@@ -337,24 +337,32 @@ export default function Dashboard() {
     for (const ym of cols) {
       colMax[ym] = Math.max(...agents.map(ag => agentData[ag][ym] || 0));
     }
-    // Build target/amount lookups: normKey -> ym -> value (from payroll settings)
+    // Build target lookup from payroll settings: normKey -> ym -> target
     const targetLookup = {};
-    const amountLookup = {};
     for (const ym of cols) {
       const [y, mo] = ym.split('-');
       const yearMap = payrollByYear[y] || {};
       for (const [normKey, monthMap] of Object.entries(yearMap)) {
         if (!targetLookup[normKey]) targetLookup[normKey] = {};
-        if (!amountLookup[normKey]) amountLookup[normKey] = {};
         const entry = monthMap[mo];
-        if (entry) {
-          if (entry.target > 0) targetLookup[normKey][ym] = entry.target;
-          if (entry.amount > 0) amountLookup[normKey][ym] = entry.amount;
-        }
+        if (entry && entry.target > 0) targetLookup[normKey][ym] = entry.target;
       }
     }
+    // Build payroll amount lookup from actual ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ expenses
+    const amountLookup = {};
+    for (const exp of allExpenses) {
+      if (exp.category !== 'ΜΙΣΘΟΔΟΣΙΑ-ΕΡΓΑΤΙΚΑ') continue;
+      const supplier = exp.supplier || '';
+      if (!supplier) continue;
+      const normKey = normalizeKey(supplier);
+      const d = exp.date || '';
+      if (!d || d.length < 7) continue;
+      const ym = d.slice(0, 7);
+      if (!amountLookup[normKey]) amountLookup[normKey] = {};
+      amountLookup[normKey][ym] = (amountLookup[normKey][ym] || 0) + parseFloat(exp.amount || 0);
+    }
     return { cols, agents, data: agentData, colMax, targetLookup, amountLookup };
-  }, [allIncome, matrixYears, matrixMonths, payrollByYear]);
+  }, [allIncome, matrixYears, matrixMonths, payrollByYear, allExpenses]);
 
   return (
     <div className="page">
