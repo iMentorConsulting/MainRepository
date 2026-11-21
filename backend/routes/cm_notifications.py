@@ -39,6 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
+from consultant_names import consultant_short
 from database import get_db, fmt_dt
 from models_cases import CMCase, CMNotificationLog, CMUser, CMStatusSLA, CMMessage
 from auth_cases import get_current_user
@@ -845,7 +846,7 @@ def send_notification_to_case(
         if email and req.message:
             body_text = req.message.replace("\n", "<br>")
             consultant_html = (
-                f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
+                f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant_short(consultant)}</b></p>'
             ) if consultant else ""
             prog_header_html = (
                 f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
@@ -864,7 +865,7 @@ def send_notification_to_case(
     <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
     {consultant_html}
     <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;"><a href="tel:+302810363007" style="color:#1e3a5f;text-decoration:none;">📞 2810 363007</a></p>
       <p style="margin:0;font-size:12px;color:#6b7280;">
         i-Mentor Consulting ·
         <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·

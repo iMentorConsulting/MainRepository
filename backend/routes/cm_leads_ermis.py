@@ -270,16 +270,7 @@ def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
     return _build_ermis_email_html(greet, body, consultant_html)
 
 
-def _consultant_short(name: Optional[str]) -> Optional[str]:
-    """Client-facing short form: "Βαρδιάμπασης Μάνος" → "Μάνος Β." (first name + surname initial)."""
-    if not name:
-        return name
-    disp = _consultant_display(name) or name
-    parts = disp.split()
-    if len(parts) < 2:
-        return disp
-    first, surname = parts[-1], parts[0]
-    return f"{first} {surname[0].upper()}."
+from consultant_names import consultant_short as _consultant_short
 
 
 _PHONE_DISPLAY = "2810 363007"

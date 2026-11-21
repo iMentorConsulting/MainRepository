@@ -20,6 +20,7 @@ from sqlalchemy import or_, and_, text as sa_text, func as sa_func
 from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user, CMUser
+from consultant_names import consultant_short
 from database import get_db
 from models_cases import (
     CMLead, CMLeadComment, CMLeadNotificationLog, CMCase, LEAD_STATUSES,
@@ -1810,7 +1811,7 @@ def send_to_lead(
             body_text = (req.body or req.message or "").replace("\n", "<br>")
             subject = req.subject or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
             consultant_html = (
-                f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
+                f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant_short(consultant)}</b></p>'
             ) if consultant else ""
             prog_header = (
                 f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
@@ -1829,7 +1830,7 @@ def send_to_lead(
     <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
     {consultant_html}
     <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;"><a href="tel:+302810363007" style="color:#1e3a5f;text-decoration:none;">📞 2810 363007</a></p>
       <p style="margin:0;font-size:12px;color:#6b7280;">
         i-Mentor Consulting ·
         <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
@@ -1938,7 +1939,7 @@ def bulk_notify_leads(
                     prog_label = f"«{prog_display}»" if prog_display else ""
                     subj = subject_override or f"i-Mentor Consulting{' — ' + prog_display if prog_display else ''}"
                     consultant_html = (
-                        f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant}</b></p>'
+                        f'<p style="margin:0 0 10px;color:#6b7280;font-size:13px;">Σύμβουλος: <b style="color:#1e3a5f;">{consultant_short(consultant)}</b></p>'
                     ) if consultant else ""
                     prog_header_html = (
                         f'<p style="margin:0 0 16px;font-size:14px;color:#6b7280;">Αφορά το πρόγραμμα: '
@@ -1957,7 +1958,7 @@ def bulk_notify_leads(
     <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
     {consultant_html}
     <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:4px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;"><a href="tel:+302810363007" style="color:#1e3a5f;text-decoration:none;">📞 2810 363007</a></p>
       <p style="margin:0;font-size:12px;color:#6b7280;">
         i-Mentor Consulting ·
         <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
@@ -2190,7 +2191,7 @@ def bulk_onboard_leads(
                     subj = f"i-Mentor Consulting — Επιχορηγούμενα Προγράμματα{' ' + prog_label if prog_label else ''}"
                     consultant_html = (
                         f'<p style="margin:0;font-size:13px;color:#6b7280;">Σύμβουλος: '
-                        f'<b style="color:#1e3a5f;">{consultant}</b></p>'
+                        f'<b style="color:#1e3a5f;">{consultant_short(consultant)}</b></p>'
                     ) if consultant else ""
                     prog_badge_html = (
                         f'<div style="display:inline-block;background:#eff6ff;border:1px solid #bfdbfe;'
@@ -2224,7 +2225,7 @@ def bulk_onboard_leads(
     <hr style="border:none;border-top:1px solid #eef2f7;margin:16px 0;">
     {consultant_html}
     <div style="background:#f0f4f8;border-radius:8px;padding:14px 16px;margin-top:8px;">
-      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;">📞 2810 363007</p>
+      <p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#1e3a5f;"><a href="tel:+302810363007" style="color:#1e3a5f;text-decoration:none;">📞 2810 363007</a></p>
       <p style="margin:0;font-size:12px;color:#6b7280;">
         i-Mentor Consulting ·
         <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
