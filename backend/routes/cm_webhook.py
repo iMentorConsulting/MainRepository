@@ -177,8 +177,8 @@ def _clean_phone(p):
 def _clean_email(e):
     if not e:
         return None
-    s = str(e).strip().replace(" ", "")
-    return s or None
+    from routes.cm_leads import clean_email  # fixes common domain typos (yahoo.fr → yahoo.gr …)
+    return clean_email(e)
 
 
 def _map_payload(raw: dict, field_map: dict | None, program_map: dict | None, default_program: str | None, default_program_title: str | None = None, campaign_map: dict | None = None) -> dict:

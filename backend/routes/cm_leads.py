@@ -87,6 +87,12 @@ _EMAIL_DOMAIN_FIXES = {
     "windowslive.com": "live.com",
     "iclould.com": "icloud.com",
     "icloud.gr": "icloud.com",
+    "otenet.fr": "otenet.gr",
+    "hol.fr": "hol.gr",
+    "gmail.fr": "gmail.com",
+    "outlook.fr": "outlook.com",
+    "live.fr": "live.com",
+    "windowslive.fr": "live.com",
 }
 
 
@@ -103,6 +109,21 @@ def clean_email(email):
     domain = domain.lower()
     domain = _EMAIL_DOMAIN_FIXES.get(domain, domain)
     return f"{local}@{domain}" if local else None
+
+
+# Safety net: whatever code path creates or edits a lead (webhook, Logistis, ΕΡΜΗΣ,
+# manual), the email is normalised before it is saved, so every later email,
+# ΕΡΜΗΣ or Logistis send uses the corrected address.
+from sqlalchemy import event as _sa_event
+
+
+@_sa_event.listens_for(CMLead, "before_insert")
+@_sa_event.listens_for(CMLead, "before_update")
+def _normalise_lead_email(mapper, connection, target):
+    if target.email:
+        fixed = clean_email(target.email)
+        if fixed != target.email:
+            target.email = fixed
 
 
 def clean_phone(phone):

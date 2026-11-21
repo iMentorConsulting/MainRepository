@@ -575,6 +575,20 @@ with SessionLocal() as _db:
         print(f"[migration] Re-categorised {_lead_fixed} leads based on program_title/service_type")
 
 with SessionLocal() as _db:
+    # Heal existing leads whose email has a known domain typo (e.g. yahoo.fr → yahoo.gr)
+    from models_cases import CMLead as _CMLeadE
+    from routes.cm_leads import clean_email as _ce
+    _email_fixed = 0
+    for _l in _db.query(_CMLeadE).filter(_CMLeadE.email.isnot(None)).all():
+        _new = _ce(_l.email)
+        if _new and _new != _l.email:
+            _l.email = _new
+            _email_fixed += 1
+    if _email_fixed:
+        _db.commit()
+        print(f"[migration] Fixed email domain typos on {_email_fixed} leads")
+
+with SessionLocal() as _db:
     from models_cases import CMCase as _CMCase
     _fixed = 0
     for _c in _db.query(_CMCase).all():
