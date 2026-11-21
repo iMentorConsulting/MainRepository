@@ -347,6 +347,7 @@ async function processSignup(p: {
   // for program X" wording — the client asked for this program, we don't claim
   // they're eligible). See ermis-program-payload.ts.
   const fullForCard = await prisma.business.findUnique({ where: { id: business.id }, select: BUSINESS_PROFILE_SELECT })
+  const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const requested = [{ title: program.title, chatUrl: ermisLink, description: buildProgramDescription(program) }]
   if (toEmail) {
     emailOk = await sendEmail({
@@ -357,6 +358,7 @@ async function processSignup(p: {
         eligiblePrograms: [],
         requestedPrograms: requested,
         businessDetails: fullForCard ? buildAadeBusinessDetails(fullForCard) : undefined,
+        imentorLogoUrl: appSetting?.imentorLogoUrl,
       }),
     }).catch(() => false)
   }

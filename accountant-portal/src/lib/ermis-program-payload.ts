@@ -179,54 +179,55 @@ export function buildErmisEligibilityEmailHtml(params: {
   requestedPrograms?: ErmisEmailProgramEntry[]
   consultant?: string | null
   businessDetails?: AadeBusinessDetails
+  // Office logo (AppSetting.imentorLogoUrl); falls back to the text wordmark.
+  imentorLogoUrl?: string | null
 }): string {
-  const { businessName, eligiblePrograms, requestedPrograms = [], consultant, businessDetails } = params
+  const { businessName, eligiblePrograms, requestedPrograms = [], consultant, businessDetails, imentorLogoUrl } = params
+  const neutralOnly = eligiblePrograms.length === 0 && requestedPrograms.length > 0
+  const all = [...eligiblePrograms, ...requestedPrograms]
+
+  const brandLeft = imentorLogoUrl
+    ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+
+  const title = neutralOnly ? 'Το αίτημά σας για πρόγραμμα επιχορήγησης' : '✅ Βρέθηκαν διαθέσιμα προγράμματα'
+  const intro = neutralOnly
+    ? `Λάβαμε το αίτημά σας για ${requestedPrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : 'τα παρακάτω προγράμματα'}.`
+    : `Ελέγξαμε τα στοιχεία της επιχείρησής σας και εντοπίσαμε ${eligiblePrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : `τα παρακάτω ${eligiblePrograms.length} προγράμματα`} για τα οποία είστε πιθανώς επιλέξιμοι.`
+
+  // One prominent call-to-action block, right under the intro and ABOVE the
+  // business-details card — one button per program (labelled with its title
+  // when there are several).
+  const buttons = all.filter(p => p.chatUrl).map(p => `
+        <a href="${p.chatUrl}" style="display:block;margin:0 0 10px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;text-align:center;padding:14px 22px;border-radius:10px;">🤖 ${all.length > 1 ? `Ερμής — ${p.title}` : 'Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος'}</a>`).join('')
+  const cta = `
+        <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:20px 22px;margin:0 0 20px;">
+          <p style="margin:0 0 6px;font-size:16px;font-weight:800;color:#3730a3;">🤖 Μιλήστε τώρα με τον «Ερμή»</p>
+          <p style="margin:0 0 14px;font-size:13.5px;color:#4338ca;line-height:1.6;">Ο ψηφιακός μας σύμβουλος κάνει ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας σε περίπου 2 λεπτά. Εκεί μπορείτε να του θέσετε και <strong>οποιαδήποτε ερώτηση έχετε</strong> για το πρόγραμμα.</p>
+          ${buttons}
+        </div>`
+
+  // Program cards carry the information only — the buttons live in the CTA above.
   const cardOf = (p: ErmisEmailProgramEntry) => `
     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
       <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${p.title}</p>
-      <p style="margin:0 0 16px;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${p.description}</p>
-      ${p.chatUrl ? `<a href="${p.chatUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:11px 26px;border-radius:8px;">🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος</a>` : ''}
+      <p style="margin:0;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${p.description}</p>
     </div>`
-
-  if (eligiblePrograms.length === 0 && requestedPrograms.length > 0) {
-    return `
-    <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;padding:24px 28px;border-radius:12px 12px 0 0;">
-        <h1 style="margin:0;color:#fff;font-size:19px;">Το αίτημά σας για πρόγραμμα επιχορήγησης</h1>
-      </div>
-      <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
-        <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${businessName},</p>
-        <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
-          Λάβαμε το αίτημά σας για ${requestedPrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : 'τα παρακάτω προγράμματα'}. Μιλήστε με τον ψηφιακό μας σύμβουλο, τον «Ερμή», για έναν ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας (~2 λεπτά):
-        </p>
-        ${buildAadeBusinessDetailsCardHtml(businessDetails)}
-        ${requestedPrograms.map(cardOf).join('')}
-        ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
-        <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
-      </div>
-    </div>`
-  }
-
-  const cards = eligiblePrograms.map(p => `
-    <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
-      <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${p.title}</p>
-      <p style="margin:0 0 16px;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${p.description}</p>
-      ${p.chatUrl ? `<a href="${p.chatUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:11px 26px;border-radius:8px;">🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος</a>` : ''}
-    </div>`).join('')
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:0 auto;color:#111827;">
-      <div style="background:#1e3a8a;padding:24px 28px;border-radius:12px 12px 0 0;">
-        <h1 style="margin:0;color:#fff;font-size:19px;">✅ Βρέθηκαν διαθέσιμα προγράμματα</h1>
-      </div>
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px 12px 0 0;overflow:hidden;">
+      <tr><td bgcolor="#1e3a8a" style="background:linear-gradient(135deg,#1e3a8a,#1e40af);padding:24px 28px;">
+        ${brandLeft}
+        <h1 style="margin:18px 0 0;color:#fff;font-size:19px;">${title}</h1>
+      </td></tr>
+      </table>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
         <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${businessName},</p>
-        <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">
-          Ελέγξαμε τα στοιχεία της επιχείρησής σας και εντοπίσαμε ${eligiblePrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : `τα παρακάτω ${eligiblePrograms.length} προγράμματα`} για τα οποία είστε πιθανώς επιλέξιμοι:
-        </p>
+        <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">${intro}</p>
+        ${cta}
         ${buildAadeBusinessDetailsCardHtml(businessDetails)}
-        ${cards}
-        ${requestedPrograms.length > 0 ? `<p style="margin:8px 0 12px;font-size:14px;color:#4b5563;line-height:1.6;">Για το πρόγραμμα που ζητήσατε μπορείτε επίσης να κάνετε ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας με τον «Ερμή»:</p>${requestedPrograms.map(cardOf).join('')}` : ''}
+        ${all.map(cardOf).join('')}
         ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
         <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
       </div>

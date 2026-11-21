@@ -324,6 +324,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Same event, as an email — clients without Viber (or who miss it) still get told.
+      const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
       const eligibleForEmail = matchedPrograms.filter(p => p.isEligible)
       if (contactEmailStr && (eligibleForEmail.length > 0 || requestedOnly.length > 0)) {
         const businessName = business!.onomasia || business!.commercialTitle || afmStr
@@ -338,6 +339,7 @@ export async function POST(request: NextRequest) {
             requestedPrograms: requestedOnly,
             consultant: consultant || lead?.consultant || null,
             businessDetails: buildAadeBusinessDetails(business!),
+            imentorLogoUrl: appSetting?.imentorLogoUrl,
           }),
         }).catch(err => console.error('[ErmisSession] client email failed:', err?.message))
       } else {
