@@ -191,6 +191,87 @@ def maybe_autostart_ermis(lead: CMLead, actor_name: str = "webhook") -> None:
     ).start()
 
 
+def _title_case_gr(s: str) -> str:
+    return " ".join(w.lower().capitalize() for w in (s or "").split())
+
+
+def _business_profile(db, lead: CMLead):
+    if not lead.afm:
+        return None
+    try:
+        from models_cases import CMBusinessProfile
+        return db.query(CMBusinessProfile).filter(CMBusinessProfile.afm == lead.afm).first()
+    except Exception:
+        return None
+
+
+def _greeting_name(db, lead: CMLead) -> str:
+    """Name used in the email greeting: the official ΑΑΔΕ name when we have it
+    (title-cased for individuals; companies keep their registered form), else the lead's own name."""
+    bp = _business_profile(db, lead)
+    onom = (bp.onomasia or "").strip() if bp else ""
+    if onom:
+        if "ΑΤΟΜΙΚ" in (bp.legal_status_descr or "").upper() or not bp.legal_status_descr:
+            # ΑΑΔΕ lists individuals as "ΕΠΩΝΥΜΟ ΟΝΟΜΑ"
+            return _title_case_gr(onom) if onom.isupper() else onom
+        return onom
+    return (lead.name or "").strip() or "συνεργάτη"
+
+
+def _lead_area(db, lead: CMLead) -> Optional[str]:
+    """Area for the "what we know" line: form answer «Περιοχή», else the ΑΑΔΕ postal area."""
+    import re as _re
+    m = _re.search(r"\[Περιοχή\]:\s*([^\n\[]+)", (lead.notes or "").replace("_", " "))
+    if m and m.group(1).strip():
+        return m.group(1).strip()
+    bp = _business_profile(db, lead)
+    if bp and bp.postal_area_description:
+        return bp.postal_area_description.strip().title()
+    return None
+
+
+def _ermis_email_subject(prog_label: str) -> str:
+    return f"i-Mentor Consulting — Προαξιολόγηση για {prog_label}"
+
+
+def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
+    """Single-program ΕΡΜΗΣ invitation email (used for every lead, every program)."""
+    greet = _greeting_name(db, lead)
+    area = _lead_area(db, lead)
+    known = []
+    if lead.afm:
+        known.append(f"ΑΦΜ: <b>{lead.afm}</b>")
+    if area:
+        known.append(f"Περιοχή: <b>{area}</b>")
+    known_html = (
+        f'<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Τα στοιχεία που έχουμε: {" · ".join(known)}</p>'
+        if known else ""
+    )
+    _art = _consultant_article(lead.assigned_name).capitalize()
+    _cg = _consultant_display(lead.assigned_name)
+    consultant_html = (
+        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_cg}</b> '
+        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if lead.assigned_name else ""
+    )
+    body = (
+        f'<p style="margin:0 0 12px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
+        f'<b style="color:#1e3a5f;">{prog_label}</b>.</p>'
+        f'{known_html}'
+        '<hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">'
+        '<div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">'
+        '<p style="margin:0 0 10px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b>, τον ψηφιακό μας σύμβουλο, και:</p>'
+        '<p style="margin:0 0 6px;color:#374151;">✅ Κάντε <b>γρήγορο έλεγχο επιλεξιμότητας</b> (2 λεπτά)</p>'
+        '<p style="margin:0 0 6px;color:#374151;">💬 Κάντε <b>όποια ερώτηση</b> έχετε</p>'
+        '<p style="margin:0;color:#374151;">💶 Μάθετε το <b>κόστος της αίτησης</b></p>'
+        '</div>'
+        f'<div style="text-align:center;margin:26px 0;">'
+        f'<a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;'
+        f'padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">'
+        f'▶️ Ξεκινήστε την προαξιολόγηση</a></div>'
+    )
+    return _build_ermis_email_html(greet, body, consultant_html)
+
+
 def _build_ermis_email_html(name: str, prog_lines_html: str, consultant_html: str) -> str:
     return f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
@@ -259,21 +340,8 @@ def _send_combined_ermis_message(
             f"{consultant_line}"
             "i-Mentor Consulting"
         )
-        email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {primary_label} με τον ΕΡΜΗ"
-        prog_lines_html = (
-            f'<p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
-            f'<b style="color:#1e3a5f;">{primary_label}</b>.</p>'
-            '<hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">'
-            '<div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">'
-            '<p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>'
-            '<p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει '
-            '<b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p></div>'
-            f'<div style="text-align:center;margin:26px 0;">'
-            f'<a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;'
-            f'padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">'
-            f'▶️ Ξεκινήστε την προαξιολόγηση</a></div>'
-        )
-        email_html = _build_ermis_email_html(name, prog_lines_html, consultant_html)
+        email_subject = _ermis_email_subject(primary_label)
+        email_html = _build_ermis_email(db, primary_lead, primary_label, chat_url)
     else:
         # Multi-program combined message
         prog_lines_viber = ""
@@ -326,7 +394,7 @@ def _send_combined_ermis_message(
             f'<b>ΔΩΡΕΑΝ έλεγχο (~2 λεπτά)</b> ανά πρόγραμμα:</p>'
             f'{prog_cards_html}'
         )
-        email_html = _build_ermis_email_html(name, prog_lines_html, consultant_html)
+        email_html = _build_ermis_email_html(_greeting_name(db, primary_lead), prog_lines_html, consultant_html)
 
     ch = "both"
     if ch in ("viber", "both") and primary_lead.phone:
@@ -374,25 +442,8 @@ def _send_ermis_link(db, l: CMLead, channel: str, actor_name: str) -> None:
         f"{consultant_line}"
         "i-Mentor Consulting"
     )
-    email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
-    consultant_html = (
-        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
-        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
-    )
-    prog_lines_html = (
-        f'<p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
-        f'<b style="color:#1e3a5f;">{prog_label}</b>.</p>'
-        '<hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">'
-        '<div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">'
-        '<p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>'
-        '<p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει '
-        '<b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p></div>'
-        f'<div style="text-align:center;margin:26px 0;">'
-        f'<a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;'
-        f'padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">'
-        f'▶️ Ξεκινήστε την προαξιολόγηση</a></div>'
-    )
-    email_html = _build_ermis_email_html(name, prog_lines_html, consultant_html)
+    email_subject = _ermis_email_subject(prog_label)
+    email_html = _build_ermis_email(db, l, prog_label, chat_url)
     ch = channel or "both"
     if ch in ("viber", "both") and l.phone:
         ok, _ = _send_viber(l.phone, viber_msg, l.name or "", actor_name, l.service_type or "")
@@ -719,38 +770,8 @@ def bulk_resend_ermis(
             f"{consultant_line}"
             "i-Mentor Consulting"
         )
-        email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
-        consultant_html = (
-            f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
-            f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
-        )
-        email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
-<div style="max-width:600px;margin:0 auto;">
-  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
-  </div>
-  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
-    <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
-    <p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα <b style="color:#1e3a5f;">{prog_label}</b>.</p>
-    <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
-    <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
-      <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
-      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p>
-    </div>
-    <div style="text-align:center;margin:26px 0;">
-      <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
-    </div>
-    {consultant_html}
-    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">
-      i-Mentor Consulting ·
-      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
-      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
-      2810 363007<br>
-      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
-    </p>
-  </div>
-</div></body></html>"""
+        email_subject = _ermis_email_subject(prog_label)
+        email_html = _build_ermis_email(db, l, prog_label, chat_url)
 
         ch_sent = []
         if channel in ("viber", "both") and l.phone:
@@ -880,39 +901,8 @@ def resend_ermis_link(
         f"{consultant_line}"
         "i-Mentor Consulting"
     )
-    email_subject = f"i-Mentor Consulting — Προαξιολόγηση για {prog_label} με τον ΕΡΜΗ"
-    consultant_html = (
-        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_consultant_gr}</b> '
-        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if l.assigned_name else ""
-    )
-    email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
-<div style="max-width:600px;margin:0 auto;">
-  <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
-  </div>
-  <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
-    <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
-    <p style="margin:0 0 16px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα
-       <b style="color:#1e3a5f;">{prog_label}</b>.</p>
-    <hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">
-    <div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">
-      <p style="margin:0 0 8px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b></p>
-      <p style="margin:0;color:#374151;">τον ψηφιακό μας σύμβουλο, που κάνει <b>✅ ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας</b> ⏱️ σε δευτερόλεπτα.</p>
-    </div>
-    <div style="text-align:center;margin:26px 0;">
-      <a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">▶️ Ξεκινήστε την προαξιολόγηση</a>
-    </div>
-    {consultant_html}
-    <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">
-      i-Mentor Consulting ·
-      <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
-      <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
-      2810 363007<br>
-      Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
-    </p>
-  </div>
-</div></body></html>"""
+    email_subject = _ermis_email_subject(prog_label)
+    email_html = _build_ermis_email(db, l, prog_label, chat_url)
 
     ch = (req.channel or "both")
     sent = []
