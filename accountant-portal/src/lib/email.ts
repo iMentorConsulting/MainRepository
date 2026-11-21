@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer'
 import { google } from 'googleapis'
 import { auth } from '@/lib/auth'
-import { resolveConsultantFullName } from '@/lib/consultant-name'
+import { resolveConsultantFullName, formatConsultantLabel } from '@/lib/consultant-name'
 
 const smtpUser = process.env.SMTP_USER || process.env.GMAIL_USER || ''
 const smtpPass = process.env.SMTP_PASS || process.env.GMAIL_APP_PASSWORD || ''
@@ -150,7 +150,7 @@ function buildContactFooterHtml(consultantName: string | null, teamLabel: string
   return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0">
   <tr><td style="padding:16px 24px;text-align:center;border-top:1px solid #e5e7eb;">
     ${consultantName
-      ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280;">Ο σύμβουλός σας: <strong style="color:#374151;">${consultantName}</strong></p>`
+      ? `<p style="margin:0 0 6px;font-size:12px;color:#6b7280;"><strong style="color:#374151;">${formatConsultantLabel(consultantName)}</strong></p>`
       : teamLabel ? `<p style="margin:0 0 6px;font-size:12px;color:#374151;"><strong>${teamLabel}</strong></p>` : ''}
     <p style="margin:0;font-size:13px;color:#4f46e5;font-weight:600;">📞 <a href="tel:+302810363007" style="color:#4f46e5;text-decoration:none;">2810 363007</a> &nbsp;·&nbsp; <a href="mailto:info@i-mentor.gr" style="color:#4f46e5;text-decoration:none;">info@i-mentor.gr</a></p>
   </td></tr>

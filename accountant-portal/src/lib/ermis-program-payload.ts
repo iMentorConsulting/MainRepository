@@ -1,3 +1,4 @@
+import { formatConsultantLabel } from '@/lib/consultant-name'
 // Builds the per-program fields sent to the Case Management app inside the
 // ermis.business_ready webhook's `matchedPrograms` array — the CM category
 // label and a client-facing description combining the program's ΠΕΡΙΓΡΑΦΗ
@@ -109,7 +110,7 @@ export function buildErmisViberMessage(params: {
   }
 
   if (consultant) {
-    lines.push('', `Σύμβουλός σας: ${consultant}`)
+    lines.push('', formatConsultantLabel(consultant))
   }
 
   return lines.join('\n')
@@ -134,7 +135,7 @@ export function buildIneligibleViberMessage(params: {
     '',
     'Θα χαρούμε να σας ενημερώσουμε αν προκύψει νέο πρόγραμμα που να ταιριάζει στην επιχείρησή σας.',
   ]
-  if (consultant) lines.push('', `Σύμβουλός σας: ${consultant}`)
+  if (consultant) lines.push('', formatConsultantLabel(consultant))
   return lines.join('\n')
 }
 
@@ -150,7 +151,7 @@ export function buildIneligibleEmailHtml(params: {
       <p>Μετά από επανεξέταση των στοιχείων σας, διαπιστώσαμε ότι τελικά δεν πληροίτε τις προϋποθέσεις του προγράμματος:</p>
       <p style="font-weight:700;">«${programTitle}»</p>
       <p>Θα χαρούμε να σας ενημερώσουμε αν προκύψει νέο πρόγραμμα που να ταιριάζει στην επιχείρησή σας.</p>
-      ${consultant ? `<p>Σύμβουλός σας: ${consultant}</p>` : ''}
+      ${consultant ? `<p>${formatConsultantLabel(consultant)}</p>` : ''}
       <p style="color:#6b7280;font-size:13px;margin-top:24px;">iMentor Consulting</p>
     </div>`
 }
@@ -261,7 +262,7 @@ export function buildErmisEligibilityEmailHtml(params: {
         ${newBusiness && newBusiness.note ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin:0 0 20px;"><p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1e40af;">ℹ️ Για υπό ίδρυση επιχειρήσεις</p><p style="margin:0;font-size:13.5px;color:#1e3a8a;line-height:1.7;white-space:pre-line;">${newBusiness.note}</p></div>` : ''}
         ${newBusiness ? '' : buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${all.map(cardOf).join('')}
-        ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
+        ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">${formatConsultantLabel(consultant)}</p>` : ''}
         <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>
       </div>
     </div>`
