@@ -7,7 +7,7 @@ import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { notifyCaseManagement } from '@/lib/case-management-sync'
 import { buildBusinessProfilePayload, buildAadeBusinessDetails, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
-import { buildErmisEligibilityEmailHtml, buildErmisViberMessage, buildProgramDescription } from '@/lib/ermis-program-payload'
+import { buildErmisEligibilityEmailHtml, buildErmisViberMessage, buildProgramDescription, buildErmisRequestSubject, clientDisplayName, isNewBusinessLead } from '@/lib/ermis-program-payload'
 
 // Inbound webhook for the UNIVERSAL signup form (Bitform) that sits under every
 // auto-created program page on i-mentor.gr. The form is the same on every page;
@@ -349,15 +349,25 @@ async function processSignup(p: {
   const fullForCard = await prisma.business.findUnique({ where: { id: business.id }, select: BUSINESS_PROFILE_SELECT })
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
   const requested = [{ title: program.title, chatUrl: ermisLink, description: buildProgramDescription(program) }]
+  // Never address the client by ΑΦΜ; and a person who says the business isn't
+  // started yet (or has no AADE business data) gets the "υπό ίδρυση" wording.
+  const clientName = clientDisplayName(business.onomasia) || clientDisplayName(p.name)
+  const newBusinessClient = isNewBusinessLead({
+    acceptsNewBusiness: program.acceptsNewBusiness,
+    hasActivities: (fullForCard?.activities?.length ?? 0) > 0,
+    hasRegdate: !!fullForCard?.regdate,
+    contextText: p.answers.join(' ').replace(/Ενεργή επιχείρηση:\s*Όχι/i, 'νέα επιχείρηση'),
+  })
   if (toEmail) {
     emailOk = await sendEmail({
       to: toEmail,
-      subject: `${label} — Το αίτημά σας για «${program.title}»`,
+      subject: buildErmisRequestSubject(clientName, program.title),
       html: buildErmisEligibilityEmailHtml({
-        businessName: label,
+        businessName: clientName,
         eligiblePrograms: [],
         requestedPrograms: requested,
         businessDetails: fullForCard ? buildAadeBusinessDetails(fullForCard) : undefined,
+        newBusiness: newBusinessClient ? { note: program.newBusinessNote } : null,
         imentorLogoUrl: appSetting?.imentorLogoUrl,
       }),
     }).catch(() => false)
@@ -366,7 +376,7 @@ async function processSignup(p: {
     const r = await sendViberMessage({
       to: toPhone,
       text: buildErmisViberMessage({
-        businessName: label,
+        businessName: clientName,
         eligiblePrograms: [],
         requestedPrograms: requested.map(x => ({ title: x.title, chatUrl: x.chatUrl })),
       }),

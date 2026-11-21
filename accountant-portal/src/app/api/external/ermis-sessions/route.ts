@@ -3,7 +3,7 @@ import { prisma } from '@/lib/prisma'
 import { lookupAfm } from '@/lib/gsis'
 import { runMatchingForBusiness } from '@/lib/matching'
 import { buildBusinessProfilePayload, buildAadeBusinessDetails, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
-import { CM_CATEGORY_LABEL, buildProgramDescription, buildErmisViberMessage, buildErmisEligibilitySubject, buildErmisEligibilityEmailHtml } from '@/lib/ermis-program-payload'
+import { CM_CATEGORY_LABEL, buildProgramDescription, buildErmisViberMessage, buildErmisEligibilitySubject, buildErmisEligibilityEmailHtml, buildErmisRequestSubject, clientDisplayName, isNewBusinessLead } from '@/lib/ermis-program-payload'
 import { sendViberMessage } from '@/lib/viber'
 import { sendEmail } from '@/lib/email'
 import { sendErmisWebhook } from '@/lib/ermis-webhook'
@@ -39,6 +39,9 @@ export async function POST(request: NextRequest) {
   }
 
   const afmStr = String(afm).trim()
+  // Name of the person as Case Management knows it — used when AADE has none (an
+  // ιδιώτης without a business). CM should send it as lead.name.
+  const leadName = String(lead?.name || lead?.fullName || lead?.onomasia || '').trim() || null
 
   // 1. Find the primary program in DB by name — match on stem to handle
   // vocabulary differences (CM sends "ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ"; DB title is "ΤΑΜΕΙΟ
@@ -81,7 +84,7 @@ export async function POST(request: NextRequest) {
         phone: lead?.phone || lead?.phone2 || null,
         source: 'ermis-lead',
         legalStatusDescr: fix?.legalStatusDescr ?? (gsisData ? null : 'ΙΔΙΩΤΗΣ'),
-        onomasia: fix?.onomasia ?? gsisData?.onomasia ?? null,
+        onomasia: fix?.onomasia ?? gsisData?.onomasia ?? leadName,
         commercialTitle: gsisData?.commercialTitle ?? null,
         regdate: gsisData?.regdate ?? null,
         postalAddress: gsisData?.postalAddress ?? null,
@@ -105,6 +108,12 @@ export async function POST(request: NextRequest) {
     business = created
     // Matching (all programs, not just the primary) runs in the background
     // block below regardless of whether the business is new or existing.
+  }
+
+  // AADE gave no name (or an older record has none): take CM's.
+  if (leadName && !clientDisplayName(business.onomasia)) {
+    await prisma.business.update({ where: { id: business.id }, data: { onomasia: leadName } }).catch(() => {})
+    business = { ...business, onomasia: leadName }
   }
 
   // 3. Log lead interest (always — records every CM lead event, even for existing businesses)
@@ -312,7 +321,7 @@ export async function POST(request: NextRequest) {
       const eligibleForViber = matchedPrograms.filter(p => p.isEligible && p.chatUrl)
       if (contactPhoneStr && (eligibleForViber.length > 0 || requestedOnly.length > 0)) {
         const text = buildErmisViberMessage({
-          businessName: business!.onomasia || business!.commercialTitle || afmStr,
+          businessName: clientDisplayName(business!.onomasia) || clientDisplayName(business!.commercialTitle),
           eligiblePrograms: eligibleForViber.map(p => ({ title: p.title, chatUrl: p.chatUrl })),
           requestedPrograms: requestedOnly.map(p => ({ title: p.title, chatUrl: p.chatUrl })),
           consultant: consultant || lead?.consultant || null,
@@ -327,18 +336,25 @@ export async function POST(request: NextRequest) {
       const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
       const eligibleForEmail = matchedPrograms.filter(p => p.isEligible)
       if (contactEmailStr && (eligibleForEmail.length > 0 || requestedOnly.length > 0)) {
-        const businessName = business!.onomasia || business!.commercialTitle || afmStr
+        const businessName = clientDisplayName(business!.onomasia) || clientDisplayName(business!.commercialTitle)
+        const newBusinessClient = isNewBusinessLead({
+          acceptsNewBusiness: dbProgram!.acceptsNewBusiness,
+          hasActivities: (business!.activities?.length ?? 0) > 0,
+          hasRegdate: !!business!.regdate,
+          contextText: contextSummary || lead?.contextSummary || null,
+        })
         sendEmail({
           to: contactEmailStr,
           subject: eligibleForEmail.length > 0
             ? buildErmisEligibilitySubject(businessName, eligibleForEmail.length)
-            : `${businessName} — Το αίτημά σας για «${dbProgram!.title}»`,
+            : buildErmisRequestSubject(businessName, dbProgram!.title),
           html: buildErmisEligibilityEmailHtml({
             businessName,
             eligiblePrograms: eligibleForEmail.map(p => ({ title: p.title, chatUrl: p.chatUrl, description: p.description })),
             requestedPrograms: requestedOnly,
             consultant: consultant || lead?.consultant || null,
             businessDetails: buildAadeBusinessDetails(business!),
+            newBusiness: newBusinessClient && requestedOnly.length > 0 ? { note: dbProgram!.newBusinessNote } : null,
             imentorLogoUrl: appSetting?.imentorLogoUrl,
           }),
         }).catch(err => console.error('[ErmisSession] client email failed:', err?.message))

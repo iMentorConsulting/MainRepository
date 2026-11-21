@@ -1,4 +1,5 @@
 import { resolveRegionFromZip } from '@/lib/greek-regions'
+import { isNewBusinessLead } from '@/lib/ermis-program-payload'
 import { NextRequest, NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { runErmisTurn, classifyConversation, type ChatMessage } from '@/lib/ermis-agent'
@@ -103,6 +104,12 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
       legalStatusDescr: business.legalStatusDescr ?? null,
       businessActivities: business.activities,
       businessRegdate: business.regdate ?? null,
+      newBusinessClient: isNewBusinessLead({
+        acceptsNewBusiness: program.acceptsNewBusiness,
+        hasActivities: business.activities.length > 0,
+        hasRegdate: !!business.regdate,
+        contextText: matchToken.contextSummary,
+      }),
     })
   } catch (err: any) {
     console.error('[ErmisChat] failed:', err?.message, err?.status, err?.error)

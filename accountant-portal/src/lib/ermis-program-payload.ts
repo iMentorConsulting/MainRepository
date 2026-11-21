@@ -64,7 +64,7 @@ const NUMBER_EMOJI = ['1️⃣', '2️⃣', '3️⃣', '4️⃣', '5️⃣', '6�
 // cron's Viber is a separate, later, "still there?" nudge). Only pass
 // already-eligible, primary-first-ordered entries.
 export function buildErmisViberMessage(params: {
-  businessName: string
+  businessName: string | null
   eligiblePrograms: ErmisViberProgramEntry[]
   // Programs the client ASKED about that the automatic matching did NOT rate
   // eligible. They still get the Ερμής link (it can assess by conversation),
@@ -76,7 +76,7 @@ export function buildErmisViberMessage(params: {
   const shown = eligiblePrograms.slice(0, MAX_VIBER_PROGRAMS)
   const extra = eligiblePrograms.length - shown.length
 
-  const lines: string[] = [`Αγαπητέ/ή ${businessName},`, '']
+  const lines: string[] = [`Αγαπητέ/ή ${clientDisplayName(businessName) || 'πελάτη'},`, '']
 
   if (eligiblePrograms.length === 0 && requestedPrograms.length > 0) {
     lines.push('Λάβαμε το αίτημά σας για το πρόγραμμα:')
@@ -165,14 +165,40 @@ export interface ErmisEmailProgramEntry {
 // after ermis.business_ready — same "here's what you're eligible for" event,
 // just as an email so clients without Viber (or who miss the Viber) still
 // get told. Only pass already-eligible, primary-first-ordered entries.
-export function buildErmisEligibilitySubject(businessName: string, programCount: number): string {
+// What a client is called in a message: never their ΑΦΜ (an ιδιώτης without
+// AADE data has no name there — the code used to fall back to the ΑΦΜ).
+export function clientDisplayName(name: string | null | undefined): string | null {
+  const n = (name || '').trim()
+  return n && !/^\d{9}$/.test(n) ? n : null
+}
+
+// True when the lead is a person who has NOT started a business yet and the
+// program also accepts υπό ίδρυση businesses: no activities/start date on the
+// business record (an ιδιώτης), or the lead's own context says so.
+export function isNewBusinessLead(params: {
+  acceptsNewBusiness?: boolean | null
+  hasActivities: boolean
+  hasRegdate: boolean
+  contextText?: string | null
+}): boolean {
+  if (!params.acceptsNewBusiness) return false
+  if (/νέα[_\s]+επιχείρηση|υπό[_\s]+ίδρυση|υπο[_\s]+ιδρυση/i.test(params.contextText || '')) return true
+  return !params.hasActivities && !params.hasRegdate
+}
+
+export function buildErmisRequestSubject(name: string | null, programTitle: string): string {
+  return `${name ? `${name} — ` : ''}Το αίτημά σας για «${programTitle}»`
+}
+
+export function buildErmisEligibilitySubject(businessName: string | null, programCount: number): string {
+  const prefix = businessName ? `${businessName} — ` : ''
   return programCount === 1
-    ? `${businessName} — Βρέθηκε πρόγραμμα επιχορήγησης για εσάς`
-    : `${businessName} — Βρέθηκαν ${programCount} προγράμματα επιχορήγησης για εσάς`
+    ? `${prefix}Βρέθηκε πρόγραμμα επιχορήγησης για εσάς`
+    : `${prefix}Βρέθηκαν ${programCount} προγράμματα επιχορήγησης για εσάς`
 }
 
 export function buildErmisEligibilityEmailHtml(params: {
-  businessName: string
+  businessName: string | null
   eligiblePrograms: ErmisEmailProgramEntry[]
   // Programs the client asked about that the automatic matching did not rate
   // eligible — neutral wording, same Ερμής link (see buildErmisViberMessage).
@@ -181,8 +207,12 @@ export function buildErmisEligibilityEmailHtml(params: {
   businessDetails?: AadeBusinessDetails
   // Office logo (AppSetting.imentorLogoUrl); falls back to the text wordmark.
   imentorLogoUrl?: string | null
+  // A person who has not started a business yet (see isNewBusinessLead): the
+  // email says so, adds the program's new-business conditions, and callers
+  // pass no businessDetails (nothing meaningful to show from AADE).
+  newBusiness?: { note: string | null } | null
 }): string {
-  const { businessName, eligiblePrograms, requestedPrograms = [], consultant, businessDetails, imentorLogoUrl } = params
+  const { businessName, eligiblePrograms, requestedPrograms = [], consultant, businessDetails, imentorLogoUrl, newBusiness } = params
   const neutralOnly = eligiblePrograms.length === 0 && requestedPrograms.length > 0
   const all = [...eligiblePrograms, ...requestedPrograms]
 
@@ -191,7 +221,9 @@ export function buildErmisEligibilityEmailHtml(params: {
     : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
 
   const title = neutralOnly ? 'Το αίτημά σας για πρόγραμμα επιχορήγησης' : '✅ Βρέθηκαν διαθέσιμα προγράμματα'
-  const intro = neutralOnly
+  const intro = newBusiness
+    ? 'Λάβαμε το αίτημά σας. Το παρακάτω πρόγραμμα απευθύνεται και σε υπό ίδρυση επιχειρήσεις — μπορείτε να ενταχθείτε εφόσον ξεκινήσετε νέα επιχείρηση.'
+    : neutralOnly
     ? `Λάβαμε το αίτημά σας για ${requestedPrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : 'τα παρακάτω προγράμματα'}.`
     : `Ελέγξαμε τα στοιχεία της επιχείρησής σας και εντοπίσαμε ${eligiblePrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : `τα παρακάτω ${eligiblePrograms.length} προγράμματα`} για τα οποία είστε πιθανώς επιλέξιμοι.`
 
@@ -223,10 +255,11 @@ export function buildErmisEligibilityEmailHtml(params: {
       </td></tr>
       </table>
       <div style="background:#ffffff;padding:26px 28px;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 12px 12px;">
-        <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${businessName},</p>
+        <p style="margin:0 0 6px;font-size:15px;">Αγαπητέ/ή ${clientDisplayName(businessName) || 'πελάτη'},</p>
         <p style="margin:0 0 20px;font-size:14px;color:#4b5563;line-height:1.6;">${intro}</p>
         ${cta}
-        ${buildAadeBusinessDetailsCardHtml(businessDetails)}
+        ${newBusiness && newBusiness.note ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:16px 20px;margin:0 0 20px;"><p style="margin:0 0 6px;font-size:13px;font-weight:700;color:#1e40af;">ℹ️ Για υπό ίδρυση επιχειρήσεις</p><p style="margin:0;font-size:13.5px;color:#1e3a8a;line-height:1.7;white-space:pre-line;">${newBusiness.note}</p></div>` : ''}
+        ${newBusiness ? '' : buildAadeBusinessDetailsCardHtml(businessDetails)}
         ${all.map(cardOf).join('')}
         ${consultant ? `<p style="margin:20px 0 0;font-size:13px;color:#374151;">Σύμβουλός σας: ${consultant}</p>` : ''}
         <p style="margin:8px 0 0;font-size:12.5px;color:#9ca3af;">iMentor Consulting</p>

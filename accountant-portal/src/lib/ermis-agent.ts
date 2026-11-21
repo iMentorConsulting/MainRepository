@@ -74,7 +74,8 @@ function buildSystemPrompt(program: {
   investmentPricingBrackets?: unknown
 }, businessName: string, autoConfirmedReasons: string[], qualitativeQuestions: EligibilityQuestion[],
   contextSummary?: string | null, consultant?: string | null, legalStatusDescr?: string | null,
-  businessRegdate?: string | null, businessActivities?: { firmActCode: string; firmActDescr: string | null }[]) {
+  businessRegdate?: string | null, businessActivities?: { firmActCode: string; firmActDescr: string | null }[],
+  newBusinessClient?: boolean) {
   const isLoan = program.category === 'MICROCREDITS'
   const amountLabel = isLoan ? 'Ύψος δανείου' : 'Επένδυση'
   const now = new Date()
@@ -210,6 +211,7 @@ ${program.category === 'DYPA' ? `ΕΣΩΤΕΡΙΚΗ ΟΔΗΓΙΑ ΓΙΑ ΔΥΠΑ
 ${program.internalNotes ? `\nΕΠΙΠΛΕΟΝ ΕΣΩΤΕΡΙΚΗ ΠΛΗΡΟΦΟΡΙΑ (πες την ΜΟΝΟ αν η επιχείρηση φαίνεται ΕΠΙΛΕΞΙΜΗ — ΠΟΤΕ αν δεν είναι, ή πριν ολοκληρωθεί ο έλεγχος επιλεξιμότητας): ${program.internalNotes}` : ''}
 ${program.ermisInstructions ? `\nΕΙΔΙΚΕΣ ΟΔΗΓΙΕΣ ΓΙΑ ΑΥΤΟ ΤΟ ΠΡΟΓΡΑΜΜΑ (τήρησέ τις αυστηρά, υπερισχύουν των γενικών οδηγιών παρακάτω όπου υπάρχει αντίφαση): ${program.ermisInstructions}` : ''}
 ${program.acceptsNewBusiness ? `\nΥΠΟ ΙΔΡΥΣΗ ΕΠΙΧΕΙΡΗΣΕΙΣ: Το πρόγραμμα δέχεται ΚΑΙ υπό ίδρυση επιχειρήσεις (ανθρώπους που δεν έχουν ακόμα ξεκινήσει την επιχείρηση).${program.newBusinessNote ? ` Προϋποθέσεις για νέα επιχείρηση: ${program.newBusinessNote}` : ''} Αν από τα στοιχεία/τις απαντήσεις του πελάτη προκύπτει ότι ΔΕΝ πληροί τα κριτήρια ως ΥΦΙΣΤΑΜΕΝΗ επιχείρηση (π.χ. ΚΑΔ, ημερομηνία έναρξης, προηγούμενη δραστηριότητα), ΜΗΝ τον αποκλείσεις οριστικά: εξήγησέ του καθαρά ότι ως υφιστάμενη επιχείρηση δεν είναι επιλέξιμος, αλλά ότι θα μπορούσε να είναι επιλέξιμος ΜΟΝΟ αν ξεκινήσει νέα επιχείρηση, και πες του ποιες είναι οι προϋποθέσεις. Μην του πεις να κλείσει ή να ξανανοίξει υπάρχουσα επιχείρηση για να "παρακάμψει" τα κριτήρια· δώσε μόνο την ενημέρωση και πρότεινέ του να μιλήσει με σύμβουλο της I-MENTOR για τα επόμενα βήματα.` : ''}
+${program.acceptsNewBusiness && newBusinessClient ? `\nΟ ΠΕΛΑΤΗΣ ΔΕΝ ΕΧΕΙ ΑΚΟΜΑ ΕΠΙΧΕΙΡΗΣΗ (υπό ίδρυση / ιδιώτης): ΜΗΝ τον ρωτήσεις για υπάρχουσα επιχείρηση (ΚΑΔ που ήδη έχει, ημερομηνία έναρξης, προηγούμενη δραστηριότητα, εργαζόμενους/κύκλο εργασιών). Ρώτησέ τον ΜΟΝΟ για την επιχείρηση που σχεδιάζει: τι δραστηριότητα θα κάνει (και ποιον ΚΑΔ περίπου θα δηλώσει), σε ποια περιοχή θα λειτουργήσει, πότε σκοπεύει να ξεκινήσει και αν έχει ήδη ξεκινήσει διαδικασίες. Έλεγξε τα κριτήρια του προγράμματος σαν να πρόκειται για ΝΕΑ επιχείρηση. Όσα ήδη γνωρίζεις από τα ΓΝΩΣΤΑ ΣΤΟΙΧΕΙΑ ΠΕΛΑΤΗ (π.χ. κλάδος, περιοχή) ΜΗΝ τα ξαναρωτήσεις.` : ''}
 
 ΣΚΟΠΟΣ ΣΟΥ, με αυτή σειρά:
 0. ΠΡΙΝ ΑΠΟ ΟΛΑ — ΕΛΕΓΧΟΣ ΑΠΟΚΛΕΙΣΜΟΥ: Αν από τα ΗΔΗ ΓΝΩΣΤΑ στοιχεία (γνωστά στοιχεία πελάτη, ημερομηνία έναρξης, όρια προγράμματος) προκύπτει ότι παραβιάζεται ΚΡΙΣΙΜΟ κριτήριο του προγράμματος, ενημέρωσε τον πελάτη ΑΜΕΣΩΣ, από το ΠΡΩΤΟ σου μήνυμα, ευθέως και ευγενικά ότι **δεν είναι επιλέξιμος** και εξήγησε ποιο κριτήριο δεν πληροίται — ΜΗΝ κάνεις ΚΑΜΙΑ από τις υπόλοιπες ερωτήσεις (είναι άσκοπες και κουράζουν τον πελάτη). Το ίδιο ισχύει και στη διάρκεια της συζήτησης: μόλις ΟΠΟΙΑΔΗΠΟΤΕ απάντηση του πελάτη αποτύχει σε κρίσιμο κριτήριο, σταμάτα εκεί τον έλεγχο και πες το συμπέρασμα — μην συνεχίσεις τις υπόλοιπες ερωτήσεις.
@@ -481,6 +483,8 @@ export async function runErmisTurn(params: {
   // actually PASSED, so a business that failed (or was never auto-matched)
   // would otherwise leave Ερμής with zero ΚΑΔ information at all.
   businessActivities?: { firmActCode: string; firmActDescr: string | null }[]
+  // Person without a business (see isNewBusinessLead) on a program that accepts υπό ίδρυση.
+  newBusinessClient?: boolean
 }): Promise<{ reply: string; caseId: string | null; tokensUsed: number; tokensUsedInput: number; tokensUsedOutput: number }> {
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY δεν έχει οριστεί στο περιβάλλον.')
@@ -496,7 +500,7 @@ export async function runErmisTurn(params: {
   }
 
   const anthropic = new Anthropic({ apiKey })
-  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr, params.businessRegdate, params.businessActivities)
+  const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr, params.businessRegdate, params.businessActivities, params.newBusinessClient)
 
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]
