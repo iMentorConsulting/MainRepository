@@ -57,17 +57,26 @@ export async function notifyStaleMatchesBecameIneligible(programId: string, busi
         })
       }
 
-      if (token.contactPhone) {
-        const text = buildIneligibleViberMessage({ businessName: clientName, programTitle: program.title, consultant: token.consultant })
-        sendViberMessage({ to: token.contactPhone, text, senderName: 'iMentor Consulting' })
-          .catch(err => console.error('[ErmisCorrection] client Viber failed:', err?.message))
-      }
-      if (token.contactEmail) {
-        sendEmail({
-          to: token.contactEmail,
-          subject: `Ενημέρωση επιλεξιμότητας — ${program.title}`,
-          html: buildIneligibleEmailHtml({ businessName: clientName, programTitle: program.title, consultant: token.consultant }),
-        }).catch(err => console.error('[ErmisCorrection] client email failed:', err?.message))
+      // The client-facing "after re-examination you are not eligible" Viber/email is
+      // OFF by default — it went out to real clients whenever a re-match dropped
+      // a lead (program edit, rematch, business data change). Case Management is
+      // still told (webhook above) so it can cancel the lead. Set
+      // ERMIS_CORRECTION_CLIENT_MESSAGES=true to turn the client messages back on.
+      if (process.env.ERMIS_CORRECTION_CLIENT_MESSAGES === 'true') {
+        if (token.contactPhone) {
+          const text = buildIneligibleViberMessage({ businessName: clientName, programTitle: program.title, consultant: token.consultant })
+          sendViberMessage({ to: token.contactPhone, text, senderName: 'iMentor Consulting' })
+            .catch(err => console.error('[ErmisCorrection] client Viber failed:', err?.message))
+        }
+        if (token.contactEmail) {
+          sendEmail({
+            to: token.contactEmail,
+            subject: `Ενημέρωση επιλεξιμότητας — ${program.title}`,
+            html: buildIneligibleEmailHtml({ businessName: clientName, programTitle: program.title, consultant: token.consultant }),
+          }).catch(err => console.error('[ErmisCorrection] client email failed:', err?.message))
+        }
+      } else {
+        console.log(`[ErmisCorrection] client messages disabled — NOT messaging business ${business.afm} about "${program.title}"`)
       }
 
       await prisma.businessMatchToken.update({
