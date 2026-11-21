@@ -448,7 +448,9 @@ def _send_combined_ermis_message(
             content=viber_msg, status="sent" if ok else "failed", sent_by=actor_name,
         ))
     if ch in ("email", "both") and primary_lead.email:
-        ok, _ = _send_email(primary_lead.email, email_subject, viber_msg, html_override=email_html)
+        ok, _err = _send_email(primary_lead.email, email_subject, viber_msg, html_override=email_html)
+        if not ok:
+            log.warning("ΕΡΜΗΣ email FAILED lead=%s to=%s: %s", primary_lead.id, primary_lead.email, _err)
         db.add(CMLeadNotificationLog(
             lead_id=primary_lead.id, notification_type="ermis_link",
             recipient_name=primary_lead.name or "", recipient_contact=primary_lead.email,
@@ -494,7 +496,9 @@ def _send_ermis_link(db, l: CMLead, channel: str, actor_name: str) -> None:
                                      subject="ΕΡΜΗΣ link", content=viber_msg,
                                      status="sent" if ok else "failed", sent_by=actor_name))
     if ch in ("email", "both") and l.email:
-        ok, _ = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+        ok, _err = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+        if not ok:
+            log.warning("ΕΡΜΗΣ email FAILED lead=%s to=%s: %s", l.id, l.email, _err)
         db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
                                      recipient_name=l.name or "", recipient_contact=l.email,
                                      subject=email_subject, content=email_subject,
@@ -824,7 +828,9 @@ def bulk_resend_ermis(
                                          status="sent" if ok else "failed", sent_by=actor))
             if ok: ch_sent.append("Viber")
         if channel in ("email", "both") and l.email:
-            ok, _ = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+            ok, _err = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+            if not ok:
+                log.warning("ΕΡΜΗΣ email FAILED lead=%s to=%s: %s", l.id, l.email, _err)
             db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
                                          recipient_name=l.name or "", recipient_contact=l.email,
                                          subject=email_subject, content=email_subject,
@@ -956,7 +962,9 @@ def resend_ermis_link(
                                      status="sent" if ok else "failed", sent_by=current_user.full_name))
         if ok: sent.append("Viber")
     if ch in ("email", "both") and l.email:
-        ok, _ = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+        ok, _err = _send_email(l.email, email_subject, viber_msg, html_override=email_html)
+        if not ok:
+            log.warning("ΕΡΜΗΣ email FAILED lead=%s to=%s: %s", l.id, l.email, _err)
         db.add(CMLeadNotificationLog(lead_id=l.id, notification_type="ermis_link",
                                      recipient_name=l.name or "", recipient_contact=l.email,
                                      subject=email_subject, content=email_subject,
