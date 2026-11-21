@@ -159,6 +159,16 @@ def is_valid_program_title(title: str) -> bool:
     return True
 
 
+def is_alias_title(title: str, resolved) -> bool:
+    """True when `title` is just a short alias of its canonical program (e.g.
+    "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ" → ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ). A real title that merely starts with the
+    canonical name ("LEADER Ηρακλείου", "ΕΣΠΑ Μακεδονίας") is NOT an alias."""
+    if not resolved or resolved == title:
+        return False
+    up, ru = (title or "").upper(), resolved.upper()
+    return not (up.startswith(ru + " ") or up.startswith(ru + "-"))
+
+
 def _is_logistis_lead(l) -> bool:
     return (l.source or "").upper().startswith("LOGISTIS") or bool(l.ermis_transcript) or bool(l.ermis_token)
 
@@ -351,8 +361,7 @@ def lead_to_dict(l: CMLead, include_comments: bool = False, last_comment: dict =
     from routes.cm_leads_sync import _resolve_program as _rp
     _raw_pt = getattr(l, "program_title", None)
     if _raw_pt and len(_raw_pt) < 40:
-        _resolved = _rp(_raw_pt)
-        if _resolved and _resolved != _raw_pt:
+        if is_alias_title(_raw_pt, _rp(_raw_pt)):
             _raw_pt = None
     data = {
         "id": l.id,
@@ -1609,8 +1618,7 @@ def backfill_programs(
         # Normalize program_title when it holds a short alias (e.g. "ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ")
         # rather than a real descriptive title — clear it so the UI falls back to program.
         if lead.program_title:
-            resolved_title = _resolve_program(lead.program_title)
-            if resolved_title and resolved_title != lead.program_title:
+            if is_alias_title(lead.program_title, _resolve_program(lead.program_title)):
                 lead.program_title = None
                 changed = True
         if changed:
