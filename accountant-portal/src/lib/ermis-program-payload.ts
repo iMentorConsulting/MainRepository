@@ -229,23 +229,28 @@ export function buildErmisEligibilityEmailHtml(params: {
     ? `Λάβαμε το αίτημά σας για ${requestedPrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : 'τα παρακάτω προγράμματα'}.`
     : `Ελέγξαμε τα στοιχεία της επιχείρησής σας και εντοπίσαμε ${eligiblePrograms.length === 1 ? 'το παρακάτω πρόγραμμα' : `τα παρακάτω ${eligiblePrograms.length} προγράμματα`} για τα οποία είστε πιθανώς επιλέξιμοι.`
 
-  // One prominent call-to-action block, right under the intro and ABOVE the
-  // business-details card — one button per program (labelled with its title
-  // when there are several).
-  const buttons = all.filter(p => p.chatUrl).map(p => `
-        <a href="${p.chatUrl}" style="display:block;margin:0 0 10px;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;text-align:center;padding:14px 22px;border-radius:10px;">🤖 ${all.length > 1 ? `Ερμής — ${p.title}` : 'Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος'}</a>`).join('')
+  // One program → a prominent call-to-action block right under the intro and
+  // ABOVE the business-details card. Several programs → the top block only
+  // explains Ερμής; each program's own button sits INSIDE its card, where it
+  // belongs.
+  const multiple = all.length > 1
+  const singleButton = !multiple && all[0]?.chatUrl
+    ? `
+          <a href="${all[0].chatUrl}" style="display:block;margin:0;background:#4f46e5;color:#ffffff;font-size:15px;font-weight:700;text-decoration:none;text-align:center;padding:14px 22px;border-radius:10px;">🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος</a>`
+    : ''
   const cta = `
         <div style="background:#eef2ff;border:1px solid #c7d2fe;border-radius:12px;padding:20px 22px;margin:0 0 20px;">
           <p style="margin:0 0 6px;font-size:16px;font-weight:800;color:#3730a3;">🤖 Μιλήστε τώρα με τον «Ερμή»</p>
-          <p style="margin:0 0 14px;font-size:13.5px;color:#4338ca;line-height:1.6;">Ο ψηφιακός μας σύμβουλος κάνει ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας σε περίπου 2 λεπτά. Εκεί μπορείτε να του θέσετε και <strong>οποιαδήποτε ερώτηση έχετε</strong> για το πρόγραμμα.</p>
-          ${buttons}
+          <p style="margin:0 ${singleButton ? '0 14px' : '0 0'};font-size:13.5px;color:#4338ca;line-height:1.6;">Ο ψηφιακός μας σύμβουλος κάνει ΔΩΡΕΑΝ έλεγχο επιλεξιμότητας σε περίπου 2 λεπτά. Εκεί μπορείτε να του θέσετε και <strong>οποιαδήποτε ερώτηση έχετε</strong> για ${multiple ? 'κάθε πρόγραμμα' : 'το πρόγραμμα'}.${multiple ? ' Πατήστε το κουμπί κάτω από το πρόγραμμα που σας ενδιαφέρει.' : ''}</p>${singleButton}
         </div>`
 
-  // Program cards carry the information only — the buttons live in the CTA above.
+  // Program cards: the information, plus — when there are several programs —
+  // that program's own Ερμής button.
   const cardOf = (p: ErmisEmailProgramEntry) => `
     <div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:12px;padding:20px 22px;margin-bottom:16px;">
       <p style="margin:0 0 8px;font-size:16px;font-weight:700;color:#111827;">${p.title}</p>
-      <p style="margin:0;font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${p.description}</p>
+      <p style="margin:0 ${multiple && p.chatUrl ? '0 16px' : '0'};font-size:13.5px;color:#4b5563;line-height:1.6;white-space:pre-line;">${p.description}</p>
+      ${multiple && p.chatUrl ? `<a href="${p.chatUrl}" style="display:inline-block;background:#4f46e5;color:#ffffff;font-size:14px;font-weight:700;text-decoration:none;padding:11px 26px;border-radius:8px;">🤖 Μιλήστε με τον «Ερμή» — ΔΩΡΕΑΝ έλεγχος</a>` : ''}
     </div>`
 
   return `
