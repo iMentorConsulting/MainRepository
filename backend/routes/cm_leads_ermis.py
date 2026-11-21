@@ -109,7 +109,9 @@ def _build_ermis_body(l: CMLead) -> dict:
     if l.program: summary_lines.append(f"- Πρόγραμμα ενδιαφέροντος: {l.program}")
     if l.total_amount: summary_lines.append(f"- Ποσό: {l.total_amount}")
     if l.source: summary_lines.append(f"- Referrer / Πηγή: {l.source}")
-    if l.notes: summary_lines.append(f"- Σχόλια φόρμας: {l.notes}")
+    # Form answers arrive as snake_case (e.g. "νέα_επιχείρηση_υπό_ίδρυση"); use spaces so
+    # LOGISTIS can match phrases like «νέα επιχείρηση» / «υπό ίδρυση».
+    if l.notes: summary_lines.append(f"- Σχόλια φόρμας: {l.notes.replace('_', ' ')}")
     for k, v in extra_fields.items():
         if v not in (None, ""):
             summary_lines.append(f"- {k}: {v}")
