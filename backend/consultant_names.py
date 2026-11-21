@@ -18,3 +18,12 @@ def consultant_short(name: Optional[str]) -> Optional[str]:
     if len(parts) < 2:
         return disp
     return f"{parts[-1]} {parts[0][0].upper()}."
+
+
+def consultant_first(name: Optional[str]) -> Optional[str]:
+    """"Βαρδιάμπασης Μάνος" → "Μάνος" (first name only, for Viber/SMS)."""
+    if not name:
+        return name
+    disp = CONSULTANT_GR.get(name.strip().upper(), name).strip()
+    parts = disp.split()
+    return parts[-1] if parts else disp

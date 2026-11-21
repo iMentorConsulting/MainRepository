@@ -39,7 +39,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
-from consultant_names import consultant_short
+from consultant_names import consultant_short, consultant_first
 from database import get_db, fmt_dt
 from models_cases import CMCase, CMNotificationLog, CMUser, CMStatusSLA, CMMessage
 from auth_cases import get_current_user
@@ -824,7 +824,7 @@ def send_notification_to_case(
     if req.notification_type in ("viber", "both"):
         phone = req.recipient_override or c.phone
         if phone and req.message:
-            consultant_line = f"\n👤 {consultant}" if consultant else ""
+            consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
                 "━━━━━━━━━━━━━━━\n"

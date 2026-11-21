@@ -20,7 +20,7 @@ from sqlalchemy import or_, and_, text as sa_text, func as sa_func
 from sqlalchemy.orm import Session
 
 from auth_cases import get_current_user, CMUser
-from consultant_names import consultant_short
+from consultant_names import consultant_short, consultant_first
 from database import get_db
 from models_cases import (
     CMLead, CMLeadComment, CMLeadNotificationLog, CMCase, LEAD_STATUSES,
@@ -1779,7 +1779,7 @@ def send_to_lead(
     name = l.name or "συνεργάτη"
 
     # Viber footer appended to every outbound message
-    consultant_line = f"\n👤 {consultant}" if consultant else ""
+    consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
     viber_footer = (
         f"{consultant_line}\n"
         "━━━━━━━━━━━━━━━\n"
@@ -1912,7 +1912,7 @@ def bulk_notify_leads(
         from database import SessionLocal
         wdb = SessionLocal()
         try:
-            consultant_line = f"\n👤 {consultant}" if consultant else ""
+            consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
                 "━━━━━━━━━━━━━━━\n"
@@ -2146,7 +2146,7 @@ def bulk_onboard_leads(
         from database import SessionLocal
         wdb = SessionLocal()
         try:
-            consultant_line = f"\n👤 {consultant}" if consultant else ""
+            consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
                 "━━━━━━\n"

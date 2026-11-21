@@ -295,7 +295,7 @@ def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
     return _build_ermis_email_html(greet, body, consultant_html)
 
 
-from consultant_names import consultant_short as _consultant_short
+from consultant_names import consultant_short as _consultant_short, consultant_first as _consultant_first
 
 
 _PHONE_DISPLAY = "2810 363007"
@@ -353,7 +353,7 @@ def _send_combined_ermis_message(
     name = primary_lead.name or "συνεργάτη"
     _art = _consultant_article(primary_lead.assigned_name).capitalize()
     _cg  = _consultant_display(primary_lead.assigned_name)
-    consultant_line = (f"📞 {_art} {_cg} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+    consultant_line = (f"📞 {_art} {_consultant_first(primary_lead.assigned_name)} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                        if primary_lead.assigned_name else "")
     consultant_html = _consultant_block_html(primary_lead.assigned_name)
 
@@ -470,7 +470,7 @@ def _send_ermis_link(db, l: CMLead, channel: str, actor_name: str) -> None:
     prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
     _art = _consultant_article(l.assigned_name).capitalize()
     _consultant_gr = _consultant_display(l.assigned_name)
-    consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+    consultant_line = (f"📞 {_art} {_consultant_first(l.assigned_name)} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                        if l.assigned_name else "")
     viber_msg = (
         f"Αγαπητέ/ή {name},\n\n"
@@ -798,7 +798,7 @@ def bulk_resend_ermis(
         prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
         _art = _consultant_article(l.assigned_name).capitalize()
         _consultant_gr = _consultant_display(l.assigned_name)
-        consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+        consultant_line = (f"📞 {_art} {_consultant_first(l.assigned_name)} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                            if l.assigned_name else "")
         viber_msg = (
             f"Αγαπητέ/ή {name},\n\n"
@@ -928,7 +928,7 @@ def resend_ermis_link(
     prog_label = f"«{prog_display}»" if prog_display else "που σας ενδιαφέρει"
     _art = _consultant_article(l.assigned_name).capitalize()
     _consultant_gr = _consultant_display(l.assigned_name)
-    consultant_line = (f"📞 {_art} {_consultant_gr} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
+    consultant_line = (f"📞 {_art} {_consultant_first(l.assigned_name)} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                        if l.assigned_name else "")
 
     viber_msg = (
