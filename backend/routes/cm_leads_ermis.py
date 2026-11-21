@@ -260,14 +260,16 @@ def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
         '<hr style="border:none;border-top:2px solid #eef2f7;margin:18px 0;">'
         '<div style="background:#f0f7ff;border-radius:8px;padding:16px 18px;">'
         '<p style="margin:0 0 10px;font-size:16px;">🤖 <b>Μιλήστε τώρα με τον «ΕΡΜΗ»</b>, τον ψηφιακό μας σύμβουλο, και:</p>'
-        '<p style="margin:0 0 6px;color:#374151;">✅ Κάντε <b>γρήγορο έλεγχο επιλεξιμότητας</b> (2 λεπτά)</p>'
+        '<p style="margin:0 0 6px;color:#374151;">✅ Κάντε <b>δωρεάν γρήγορο έλεγχο επιλεξιμότητας</b> (2 λεπτά)</p>'
         '<p style="margin:0 0 6px;color:#374151;">💬 Κάντε <b>όποια ερώτηση</b> έχετε</p>'
         '<p style="margin:0;color:#374151;">💶 Μάθετε το <b>κόστος της αίτησης</b></p>'
         '</div>'
-        f'<div style="text-align:center;margin:26px 0;">'
-        f'<a href="{chat_url}" style="background:#2563eb;color:#ffffff;text-decoration:none;'
-        f'padding:14px 30px;border-radius:8px;font-weight:bold;font-size:15px;display:inline-block;">'
-        f'▶️ Ξεκινήστε την προαξιολόγηση</a></div>'
+        f'<div style="text-align:center;margin:30px 0 24px;">'
+        f'<a href="{chat_url}" style="background:#16a34a;color:#ffffff;text-decoration:none;'
+        f'padding:18px 40px;border-radius:50px;font-weight:bold;font-size:17px;display:inline-block;'
+        f'box-shadow:0 4px 12px rgba(22,163,74,0.35);">'
+        f'✅ Ξεκινήστε ΔΩΡΕΑΝ τον έλεγχο επιλεξιμότητας</a>'
+        f'<p style="margin:10px 0 0;font-size:12px;color:#6b7280;">⏱️ Διαρκεί μόνο 2 λεπτά</p></div>'
     )
     return _build_ermis_email_html(greet, body, consultant_html)
 
@@ -276,14 +278,14 @@ def _build_ermis_email_html(name: str, prog_lines_html: str, consultant_html: st
     return f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" width="300" style="width:300px;max-width:90%;height:auto;display:block;margin:0 auto;border:0;" />
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 14px;">Αγαπητέ/ή <b>{name}</b>,</p>
     {prog_lines_html}
     {consultant_html}
     <hr style="border:none;border-top:1px solid #eee;margin:18px 0;">
-    <p style="font-size:12px;color:#9ca3af;margin:0;">
+    <p style="font-size:12px;color:#9ca3af;margin:0;text-align:center;line-height:1.6;">
       i-Mentor Consulting ·
       <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
       <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
