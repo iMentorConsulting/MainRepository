@@ -620,6 +620,23 @@ const DEFAULT_SOURCE_REFERRALS = [
   'TIKTOK', 'WEBSITE', 'ΣΥΣΤΑΣΗ', 'ΤΗΛΕΦΩΝΟ', 'ΥΦΙΣΤΑΜΕΝΟΣ ΠΕΛΑΤΗΣ',
 ]
 
+// Best guess of the "Πηγή σύστασης" for the finance form, from where the lead came in.
+// Returns one of the available options (or '' when we can't tell).
+function guessReferral(lead, options) {
+  const find = (name) => (options || []).find(o => (o || '').toUpperCase() === name) || ''
+  const src = (lead?.source || '').toLowerCase()
+  const notes = (lead?.notes || '').toLowerCase()
+  const exact = (options || []).find(o => (o || '').toLowerCase() === src.trim())
+  if (exact) return exact
+  if (/(^|\W)(fb|facebook|meta|instagram|ig)(\W|$)/.test(src) || notes.includes('[campaign_name]') || notes.includes('[ad_name]')) return find('FACEBOOK')
+  if (src.includes('google')) return find('GOOGLE')
+  if (src.includes('tiktok')) return find('TIKTOK')
+  if (src.includes('newsletter') || src.includes('moosend')) return find('NEWSLETTER')
+  if (src.includes('logistis')) return find('LOGISTIS.I-MENTOR.GR')
+  if (src.includes('website') || src.includes('site')) return find('WEBSITE')
+  return ''
+}
+
 function FinanceModal({ lead, onClose, onSuccess }) {
   const today = new Date().toISOString().slice(0, 10)
   const [serviceTypeGroups, setServiceTypeGroups] = useState(DEFAULT_SERVICE_TYPE_GROUPS)
@@ -630,7 +647,11 @@ function FinanceModal({ lead, onClose, onSuccess }) {
     getServiceTypeGroups().then(setServiceTypeGroups).catch(() => {})
     getSettingList('work_statuses').then(setWorkStatuses).catch(() => {})
     getSettingList('descriptions').then(setDescriptions).catch(() => {})
-    getSettingList('source_referrals').then(setSourceReferrals).catch(() => {})
+    getSettingList('source_referrals').then(list => {
+      setSourceReferrals(list)
+      // the saved option list may differ from the defaults — re-guess if nothing is chosen yet
+      setF(prev => prev.source_referral ? prev : { ...prev, source_referral: guessReferral(lead, list) })
+    }).catch(() => {})
   }, [])
   const [f, setF] = useState({
     invoice_type: 'ΤΙΜΟΛΟΓΙΟ',
@@ -641,7 +662,7 @@ function FinanceModal({ lead, onClose, onSuccess }) {
     work_status: 'ΥΠΟΒΟΛΗ ΑΙΤΗΣΗΣ',
     description: 'Αίτηση & Συμβ. Υποστήριξη για το Ταμείο Μικροπιστώσεων',
     sale_date: today,
-    source_referral: lead.source || '',
+    source_referral: guessReferral(lead, DEFAULT_SOURCE_REFERRALS),
     address: '',
     city: '',
     amount_application: '150',
@@ -815,6 +836,12 @@ function FinanceModal({ lead, onClose, onSuccess }) {
               <option value="">— Επιλέξτε —</option>
               {sourceReferrals.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
+            {f.source_referral && f.source_referral === guessReferral(lead, sourceReferrals) && (
+              <p className="text-[11px] text-blue-600 mt-1">💡 Προτείνεται αυτόματα από την πηγή του lead{lead.source ? ` («${lead.source}»)` : ''} — αλλάξτε το αν δεν ισχύει.</p>
+            )}
+            {!f.source_referral && (
+              <p className="text-[11px] text-amber-600 mt-1">Δεν βρέθηκε αυτόματα η πηγή (πηγή lead: «{lead.source || '—'}») — επιλέξτε χειροκίνητα.</p>
+            )}
           </div>
 
           {/* Sale date */}
