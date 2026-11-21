@@ -1779,7 +1779,7 @@ def send_to_lead(
     name = l.name or "συνεργάτη"
 
     # Viber footer appended to every outbound message
-    consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
+    consultant_line = f"\n👤 {consultant_short(consultant)}" if consultant else ""
     viber_footer = (
         f"{consultant_line}\n"
         "━━━━━━━━━━━━━━━\n"
@@ -1912,7 +1912,7 @@ def bulk_notify_leads(
         from database import SessionLocal
         wdb = SessionLocal()
         try:
-            consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
+            consultant_line = f"\n👤 {consultant_short(consultant)}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
                 "━━━━━━━━━━━━━━━\n"
@@ -2146,7 +2146,7 @@ def bulk_onboard_leads(
         from database import SessionLocal
         wdb = SessionLocal()
         try:
-            consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
+            consultant_line = f"\n👤 {consultant_short(consultant)}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
                 "━━━━━━\n"

@@ -824,7 +824,7 @@ def send_notification_to_case(
     if req.notification_type in ("viber", "both"):
         phone = req.recipient_override or c.phone
         if phone and req.message:
-            consultant_line = f"\n👤 {consultant_first(consultant)}" if consultant else ""
+            consultant_line = f"\n👤 {consultant_short(consultant)}" if consultant else ""
             viber_footer = (
                 f"{consultant_line}\n"
                 "━━━━━━━━━━━━━━━\n"
