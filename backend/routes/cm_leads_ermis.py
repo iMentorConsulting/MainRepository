@@ -170,10 +170,9 @@ def _build_ermis_body(l: CMLead) -> dict:
 def maybe_autostart_ermis(lead: CMLead, actor_name: str = "webhook") -> None:
     """Auto-queue ΕΡΜΗΣ pre-screening for a freshly created webhook lead.
 
-    send_link is False — no message is sent immediately.  The combined
-    multi-program message fires from _on_business_ready() once LOGISTIS
-    replies with all eligible programs.  If LOGISTIS never sends matchedPrograms
-    with chatUrls (old format), the single-program message is sent there too.
+    The invitation (email + Viber, CM's own template) is queued here and sent from
+    _on_business_ready() as soon as LOGISTIS confirms the lead's program is eligible.
+    Nothing is sent for ineligible leads (they are auto-cancelled).
     """
     if lead.status in ("CANCEL", "DEAL"):
         return
@@ -187,7 +186,7 @@ def maybe_autostart_ermis(lead: CMLead, actor_name: str = "webhook") -> None:
     log.info("ΕΡΜΗΣ auto-start queued for webhook lead %s (actor=%s)", lead.id, actor_name)
     threading.Thread(
         target=_process_ermis_session,
-        args=(lead.id, False, "both", actor_name),
+        args=(lead.id, True, "both", actor_name),
         daemon=True,
     ).start()
 
@@ -618,6 +617,12 @@ def _process_ermis_session(lead_id: int, send_link: bool, channel: str, actor_na
         if l.ermis_status not in ("in_progress", "eligible", "ineligible"):
             l.ermis_status = "starting"
             l.ermis_started_at = l.ermis_started_at or datetime.utcnow()
+            db.commit()
+        # Queue the client message BEFORE calling LOGISTIS: ermis.business_ready can arrive
+        # before this function returns, and it only sends if a pending channel is stored.
+        if send_link and (channel or "both") != "none":
+            l.ermis_pending_link_channel = channel or "both"
+            l.ermis_pending_actor = actor_name
             db.commit()
         secret = _shared_secret()
         if not secret:
