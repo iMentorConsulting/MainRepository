@@ -12,7 +12,7 @@ import {
   MagnifyingGlassIcon, PlusIcon, TrashIcon, ChevronDownIcon, ChevronUpIcon, ChevronRightIcon,
   ChatBubbleLeftRightIcon, SparklesIcon, ArrowRightCircleIcon, PaperAirplaneIcon,
   PhoneIcon, EnvelopeIcon, PencilIcon, CheckIcon, DocumentTextIcon, ExclamationTriangleIcon,
-  EyeIcon, EyeSlashIcon,
+  EyeIcon, EyeSlashIcon, DocumentDuplicateIcon,
 } from '@heroicons/react/24/outline'
 import toast from 'react-hot-toast'
 
@@ -197,6 +197,31 @@ function CommentComposer({ onSubmit }) {
         <button onClick={submit} className="btn-primary text-sm self-end">OK</button>
       </div>
     </div>
+  )
+}
+
+// One-click copy of a value (phone / email / ΑΦΜ) to the clipboard.
+function CopyBtn({ value, label = 'Αντιγραφή' }) {
+  if (!value) return null
+  const copy = async (e) => {
+    e.stopPropagation(); e.preventDefault()
+    const text = String(value).trim()
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const ta = document.createElement('textarea')
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0'
+      document.body.appendChild(ta); ta.select()
+      try { document.execCommand('copy') } catch { /* ignore */ }
+      document.body.removeChild(ta)
+    }
+    toast.success(`Αντιγράφηκε: ${text}`, { duration: 1500 })
+  }
+  return (
+    <button type="button" onClick={copy} title={label} aria-label={label}
+      className="inline-flex shrink-0 items-center p-0.5 rounded text-gray-300 hover:text-blue-600 hover:bg-blue-50">
+      <DocumentDuplicateIcon className="w-3.5 h-3.5" />
+    </button>
   )
 }
 
@@ -912,7 +937,7 @@ function ExpandedRow({ lead, colSpan, onChanged, onConvert, onErmis, onSend, pro
               <span className="text-emerald-500 font-normal">· {new Date(full.finance_sent_at).toLocaleDateString('el-GR')}</span>
             </span>
           )}
-          <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b></span>
+          <span className="text-sm text-gray-500">ΑΦΜ: <b className={full?.afm ? 'text-gray-700' : 'text-red-500'}>{full?.afm || '— (λείπει)'}</b> <CopyBtn value={full?.afm} label="Αντιγραφή ΑΦΜ" /></span>
           <span className="text-sm text-gray-500">Πρόγραμμα: <b className="text-gray-700">{full?.program || '—'}</b></span>
           {(() => {
             // program_title from DB, or service_type when it looks like a real program title
@@ -1571,11 +1596,11 @@ export default function Leads() {
                     </td>
                     <td className="px-2 py-1.5 min-w-[150px]">
                       <div className="text-blue-600 hover:underline cursor-pointer font-medium" onClick={() => setExpandedId(isOpen ? null : lead.id)}>{lead.name || '—'}</div>
-                      {lead.afm && <div className="text-[11px] text-gray-400">ΑΦΜ {lead.afm}</div>}
+                      {lead.afm && <div className="flex items-center gap-1 text-[11px] text-gray-400">ΑΦΜ {lead.afm}<CopyBtn value={lead.afm} label="Αντιγραφή ΑΦΜ" /></div>}
                     </td>
                     <td className="px-2 py-1.5 min-w-[160px]">
-                      {lead.phone && <a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-gray-700 hover:text-blue-600"><PhoneIcon className="w-3.5 h-3.5 text-gray-400" />{lead.phone}</a>}
-                      {lead.email && <a href={gmailUrl(lead.email)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gray-500 text-xs hover:text-blue-600 truncate max-w-[180px]"><EnvelopeIcon className="w-3.5 h-3.5 text-gray-400" />{lead.email}</a>}
+                      {lead.phone && <div className="flex items-center gap-1"><a href={`tel:${lead.phone}`} className="flex items-center gap-1 text-gray-700 hover:text-blue-600"><PhoneIcon className="w-3.5 h-3.5 text-gray-400" />{lead.phone}</a><CopyBtn value={lead.phone} label="Αντιγραφή τηλεφώνου" /></div>}
+                      {lead.email && <div className="flex items-center gap-1"><a href={gmailUrl(lead.email)} target="_blank" rel="noreferrer" className="flex items-center gap-1 text-gray-500 text-xs hover:text-blue-600 truncate max-w-[160px]"><EnvelopeIcon className="w-3.5 h-3.5 text-gray-400" />{lead.email}</a><CopyBtn value={lead.email} label="Αντιγραφή email" /></div>}
                       {!lead.phone && !lead.email && <span className="text-gray-300">—</span>}
                     </td>
                     <td className="px-2 py-1.5 whitespace-nowrap">
