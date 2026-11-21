@@ -1820,7 +1820,7 @@ def send_to_lead(
             email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+    <a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" /></a>
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{name}</b>,</p>
@@ -1948,7 +1948,7 @@ def bulk_notify_leads(
                     email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+    <a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" /></a>
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{name}</b>,</p>
@@ -2205,7 +2205,7 @@ def bulk_onboard_leads(
                     email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+    <a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" /></a>
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 16px;">Αγαπητέ/ή <b>{name}</b>,</p>

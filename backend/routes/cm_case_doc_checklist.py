@@ -312,7 +312,7 @@ def send_checklist_email(
 
     progress_pct = round((len(received_items) / len(applicable) * 100)) if applicable else 0
     logo_html = (
-        f'<img src="{logo_url}" alt="iMentor Consulting" style="height:52px;width:auto;display:block;" />'
+        f'<a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="{logo_url}" alt="iMentor Consulting" style="height:52px;width:auto;display:block;" /></a>'
         if logo_url else
         '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;font-size:20px;">iMentor Consulting</h2>'
     )

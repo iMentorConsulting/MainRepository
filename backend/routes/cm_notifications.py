@@ -82,7 +82,7 @@ def _send_email(to_email: str, subject: str, body: str, html_override: str = Non
         _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
         _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
         _header_content = (
-            f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:60px;width:auto;display:block;" />'
+            f'<a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="{_logo_url}" alt="iMentor Consulting" style="height:60px;width:auto;display:block;" /></a>'
             if _logo_url else
             '<h2 style="color:white;margin:0;font-family:Arial,sans-serif;">iMentor Consulting</h2>'
         )
@@ -157,7 +157,7 @@ def _build_status_change_html(case, from_status: str, to_status: str, descriptio
     _app_base = os.getenv("PORTAL_BASE_URL", "").rstrip("/")
     _logo_url = f"{_app_base}/logo-white.png" if _app_base else ""
     _header_logo = (
-        f'<img src="{_logo_url}" alt="iMentor Consulting" style="height:52px;width:auto;display:block;margin:0 auto 6px auto;" />'
+        f'<a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="{_logo_url}" alt="iMentor Consulting" style="height:52px;width:auto;display:block;margin:0 auto 6px auto;" /></a>'
         if _logo_url else
         '<div style="color:white;font-family:Arial,sans-serif;font-size:22px;font-weight:700;letter-spacing:1px;">iMentor Consulting</div>'
     )
@@ -855,7 +855,7 @@ def send_notification_to_case(
             email_html = f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
   <div style="background:#1e3a5f;padding:22px 24px;border-radius:10px 10px 0 0;text-align:center;">
-    <img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" />
+    <a href="https://www.i-mentor.gr" target="_blank" style="display:block;text-decoration:none;border:0;"><img src="https://i-mentor.gr/wp-content/uploads/2026/06/logo-white-transparent.png" alt="i-Mentor Consulting" style="max-height:56px;max-width:220px;width:auto;display:block;margin:0 auto;" /></a>
   </div>
   <div style="background:#ffffff;border:1px solid #e5e7eb;border-top:none;border-radius:0 0 10px 10px;padding:26px 24px;">
     <p style="font-size:16px;margin:0 0 10px;">Αγαπητέ/ή <b>{c.client_name}</b>,</p>
