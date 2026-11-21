@@ -239,15 +239,40 @@ def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
     """Single-program ΕΡΜΗΣ invitation email (used for every lead, every program)."""
     greet = _greeting_name(db, lead)
     area = _lead_area(db, lead)
-    known = []
+    bp = _business_profile(db, lead)
+    rows = []
     if lead.afm:
-        known.append(f"ΑΦΜ: <b>{lead.afm}</b>")
+        rows.append(("ΑΦΜ", f"<b>{lead.afm}</b>"))
+    if bp and bp.legal_status_descr:
+        rows.append(("Νομική μορφή", f"<b>{_title_case_gr(bp.legal_status_descr)}</b>"))
+    if bp and bp.regdate:
+        try:
+            rows.append(("Ημερομηνία έναρξης", f"<b>{bp.regdate.strftime('%d/%m/%Y')}</b>"))
+        except Exception:
+            pass
+    if bp:
+        def _tc(v):
+            v = (v or "").strip()
+            return _title_case_gr(v) if v.isupper() else v
+        street = " ".join(x for x in [_tc(bp.postal_address), (bp.postal_address_no or "").strip()] if x)
+        city = " ".join(x for x in [(bp.postal_zip_code or "").strip(), _tc(bp.postal_area_description)] if x)
+        addr = ", ".join(x for x in [street, city] if x)
+        if addr:
+            rows.append(("Έδρα επιχείρησης", f"<b>{addr}</b>"))
     if area:
-        known.append(f"Περιοχή: <b>{area}</b>")
-    known_html = (
-        f'<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Τα στοιχεία που έχουμε: {" · ".join(known)}</p>'
-        if known else ""
-    )
+        rows.append(("Περιοχή ενδιαφέροντος", f"<b>{area[:1].upper() + area[1:]}</b>"))
+    known_html = ""
+    if rows:
+        trs = "".join(
+            f'<tr><td style="padding:3px 12px 3px 0;color:#6b7280;font-size:13px;white-space:nowrap;vertical-align:top;">{k}</td>'
+            f'<td style="padding:3px 0;color:#1f2937;font-size:13px;">{v}</td></tr>'
+            for k, v in rows
+        )
+        known_html = (
+            '<div style="background:#f9fafb;border:1px solid #eef2f7;border-radius:8px;padding:10px 14px;margin:0 0 16px;">'
+            '<p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">Τα στοιχεία που έχουμε για εσάς</p>'
+            f'<table role="presentation" style="border-collapse:collapse;">{trs}</table></div>'
+        )
     consultant_html = _consultant_block_html(lead.assigned_name)
     body = (
         f'<p style="margin:0 0 12px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
