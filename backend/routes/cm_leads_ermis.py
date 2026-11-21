@@ -48,7 +48,7 @@ SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://consult.i-mentor.gr")
 _FEMININE_CONSULTANTS = {"ELEFTHERIA", "STELLA", "VALLIA", "SOFIA",
                          "ΕΛΕΥΘΕΡΙΑ", "ΣΤΕΛΛΑ", "ΒΑΛΙΑ", "ΒΑΛΛΙΑ", "ΣΟΦΙΑ",
                          "ΣΤΡΙΛΙΓΚΑ ΕΛΕΥΘΕΡΙΑ"}
-_MASCULINE_CONSULTANTS = {"HARIS", "CHRISTOS", "ΧΑΡΗΣ", "ΧΡΗΣΤΟΣ"}
+_MASCULINE_CONSULTANTS = {"HARIS", "CHRISTOS", "ΧΑΡΗΣ", "ΧΡΗΣΤΟΣ", "ΜΑΝΟΣ", "MANOS"}
 
 
 def _strip_gr_accents(s: str) -> str:
@@ -60,9 +60,10 @@ def _consultant_article(name: Optional[str]) -> str:
     if not name:
         return "ο/η"
     n = _strip_gr_accents(name.strip()).upper()
-    if n in _FEMININE_CONSULTANTS:
+    first = n.split()[-1] if n.split() else n   # names are stored "Surname First"
+    if n in _FEMININE_CONSULTANTS or first in _FEMININE_CONSULTANTS:
         return "η"
-    if n in _MASCULINE_CONSULTANTS:
+    if n in _MASCULINE_CONSULTANTS or first in _MASCULINE_CONSULTANTS:
         return "ο"
     return "ο/η"
 
@@ -247,12 +248,7 @@ def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
         f'<p style="margin:0 0 16px;font-size:13px;color:#6b7280;">Τα στοιχεία που έχουμε: {" · ".join(known)}</p>'
         if known else ""
     )
-    _art = _consultant_article(lead.assigned_name).capitalize()
-    _cg = _consultant_display(lead.assigned_name)
-    consultant_html = (
-        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_cg}</b> '
-        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>' if lead.assigned_name else ""
-    )
+    consultant_html = _consultant_block_html(lead.assigned_name)
     body = (
         f'<p style="margin:0 0 12px;font-size:15px;">📩 Λάβαμε το ενδιαφέρον σας για το πρόγραμμα '
         f'<b style="color:#1e3a5f;">{prog_label}</b>.</p>'
@@ -274,6 +270,38 @@ def _build_ermis_email(db, lead: CMLead, prog_label: str, chat_url: str) -> str:
     return _build_ermis_email_html(greet, body, consultant_html)
 
 
+def _consultant_short(name: Optional[str]) -> Optional[str]:
+    """Client-facing short form: "Βαρδιάμπασης Μάνος" → "Μάνος Β." (first name + surname initial)."""
+    if not name:
+        return name
+    disp = _consultant_display(name) or name
+    parts = disp.split()
+    if len(parts) < 2:
+        return disp
+    first, surname = parts[-1], parts[0]
+    return f"{first} {surname[0].upper()}."
+
+
+_PHONE_DISPLAY = "2810 363007"
+_PHONE_TEL = "+302810363007"
+
+
+def _consultant_block_html(assigned_name: Optional[str]) -> str:
+    """Consultant line + a prominent, tap-to-call phone number."""
+    who = ""
+    if assigned_name:
+        art = {"ο": "Ο", "η": "Η"}.get(_consultant_article(assigned_name), "Ο/Η")
+        who = (f'<p style="margin:0 0 12px;color:#374151;font-size:15px;">📞 {art} σύμβουλός μας '
+               f'<b>{_consultant_short(assigned_name)}</b> θα επικοινωνήσει σύντομα μαζί σας.</p>')
+    return (
+        who +
+        '<div style="background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:14px;text-align:center;">'
+        '<p style="margin:0 0 4px;font-size:12px;color:#6b7280;">Για άμεση επικοινωνία καλέστε μας</p>'
+        f'<a href="tel:{_PHONE_TEL}" style="font-size:22px;font-weight:bold;color:#1e3a5f;text-decoration:none;">'
+        f'📞 {_PHONE_DISPLAY}</a></div>'
+    )
+
+
 def _build_ermis_email_html(name: str, prog_lines_html: str, consultant_html: str) -> str:
     return f"""<html><body style="margin:0;background:#f3f4f6;padding:24px;font-family:Arial,Helvetica,sans-serif;color:#1f2937;">
 <div style="max-width:600px;margin:0 auto;">
@@ -289,7 +317,7 @@ def _build_ermis_email_html(name: str, prog_lines_html: str, consultant_html: st
       i-Mentor Consulting ·
       <a href="https://www.i-mentor.gr" style="color:#6b7280;text-decoration:none;">www.i-mentor.gr</a> ·
       <a href="mailto:info@i-mentor.gr" style="color:#6b7280;text-decoration:none;">info@i-mentor.gr</a> ·
-      2810 363007<br>
+      <a href="tel:+302810363007" style="color:#6b7280;text-decoration:none;">2810 363007</a><br>
       Λάβατε αυτό το μήνυμα επειδή συμπληρώσατε φόρμα ενδιαφέροντος.
     </p>
   </div>
@@ -311,11 +339,7 @@ def _send_combined_ermis_message(
     _cg  = _consultant_display(primary_lead.assigned_name)
     consultant_line = (f"📞 {_art} {_cg} από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.\n"
                        if primary_lead.assigned_name else "")
-    consultant_html = (
-        f'<p style="margin:0 0 10px;color:#374151;">📞 {_art} <b>{_cg}</b> '
-        f'από την i-Mentor θα επικοινωνήσει σύντομα μαζί σας.</p>'
-        if primary_lead.assigned_name else ""
-    )
+    consultant_html = _consultant_block_html(primary_lead.assigned_name)
 
     primary_info = next((p for p in all_prog_info if p.get("is_primary")), all_prog_info[0] if all_prog_info else None)
     primary_label = f"«{primary_info['title']}»" if primary_info and primary_info.get("title") else "το πρόγραμμα που σας ενδιαφέρει"
