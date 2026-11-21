@@ -1,3 +1,4 @@
+import { linkLogo } from '@/lib/brand'
 import { formatConsultantLabel } from '@/lib/consultant-name'
 // Builds the per-program fields sent to the Case Management app inside the
 // ermis.business_ready webhook's `matchedPrograms` array — the CM category
@@ -217,9 +218,9 @@ export function buildErmisEligibilityEmailHtml(params: {
   const neutralOnly = eligiblePrograms.length === 0 && requestedPrograms.length > 0
   const all = [...eligiblePrograms, ...requestedPrograms]
 
-  const brandLeft = imentorLogoUrl
+  const brandLeft = linkLogo(imentorLogoUrl
     ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
-    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`)
 
   const title = neutralOnly ? 'Το αίτημά σας για πρόγραμμα επιχορήγησης' : '✅ Βρέθηκαν διαθέσιμα προγράμματα'
   const intro = newBusiness

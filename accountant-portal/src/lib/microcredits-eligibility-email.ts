@@ -3,6 +3,7 @@
 // order, fixed boilerplate paragraphs, bank accounts), but generated from
 // real business/program data instead of filled in by hand, and extended
 // with a full per-ΚΑΔ eligibility breakdown.
+import { linkLogo } from '@/lib/brand'
 import { buildBankAccountsHtml } from './imentor-bank-accounts'
 
 export interface MicrocreditsKadRow {
@@ -35,9 +36,9 @@ export function buildMicrocreditsEmailHtml(params: {
   const fmtEur = (n: number) => n.toLocaleString('el-GR', { style: 'currency', currency: 'EUR' })
   const netMarginPct = income > 0 ? ((profit / income) * 100).toFixed(2) : null
 
-  const brandLeft = imentorLogoUrl
+  const brandLeft = linkLogo(imentorLogoUrl
     ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:60px;width:auto;max-width:220px;object-fit:contain;" />`
-    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:20px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`)
 
   const row = (label: string, value: string) => `
     <tr>

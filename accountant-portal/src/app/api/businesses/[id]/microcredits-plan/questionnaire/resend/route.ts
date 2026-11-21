@@ -1,3 +1,4 @@
+import { linkLogo } from '@/lib/brand'
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
@@ -36,9 +37,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
   }
 
   const appSetting = await prisma.appSetting.findUnique({ where: { id: 'main' } })
-  const logoHtml = appSetting?.imentorLogoUrl
+  const logoHtml = linkLogo(appSetting?.imentorLogoUrl
     ? `<img src="${appSetting.imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:48px;width:auto;max-width:200px;object-fit:contain;margin:0 0 14px;" />`
-    : `<span style="display:block;font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:17px;margin:0 0 14px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    : `<span style="display:block;font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:17px;margin:0 0 14px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`)
 
   const formUrl = `${APP_URL}/microcredits-questionnaire/${questionnaire.token}`
   const sent = await sendEmail({

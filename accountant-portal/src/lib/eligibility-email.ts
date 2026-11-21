@@ -1,3 +1,4 @@
+import { linkLogo } from '@/lib/brand'
 import { buildProgramDescription, formatEuroRange, formatPctRange } from './ermis-program-payload'
 import type { EligibilityProgramResult, EligibilityBusinessDetails } from './eligibility-check-core'
 import { buildAadeBusinessDetailsCardHtml } from './business-profile'
@@ -52,9 +53,9 @@ export function buildEligibilityEmailHtml(params: {
   // used in campaign emails (src/lib/email.ts renderCampaignEmailHtml), so
   // an accountant-branded send looks consistent with every other I-MENTOR
   // email instead of bolting on a separate white logo strip above it.
-  const brandLeft = imentorLogoUrl
+  const brandLeft = linkLogo(imentorLogoUrl
     ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
-    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`)
 
   const brandRight = accountantInfo
     ? (accountantInfo.logoUrl
@@ -199,9 +200,9 @@ export function buildProspectProgramEmailHtml(params: {
   const { businessName, businessDetails, program, matchReasons, extraCriteriaLabels = [], requiredDocuments = [], customMessage, investmentAmount, imentorLogoUrl, newBusiness } = params
   const name = businessName || 'Αγαπητέ/ή πελάτη'
 
-  const brandLeft = imentorLogoUrl
+  const brandLeft = linkLogo(imentorLogoUrl
     ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
-    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`)
 
   const reasonsBlock = newBusiness
     ? `<div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:12px;padding:18px 20px;margin-bottom:20px;">

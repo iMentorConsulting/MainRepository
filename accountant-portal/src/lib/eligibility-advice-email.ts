@@ -1,3 +1,4 @@
+import { linkLogo } from '@/lib/brand'
 import { computeInvestmentFees } from './investment-pricing'
 import { buildBankAccountsHtml } from './imentor-bank-accounts'
 
@@ -109,9 +110,9 @@ export function buildEligibilityAdviceEmailHtml(params: {
   const name = businessName || 'Αγαπητέ/ή πελάτη'
   const isDypa = program.category === 'DYPA'
 
-  const brandLeft = imentorLogoUrl
+  const brandLeft = linkLogo(imentorLogoUrl
     ? `<img src="${imentorLogoUrl}" alt="I-MENTOR" style="display:block;height:72px;width:auto;max-width:260px;object-fit:contain;" />`
-    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`
+    : `<span style="font-weight:800;letter-spacing:.5px;color:#ffffff;font-size:22px;">iMENTOR <span style="font-weight:400;opacity:.8;">CONSULTING</span></span>`)
 
   // A.1 — why they're eligible
   const reasonsHtml = newBusiness
