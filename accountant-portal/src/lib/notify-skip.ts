@@ -6,7 +6,8 @@ import { prisma } from '@/lib/prisma'
 // that SAME program — e.g. from Case Management, where Ερμής already
 // messaged them (and may have talked to them) about it. Such a business carries
 // a tag with the program's name (added on the CM / Ερμής flow), a
-// CM-originated Ερμής session for that program, and/or an Υπόθεση (case) for it.
+// CM-originated Ερμής session for that program, an Υπόθεση (case) for it, and/or
+// (for ΓΕΜΗ-tagged businesses) an email already sent that names the whole program.
 //
 // Those matches are marked as notified (they are "handled"), so they leave the
 // preview, the counters and the "pending notifications" list for good.
@@ -57,8 +58,54 @@ export async function markAlreadyEngagedMatchesNotified(programId?: string): Pro
   })
   const caseKeys = new Set(cases.map(c => `${c.businessId}:${c.programId}`))
 
+  // ΓΕΜΗ-tagged business that was already EMAILED about this program: some email in its
+  // communication history (campaign title/subject or an ad-hoc send's subject)
+  // contains the program's WHOLE name ("Leader Ημαθίας" / "LEADER ΗΜΑΘΙΑΣ").
+  const gemiCandidates = matches.filter(m => (m.business.tags || []).some(t => norm(t) === 'γεμη'))
+  const emailedKeys = new Set<string>()
+  if (gemiCandidates.length > 0) {
+    const bizIds = Array.from(new Set(gemiCandidates.map(m => m.businessId)))
+    const businesses = await prisma.business.findMany({ where: { id: { in: bizIds } }, select: { id: true, afm: true } })
+    const afmByBiz = new Map(businesses.map(b => [b.id, b.afm]))
+    const afms = businesses.map(b => b.afm)
+    const isEmail = (ch: string | null | undefined) => (ch || '').toUpperCase().includes('EMAIL')
+
+    const [recs, gemiRecs, logs] = await Promise.all([
+      prisma.campaignRecipient.findMany({
+        where: { businessId: { in: bizIds }, sentAt: { not: null } },
+        select: { businessId: true, channel: true, campaign: { select: { title: true, subject: true } } },
+      }),
+      prisma.gemiCampaignRecipient.findMany({
+        where: { gemi: { afm: { in: afms } }, sentAt: { not: null } },
+        select: { channel: true, gemi: { select: { afm: true } }, campaign: { select: { title: true, subject: true } } },
+      }),
+      prisma.messageLog.findMany({
+        where: { afm: { in: afms }, success: true, channel: 'EMAIL' },
+        select: { afm: true, subject: true },
+      }),
+    ])
+
+    // texts of every email sent, per ΑΦΜ
+    const textsByAfm = new Map<string, string[]>()
+    const add = (afm: string | null | undefined, ...texts: (string | null | undefined)[]) => {
+      if (!afm) return
+      const list = textsByAfm.get(afm) ?? []
+      for (const t of texts) if (t) list.push(norm(t))
+      textsByAfm.set(afm, list)
+    }
+    for (const r of recs) if (isEmail(r.channel)) add(afmByBiz.get(r.businessId), r.campaign?.title, r.campaign?.subject)
+    for (const r of gemiRecs) if (isEmail(r.channel)) add(r.gemi?.afm, r.campaign?.title, r.campaign?.subject)
+    for (const l of logs) add(l.afm, l.subject)
+
+    for (const m of gemiCandidates) {
+      const title = norm(m.program.title)
+      const texts = textsByAfm.get(afmByBiz.get(m.businessId) ?? '') ?? []
+      if (title && texts.some(t => t.includes(title))) emailedKeys.add(m.id)
+    }
+  }
+
   const ids = matches
-    .filter(m => byTag.has(m.id) || tokenKeys.has(`${m.businessId}:${m.programId}`) || caseKeys.has(`${m.businessId}:${m.programId}`))
+    .filter(m => byTag.has(m.id) || emailedKeys.has(m.id) || tokenKeys.has(`${m.businessId}:${m.programId}`) || caseKeys.has(`${m.businessId}:${m.programId}`))
     .map(m => m.id)
   if (ids.length === 0) return 0
 
