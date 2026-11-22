@@ -35,7 +35,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     minSubsidyPct: true, maxSubsidyPct: true, subsidyNote: true,
     minInvestment: true, maxInvestment: true,
     monthlyAmount: true, subsidyMonths: true, totalBenefit: true,
-    expenseCategories: true, investmentPricingBrackets: true,
+    expenseCategories: true, investmentPricingBrackets: true, pricingNote: true,
   } as const
 
   const [match, appSetting, matchToken] = await Promise.all([

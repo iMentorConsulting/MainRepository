@@ -26,6 +26,9 @@ export interface AdviceProgram {
   totalBenefit: string | null
   expenseCategories: unknown
   investmentPricingBrackets: unknown
+  // Free-text cost schedule ("Κόστος για τον Ερμή" field). Shown in the email for ΔΥΠΑ,
+  // which has no investment-bracket table.
+  pricingNote?: string | null
 }
 
 function fmtEur0(n: number): string {
@@ -194,6 +197,16 @@ export function buildEligibilityAdviceEmailHtml(params: {
         <p style="margin:0 0 10px;font-size:12px;color:#9ca3af;line-height:1.6;">Το κόστος αυτό αντιστοιχεί στο παραπάνω ποσό επένδυσης — διαφοροποιείται (προς τα πάνω ή κάτω) αν το τελικό ποσό της επένδυσής σας αλλάξει.</p>
         ${buildBankAccountsHtml()}`)
     }
+  }
+
+  // ΔΥΠΑ: no investment brackets — show the program's own cost schedule instead.
+  if (isDypa && program.pricingNote && program.pricingNote.trim()) {
+    const safe = program.pricingNote.trim().replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    sectionCost = section('Το Κοστολόγιό μας', `
+      <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:10px;padding:14px 16px;margin-bottom:10px;">
+        <p style="margin:0;font-size:13.5px;color:#92400e;line-height:1.8;white-space:pre-line;">${safe}</p>
+      </div>
+      ${buildBankAccountsHtml()}`)
   }
 
   const ermisNote = ermisDiscussedAmount
