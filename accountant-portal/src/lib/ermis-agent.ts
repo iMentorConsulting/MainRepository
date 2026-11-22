@@ -112,10 +112,12 @@ function buildSystemPrompt(program: {
   // implementation/monitoring fee the moment the client states an
   // investment amount, instead of only being able to say "ask your
   // consultant".
-  const investmentBrackets = Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0
+  // null → standard table; [] → the admin removed this program's table on purpose
+  // (no fees to quote).
+  const investmentBrackets = Array.isArray(program.investmentPricingBrackets)
     ? program.investmentPricingBrackets as PricingBracket[]
     : DEFAULT_INVESTMENT_PRICING_BRACKETS
-  const feeFormulaLine = ['ESPA', 'LEADER', 'DYPA'].includes(program.category || '')
+  const feeFormulaLine = ['ESPA', 'LEADER', 'DYPA'].includes(program.category || '') && investmentBrackets.length > 0
     ? `\nΑΝ Ο ΠΕΛΑΤΗΣ ΑΝΑΦΕΡΕΙ ΠΟΣΟ ΕΠΕΝΔΥΣΗΣ, βρες το κλιμάκιο που αντιστοιχεί στο ποσό από τον παρακάτω πίνακα και ανέφερε τα δύο κόστη (+ ΦΠΑ 24%):
 ${investmentBrackets.map(b => `- ${b.minAmount.toLocaleString('el-GR')}€${b.maxAmount != null ? ` – ${b.maxAmount.toLocaleString('el-GR')}€` : '+'}: Κόστος υποβολής αίτησης ${b.applicationFee.toLocaleString('el-GR')}€, Αμοιβή παρακολούθησης υλοποίησης ${b.implementationFee.toLocaleString('el-GR')}€`).join('\n')}
 Το κόστος υποβολής αίτησης καταβάλλεται εκ των προτέρων, πριν την υποβολή της αίτησης. Η αμοιβή παρακολούθησης καταβάλλεται σταδιακά, μόνο μετά την έγκριση, ταυτόχρονα με την υλοποίηση και τις εκταμιεύσεις της επιχορήγησης.

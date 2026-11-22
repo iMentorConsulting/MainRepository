@@ -40,8 +40,11 @@ export interface InvestmentFees {
 // gaps left by a custom table that doesn't fully cover the range) — the
 // caller decides how to handle "no price for this amount" rather than this
 // function guessing a fallback.
+//
+// brackets: null/undefined → the standard table above; an EMPTY array → the
+// admin deliberately removed this program's table (no fees are quoted for it).
 export function computeInvestmentFees(investmentAmount: number, brackets?: PricingBracket[] | null): InvestmentFees | null {
-  const list = brackets && brackets.length > 0 ? brackets : DEFAULT_INVESTMENT_PRICING_BRACKETS
+  const list = brackets == null ? DEFAULT_INVESTMENT_PRICING_BRACKETS : brackets
   const bracket = list.find(b => investmentAmount >= b.minAmount && (b.maxAmount == null || investmentAmount <= b.maxAmount))
   return bracket ? { applicationFee: bracket.applicationFee, implementationFee: bracket.implementationFee } : null
 }

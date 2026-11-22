@@ -539,7 +539,7 @@ export default function ProgramDetailPage() {
             </Card>
           )}
 
-          {['ESPA', 'LEADER', 'DYPA'].includes(program.category) && (
+          {['ESPA', 'LEADER', 'DYPA'].includes(program.category) && !(Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length === 0) && (
             <Card>
               <CardHeader><CardTitle>Τιμολόγηση ανά Κλιμάκιο Επένδυσης</CardTitle></CardHeader>
               <CardContent>
@@ -553,7 +553,7 @@ export default function ProgramDetailPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {((Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0
+                      {((Array.isArray(program.investmentPricingBrackets)
                         ? program.investmentPricingBrackets
                         : DEFAULT_INVESTMENT_PRICING_BRACKETS) as PricingBracket[]).map((b, i) => (
                         <tr key={i} className="border-t border-gray-200">

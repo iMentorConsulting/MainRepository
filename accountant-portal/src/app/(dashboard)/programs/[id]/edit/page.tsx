@@ -396,7 +396,9 @@ export default function EditProgramPage() {
         setAttachmentUrls(program.attachmentUrls || [])
         setAttachmentNames(program.attachmentNames || [])
         setExpenseCategories(Array.isArray(program.expenseCategories) ? program.expenseCategories : [])
-        const hasOwnBrackets = Array.isArray(program.investmentPricingBrackets) && program.investmentPricingBrackets.length > 0
+        // null = follows the standard table; an array (even an EMPTY one — the admin
+        // deleted every row on purpose) = this program's own table.
+        const hasOwnBrackets = Array.isArray(program.investmentPricingBrackets)
         setInvestmentPricingBrackets(hasOwnBrackets ? program.investmentPricingBrackets : DEFAULT_INVESTMENT_PRICING_BRACKETS)
         setCustomPricingBrackets(hasOwnBrackets)
         setRequiredDocumentIds((program.requiredDocuments || []).map((d: { id: string }) => d.id))
@@ -919,7 +921,9 @@ export default function EditProgramPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Τιμολόγηση ανά Κλιμάκιο Επένδυσης (ΕΣΠΑ / LEADER / ΔΥΠΑ)</label>
               <p className="text-sm text-gray-500 mb-2">
-                {customPricingBrackets
+                {customPricingBrackets && investmentPricingBrackets.length === 0
+                  ? 'Αυτό το πρόγραμμα ΔΕΝ έχει τιμολόγιο — δεν θα αναφέρεται κόστος υποβολής/παρακολούθησης ούτε στο email ούτε από τον Ερμή. Πατήστε «Επαναφορά» για να ξαναμπεί το τυπικό τιμολόγιο.'
+                  : customPricingBrackets
                   ? 'Αυτό το πρόγραμμα έχει δικό του, προσαρμοσμένο τιμολόγιο — δεν θα ακολουθεί πλέον αυτόματα αλλαγές στο τυπικό τιμολόγιο της I-MENTOR.'
                   : 'Ακολουθεί αυτόματα το τυπικό τιμολόγιο της I-MENTOR παρακάτω — αν αλλάξει το τυπικό τιμολόγιο, θα ενημερωθεί και εδώ. Αλλάξτε κάποιο κλιμάκιο μόνο αν αυτό το πρόγραμμα έχει διαφορετικούς όρους.'}
                 {' '}Κάθε κλιμάκιο έχει το δικό του σταθερό κόστος υποβολής αίτησης και αμοιβή παρακολούθησης υλοποίησης. Χρησιμοποιούνται στο email προεπισκόπησης προγράμματος (όταν συμπληρωθεί ποσό επένδυσης) και από τον Ερμή.
