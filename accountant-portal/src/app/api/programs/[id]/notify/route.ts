@@ -5,6 +5,7 @@ import { prisma } from '@/lib/prisma'
 import { sendEmail } from '@/lib/email'
 import { getOrCreateMatchActionToken } from '@/lib/match-action-token'
 import { buildProgramInfoHtml } from '@/lib/program-info-html'
+import { markAlreadyEngagedMatchesNotified } from '@/lib/notify-skip'
 
 export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   const session = await auth()
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
     },
   })
   if (!program) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Businesses already engaged with THIS program (came in via CM / Ερμής) need no notification.
+  await markAlreadyEngagedMatchesNotified(params.id).catch(err => console.error('[notify] skip-engaged failed:', err?.message))
 
   // Optional selective send: if matchIds provided, only send those; otherwise send all pending.
   const body = await request.json().catch(() => ({}))
@@ -226,6 +230,7 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
   }
 
   const preview = request.nextUrl.searchParams.get('preview') === 'true'
+  await markAlreadyEngagedMatchesNotified(params.id).catch(err => console.error('[notify] skip-engaged failed:', err?.message))
 
   if (!preview) {
     const count = await prisma.programMatch.count({

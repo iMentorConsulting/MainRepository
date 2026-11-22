@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { MatchStatus } from '@prisma/client'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { markAlreadyEngagedMatchesNotified } from '@/lib/notify-skip'
 
 export const dynamic = 'force-dynamic'
 
@@ -13,6 +14,8 @@ export async function GET() {
   if (!session || session.user.role !== 'ADMIN') {
     return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
   }
+
+  await markAlreadyEngagedMatchesNotified().catch(err => console.error('[pending-notifications] skip-engaged failed:', err?.message))
 
   const grouped = await prisma.programMatch.groupBy({
     by: ['programId'],
