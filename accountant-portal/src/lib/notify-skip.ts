@@ -5,8 +5,8 @@ import { prisma } from '@/lib/prisma'
 // must NOT propose that for a business that already came in with interest in
 // that SAME program — e.g. from Case Management, where Ερμής already
 // messaged them (and may have talked to them) about it. Such a business carries
-// a tag with the program's name (added on the CM / Ερμής flow) and/or a
-// CM-originated Ερμής session for that program.
+// a tag with the program's name (added on the CM / Ερμής flow), a
+// CM-originated Ερμής session for that program, and/or an Υπόθεση (case) for it.
 //
 // Those matches are marked as notified (they are "handled"), so they leave the
 // preview, the counters and the "pending notifications" list for good.
@@ -47,8 +47,18 @@ export async function markAlreadyEngagedMatchesNotified(programId?: string): Pro
   })
   const tokenKeys = new Set(tokens.map(t => `${t.businessId}:${t.programId}`))
 
+  // An Υπόθεση (case) already exists for this business + program, in any status.
+  const cases = await prisma.clientCase.findMany({
+    where: {
+      programId: programId ?? { not: null },
+      businessId: { in: Array.from(new Set(matches.map(m => m.businessId))) },
+    },
+    select: { businessId: true, programId: true },
+  })
+  const caseKeys = new Set(cases.map(c => `${c.businessId}:${c.programId}`))
+
   const ids = matches
-    .filter(m => byTag.has(m.id) || tokenKeys.has(`${m.businessId}:${m.programId}`))
+    .filter(m => byTag.has(m.id) || tokenKeys.has(`${m.businessId}:${m.programId}`) || caseKeys.has(`${m.businessId}:${m.programId}`))
     .map(m => m.id)
   if (ids.length === 0) return 0
 
