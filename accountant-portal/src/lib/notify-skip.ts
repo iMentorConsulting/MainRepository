@@ -7,7 +7,7 @@ import { prisma } from '@/lib/prisma'
 // messaged them (and may have talked to them) about it. Such a business carries
 // a tag with the program's name (added on the CM / Ερμής flow), a
 // CM-originated Ερμής session for that program, an Υπόθεση (case) for it, and/or
-// (for ΓΕΜΗ-tagged businesses) an email already sent that names the whole program.
+// an email already sent that names the whole program.
 //
 // Those matches are marked as notified (they are "handled"), so they leave the
 // preview, the counters and the "pending notifications" list for good.
@@ -58,10 +58,10 @@ export async function markAlreadyEngagedMatchesNotified(programId?: string): Pro
   })
   const caseKeys = new Set(cases.map(c => `${c.businessId}:${c.programId}`))
 
-  // ΓΕΜΗ-tagged business that was already EMAILED about this program: some email in its
+  // Business already EMAILED about this program: some email in its
   // communication history (campaign title/subject or an ad-hoc send's subject)
   // contains the program's WHOLE name ("Leader Ημαθίας" / "LEADER ΗΜΑΘΙΑΣ").
-  const gemiCandidates = matches.filter(m => (m.business.tags || []).some(t => norm(t) === 'γεμη'))
+  const gemiCandidates = matches
   const emailedKeys = new Set<string>()
   if (gemiCandidates.length > 0) {
     const bizIds = Array.from(new Set(gemiCandidates.map(m => m.businessId)))
