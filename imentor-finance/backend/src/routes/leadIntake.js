@@ -201,7 +201,7 @@ router.post('/', requireLeadApiKey, async (req, res) => {
       }
     }
 
-    // Auto-match or auto-create ServiceAgreement so the CM sync can always see this record
+    // Auto-match ServiceAgreement if one exists (never auto-create)
     if (!merged.service_agreement_id && merged.customer_name) {
       const saWhere = {
         ...(merged.vat_number   ? { vat_number:   merged.vat_number }   : { customer_name: merged.customer_name }),
@@ -209,25 +209,7 @@ router.post('/', requireLeadApiKey, async (req, res) => {
         status: { [Op.notIn]: ['ΟΛΟΚΛΗΡΩΜΕΝΕΣ ΕΠΙΤΥΧΩΣ', 'ΔΕΝ ΠΡΟΧΩΡΗΣΕ'] },
       };
       const sa = await ServiceAgreement.findOne({ where: saWhere, order: [['createdAt', 'DESC']] });
-      if (sa) {
-        merged.service_agreement_id = sa.id;
-      } else {
-        // No existing SA — create one so this income record is visible in /api/cm-sync
-        const newSa = await ServiceAgreement.create({
-          customer_name:         merged.customer_name,
-          vat_number:            merged.vat_number            || null,
-          service_type:          merged.service_type          || null,
-          sales_agent:           merged.sales_agent           || agent || null,
-          folder_agent:          merged.sales_agent           || agent || null,
-          source_referral:       merged.source_referral       || null,
-          targeting_category:    merged.targeting_category    || null,
-          amount_application:    merged.amount_application    || null,
-          amount_implementation: merged.amount_implementation || null,
-          investment_height:     merged.investment_height     || null,
-          status: 'ΕΝΕΡΓΟ',
-        });
-        merged.service_agreement_id = newSa.id;
-      }
+      if (sa) merged.service_agreement_id = sa.id;
     }
 
     // Create Income record immediately — mark as new so the UI highlights it until seen
