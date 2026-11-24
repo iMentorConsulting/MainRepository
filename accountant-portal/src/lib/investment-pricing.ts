@@ -18,8 +18,9 @@ export interface PricingBracket {
 // investment amount) — the default for every program that hasn't been
 // given its own custom bracket table.
 export const DEFAULT_INVESTMENT_PRICING_BRACKETS: PricingBracket[] = [
-  // Below 70.000€ the new price list (Nov 2026) has no row — the previous bracket is kept.
-  { minAmount: 0, maxAmount: 69999, applicationFee: 950, implementationFee: 4000 },
+  // Minimum fee (new price list, Nov 2026): 1.200€ application + 4.000€ monitoring,
+  // for every investment up to 80.000€ — the first row covers everything below 70.000€ too.
+  { minAmount: 0, maxAmount: 69999, applicationFee: 1200, implementationFee: 4000 },
   // New price list (Nov 2026): application fee +70€ and monitoring fee +250€ per 10.000€ step.
   { minAmount: 70000, maxAmount: 80000, applicationFee: 1200, implementationFee: 4000 },
   { minAmount: 80001, maxAmount: 90000, applicationFee: 1270, implementationFee: 4250 },
