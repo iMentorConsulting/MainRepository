@@ -18,17 +18,29 @@ export interface PricingBracket {
 // investment amount) — the default for every program that hasn't been
 // given its own custom bracket table.
 export const DEFAULT_INVESTMENT_PRICING_BRACKETS: PricingBracket[] = [
-  { minAmount: 0, maxAmount: 70000, applicationFee: 950, implementationFee: 4000 },
-  { minAmount: 70001, maxAmount: 90000, applicationFee: 950, implementationFee: 4200 },
-  { minAmount: 90001, maxAmount: 110000, applicationFee: 950, implementationFee: 4400 },
-  { minAmount: 110001, maxAmount: 130000, applicationFee: 1040, implementationFee: 5200 },
-  { minAmount: 130001, maxAmount: 150000, applicationFee: 1200, implementationFee: 6000 },
-  { minAmount: 150001, maxAmount: 170000, applicationFee: 1360, implementationFee: 6800 },
-  { minAmount: 170001, maxAmount: 190000, applicationFee: 1520, implementationFee: 7600 },
-  { minAmount: 190001, maxAmount: 210000, applicationFee: 1680, implementationFee: 8000 },
-  { minAmount: 210001, maxAmount: 230000, applicationFee: 1840, implementationFee: 8000 },
-  { minAmount: 230001, maxAmount: 250000, applicationFee: 2000, implementationFee: 8000 },
-  { minAmount: 250001, maxAmount: null, applicationFee: 2000, implementationFee: 8000 },
+  // Below 70.000€ the new price list (Nov 2026) has no row — the previous bracket is kept.
+  { minAmount: 0, maxAmount: 69999, applicationFee: 950, implementationFee: 4000 },
+  // New price list (Nov 2026): application fee +70€ and monitoring fee +250€ per 10.000€ step.
+  { minAmount: 70000, maxAmount: 80000, applicationFee: 1200, implementationFee: 4000 },
+  { minAmount: 80001, maxAmount: 90000, applicationFee: 1270, implementationFee: 4250 },
+  { minAmount: 90001, maxAmount: 100000, applicationFee: 1340, implementationFee: 4500 },
+  { minAmount: 100001, maxAmount: 110000, applicationFee: 1410, implementationFee: 4750 },
+  { minAmount: 110001, maxAmount: 120000, applicationFee: 1480, implementationFee: 5000 },
+  { minAmount: 120001, maxAmount: 130000, applicationFee: 1550, implementationFee: 5250 },
+  { minAmount: 130001, maxAmount: 140000, applicationFee: 1620, implementationFee: 5500 },
+  { minAmount: 140001, maxAmount: 150000, applicationFee: 1690, implementationFee: 5750 },
+  { minAmount: 150001, maxAmount: 160000, applicationFee: 1760, implementationFee: 6000 },
+  { minAmount: 160001, maxAmount: 170000, applicationFee: 1830, implementationFee: 6250 },
+  { minAmount: 170001, maxAmount: 180000, applicationFee: 1900, implementationFee: 6500 },
+  { minAmount: 180001, maxAmount: 190000, applicationFee: 1970, implementationFee: 6750 },
+  { minAmount: 190001, maxAmount: 200000, applicationFee: 2040, implementationFee: 7000 },
+  { minAmount: 200001, maxAmount: 210000, applicationFee: 2110, implementationFee: 7250 },
+  { minAmount: 210001, maxAmount: 220000, applicationFee: 2180, implementationFee: 7500 },
+  { minAmount: 220001, maxAmount: 230000, applicationFee: 2250, implementationFee: 7750 },
+  { minAmount: 230001, maxAmount: 240000, applicationFee: 2320, implementationFee: 8000 },
+  { minAmount: 240001, maxAmount: 250000, applicationFee: 2390, implementationFee: 8250 },
+  // The list ends at 400.000€; kept open-ended so larger investments still get a price.
+  { minAmount: 250001, maxAmount: null, applicationFee: 2460, implementationFee: 8500 },
 ]
 
 export interface InvestmentFees {

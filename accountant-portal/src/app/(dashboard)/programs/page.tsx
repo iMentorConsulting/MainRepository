@@ -846,6 +846,32 @@ export default function ProgramsPage() {
     }
   }
 
+  // One click: every ACTIVE ΕΣΠΑ + LEADER program goes (back) onto the standard price list,
+  // including those with a custom table or none. Shows the counts first.
+  const [applyingPricing, setApplyingPricing] = useState(false)
+  async function applyStandardPricing() {
+    setApplyingPricing(true)
+    try {
+      const dry = await fetch('/api/admin/apply-standard-pricing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dryRun: true }) })
+      const d = await dry.json()
+      if (!dry.ok) { alert(d.error || 'Σφάλμα'); return }
+      const lines = [
+        `Ενεργά ΕΣΠΑ/LEADER προγράμματα: ${d.total}`,
+        `• ${d.alreadyOnStandard} ακολουθούν ήδη το τυπικό τιμολόγιο (ενημερώνονται αυτόματα)`,
+        d.customReset.length ? `• ${d.customReset.length} έχουν δικό τους τιμολόγιο και ΘΑ ΕΠΑΝΕΛΘΟΥΝ στο τυπικό:\n   - ${d.customReset.join('\n   - ')}` : '',
+        d.noTableReset.length ? `• ${d.noTableReset.length} δεν έχουν τιμολόγιο και ΘΑ ΠΑΡΟΥΝ το τυπικό:\n   - ${d.noTableReset.join('\n   - ')}` : '',
+      ].filter(Boolean)
+      if (!confirm(`${lines.join('\n')}\n\nΣυνέχεια;`)) return
+      const res = await fetch('/api/admin/apply-standard-pricing', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })
+      const r = await res.json()
+      alert(res.ok ? 'Το νέο τυπικό τιμολόγιο ισχύει πλέον σε όλα τα ενεργά ΕΣΠΑ/LEADER προγράμματα.' : (r.error || 'Σφάλμα'))
+    } catch {
+      alert('Σφάλμα δικτύου')
+    } finally {
+      setApplyingPricing(false)
+    }
+  }
+
   async function rematchAllPrograms() {
     if (!confirm('Επανα-ταίριασμα ΟΛΩΝ των ενεργών προγραμμάτων με ΟΛΕΣ τις επιχειρήσεις; Μπορεί να πάρει λίγο χρόνο.')) return
     setRematchingAll(true)
@@ -927,6 +953,10 @@ export default function ProgramsPage() {
             <Button variant="outline" onClick={migrateAttachments} disabled={migratingAttachments} className="gap-1.5">
               <RefreshCw size={14} className={migratingAttachments ? 'animate-spin' : ''} />
               {migratingAttachments ? 'Βελτιστοποίηση…' : 'Βελτιστοποίηση Συνημμένων'}
+            </Button>
+            <Button variant="outline" onClick={applyStandardPricing} disabled={applyingPricing} className="gap-1.5">
+              <RefreshCw size={14} className={applyingPricing ? 'animate-spin' : ''} />
+              {applyingPricing ? 'Εφαρμογή…' : 'Εφαρμογή τυπικού τιμολογίου'}
             </Button>
             <Link href="/programs/new">
               <Button><Plus size={16} className="mr-2" />Νέο Πρόγραμμα</Button>
