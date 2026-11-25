@@ -382,7 +382,7 @@ router.get('/payroll', async (req, res) => {
 
         const rate = parseFloat(settings?.overachievement_rate ?? 0) / 100;
         const commission = !isFuture && target > 0 && sales > target
-          ? parseFloat(((sales - target) * rate).toFixed(2))
+          ? parseFloat((sales * rate).toFixed(2))
           : 0;
 
         const monthIka = ikaMap[m] || 0;
