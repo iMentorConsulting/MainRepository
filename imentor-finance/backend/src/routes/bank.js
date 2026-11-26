@@ -6,7 +6,7 @@ const { parseStatement, ParseError } = require('../services/bankParsers');
 const { BANKS, ingest } = require('../services/bankIngest');
 const BankConnection = require('../models/BankConnection');
 const { getProvider } = require('../services/bankProviders');
-const { syncAll } = require('../services/bankSync');
+const { syncAll, applyConsentResult, syncConnection } = require('../services/bankSync');
 const { signState } = require('../services/bankState');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
@@ -97,7 +97,7 @@ router.get('/connections', async (_, res) => {
         const c = rows.find(r => r.bank === bank);
         return {
           bank, label: BANKS[bank], status: c ? c.status : 'none',
-          consent_expires_at: c?.consent_expires_at || null, last_sync_at: c?.last_sync_at || null, last_error: c?.last_error || '',
+          sca_type: c?.sca_type || '', consent_expires_at: c?.consent_expires_at || null, last_sync_at: c?.last_sync_at || null, last_error: c?.last_error || '',
         };
       }),
     });
@@ -113,12 +113,26 @@ router.post('/connections', async (req, res) => {
     if (!provider.isConfigured()) return res.status(409).json({ error: 'Δεν έχουν ρυθμιστεί τα στοιχεία πρόσβασης του παρόχου (Railway variables).' });
     const [conn] = await BankConnection.findOrCreate({ where: { provider: provider.name, bank }, defaults: { status: 'pending' } });
     const redirectUri = `${req.protocol}://${req.get('host')}/api/bank/callback`;
-    const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id) });
+    const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id), psuIp: req.ip });
     if (consentId) await conn.update({ consent_id: consentId });
     res.json({ redirect_url: redirectUrl });
   } catch (e) {
     res.status(e.code === 'PROVIDER_NOT_READY' ? 503 : 500).json({ error: e.message });
   }
+});
+
+// Piraeus (SMS OTP): the user types the code received by SMS to finish connecting
+router.post('/connections/otp', async (req, res) => {
+  try {
+    const provider = getProvider();
+    const { bank, otp } = req.body || {};
+    const conn = await BankConnection.findOne({ where: { provider: provider.name, bank } });
+    if (!conn || conn.status !== 'pending') return res.status(404).json({ error: 'Δεν υπάρχει σύνδεση που να περιμένει κωδικό.' });
+    if (!/^\d{4,10}$/.test(String(otp || ''))) return res.status(400).json({ error: 'Μη έγκυρος κωδικός OTP.' });
+    await applyConsentResult(conn, await provider.submitOtp({ connection: conn, otp, psuIp: req.ip }), req.ip);
+    if (conn.status === 'active') syncConnection(conn, { psuIp: req.ip }).catch(e => console.warn('[bank-otp] first sync failed:', e.message));
+    res.json({ status: conn.status });
+  } catch (e) { res.status(e.code === 'PROVIDER_NOT_READY' ? 503 : 400).json({ error: e.message }); }
 });
 
 // "Ανανέωση τώρα": fetch new movements right now for every active connection

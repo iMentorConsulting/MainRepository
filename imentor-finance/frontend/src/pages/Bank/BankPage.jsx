@@ -51,7 +51,18 @@ const STATUS = {
 const daysLeft = d => d ? Math.ceil((new Date(d) - Date.now()) / 86400000) : null;
 const fmtDateTime = d => d ? new Date(d).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
 
-function ConnectionsPanel({ info, onConnect, busy }) {
+function OtpBox({ onSubmit, busy }) {
+  const [code, setCode] = useState('');
+  return (
+    <div className="flex gap-1.5">
+      <input className="input !w-auto flex-1 min-w-0" inputMode="numeric" placeholder="Κωδικός SMS" value={code}
+        onChange={e => setCode(e.target.value.replace(/\D/g, ''))} />
+      <button className="btn btn-primary btn-sm" disabled={busy || code.length < 4} onClick={() => onSubmit(code)}>OK</button>
+    </div>
+  );
+}
+
+function ConnectionsPanel({ info, onConnect, onOtp, busy }) {
   if (!info) return null;
   const expiring = info.connections.filter(c => c.status === 'expired' || (c.status === 'active' && daysLeft(c.consent_expires_at) <= 7));
   return (
@@ -93,9 +104,13 @@ function ConnectionsPanel({ info, onConnect, busy }) {
                 Τελευταίος έλεγχος: {fmtDateTime(c.last_sync_at)}
               </div>
               {c.last_error && c.status !== 'active' && <div className="text-xs text-rose-600 break-words">{c.last_error}</div>}
-              <button className="btn btn-secondary btn-sm w-full" disabled={busy || !info.configured} onClick={() => onConnect(c.bank)}>
-                {c.status === 'none' ? 'Σύνδεση' : 'Ανανέωση σύνδεσης'}
-              </button>
+              {c.status === 'pending' && c.sca_type === 'SMS'
+                ? <OtpBox busy={busy} onSubmit={code => onOtp(c.bank, code)} />
+                : (
+                  <button className="btn btn-secondary btn-sm w-full" disabled={busy || !info.configured} onClick={() => onConnect(c.bank)}>
+                    {c.status === 'none' ? 'Σύνδεση' : 'Ανανέωση σύνδεσης'}
+                  </button>
+                )}
             </div>
           );
         })}
@@ -173,8 +188,9 @@ export default function BankPage() {
   useEffect(() => {
     const qs = new URLSearchParams(window.location.search);
     if (qs.get('bank_connected')) toast.success('Η τράπεζα συνδέθηκε. Γίνεται η πρώτη ανάκτηση κινήσεων…');
+    if (qs.get('bank_pending')) toast('Σχεδόν έτοιμο: εισάγετε τον κωδικό SMS που λάβατε στην κάρτα της τράπεζας.', { duration: 8000 });
     if (qs.get('bank_error')) toast.error(qs.get('bank_error'), { duration: 8000 });
-    if (qs.has('bank_connected') || qs.has('bank_error')) {
+    if (qs.has('bank_connected') || qs.has('bank_pending') || qs.has('bank_error')) {
       window.history.replaceState({}, '', '/bank');
       setTimeout(() => { loadConnections(); load(); }, 2500);
     }
@@ -186,6 +202,16 @@ export default function BankPage() {
       window.location.href = data.redirect_url;     // the bank's own login/consent page
     } catch (e) {
       toast.error(e.response?.data?.error || 'Αποτυχία έναρξης σύνδεσης');
+    }
+  };
+
+  const submitOtp = async (bank, otp) => {
+    try {
+      await api.post('/bank/connections/otp', { bank, otp });
+      toast.success('Η τράπεζα συνδέθηκε. Γίνεται η πρώτη ανάκτηση κινήσεων…');
+      loadConnections(); setTimeout(() => { loadConnections(); load(); }, 2500);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία επιβεβαίωσης κωδικού');
     }
   };
 
@@ -246,7 +272,7 @@ export default function BankPage() {
         </button>
       </div>
 
-      <ConnectionsPanel info={connInfo} onConnect={connectBank} busy={syncing} />
+      <ConnectionsPanel info={connInfo} onConnect={connectBank} onOtp={submitOtp} busy={syncing} />
 
       {/* Import */}
       <div className="card p-4 flex flex-wrap items-center gap-3">

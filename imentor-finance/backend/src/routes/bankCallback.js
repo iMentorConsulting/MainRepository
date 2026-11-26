@@ -4,25 +4,27 @@ const router = require('express').Router();
 const { verifyState } = require('../services/bankState');
 const BankConnection = require('../models/BankConnection');
 const { getProvider } = require('../services/bankProviders');
-const { syncConnection } = require('../services/bankSync');
+const { syncConnection, applyConsentResult } = require('../services/bankSync');
 
 const back = (res, qs) => res.redirect(`/bank?${new URLSearchParams(qs)}`);
 
 router.get('/', async (req, res) => {
-  let claims;
   try {
-    claims = verifyState(req.query.state);
-  } catch {
-    return back(res, { bank_error: 'Μη έγκυρη ή ληγμένη αίτηση σύνδεσης. Δοκιμάστε ξανά.' });
-  }
-  try {
-    const conn = await BankConnection.findByPk(claims.cid);
-    if (!conn) throw new Error('Άγνωστη σύνδεση');
+    // Identify the connection by the signed `state`; if the bank does not echo it, fall back to the
+    // connectionId it appends — harmless, because the status is always re-read from the bank's API.
+    let conn = null;
+    try { conn = await BankConnection.findByPk(verifyState(req.query.state).cid); } catch { /* try fallback */ }
+    if (!conn && req.query.connectionId) conn = await BankConnection.findOne({ where: { consent_id: String(req.query.connectionId) } });
+    if (!conn) return back(res, { bank_error: 'Μη έγκυρη ή ληγμένη αίτηση σύνδεσης. Δοκιμάστε ξανά.' });
     if (req.query.error) throw new Error(`Η τράπεζα απέρριψε την πρόσβαση (${req.query.error})`);
-    const { consentId, expiresAt } = await getProvider().completeConsent({ connection: conn, query: req.query });
-    await conn.update({ status: 'active', consent_id: consentId, consent_expires_at: expiresAt, last_error: '' });
-    syncConnection(conn, { psuIp: req.ip }).catch(e => console.warn('[bank-callback] first sync failed:', e.message)); // initial history, don't block the redirect
-    back(res, { bank_connected: conn.bank });
+
+    const r = await getProvider().completeConsent({ connection: conn, query: req.query, psuIp: req.ip });
+    await applyConsentResult(conn, r, req.ip);
+    if (conn.status === 'active') {
+      syncConnection(conn, { psuIp: req.ip }).catch(e => console.warn('[bank-callback] first sync failed:', e.message)); // initial history, don't block the redirect
+      return back(res, { bank_connected: conn.bank });
+    }
+    back(res, { bank_pending: conn.bank });
   } catch (e) {
     back(res, { bank_error: e.message });
   }

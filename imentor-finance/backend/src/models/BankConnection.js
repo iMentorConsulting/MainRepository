@@ -10,6 +10,8 @@ const BankConnection = sequelize.define('BankConnection', {
   status:             { type: DataTypes.STRING(12), allowNull: false, defaultValue: 'pending' }, // pending | active | expired | error
   consent_id:         { type: DataTypes.STRING },
   consent_expires_at: { type: DataTypes.DATE },
+  sca_type:           { type: DataTypes.STRING(12), defaultValue: '' },   // 'SMS' when the bank wants an OTP
+  psu_ip:             { type: DataTypes.STRING(45), defaultValue: '' },   // last interactive customer IP (sent as X-Fapi-Customer-Ip-Address)
   last_sync_at:       { type: DataTypes.DATE },
   last_error:         { type: DataTypes.TEXT, defaultValue: '' },
   expiry_alerted_on:  { type: DataTypes.DATEONLY },                       // so the renewal Viber alert goes out once a day

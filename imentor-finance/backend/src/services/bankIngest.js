@@ -66,7 +66,7 @@ async function ingest(bank, rows, deps = {}) {
 
   const created = await BankTransaction.bulkCreate(fresh.map(p => ({
     bank, account: p.account || '', tx_date: p.tx_date, amount: (p.cents / 100).toFixed(2),
-    description: p.description || '', counterparty: p.counterparty || '',
+    description: p.description || '', counterparty: p.counterparty || '', counterparty_account: p.counterparty_account || '',
     direction: p.cents > 0 ? 'credit' : 'debit', fingerprint: p.fp,
     category: p.cents < 0 ? categorize(p.description, p.counterparty) : '',  // expense rules apply to debits only
   })), { returning: true });

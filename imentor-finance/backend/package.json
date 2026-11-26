@@ -6,7 +6,9 @@
     "start": "node src/index.js",
     "dev": "nodemon src/index.js",
     "backup": "node src/backup.js",
-    "test": "node --test --test-concurrency=1"
+    "test": "node --test --test-concurrency=1",
+    "nbg:banks": "node scripts/nbgBanks.js",
+    "nbg:sandbox": "node scripts/nbgSandbox.js"
   },
   "dependencies": {
     "axios": "^1.6.0",

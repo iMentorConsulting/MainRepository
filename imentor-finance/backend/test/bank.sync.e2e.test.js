@@ -81,17 +81,49 @@ test('consent flow → first sync → alerts → dedupe → expiry', { skip }, a
   server.close();
 });
 
-test('the real NBG provider refuses cleanly until configured', { skip }, async () => {
-  process.env.BANK_PROVIDER = 'nbg';
+test('Piraeus asks for an SMS OTP: pending → wrong code rejected → right code → active + first sync', { skip }, async () => {
   const express = require('express');
   const sequelize = require('../src/config/db');
-  const app = express(); app.use(express.json()); app.use('/api/bank', require('../src/routes/bank'));
+  const BankTransaction = require('../src/models/BankTransaction');
+  const BankConnection = require('../src/models/BankConnection');
+  await BankTransaction.destroy({ where: {} });
+  const app = express(); app.use(express.json());
+  app.use('/api/bank/callback', require('../src/routes/bankCallback'));
+  app.use('/api/bank', require('../src/routes/bank'));
   const server = await new Promise(r => { const s = app.listen(0, () => r(s)); });
-  const post = () => fetch(`http://127.0.0.1:${server.address().port}/api/bank/connections`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ bank: 'alpha' }) });
-  assert.equal((await post()).status, 409);                                   // no credentials in Railway yet
-  Object.assign(process.env, { NBG_BASE_URL: 'https://x', NBG_CLIENT_ID: 'a', NBG_CLIENT_SECRET: 'b' });
-  const r = await post();
-  assert.equal(r.status, 503);                                                // configured, but spec not plugged in yet
-  assert.match((await r.json()).error, /δεν έχει ολοκληρωθεί/);
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const api = (p, body) => fetch(base + p, { method: 'POST', redirect: 'manual', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}) });
+
+  const start = await (await api('/api/bank/connections', { bank: 'piraeus' })).json();
+  const cb = await fetch(start.redirect_url.replace(/^https?:\/\/[^/]+/, base), { redirect: 'manual' });
+  assert.equal(cb.headers.get('location'), '/bank?bank_pending=piraeus');
+  let conn = await BankConnection.findOne({ where: { bank: 'piraeus' } });
+  assert.equal(conn.status, 'pending'); assert.equal(conn.sca_type, 'SMS');
+  const listed = await (await fetch(base + '/api/bank/connections')).json();
+  assert.equal(listed.connections.find(c => c.bank === 'piraeus').sca_type, 'SMS');
+
+  assert.equal((await api('/api/bank/connections/otp', { bank: 'piraeus', otp: 'abc' })).status, 400);        // malformed
+  assert.equal((await api('/api/bank/connections/otp', { bank: 'piraeus', otp: '000000' })).status, 400);     // wrong code
+  assert.equal((await api('/api/bank/connections/otp', { bank: 'alpha', otp: '123456' })).status, 404);       // nothing pending there
+  const ok = await api('/api/bank/connections/otp', { bank: 'piraeus', otp: '123456' });
+  assert.equal(ok.status, 200);
+  conn = await BankConnection.findOne({ where: { bank: 'piraeus' } });
+  assert.equal(conn.status, 'active');
+  for (let i = 0; i < 50 && !(await BankTransaction.count({ where: { bank: 'piraeus' } })); i++) await new Promise(r => setTimeout(r, 100));
+  assert.ok(await BankTransaction.count({ where: { bank: 'piraeus' } }) > 10);
+
+  // the callback also works when the bank does not echo our `state` but appends its connectionId
+  const start2 = await (await api('/api/bank/connections', { bank: 'eurobank' })).json();
+  const cb2 = await fetch(`${base}/api/bank/callback?connectionId=mock-eurobank`, { redirect: 'manual' });
+  assert.equal(cb2.headers.get('location'), '/bank?bank_connected=eurobank');
+  const none = await fetch(`${base}/api/bank/callback?connectionId=does-not-exist`, { redirect: 'manual' });
+  assert.match(none.headers.get('location'), /bank_error=/);
+
+  // not configured real provider: clear refusal, nothing created
+  process.env.BANK_PROVIDER = 'nbg'; delete process.env.NBG_CLIENT_ID;
+  const refused = await api('/api/bank/connections', { bank: 'alpha' });
+  assert.equal(refused.status, 409);
+  process.env.BANK_PROVIDER = 'mock';
+
   server.close(); await sequelize.close();
 });

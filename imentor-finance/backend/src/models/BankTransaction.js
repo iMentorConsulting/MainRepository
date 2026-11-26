@@ -11,6 +11,7 @@ const BankTransaction = sequelize.define('BankTransaction', {
   currency:       { type: DataTypes.STRING(3), defaultValue: 'EUR' },
   description:    { type: DataTypes.TEXT, defaultValue: '' },
   counterparty:   { type: DataTypes.STRING, defaultValue: '' },
+  counterparty_account: { type: DataTypes.STRING, defaultValue: '' },   // payer/payee IBAN when the bank provides it (for invoice matching)
   direction:      { type: DataTypes.STRING(6), allowNull: false },       // credit | debit
   fingerprint:    { type: DataTypes.STRING(64), allowNull: false, unique: true },
   category:       { type: DataTypes.STRING, defaultValue: '' },

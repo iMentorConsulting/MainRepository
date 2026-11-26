@@ -7,6 +7,30 @@ const DAY = 86400000;
 const iso = d => new Date(d).toISOString().slice(0, 10);
 let running = false;
 
+// Store what the provider told us about a consent (Connected → active; PendingSCAData/Processing → pending)
+async function applyConsentResult(conn, r, psuIp = '') {
+  const pending = r.status !== 'active';
+  await conn.update({
+    status: pending ? 'pending' : 'active',
+    consent_id: r.consentId || conn.consent_id,
+    consent_expires_at: r.expiresAt || conn.consent_expires_at,
+    sca_type: r.scaType || '',
+    last_error: pending ? (r.scaType === 'SMS' ? 'Απαιτείται ο κωδικός OTP που στάλθηκε με SMS.' : 'Η σύνδεση ολοκληρώνεται…') : '',
+    ...(psuIp ? { psu_ip: psuIp } : {}),
+  });
+  return conn;
+}
+
+// Pending connections (Processing / waiting for OTP) are re-checked on every sync
+async function refreshPending(provider, psuIp) {
+  const pend = await BankConnection.findAll({ where: { provider: provider.name, status: 'pending' } });
+  for (const c of pend) {
+    if (!c.consent_id) continue;
+    try { await applyConsentResult(c, await provider.completeConsent({ connection: c, query: {}, psuIp: psuIp || c.psu_ip })); }
+    catch (e) { await c.update({ status: 'error', last_error: e.message }); }
+  }
+}
+
 // First sync pulls a wide window; later ones only the recent past (overlap is safe: duplicates are skipped).
 function syncWindow(conn, now = Date.now()) {
   const days = conn.last_sync_at ? Number(process.env.BANK_SYNC_OVERLAP_DAYS || 7) : Number(process.env.BANK_INITIAL_DAYS || 90);
@@ -20,7 +44,8 @@ async function syncConnection(conn, { psuIp = '', deps = {}, now = Date.now() } 
     return { bank: conn.bank, ok: false, error: 'consent expired' };
   }
   try {
-    const rows = await provider.fetchTransactions({ connection: conn, ...syncWindow(conn, now), psuIp });
+    if (psuIp && psuIp !== conn.psu_ip) await conn.update({ psu_ip: psuIp });   // remember the latest interactive IP for scheduled runs
+    const rows = await provider.fetchTransactions({ connection: conn, ...syncWindow(conn, now), psuIp: psuIp || conn.psu_ip });
     const res = await ingest(conn.bank, rows, deps);
     await conn.update({ last_sync_at: new Date(now), last_error: '', status: 'active' });
     return { bank: conn.bank, ok: true, fetched: rows.length, ...res };
@@ -36,11 +61,13 @@ async function syncAll(opts = {}) {
   if (running) return { skipped: true, results: [] };
   running = true;
   try {
-    const conns = await BankConnection.findAll({ where: { provider: getProvider().name, status: 'active' }, order: ['id'] });
+    const provider = getProvider();
+    await refreshPending(provider, opts.psuIp);
+    const conns = await BankConnection.findAll({ where: { provider: provider.name, status: 'active' }, order: ['id'] });
     const results = [];
     for (const c of conns) results.push(await syncConnection(c, opts));
     return { skipped: false, results };
   } finally { running = false; }
 }
 
-module.exports = { syncConnection, syncAll, syncWindow };
+module.exports = { syncConnection, syncAll, syncWindow, applyConsentResult };

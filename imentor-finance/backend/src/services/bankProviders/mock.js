@@ -19,8 +19,17 @@ module.exports = {
     return { redirectUrl: `${redirectUri}?${q}`, consentId: `mock-${bank}` };
   },
 
+  // Piraeus behaves like the real bank: SMS OTP required (accepted code: 123456)
   async completeConsent({ connection, query }) {
-    return { consentId: query.mock_consent || connection.consent_id, expiresAt: new Date(Date.now() + 180 * 86400000) };
+    const consentId = query.mock_consent || connection.consent_id;
+    if (connection.bank === 'piraeus' && !global.__mockOtpDone?.has(consentId)) return { consentId, status: 'pending', scaType: 'SMS', expiresAt: null };
+    return { consentId, status: 'active', scaType: '', expiresAt: new Date(Date.now() + 180 * 86400000) };
+  },
+
+  async submitOtp({ connection, otp }) {
+    if (String(otp) !== '123456') throw new Error('Λάθος κωδικός OTP.');
+    (global.__mockOtpDone = global.__mockOtpDone || new Set()).add(connection.consent_id);
+    return { consentId: connection.consent_id, status: 'active', scaType: '', expiresAt: new Date(Date.now() + 180 * 86400000) };
   },
 
   async fetchTransactions({ connection, from, to }) {
