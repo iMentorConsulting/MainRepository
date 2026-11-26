@@ -23,7 +23,7 @@ async function applyConsentResult(conn, r, psuIp = '') {
 
 // Pending connections (Processing / waiting for OTP) are re-checked on every sync
 async function refreshPending(provider, psuIp) {
-  const pend = await BankConnection.findAll({ where: { provider: provider.name, status: 'pending' } });
+  const pend = await BankConnection.findAll({ where: { provider: provider.key(), status: 'pending' } });
   for (const c of pend) {
     if (!c.consent_id) continue;
     try { await applyConsentResult(c, await provider.completeConsent({ connection: c, query: {}, psuIp: psuIp || c.psu_ip })); }
@@ -32,12 +32,12 @@ async function refreshPending(provider, psuIp) {
 }
 
 // First sync pulls a wide window; later ones only the recent past (overlap is safe: duplicates are skipped).
-function syncWindow(conn, now = Date.now()) {
-  const days = conn.last_sync_at ? Number(process.env.BANK_SYNC_OVERLAP_DAYS || 7) : Number(process.env.BANK_INITIAL_DAYS || 90);
+function syncWindow(conn, now = Date.now(), forceDays = 0) {
+  const days = forceDays || (conn.last_sync_at ? Number(process.env.BANK_SYNC_OVERLAP_DAYS || 7) : Number(process.env.BANK_INITIAL_DAYS || 90));
   return { from: iso(now - days * DAY), to: iso(now) };
 }
 
-async function syncConnection(conn, { psuIp = '', deps = {}, now = Date.now() } = {}) {
+async function syncConnection(conn, { psuIp = '', deps = {}, now = Date.now(), days = 0 } = {}) {
   const provider = getProvider();
   if (conn.consent_expires_at && new Date(conn.consent_expires_at).getTime() < now) {
     await conn.update({ status: 'expired', last_error: 'Η συγκατάθεση έχει λήξει. Απαιτείται ανανέωση.' });
@@ -45,8 +45,8 @@ async function syncConnection(conn, { psuIp = '', deps = {}, now = Date.now() } 
   }
   try {
     if (psuIp && psuIp !== conn.psu_ip) await conn.update({ psu_ip: psuIp });   // remember the latest interactive IP for scheduled runs
-    const rows = await provider.fetchTransactions({ connection: conn, ...syncWindow(conn, now), psuIp: psuIp || conn.psu_ip });
-    const res = await ingest(conn.bank, rows, deps);
+    const rows = await provider.fetchTransactions({ connection: conn, ...syncWindow(conn, now, days), psuIp: psuIp || conn.psu_ip });
+    const res = await ingest(conn.bank, rows, { isTest: provider.env ? provider.env() !== 'production' : false, ...deps });
     await conn.update({ last_sync_at: new Date(now), last_error: '', status: 'active' });
     return { bank: conn.bank, ok: true, fetched: rows.length, ...res };
   } catch (e) {
@@ -63,7 +63,7 @@ async function syncAll(opts = {}) {
   try {
     const provider = getProvider();
     await refreshPending(provider, opts.psuIp);
-    const conns = await BankConnection.findAll({ where: { provider: provider.name, status: 'active' }, order: ['id'] });
+    const conns = await BankConnection.findAll({ where: { provider: provider.key(), status: 'active' }, order: ['id'] });
     const results = [];
     for (const c of conns) results.push(await syncConnection(c, opts));
     return { skipped: false, results };

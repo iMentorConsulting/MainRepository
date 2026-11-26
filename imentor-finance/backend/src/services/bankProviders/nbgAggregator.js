@@ -119,6 +119,7 @@ const isConsentError = e => /consent|expired|connection.*(invalid|not found)|SCA
 module.exports = {
   name: 'nbg',
   env: () => cfg().env,
+  key: () => `nbg:${cfg().env}`,           // sandbox and production consents are separate rows
   banks: ['nbg', 'alpha', 'piraeus', 'eurobank'],
   isConfigured() {
     const c = cfg();
@@ -135,7 +136,14 @@ module.exports = {
   async completeConsent({ connection, query = {}, psuIp }) {
     const connectionId = query.connectionId || connection.consent_id;
     const p = await call('/user/connections', { ip: psuIp, payload: connectionId ? { connectionId } : {} });
-    return consentResult(p, connectionId, bicOf(connection.bank));
+    const r = consentResult(p, connectionId, bicOf(connection.bank));
+    // Spec: update-sca-status moves "Pending PSU SCA Data" → "Connected". Banks that need no SMS code (e.g. Alpha)
+    // are finished by calling it without an OTP; banks that want an SMS (Piraeus) wait for the user's code.
+    if (r.status === 'pending' && !r.scaType && /PendingSCAData/.test(JSON.stringify((p.banks || []).find(x => x.connectionId === r.consentId) || {}))) {
+      const p2 = await call('/user/connections/update-sca-status', { bank: connection.bank, ip: psuIp, payload: { ConnectionId: r.consentId } });
+      return consentResult(p2, r.consentId, bicOf(connection.bank));
+    }
+    return r;
   },
 
   // 2b) Piraeus (and any bank that asks for an SMS OTP)
@@ -208,6 +216,21 @@ module.exports = {
       try { return await call('/sandbox', { ...opts, payload: c.sandboxId }); }
       catch (e2) { if (e2.apiCode === 'NBG-S-002') return { sandboxId: c.sandboxId, alreadyExisted: true }; throw e2; }
     }
+  },
+  // Read-only look at what the bank API returns (nothing is stored): accounts, balances, transaction count/date range.
+  async probe({ bank, from, to, psuIp }) {
+    const accounts = (await call('/account/list', { bank, ip: psuIp })) || [];
+    const rows = await module.exports.fetchTransactions({ connection: { bank }, from, to, psuIp });
+    const dates = rows.map(r => r.tx_date).sort();
+    return {
+      accounts: accounts.map(a => ({ iban: a.iban, currency: a.currency, balance: a.availableBalance })),
+      transactions: {
+        count: rows.length, credits: rows.filter(r => r.cents > 0).length, debits: rows.filter(r => r.cents < 0).length,
+        from: dates[0] || null, to: dates.at(-1) || null,
+        sample: rows.slice(0, 3).map(r => ({ date: r.tx_date, cents: r.cents, description: r.description, counterparty: r.counterparty })),
+      },
+      window: { from, to },
+    };
   },
   async sandboxExists() {
     try { await call(`/sandbox/${encodeURIComponent(cfg().sandboxId)}`, { method: 'GET', sandboxHeader: false }); return true; }

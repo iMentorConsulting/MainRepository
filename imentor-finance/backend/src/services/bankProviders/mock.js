@@ -12,6 +12,7 @@ const h = s => parseInt(crypto.createHash('sha1').update(s).digest('hex').slice(
 module.exports = {
   name: 'mock',
   env: () => 'mock',
+  key: () => 'mock',
   banks: ['nbg', 'alpha', 'piraeus', 'eurobank'],
   isConfigured: () => true,
   async diagnose() {
@@ -19,6 +20,11 @@ module.exports = {
     return { env: 'mock', banks: banks.map(b => ({ name: b, bic: `MOCK-${b}`, country: 'GR', transactions: true })), mapping: Object.fromEntries(banks.map(b => [b, { bic: `MOCK-${b}`, available: true }])) };
   },
   async createSandbox() { return { sandboxId: 'mock' }; },
+  async probe({ bank, from, to }) {
+    const rows = await module.exports.fetchTransactions({ connection: { bank }, from, to });
+    const dates = rows.map(r => r.tx_date).sort();
+    return { accounts: [{ iban: `MOCK-${bank}`, currency: 'EUR', balance: 0 }], transactions: { count: rows.length, credits: rows.filter(r => r.cents > 0).length, debits: rows.filter(r => r.cents < 0).length, from: dates[0] || null, to: dates.at(-1) || null, sample: [] }, window: { from, to } };
+  },
 
   async startConsent({ bank, redirectUri, state }) {
     if (process.env.MOCK_FAIL_START === 'true') throw new Error('NBG /user/connections/add: Sandbox Not Found (NBG-S-006)');

@@ -62,7 +62,7 @@ function OtpBox({ onSubmit, busy }) {
   );
 }
 
-function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, diag, busy }) {
+function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, onProbe, onHistory, onDeleteTest, testCount, diag, busy }) {
   if (!info) return null;
   const expiring = info.connections.filter(c => c.status === 'expired' || (c.status === 'active' && daysLeft(c.consent_expires_at) <= 7));
   return (
@@ -122,6 +122,9 @@ function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, diag, bu
             <span className="text-xs text-slate-400">Περιβάλλον NBG: <b>{info.env}</b></span>
             <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onCheck}>Έλεγχος σύνδεσης NBG</button>
             {info.env === 'sandbox' && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onSandbox}>Δημιουργία sandbox (μία φορά)</button>}
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onProbe}>Δοκιμαστική ανάκτηση (χωρίς αποθήκευση)</button>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onHistory}>Εισαγωγή ιστορικού (10 έτη)</button>
+            {testCount > 0 && <button className="btn btn-danger btn-sm" disabled={busy} onClick={onDeleteTest}>Διαγραφή δοκιμαστικών ({testCount})</button>}
           </div>
           {diag && (
             <div className="text-xs space-y-0.5">
@@ -139,6 +142,7 @@ function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, diag, bu
               {diag.banks && diag.mapping && Object.values(diag.mapping).some(m => !m.available) && (
                 <div className="text-slate-500 break-words">Διαθέσιμες τράπεζες: {diag.banks.map(b => `${b.name} (${b.bic})`).join(', ')}</div>
               )}
+              {diag.lines && diag.lines.map((l, i) => <div key={i} className="text-slate-600 break-words">{l}</div>)}
               {diag.message && <div className="text-slate-600">{diag.message}</div>}
             </div>
           )}
@@ -255,6 +259,40 @@ export default function BankPage() {
     catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία δημιουργίας sandbox' }); }
   };
 
+  const probeActive = async () => {
+    const active = (connInfo?.connections || []).filter(c => c.status === 'active');
+    if (!active.length) return setDiag({ error: 'Δεν υπάρχει ενεργή σύνδεση τράπεζας.' });
+    setDiag({ message: 'Ανάκτηση…' });
+    const lines = [];
+    for (const c of active) {
+      try {
+        const { data } = await api.get('/bank/provider/probe', { params: { bank: c.bank, days: 3650 } });
+        const t = data.transactions;
+        lines.push(`${c.label}: ${data.accounts.length} λογαριασμ${data.accounts.length === 1 ? 'ός' : 'οί'}` +
+          (data.accounts.length ? ` (${data.accounts.map(a => `${a.iban} ${a.balance ?? ''} ${a.currency || ''}`.trim()).join('; ')})` : '') +
+          ` · κινήσεις: ${t.count} (πιστώσεις ${t.credits}, χρεώσεις ${t.debits})` + (t.count ? ` · από ${t.from} έως ${t.to}` : ''));
+        t.sample.forEach(x => lines.push(`   ${x.date}  ${(x.cents / 100).toFixed(2)} €  ${x.counterparty || ''} ${x.description || ''}`.trim()));
+      } catch (e) { lines.push(`${c.label}: ${e.response?.data?.error || 'αποτυχία'}`); }
+    }
+    setDiag({ lines });
+  };
+  const importHistory = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/bank/sync', { days: 3650 });
+      const added = (data.results || []).reduce((n, r) => n + (r.new || 0), 0);
+      toast.success(`Ιστορικό: νέες κινήσεις ${added}`);
+      load(); loadConnections();
+    } catch (e) { toast.error(e.response?.data?.error || 'Αποτυχία εισαγωγής ιστορικού'); }
+    finally { setSyncing(false); }
+  };
+  const deleteTestData = async () => {
+    if (!window.confirm('Διαγραφή όλων των ΔΟΚΙΜΑΣΤΙΚΩΝ κινήσεων (sandbox); Οι πραγματικές κινήσεις δεν επηρεάζονται.')) return;
+    const { data } = await api.delete('/bank/test-data');
+    toast.success(`Διαγράφηκαν ${data.deleted} δοκιμαστικές κινήσεις`);
+    load();
+  };
+
   const syncNow = async () => {
     setSyncing(true);
     try {
@@ -312,7 +350,7 @@ export default function BankPage() {
         </button>
       </div>
 
-      <ConnectionsPanel info={connInfo} onConnect={connectBank} onOtp={submitOtp} onCheck={checkProvider} onSandbox={createSandbox} diag={diag} busy={syncing} />
+      <ConnectionsPanel info={connInfo} onConnect={connectBank} onOtp={submitOtp} onCheck={checkProvider} onSandbox={createSandbox} onProbe={probeActive} onHistory={importHistory} onDeleteTest={deleteTestData} testCount={summary.test_count || 0} diag={diag} busy={syncing} />
 
       {/* Import */}
       <div className="card p-4 flex flex-wrap items-center gap-3">
@@ -376,7 +414,7 @@ export default function BankPage() {
                       <td className="td whitespace-nowrap">{banks[tx.bank] || tx.bank}</td>
                       <td className={`td text-right whitespace-nowrap font-semibold tabular-nums ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(tx.amount)}</td>
                       <td className="td">
-                        <div>{tx.counterparty || tx.description}</div>
+                        <div>{tx.counterparty || tx.description} {tx.is_test && <span className="badge-orange ml-1">ΔΟΚΙΜΑΣΤΙΚΟ</span>}</div>
                         {tx.counterparty && tx.description && <div className="text-xs text-slate-400">{tx.description}</div>}
                       </td>
                       <td className="td"><CategoryInput tx={tx} onSave={p => saveSeen(tx, p)} /></td>
@@ -397,7 +435,7 @@ export default function BankPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs text-slate-400">{fmtDate(tx.tx_date)} · {banks[tx.bank] || tx.bank}</div>
-                    <div className="font-medium text-slate-800 break-words">{tx.counterparty || tx.description}</div>
+                    <div className="font-medium text-slate-800 break-words">{tx.counterparty || tx.description} {tx.is_test && <span className="badge-orange ml-1">ΔΟΚΙΜΑΣΤΙΚΟ</span>}</div>
                     {tx.counterparty && tx.description && <div className="text-xs text-slate-400 break-words">{tx.description}</div>}
                   </div>
                   <div className={`font-bold whitespace-nowrap tabular-nums ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(tx.amount)}</div>

@@ -40,7 +40,8 @@ router.get('/summary', async (_, res) => {
       BankTransaction.count({ where: { direction: 'debit', seen: false } }),
       BankTransaction.count({ where: { direction: 'credit', invoice_issued: { [Op.or]: [null, false] } } }),
     ]);
-    res.json({ new_credits, new_debits, credits_without_invoice });
+    const test_count = await BankTransaction.count({ where: { is_test: true } });
+    res.json({ new_credits, new_debits, credits_without_invoice, test_count });
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -89,7 +90,7 @@ router.post('/import', upload.single('file'), async (req, res) => {
 router.get('/connections', async (_, res) => {
   try {
     const provider = getProvider();
-    const rows = await BankConnection.findAll({ where: { provider: provider.name } });
+    const rows = await BankConnection.findAll({ where: { provider: provider.key() } });
     res.json({
       provider: provider.name,
       env: provider.env ? provider.env() : '',
@@ -113,7 +114,7 @@ router.post('/connections', async (req, res) => {
     const bank = req.body?.bank;
     if (!provider.banks.includes(bank)) return res.status(400).json({ error: 'Άγνωστη τράπεζα' });
     if (!provider.isConfigured()) return res.status(409).json({ error: 'Δεν έχουν ρυθμιστεί τα στοιχεία πρόσβασης του παρόχου (Railway variables).' });
-    [conn, created] = await BankConnection.findOrCreate({ where: { provider: provider.name, bank }, defaults: { status: 'pending' } });
+    [conn, created] = await BankConnection.findOrCreate({ where: { provider: provider.key(), bank }, defaults: { status: 'pending' } });
     const redirectUri = `${req.protocol}://${req.get('host')}/api/bank/callback`;
     const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id), psuIp: req.ip });
     if (consentId) await conn.update({ consent_id: consentId });
@@ -130,7 +131,7 @@ router.post('/connections/otp', async (req, res) => {
   try {
     const provider = getProvider();
     const { bank, otp } = req.body || {};
-    const conn = await BankConnection.findOne({ where: { provider: provider.name, bank } });
+    const conn = await BankConnection.findOne({ where: { provider: provider.key(), bank } });
     if (!conn || conn.status !== 'pending') return res.status(404).json({ error: 'Δεν υπάρχει σύνδεση που να περιμένει κωδικό.' });
     if (!/^\d{4,10}$/.test(String(otp || ''))) return res.status(400).json({ error: 'Μη έγκυρος κωδικός OTP.' });
     await applyConsentResult(conn, await provider.submitOtp({ connection: conn, otp, psuIp: req.ip }), req.ip);
@@ -142,7 +143,8 @@ router.post('/connections/otp', async (req, res) => {
 // "Ανανέωση τώρα": fetch new movements right now for every active connection
 router.post('/sync', async (req, res) => {
   try {
-    res.json(await syncAll({ psuIp: req.ip }));
+    const days = Math.min(Math.max(Number(req.body?.days) || 0, 0), 3650);
+    res.json(await syncAll({ psuIp: req.ip, days }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -162,6 +164,26 @@ router.post('/provider/sandbox', async (_, res) => {
     if (!provider.createSandbox || provider.env() === 'production') return res.status(409).json({ error: 'Το sandbox δημιουργείται μόνο στο περιβάλλον sandbox.' });
     res.json(await provider.createSandbox());
   } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// Read-only look at what the bank returns (nothing stored): ?bank=nbg&days=3650
+router.get('/provider/probe', async (req, res) => {
+  try {
+    const provider = getProvider();
+    const bank = req.query.bank;
+    if (!provider.banks.includes(bank) || !provider.probe) return res.status(400).json({ error: 'Άγνωστη τράπεζα' });
+    const conn = await BankConnection.findOne({ where: { provider: provider.key(), bank } });
+    if (!conn || conn.status !== 'active') return res.status(409).json({ error: 'Η τράπεζα δεν είναι συνδεδεμένη.' });
+    const days = Math.min(Math.max(Number(req.query.days) || 365, 1), 3650);
+    const iso = d => new Date(d).toISOString().slice(0, 10);
+    res.json(await provider.probe({ bank, from: iso(Date.now() - days * 86400000), to: iso(Date.now()), psuIp: req.ip || conn.psu_ip }));
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+// Remove sandbox/mock rows (they must never mix with real money)
+router.delete('/test-data', async (_, res) => {
+  try { res.json({ deleted: await BankTransaction.destroy({ where: { is_test: true } }) }); }
+  catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

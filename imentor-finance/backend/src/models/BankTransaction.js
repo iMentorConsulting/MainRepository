@@ -18,6 +18,7 @@ const BankTransaction = sequelize.define('BankTransaction', {
   note:           { type: DataTypes.TEXT, defaultValue: '' },
   invoice_issued: { type: DataTypes.BOOLEAN, allowNull: true },          // null = not marked yet
   income_id:      { type: DataTypes.INTEGER, allowNull: true },          // reserved for matching to Income / myDATA
+  is_test:        { type: DataTypes.BOOLEAN, defaultValue: false },        // sandbox / mock data: never mixed up with real money
   seen:           { type: DataTypes.BOOLEAN, defaultValue: false },
   notified:       { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {

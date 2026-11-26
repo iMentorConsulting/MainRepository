@@ -198,6 +198,10 @@ sequelize.sync({ alter: true }).then(async () => {
     console.warn('[logistis-sync] Could not schedule sync:', e.message);
   }
 
+  // Sandbox and production consents are now separate rows ("nbg:sandbox" / "nbg:production"); every earlier "nbg" row is a sandbox one
+  try { await sequelize.query(`UPDATE bank_connections SET provider = 'nbg:sandbox' WHERE provider = 'nbg'`); }
+  catch (e) { console.warn('[bank-sync] provider key migration skipped:', e.message); }
+
   // Scheduled bank fetch (every 10 min in working hours) + consent-expiry reminders
   try { require('./services/bankScheduler').start(); }
   catch (e) { console.warn('[bank-sync] Could not schedule:', e.message); }

@@ -194,3 +194,35 @@ test('the real signed state is accepted by NBG (regression for NBG-A-418)', asyn
   assert.equal(r.consentId, 'conn-1');
   await assert.rejects(P().startConsent({ bank: 'alpha', redirectUri: 'x', state: 'a.b.c' }), /NBG-A-418/);   // a dotted (JWT-style) state is what broke it
 });
+
+test('PendingSCAData without an SMS (Alpha-style) is finished with update-sca-status and no OTP; SMS banks wait; Processing just waits', async () => {
+  const before = seen.length;
+  behaviour.banks = [{ connectionId: 'c5', bankBIC: 'CRBAGRAA', status: 'PendingSCAData' }];
+  const r = await P().completeConsent({ connection: { bank: 'alpha', consent_id: 'c5' }, query: {} });
+  assert.equal(r.status, 'active');
+  const finalize = seen.slice(before).find(x => x.path === '/user/connections/update-sca-status');
+  assert.deepEqual(finalize.body.payload, { ConnectionId: 'c5' });          // no OTP
+  assert.equal(finalize.h['x-subject-bank-bic'], 'CRBAGRAA');
+
+  const n = seen.length;
+  behaviour.banks = [{ connectionId: 'c6', bankBIC: 'PIRBGRAA', status: 'PendingSCAData', scaType: 'SMS' }];
+  assert.equal((await P().completeConsent({ connection: { bank: 'piraeus', consent_id: 'c6' }, query: {} })).status, 'pending');
+  behaviour.banks = [{ connectionId: 'c7', bankBIC: 'CRBAGRAA', status: 'Processing' }];
+  assert.equal((await P().completeConsent({ connection: { bank: 'alpha', consent_id: 'c7' }, query: {} })).status, 'pending');
+  assert.equal(seen.slice(n).some(x => x.path === '/user/connections/update-sca-status'), false, 'SMS and Processing must not be finalised without a code');
+});
+
+test('probe: shows accounts and the transaction count / date range without storing anything', async () => {
+  const r = await P().probe({ bank: 'nbg', from: '2016-01-01', to: '2026-11-26' });
+  assert.equal(r.accounts.length, 2);
+  assert.equal(r.accounts[0].iban, 'GR0000000000000000000000001');
+  assert.equal(r.transactions.count, 3);
+  assert.deepEqual([r.transactions.credits, r.transactions.debits], [1, 2]);
+  assert.deepEqual([r.transactions.from, r.transactions.to], ['2026-11-23', '2026-11-25']);
+  assert.equal(r.transactions.sample.length, 3);
+});
+
+test('sandbox and production use separate connection keys', () => {
+  assert.equal(P().key(), 'nbg:sandbox');
+  process.env.NBG_ENV = 'production'; assert.equal(P().key(), 'nbg:production'); process.env.NBG_ENV = 'sandbox';
+});

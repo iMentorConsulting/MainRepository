@@ -44,16 +44,27 @@ test('consent flow → first sync → alerts → dedupe → expiry', { skip }, a
 
   // 3. the callback kicks off the first (wide) sync in the background
   for (let i = 0; i < 50 && !(await BankTransaction.count()); i++) await new Promise(r => setTimeout(r, 100));
-  const n1 = await BankTransaction.count();
+  const n1 = await BankTransaction.count();   // (the 3b block below re-reads this)
   assert.ok(n1 > 10, `first sync should import ~90 days of history, got ${n1}`);
   assert.ok(await BankTransaction.count({ where: { direction: 'debit', category: 'Λογαριασμοί (ΔΕΗ/νερό/τηλ.)' } }) >= 1, 'debits are auto-categorized');
 
+  // 3b. everything from a sandbox/mock provider is tagged as test data and its alert says so
+  assert.equal(await BankTransaction.count({ where: { is_test: false } }), 0);
+  assert.equal((await (await api('/api/bank/summary')).json()).test_count, n1);
+  const probe = await (await api('/api/bank/provider/probe?bank=alpha&days=3650')).json();
+  assert.equal(probe.accounts.length, 1); assert.ok(probe.transactions.count >= n1);
+  assert.equal(await BankTransaction.count(), n1, 'probe must not store anything');
+  const wide = await (await api('/api/bank/sync', { method: 'POST', body: JSON.stringify({ days: 3650 }) })).json();
+  assert.equal(wide.results[0].ok, true);                                     // wider history window is accepted
+  assert.equal((await (await api('/api/bank/provider/probe?bank=piraeus')).json()).error, 'Η τράπεζα δεν είναι συνδεδεμένη.');
+
   // 4. "Ανανέωση τώρα" again: nothing new, nothing duplicated
+  const n1b = await BankTransaction.count();
   const sync = await (await api('/api/bank/sync', { method: 'POST' })).json();
   assert.equal(sync.results.length, 1);
   assert.equal(sync.results[0].ok, true);
   assert.equal(sync.results[0].new, 0);
-  assert.equal(await BankTransaction.count(), n1);
+  assert.equal(await BankTransaction.count(), n1b);
 
   // 5. bad / foreign state is rejected without touching anything
   for (const state of ['nope', require('jsonwebtoken').sign({ purpose: 'bank-consent', cid: conn.id }, 'test-secret')]) {
@@ -129,6 +140,13 @@ test('Piraeus asks for an SMS OTP: pending → wrong code rejected → right cod
   const listed2 = await (await fetch(base + '/api/bank/connections')).json();
   assert.equal(listed2.connections.find(c => c.bank === 'nbg').status, 'none');
   await BankConnection.destroy({ where: { bank: 'nbg' } });
+
+  // a real (non-test) row survives "delete test data"
+  await BankTransaction.create({ bank: 'alpha', tx_date: '2026-11-01', amount: '100.00', direction: 'credit', fingerprint: 'real-1', description: 'real file import', is_test: false });
+  const del = await (await fetch(base + '/api/bank/test-data', { method: 'DELETE' })).json();
+  assert.ok(del.deleted > 10);
+  assert.equal(await BankTransaction.count(), 1);
+  assert.equal((await BankTransaction.findOne()).description, 'real file import');
 
   // not configured real provider: clear refusal, nothing created
   process.env.BANK_PROVIDER = 'nbg'; delete process.env.NBG_CLIENT_ID;

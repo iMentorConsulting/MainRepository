@@ -11,7 +11,7 @@ const DAY = 86400000;
 async function checkExpiry(now = Date.now(), send = require('./viberNotify').sendViberMessage) {
   const today = new Date(now).toISOString().slice(0, 10);
   const soon = await BankConnection.findAll({
-    where: { provider: getProvider().name, status: 'active', consent_expires_at: { [Op.lte]: new Date(now + 7 * DAY) } },
+    where: { provider: getProvider().key(), status: 'active', consent_expires_at: { [Op.lte]: new Date(now + 7 * DAY) } },
   });
   const due = soon.filter(c => c.expiry_alerted_on !== today);
   if (!due.length) return 0;
