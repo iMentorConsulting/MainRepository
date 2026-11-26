@@ -41,6 +41,69 @@ function InvoiceSelect({ tx, onSave }) {
   );
 }
 
+const STATUS = {
+  active:  { label: 'Ενεργή',    cls: 'badge-green'  },
+  expired: { label: 'Έληξε',     cls: 'badge-red'    },
+  pending: { label: 'Σε εξέλιξη', cls: 'badge-yellow' },
+  error:   { label: 'Σφάλμα',    cls: 'badge-red'    },
+  none:    { label: 'Μη συνδεδεμένη', cls: 'badge-gray' },
+};
+const daysLeft = d => d ? Math.ceil((new Date(d) - Date.now()) / 86400000) : null;
+const fmtDateTime = d => d ? new Date(d).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+
+function ConnectionsPanel({ info, onConnect, busy }) {
+  if (!info) return null;
+  const expiring = info.connections.filter(c => c.status === 'expired' || (c.status === 'active' && daysLeft(c.consent_expires_at) <= 7));
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-slate-600">Αυτόματη σύνδεση τραπεζών</span>
+        {info.provider === 'mock' && <span className="badge-orange">ΔΟΚΙΜΑΣΤΙΚΟ ΠΕΡΙΒΑΛΛΟΝ (mock)</span>}
+        {!info.configured && <span className="badge-gray">Αναμένεται ρύθμιση παρόχου</span>}
+      </div>
+
+      {expiring.length > 0 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2">
+          {expiring.map(c => (
+            <div key={c.bank}>
+              <b>{c.label}</b>: {c.status === 'expired' ? 'η συγκατάθεση έχει λήξει' : `η συγκατάθεση λήγει σε ${daysLeft(c.consent_expires_at)} ημέρες`} — πατήστε «Ανανέωση σύνδεσης».
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!info.configured && (
+        <p className="text-xs text-slate-400">
+          Η σύνδεση θα ενεργοποιηθεί όταν προστεθούν τα στοιχεία πρόσβασης του παρόχου στο Railway (NBG_BASE_URL, NBG_CLIENT_ID, NBG_CLIENT_SECRET). Μέχρι τότε η εισαγωγή αρχείου λειτουργεί κανονικά.
+        </p>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {info.connections.map(c => {
+          const st = STATUS[c.status] || STATUS.none;
+          const left = daysLeft(c.consent_expires_at);
+          return (
+            <div key={c.bank} className="rounded-xl border border-slate-200 p-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-700 text-sm">{c.label}</span>
+                <span className={st.cls}>{st.label}</span>
+              </div>
+              <div className="text-xs text-slate-400">
+                {c.status === 'active' && <>Λήξη σε {left} ημέρες<br /></>}
+                Τελευταίος έλεγχος: {fmtDateTime(c.last_sync_at)}
+              </div>
+              {c.last_error && c.status !== 'active' && <div className="text-xs text-rose-600 break-words">{c.last_error}</div>}
+              <button className="btn btn-secondary btn-sm w-full" disabled={busy || !info.configured} onClick={() => onConnect(c.bank)}>
+                {c.status === 'none' ? 'Σύνδεση' : 'Ανανέωση σύνδεσης'}
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 export default function BankPage() {
   const [direction, setDirection] = useState('credit');
   const [bank, setBank] = useState('');
@@ -53,6 +116,8 @@ export default function BankPage() {
   const [loading, setLoading] = useState(true);
   const [importBank, setImportBank] = useState('alpha');
   const [uploading, setUploading] = useState(false);
+  const [connInfo, setConnInfo] = useState(null);
+  const [syncing, setSyncing] = useState(false);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -98,6 +163,50 @@ export default function BankPage() {
   // typing a note counts as having seen the row
   const saveSeen = (tx, patch) => save(tx, tx.seen ? patch : { ...patch, seen: true });
 
+
+  const loadConnections = useCallback(() => {
+    api.get('/bank/connections').then(r => setConnInfo(r.data)).catch(() => {});
+  }, []);
+  useEffect(() => { loadConnections(); }, [loadConnections]);
+
+  // the bank sends the browser back to /bank?bank_connected=... or ?bank_error=...
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.get('bank_connected')) toast.success('Η τράπεζα συνδέθηκε. Γίνεται η πρώτη ανάκτηση κινήσεων…');
+    if (qs.get('bank_error')) toast.error(qs.get('bank_error'), { duration: 8000 });
+    if (qs.has('bank_connected') || qs.has('bank_error')) {
+      window.history.replaceState({}, '', '/bank');
+      setTimeout(() => { loadConnections(); load(); }, 2500);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const connectBank = async bank => {
+    try {
+      const { data } = await api.post('/bank/connections', { bank });
+      window.location.href = data.redirect_url;     // the bank's own login/consent page
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία έναρξης σύνδεσης');
+    }
+  };
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/bank/sync');
+      if (data.skipped) toast('Ο έλεγχος ήδη εκτελείται, δοκιμάστε σε λίγο.');
+      else if (!data.results.length) toast('Δεν υπάρχει ενεργή σύνδεση τράπεζας. Συνδέστε μια τράπεζα ή εισάγετε αρχείο.');
+      else {
+        const added = data.results.reduce((n, r) => n + (r.new || 0), 0);
+        const failed = data.results.filter(r => !r.ok);
+        if (added) toast.success(`Νέες κινήσεις: ${added}`); else if (!failed.length) toast('Καμία νέα κίνηση.');
+        failed.forEach(r => toast.error(`${r.bank}: ${r.error}`));
+      }
+      load(); loadConnections();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία ανανέωσης');
+    } finally { setSyncing(false); }
+  };
+
   const markAllSeen = async () => {
     await api.post('/bank/mark-seen', { direction });
     load();
@@ -132,7 +241,12 @@ export default function BankPage() {
         <h1 className="text-xl font-bold text-slate-800 mr-2">Τράπεζες</h1>
         <span className="badge-yellow">Νέες πιστώσεις: {summary.new_credits}</span>
         <span className="badge-orange">Πιστώσεις χωρίς τιμολόγιο: {summary.credits_without_invoice}</span>
+        <button className="btn btn-primary btn-sm ml-auto" onClick={syncNow} disabled={syncing}>
+          {syncing ? 'Ανανέωση…' : '↻ Ανανέωση τώρα'}
+        </button>
       </div>
+
+      <ConnectionsPanel info={connInfo} onConnect={connectBank} busy={syncing} />
 
       {/* Import */}
       <div className="card p-4 flex flex-wrap items-center gap-3">

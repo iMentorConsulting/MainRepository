@@ -4,6 +4,10 @@ const { Op } = require('sequelize');
 const BankTransaction = require('../models/BankTransaction');
 const { parseStatement, ParseError } = require('../services/bankParsers');
 const { BANKS, ingest } = require('../services/bankIngest');
+const BankConnection = require('../models/BankConnection');
+const { getProvider } = require('../services/bankProviders');
+const { syncAll } = require('../services/bankSync');
+const { signState } = require('../services/bankState');
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
@@ -79,6 +83,49 @@ router.post('/import', upload.single('file'), async (req, res) => {
     if (e instanceof ParseError) return res.status(422).json({ error: e.message });
     res.status(500).json({ error: e.message });
   }
+});
+
+// ── Bank connections (consent given to read each bank) ──────────────────────────────────────
+router.get('/connections', async (_, res) => {
+  try {
+    const provider = getProvider();
+    const rows = await BankConnection.findAll({ where: { provider: provider.name } });
+    res.json({
+      provider: provider.name,
+      configured: provider.isConfigured(),
+      connections: provider.banks.map(bank => {
+        const c = rows.find(r => r.bank === bank);
+        return {
+          bank, label: BANKS[bank], status: c ? c.status : 'none',
+          consent_expires_at: c?.consent_expires_at || null, last_sync_at: c?.last_sync_at || null, last_error: c?.last_error || '',
+        };
+      }),
+    });
+  } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// Start (or renew) the consent for one bank → returns the bank's login URL for the browser to open
+router.post('/connections', async (req, res) => {
+  try {
+    const provider = getProvider();
+    const bank = req.body?.bank;
+    if (!provider.banks.includes(bank)) return res.status(400).json({ error: 'Άγνωστη τράπεζα' });
+    if (!provider.isConfigured()) return res.status(409).json({ error: 'Δεν έχουν ρυθμιστεί τα στοιχεία πρόσβασης του παρόχου (Railway variables).' });
+    const [conn] = await BankConnection.findOrCreate({ where: { provider: provider.name, bank }, defaults: { status: 'pending' } });
+    const redirectUri = `${req.protocol}://${req.get('host')}/api/bank/callback`;
+    const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id) });
+    if (consentId) await conn.update({ consent_id: consentId });
+    res.json({ redirect_url: redirectUrl });
+  } catch (e) {
+    res.status(e.code === 'PROVIDER_NOT_READY' ? 503 : 500).json({ error: e.message });
+  }
+});
+
+// "Ανανέωση τώρα": fetch new movements right now for every active connection
+router.post('/sync', async (req, res) => {
+  try {
+    res.json(await syncAll({ psuIp: req.ip }));
+  } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
 module.exports = router;

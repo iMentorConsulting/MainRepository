@@ -5,7 +5,7 @@ const { Op } = require('sequelize');
 const BankTransaction = require('../models/BankTransaction');
 const { categorize } = require('./bankCategorize');
 
-const BANKS = { alpha: 'Alpha Bank', piraeus: 'Πειραιώς', eurobank: 'Eurobank' };
+const BANKS = { nbg: 'Εθνική Τράπεζα', alpha: 'Alpha Bank', piraeus: 'Πειραιώς', eurobank: 'Eurobank' };
 
 function formatEur(cents) {
   const sign = cents < 0 ? '-' : '';
@@ -15,6 +15,8 @@ function formatEur(cents) {
 }
 
 function fingerprint(bank, row, n) {
+  // a bank-supplied transaction id is the strongest identity: stable across overlapping fetches
+  if (row.external_id) return crypto.createHash('sha256').update(`${bank}|ext|${row.external_id}`).digest('hex');
   const desc = (row.description || '').toUpperCase().split(/\s+/).filter(Boolean).join(' ');
   return crypto.createHash('sha256')
     .update([bank, row.account || '', row.tx_date, row.cents, desc, n].join('|')).digest('hex');
@@ -52,13 +54,15 @@ async function ingest(bank, rows, deps = {}) {
     return { ...r, fp: fingerprint(bank, r, n) };
   });
 
+  // a feed may repeat the same bank transaction id inside one response: keep the first
+  const unique = [...new Map(prepared.map(p => [p.fp, p])).values()];
   const existing = new Set();
-  const fps = prepared.map(p => p.fp);
+  const fps = unique.map(p => p.fp);
   for (let i = 0; i < fps.length; i += 500) {
     const found = await BankTransaction.findAll({ where: { fingerprint: { [Op.in]: fps.slice(i, i + 500) } }, attributes: ['fingerprint'], raw: true });
     found.forEach(f => existing.add(f.fingerprint));
   }
-  const fresh = prepared.filter(p => !existing.has(p.fp));
+  const fresh = unique.filter(p => !existing.has(p.fp));
 
   const created = await BankTransaction.bulkCreate(fresh.map(p => ({
     bank, account: p.account || '', tx_date: p.tx_date, amount: (p.cents / 100).toFixed(2),
