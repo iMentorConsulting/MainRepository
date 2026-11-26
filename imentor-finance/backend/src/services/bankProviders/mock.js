@@ -21,6 +21,7 @@ module.exports = {
   async createSandbox() { return { sandboxId: 'mock' }; },
 
   async startConsent({ bank, redirectUri, state }) {
+    if (process.env.MOCK_FAIL_START === 'true') throw new Error('NBG /user/connections/add: Sandbox Not Found (NBG-S-006)');
     const q = new URLSearchParams({ state, mock_consent: `mock-${bank}` });
     return { redirectUrl: `${redirectUri}?${q}`, consentId: `mock-${bank}` };
   },

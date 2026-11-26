@@ -69,24 +69,27 @@ async function getToken(force = false) {
   return tokenCache.token;
 }
 
-async function call(path, { bank, payload = {}, ip = '', retry = true } = {}) {
+async function call(path, { bank, payload = {}, ip = '', retry = true, method = 'POST', sandboxHeader = true } = {}) {
   const c = cfg();
   const id = crypto.randomUUID();
   const headers = {
     Authorization: `Bearer ${await getToken()}`,
     'Client-Id': c.clientId,
-    'Content-Type': 'application/json',
     Accept: 'application/json',
     'X-Fapi-Interaction-Id': id,
     'X-Client-User-Id': c.clientUserId,
   };
+  if (method !== 'GET') headers['Content-Type'] = 'application/json';
   const cip = ipv4(ip, c.fixedIp);
   if (cip) headers['X-Fapi-Customer-Ip-Address'] = cip;
   if (bank) headers['X-Subject-Bank-Bic'] = bicOf(bank);
-  if (c.env === 'sandbox' && c.sandboxId) headers['Sandbox_Id'] = c.sandboxId;
+  if (c.env === 'sandbox' && c.sandboxId && sandboxHeader) headers['Sandbox_Id'] = c.sandboxId;
 
-  const res = await fetch(c.base + path, { method: 'POST', headers, body: JSON.stringify({ header: { ID: id, application: c.clientId }, payload }) });
-  if (res.status === 401 && retry) { await getToken(true); return call(path, { bank, payload, ip, retry: false }); }
+  const res = await fetch(c.base + path, {
+    method, headers,
+    ...(method === 'GET' ? {} : { body: JSON.stringify({ header: { ID: id, application: c.clientId }, payload }) }),
+  });
+  if (res.status === 401 && retry) { await getToken(true); return call(path, { bank, payload, ip, retry: false, method, sandboxHeader }); }
   const data = await res.json().catch(() => ({}));
   const ex = data.exception;
   if (!res.ok || ex) {
@@ -184,15 +187,31 @@ module.exports = {
   async diagnose() {
     const banks = (await call('/client/connections')) || [];
     const want = bics();
+    const sandbox = cfg().env === 'sandbox' ? { id: cfg().sandboxId, exists: await module.exports.sandboxExists().catch(() => null) } : null;
     return {
       env: cfg().env,
+      sandbox,
       banks: banks.map(b => ({ name: b.displayName, bic: b.bankBIC, country: b.country, transactions: !!b.capabilities?.['AIS-Bank-Account-Transactions'] })),
       mapping: Object.fromEntries(Object.entries(want).map(([k, bic]) => [k, { bic, available: banks.some(b => b.bankBIC === bic) }])),
     };
   },
+  // Spec (POST /sandbox): body { header, payload: { sandbox_Id } }; no Sandbox_Id header on this call.
+  // "A Sandbox with default data is created" - if the payload is rejected as malformed we retry with a plain string.
   async createSandbox() {
     const c = cfg();
-    return call('/sandbox', { payload: { sandboxId: c.sandboxId, requireNbgConsent: false, showCompletionPage: false, consentApplicationIds: [c.clientId] } });
+    const opts = { sandboxHeader: false };
+    try {
+      return await call('/sandbox', { ...opts, payload: { sandbox_Id: c.sandboxId } });
+    } catch (e) {
+      if (e.apiCode === 'NBG-S-002') return { sandboxId: c.sandboxId, alreadyExisted: true };
+      if (!['NBG-S-010', 'NBG-S-150'].includes(e.apiCode) && e.status !== 400) throw e;
+      try { return await call('/sandbox', { ...opts, payload: c.sandboxId }); }
+      catch (e2) { if (e2.apiCode === 'NBG-S-002') return { sandboxId: c.sandboxId, alreadyExisted: true }; throw e2; }
+    }
+  },
+  async sandboxExists() {
+    try { await call(`/sandbox/${encodeURIComponent(cfg().sandboxId)}`, { method: 'GET', sandboxHeader: false }); return true; }
+    catch (e) { if (e.apiCode === 'NBG-S-006' || e.apiCode === 'NBG-S-001') return false; throw e; }
   },
   _internals: { cfg, bics, ipv4, call, getToken, consentResult, resetTokenCache: () => { tokenCache = { token: '', exp: 0, key: '' }; } },
 };

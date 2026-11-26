@@ -97,7 +97,7 @@ router.get('/connections', async (_, res) => {
       connections: provider.banks.map(bank => {
         const c = rows.find(r => r.bank === bank);
         return {
-          bank, label: BANKS[bank], status: c ? c.status : 'none',
+          bank, label: BANKS[bank], status: c && !(c.status === 'pending' && !c.consent_id) ? c.status : 'none',
           sca_type: c?.sca_type || '', consent_expires_at: c?.consent_expires_at || null, last_sync_at: c?.last_sync_at || null, last_error: c?.last_error || '',
         };
       }),
@@ -107,17 +107,20 @@ router.get('/connections', async (_, res) => {
 
 // Start (or renew) the consent for one bank → returns the bank's login URL for the browser to open
 router.post('/connections', async (req, res) => {
+  let conn = null, created = false;
   try {
     const provider = getProvider();
     const bank = req.body?.bank;
     if (!provider.banks.includes(bank)) return res.status(400).json({ error: 'Άγνωστη τράπεζα' });
     if (!provider.isConfigured()) return res.status(409).json({ error: 'Δεν έχουν ρυθμιστεί τα στοιχεία πρόσβασης του παρόχου (Railway variables).' });
-    const [conn] = await BankConnection.findOrCreate({ where: { provider: provider.name, bank }, defaults: { status: 'pending' } });
+    [conn, created] = await BankConnection.findOrCreate({ where: { provider: provider.name, bank }, defaults: { status: 'pending' } });
     const redirectUri = `${req.protocol}://${req.get('host')}/api/bank/callback`;
     const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id), psuIp: req.ip });
     if (consentId) await conn.update({ consent_id: consentId });
     res.json({ redirect_url: redirectUrl });
   } catch (e) {
+    // a failed first attempt must not leave a "Σε εξέλιξη" card behind
+    if (conn && created) await conn.destroy().catch(() => {});
     res.status(e.code === 'PROVIDER_NOT_READY' ? 503 : 500).json({ error: e.message });
   }
 });

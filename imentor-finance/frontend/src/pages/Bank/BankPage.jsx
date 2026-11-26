@@ -126,6 +126,11 @@ function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, diag, bu
           {diag && (
             <div className="text-xs space-y-0.5">
               {diag.error && <div className="text-rose-600 break-words">{diag.error}</div>}
+              {diag.sandbox && (
+                <div className={diag.sandbox.exists ? 'text-emerald-600' : 'text-rose-600'}>
+                  {diag.sandbox.exists ? '✓' : '✗'} sandbox «{diag.sandbox.id}» {diag.sandbox.exists ? 'υπάρχει' : (diag.sandbox.exists === false ? 'δεν υπάρχει: πατήστε «Δημιουργία sandbox»' : 'δεν ήταν δυνατός ο έλεγχος')}
+                </div>
+              )}
               {diag.mapping && Object.entries(diag.mapping).map(([bank, m]) => (
                 <div key={bank} className={m.available ? 'text-emerald-600' : 'text-rose-600'}>
                   {m.available ? '✓' : '✗'} {bank} — {m.bic}{m.available ? '' : ' (δεν προσφέρεται με αυτόν τον κωδικό)'}
@@ -246,7 +251,7 @@ export default function BankPage() {
     catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία ελέγχου' }); }
   };
   const createSandbox = async () => {
-    try { await api.post('/bank/provider/sandbox'); setDiag({ message: '✓ Το sandbox δημιουργήθηκε. Πατήστε «Έλεγχος σύνδεσης NBG» και μετά «Σύνδεση» σε μια τράπεζα.' }); }
+    try { await api.post('/bank/provider/sandbox'); setDiag({ message: '✓ Το sandbox είναι έτοιμο. Πατήστε «Έλεγχος σύνδεσης NBG» για επιβεβαίωση και μετά «Σύνδεση» σε μια τράπεζα.' }); }
     catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία δημιουργίας sandbox' }); }
   };
 

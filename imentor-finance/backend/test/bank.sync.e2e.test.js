@@ -119,6 +119,17 @@ test('Piraeus asks for an SMS OTP: pending → wrong code rejected → right cod
   const none = await fetch(`${base}/api/bank/callback?connectionId=does-not-exist`, { redirect: 'manual' });
   assert.match(none.headers.get('location'), /bank_error=/);
 
+  // a failed first attempt (e.g. NBG-S-006) leaves no half-created "Σε εξέλιξη" card; old stuck rows show as not connected
+  process.env.MOCK_FAIL_START = 'true';
+  const failed = await api('/api/bank/connections', { bank: 'nbg' });
+  assert.equal(failed.status, 500);
+  assert.equal(await BankConnection.count({ where: { bank: 'nbg' } }), 0);
+  process.env.MOCK_FAIL_START = 'false';
+  await BankConnection.create({ provider: 'mock', bank: 'nbg', status: 'pending' });          // what the earlier bug left behind
+  const listed2 = await (await fetch(base + '/api/bank/connections')).json();
+  assert.equal(listed2.connections.find(c => c.bank === 'nbg').status, 'none');
+  await BankConnection.destroy({ where: { bank: 'nbg' } });
+
   // not configured real provider: clear refusal, nothing created
   process.env.BANK_PROVIDER = 'nbg'; delete process.env.NBG_CLIENT_ID;
   const refused = await api('/api/bank/connections', { bank: 'alpha' });

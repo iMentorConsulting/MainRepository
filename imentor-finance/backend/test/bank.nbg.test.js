@@ -11,7 +11,7 @@ test.before(async () => {
   server = http.createServer((req, res) => {
     let raw = '';
     req.on('data', c => raw += c);
-    req.on('end', () => {
+    req.on('end', () => { try {
       const send = (status, obj) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
       if (req.url === '/token') {
         tokenCalls++;
@@ -25,12 +25,13 @@ test.before(async () => {
       const h = req.headers;
       const path = req.url.replace('/api', '');
       seen.push({ path, h, body });
+      if (req.method === 'GET' && path.startsWith('/sandbox/')) return behaviour.noSandbox ? send(404, { exception: { code: 'NBG-S-006', desc: 'Sandbox Not Found' } }) : send(200, { payload: { sandboxId: 'sbx1' } });
       // everything the spec marks as required on every call
       if (behaviour.force401 && !behaviour.did401) { behaviour.did401 = true; return send(401, {}); }
       assert.match(h.authorization, /^Bearer tok\d+$/);
+      if (!path.startsWith('/sandbox')) assert.equal(h['sandbox_id'], 'sbx1');
       assert.equal(h['client-id'], 'cid');
       assert.equal(h['x-client-user-id'], 'imentor-finance');
-      assert.equal(h['sandbox_id'], 'sbx1');
       assert.ok(h['x-fapi-interaction-id']);
       assert.equal(body.header.ID, h['x-fapi-interaction-id'], 'header.ID must equal X-Fapi-Interaction-Id');
       assert.equal(body.header.application, 'cid');
@@ -40,7 +41,13 @@ test.before(async () => {
         { country: 'GR', displayName: 'National Bank of Greece', bankBIC: 'ETHNGRAA', capabilities: { 'AIS-Bank-Account-Transactions': true } },
         { country: 'GR', displayName: 'Alpha Bank', bankBIC: 'CRBAGRAA', capabilities: { 'AIS-Bank-Account-Transactions': true } },
         { country: 'GR', displayName: 'Eurobank', bankBIC: 'EFGBGRAA', capabilities: { 'AIS-Bank-Account-Transactions': false } } ] });
-      if (path === '/sandbox') { assert.equal(body.payload.sandboxId, 'sbx1'); assert.deepEqual(body.payload.consentApplicationIds, ['cid']); return send(200, { payload: { sandboxId: 'sbx1' } }); }
+      if (path === '/sandbox') {
+        assert.equal(h['sandbox_id'], undefined, 'spec: no Sandbox_Id header on create');
+        if (behaviour.sandboxExists) return send(400, { exception: { code: 'NBG-S-002', desc: 'Sandbox with the same sandboxId already exists!' } });
+        if (behaviour.sandboxStringPayload && typeof body.payload !== 'string') return send(400, { exception: { code: 'NBG-S-010', desc: 'Invalid Request: You must fill all the required fields in the request body.' } });
+        if (!behaviour.sandboxStringPayload) assert.deepEqual(body.payload, { sandbox_Id: 'sbx1' });
+        return send(200, { payload: { sandboxId: 'sbx1' } });
+      }
       if (path === '/user/connections/add' && !/^[A-Za-z0-9_-]+$/.test(body.payload.State || '')) return send(400, { exception: { code: 'NBG-A-418', desc: 'Invalid Request: The field State accepts alpha-numeric characters, as well as dashes and underscores', sev: 'Error' } });
       if (path === '/user/connections/add') return send(200, { payload: { connectionLink: 'https://bank.example/login?x=1', connectionId: 'conn-1', bankBIC: h['x-subject-bank-bic'], country: 'GR', displayName: 'X' } });
       if (path === '/user/connections') return send(200, { payload: { clientUserId: 'imentor-finance', banks: behaviour.banks } });
@@ -59,7 +66,7 @@ test.before(async () => {
         return send(200, { payload: { data: [{ date: '2026-11-23', timestamp: '2026-11-23T08:00:00.000Z', amount: -99.9, currency: 'EUR', description: 'signed amount, no creditDebit', reference: 'REF3' }], paginationToken: '' } });
       }
       send(404, { exception: { desc: `unexpected ${path}` } });
-    });
+    } catch (e) { res.writeHead(500, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ exception: { desc: `FAKE SERVER ASSERTION: ${e.message}` } })); } });
   });
   await new Promise(r => server.listen(0, '127.0.0.1', r));
   const port = server.address().port;
@@ -161,10 +168,23 @@ test('diagnose: lists NBG banks and flags which of our BICs are not offered', as
   assert.equal(d.mapping.eurobank.available, false);                  // our default ERBKGRAA differs from the fake EFGBGRAA
 });
 
-test('create sandbox sends the sandbox id and our application id', async () => {
+test('create sandbox follows the published contract; retries a plain-string payload; "already exists" is fine', async () => {
   const r = await P().createSandbox();
   assert.equal(r.sandboxId, 'sbx1');
   assert.equal(seen.at(-1).path, '/sandbox');
+  behaviour = { sandboxStringPayload: true };
+  assert.equal((await P().createSandbox()).sandboxId, 'sbx1');          // object rejected (S-010) → string accepted
+  behaviour = { sandboxExists: true };
+  assert.equal((await P().createSandbox()).alreadyExisted, true);       // S-002 is success for us
+  behaviour = {};
+});
+
+test('diagnose reports whether the sandbox exists (the NBG-S-006 case)', async () => {
+  behaviour = { noSandbox: true };
+  assert.equal((await P().diagnose()).sandbox.exists, false);
+  behaviour = {};
+  const d = await P().diagnose();
+  assert.deepEqual(d.sandbox, { id: 'sbx1', exists: true });
 });
 
 test('the real signed state is accepted by NBG (regression for NBG-A-418)', async () => {
