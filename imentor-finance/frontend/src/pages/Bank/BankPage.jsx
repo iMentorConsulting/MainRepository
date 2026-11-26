@@ -129,6 +129,11 @@ function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, onProbe,
           {diag && (
             <div className="text-xs space-y-0.5">
               {diag.error && <div className="text-rose-600 break-words">{diag.error}</div>}
+              {diag.customerIp && (
+                <div className={diag.customerIp.ip ? 'text-slate-600' : 'text-rose-600'}>
+                  IP πελάτη που στέλνεται στην NBG: <b>{diag.customerIp.ip || '—'}</b> ({diag.customerIp.source})
+                </div>
+              )}
               {diag.sandbox && (
                 <div className={diag.sandbox.exists ? 'text-emerald-600' : 'text-rose-600'}>
                   {diag.sandbox.exists ? '✓' : '✗'} sandbox «{diag.sandbox.id}» {diag.sandbox.exists ? 'υπάρχει' : (diag.sandbox.exists === false ? 'δεν υπάρχει: πατήστε «Δημιουργία sandbox»' : 'δεν ήταν δυνατός ο έλεγχος')}

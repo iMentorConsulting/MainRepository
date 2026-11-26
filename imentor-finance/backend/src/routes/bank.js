@@ -150,11 +150,11 @@ router.post('/sync', async (req, res) => {
 });
 
 // ── Provider diagnostics (admin buttons on the Τράπεζες page) ────────────────────────────────
-router.get('/provider/check', async (_, res) => {
+router.get('/provider/check', async (req, res) => {
   try {
     const provider = getProvider();
     if (!provider.isConfigured()) return res.status(409).json({ error: 'Λείπουν τα NBG_* στοιχεία πρόσβασης στο Railway.' });
-    res.json(await provider.diagnose());
+    res.json(await provider.diagnose({ psuIp: clientIp(req) }));
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 

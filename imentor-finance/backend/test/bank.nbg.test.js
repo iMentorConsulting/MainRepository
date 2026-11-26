@@ -13,6 +13,7 @@ test.before(async () => {
     req.on('data', c => raw += c);
     req.on('end', () => { try {
       const send = (status, obj) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+      if (req.url === '/myip-bad') { res.writeHead(500); return res.end('nope'); }
       if (req.url === '/myip') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('198.51.100.9\n'); }
       if (req.url === '/token') {
         tokenCalls++;
@@ -52,6 +53,7 @@ test.before(async () => {
       if (path === '/user/connections/add' && !/^[A-Za-z0-9_-]+$/.test(body.payload.State || '')) return send(400, { exception: { code: 'NBG-A-418', desc: 'Invalid Request: The field State accepts alpha-numeric characters, as well as dashes and underscores', sev: 'Error' } });
       if (path === '/user/connections/add') return send(200, { payload: { connectionLink: 'https://bank.example/login?x=1', connectionId: 'conn-1', bankBIC: h['x-subject-bank-bic'], country: 'GR', displayName: 'X' } });
       if (path === '/user/connections') return send(200, { payload: { clientUserId: 'imentor-finance', banks: behaviour.banks } });
+      if (path === '/user/connections/update-sca-status' && behaviour.needOtp && !body.payload.OTP) return send(400, { exception: { code: 'NBG-A-204', desc: 'Invalid Request: Missing OTP.', sev: 'Error' } });
       if (path === '/user/connections/update-sca-status') return send(200, { payload: { clientUserId: 'u', banks: [{ connectionId: body.payload.ConnectionId, bankBIC: h['x-subject-bank-bic'], status: 'Connected', validUntil: '2027-05-20' }] } });
       if (path === '/account/list') return send(200, { payload: [{ resourceId: 'R1', iban: 'GR0000000000000000000000001', account: '1', currency: 'EUR', availableBalance: 1 }, { resourceId: 'R2', iban: 'GR0000000000000000000000002', account: '2', currency: 'EUR', availableBalance: 2 }] });
       if (path === '/account/transactionsPaged') {
@@ -241,4 +243,30 @@ test('customer IP: request IPv4 → pinned NBG_PSU_IP → this server\'s public 
   delete process.env.NBG_PSU_IP; process.env.NBG_IP_LOOKUP = 'true'; P()._internals.resetTokenCache();
   await ask('');                   assert.equal(ipHeader(), '198.51.100.9');           // discovered public IPv4 of the server
   process.env.NBG_IP_LOOKUP = 'false';
+});
+
+test('Missing OTP (NBG-A-204) while finishing a pending connection means: show the SMS box', async () => {
+  behaviour = { needOtp: true, banks: [{ connectionId: 'p1', bankBIC: 'PIRBGRAA', status: 'PendingSCAData' }] };   // bank did NOT announce scaType
+  const r = await P().completeConsent({ connection: { bank: 'piraeus', consent_id: 'p1' }, query: {} });
+  assert.equal(r.status, 'pending'); assert.equal(r.scaType, 'SMS');
+  behaviour = {};
+});
+
+test('customer IP: several lookup services are tried in order, and the check reports the source', async () => {
+  const port = server.address().port;
+  const keep = process.env.NBG_IP_LOOKUP_URL;
+  process.env.NBG_IP_LOOKUP = 'true';
+  process.env.NBG_IP_LOOKUP_URL = `http://127.0.0.1:${port}/myip-bad,http://127.0.0.1:${port}/myip`;   // first one fails
+  P()._internals.resetTokenCache();
+  let d = await P().diagnose({ psuIp: '' });
+  assert.deepEqual(d.customerIp, { ip: '198.51.100.9', source: 'δημόσια IP του server' });
+  d = await P().diagnose({ psuIp: '::ffff:203.0.113.7' });
+  assert.deepEqual(d.customerIp, { ip: '203.0.113.7', source: 'αίτημα του χρήστη' });
+  process.env.NBG_PSU_IP = '192.0.2.55';
+  assert.deepEqual((await P().diagnose({ psuIp: '2a02::1' })).customerIp, { ip: '192.0.2.55', source: 'NBG_PSU_IP' });
+  delete process.env.NBG_PSU_IP;
+  process.env.NBG_IP_LOOKUP = 'false'; P()._internals.resetTokenCache();
+  const none = (await P().diagnose({ psuIp: '' })).customerIp;
+  assert.equal(none.ip, ''); assert.match(none.source, /NBG_PSU_IP/);                                    // tells the user what to set
+  process.env.NBG_IP_LOOKUP_URL = keep;
 });

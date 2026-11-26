@@ -51,16 +51,29 @@ const bicOf = bank => { const b = bics()[bank]; if (!b) throw new Error(`Άγν�
 const ipv4 = (ip, fallback) => pickIpv4(ip, fallback);
 
 // Last resort for background runs with no known customer IP: this server's own public IPv4 (cached 6 h).
-// Set NBG_PSU_IP to pin it, or NBG_IP_LOOKUP=false to disable the lookup.
+// Set NBG_PSU_IP to pin it (recommended: your office's public IPv4), NBG_IP_LOOKUP=false to disable the lookup,
+// or NBG_IP_LOOKUP_URL (comma-separated) to change the services asked.
 let serverIpCache = { ip: '', exp: 0 };
 async function serverIpv4() {
   if (process.env.NBG_IP_LOOKUP === 'false') return '';
   if (serverIpCache.exp > Date.now()) return serverIpCache.ip;
-  try {
-    const r = await fetch(process.env.NBG_IP_LOOKUP_URL || 'https://api.ipify.org', { signal: AbortSignal.timeout(4000) });
-    serverIpCache = { ip: pickIpv4((await r.text()).trim()), exp: Date.now() + 6 * 3600e3 };
-  } catch { serverIpCache = { ip: '', exp: Date.now() + 60e3 }; }
-  return serverIpCache.ip;
+  const urls = (process.env.NBG_IP_LOOKUP_URL || 'https://api4.ipify.org,https://ipv4.icanhazip.com').split(',').map(x => x.trim()).filter(Boolean);
+  let ip = '';
+  for (const u of urls) {
+    try { ip = pickIpv4((await (await fetch(u, { signal: AbortSignal.timeout(4000) })).text()).trim()); } catch { ip = ''; }
+    if (ip) break;
+  }
+  serverIpCache = { ip, exp: Date.now() + (ip ? 6 * 3600e3 : 60e3) };
+  return ip;
+}
+
+// Which IPv4 will be sent, and why (shown by "Έλεγχος σύνδεσης NBG")
+async function resolveCustomerIp(ip) {
+  const c = cfg();
+  const own = pickIpv4(ip);               if (own) return { ip: own, source: 'αίτημα του χρήστη' };
+  const pinned = pickIpv4(c.fixedIp);     if (pinned) return { ip: pinned, source: 'NBG_PSU_IP' };
+  const found = await serverIpv4();       if (found) return { ip: found, source: 'δημόσια IP του server' };
+  return { ip: '', source: 'ΔΕΝ βρέθηκε IPv4: ορίστε NBG_PSU_IP στο Railway' };
 }
 
 let tokenCache = { token: '', exp: 0, key: '' };
@@ -91,7 +104,7 @@ async function call(path, { bank, payload = {}, ip = '', retry = true, method = 
     'X-Client-User-Id': c.clientUserId,
   };
   if (method !== 'GET') headers['Content-Type'] = 'application/json';
-  const cip = ipv4(ip, c.fixedIp) || await serverIpv4();
+  const cip = (await resolveCustomerIp(ip)).ip;
   if (cip) headers['X-Fapi-Customer-Ip-Address'] = cip;
   if (bank) headers['X-Subject-Bank-Bic'] = bicOf(bank);
   if (c.env === 'sandbox' && c.sandboxId && sandboxHeader) headers['Sandbox_Id'] = c.sandboxId;
@@ -151,8 +164,14 @@ module.exports = {
     // Spec: update-sca-status moves "Pending PSU SCA Data" → "Connected". Banks that need no SMS code (e.g. Alpha)
     // are finished by calling it without an OTP; banks that want an SMS (Piraeus) wait for the user's code.
     if (r.status === 'pending' && !r.scaType && /PendingSCAData/.test(JSON.stringify((p.banks || []).find(x => x.connectionId === r.consentId) || {}))) {
-      const p2 = await call('/user/connections/update-sca-status', { bank: connection.bank, ip: psuIp, payload: { ConnectionId: r.consentId } });
-      return consentResult(p2, r.consentId, bicOf(connection.bank));
+      try {
+        const p2 = await call('/user/connections/update-sca-status', { bank: connection.bank, ip: psuIp, payload: { ConnectionId: r.consentId } });
+        return consentResult(p2, r.consentId, bicOf(connection.bank));
+      } catch (e) {
+        // NBG-A-204 "Missing OTP": this bank (Piraeus in the sandbox) did not announce scaType=SMS but does want the code
+        if (e.apiCode === 'NBG-A-204' || /Missing OTP/i.test(e.message)) return { ...r, status: 'pending', scaType: 'SMS' };
+        throw e;
+      }
     }
     return r;
   },
@@ -203,12 +222,14 @@ module.exports = {
   // ── helpers for scripts/ (npm run nbg:banks | nbg:sandbox) ─────────────────────────────────
   async listBanks() { return call('/client/connections'); },
   // One-click health check for the UI: token OK? which banks can we connect to? do our BICs match?
-  async diagnose() {
+  async diagnose({ psuIp = '' } = {}) {
+    const customerIp = await resolveCustomerIp(psuIp);
     const banks = (await call('/client/connections')) || [];
     const want = bics();
     const sandbox = cfg().env === 'sandbox' ? { id: cfg().sandboxId, exists: await module.exports.sandboxExists().catch(() => null) } : null;
     return {
       env: cfg().env,
+      customerIp,
       sandbox,
       banks: banks.map(b => ({ name: b.displayName, bic: b.bankBIC, country: b.country, transactions: !!b.capabilities?.['AIS-Bank-Account-Transactions'] })),
       mapping: Object.fromEntries(Object.entries(want).map(([k, bic]) => [k, { bic, available: banks.some(b => b.bankBIC === bic) }])),

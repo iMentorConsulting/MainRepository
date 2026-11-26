@@ -16,8 +16,9 @@ module.exports = {
   banks: ['nbg', 'alpha', 'piraeus', 'eurobank'],
   isConfigured: () => true,
   async diagnose() {
+    const customerIp = { ip: '127.0.0.1', source: 'mock' };
     const banks = ['nbg', 'alpha', 'piraeus', 'eurobank'];
-    return { env: 'mock', banks: banks.map(b => ({ name: b, bic: `MOCK-${b}`, country: 'GR', transactions: true })), mapping: Object.fromEntries(banks.map(b => [b, { bic: `MOCK-${b}`, available: true }])) };
+    return { env: 'mock', customerIp, banks: banks.map(b => ({ name: b, bic: `MOCK-${b}`, country: 'GR', transactions: true })), mapping: Object.fromEntries(banks.map(b => [b, { bic: `MOCK-${b}`, available: true }])) };
   },
   async createSandbox() { return { sandboxId: 'mock' }; },
   async probe({ bank, from, to }) {
