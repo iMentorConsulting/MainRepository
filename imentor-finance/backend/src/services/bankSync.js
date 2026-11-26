@@ -1,4 +1,5 @@
 // Pull new movements from the connected bank(s) and feed them to ingest() (dedupe + categorize + alerts).
+const { Op } = require('sequelize');
 const BankConnection = require('../models/BankConnection');
 const { ingest } = require('./bankIngest');
 const { getProvider } = require('./bankProviders');
@@ -24,9 +25,11 @@ async function applyConsentResult(conn, r, psuIp = '') {
 
 // Pending connections (Processing / waiting for OTP) are re-checked on every sync
 async function refreshPending(provider, psuIp) {
-  const pend = await BankConnection.findAll({ where: { provider: provider.key(), status: 'pending' } });
+  // 'error' rows are re-checked too (unless the bank refused access): that is how a card stuck red by a transient
+  // problem comes back to 'pending' (SMS box) or 'active' without the user doing anything.
+  const pend = await BankConnection.findAll({ where: { provider: provider.key(), status: { [Op.in]: ['pending', 'error'] } } });
   for (const c of pend) {
-    if (!c.consent_id) continue;
+    if (!c.consent_id || /AccessDenied|απέρριψε/.test(c.last_error || '')) continue;
     try { await applyConsentResult(c, await provider.completeConsent({ connection: c, query: {}, psuIp: psuIp || c.psu_ip })); }
     catch (e) { await c.update(/AccessDenied/.test(e.message) ? { status: 'error', last_error: e.message } : { last_error: e.message }); }  // transient problems keep the status
   }

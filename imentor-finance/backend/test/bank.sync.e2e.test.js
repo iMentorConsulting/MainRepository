@@ -113,6 +113,19 @@ test('Piraeus asks for an SMS OTP: pending → wrong code rejected → right cod
   const listed = await (await fetch(base + '/api/bank/connections')).json();
   assert.equal(listed.connections.find(c => c.bank === 'piraeus').sca_type, 'SMS');
 
+  // a card that an older version had turned red ('error', NBG-A-106) heals itself on the next check and shows the SMS box again
+  await BankConnection.update({ status: 'error', last_error: "NBG /user/connections: Missing Header 'x-fapi-customer-ip-address' is required. (NBG-A-106)" }, { where: { bank: 'piraeus' } });
+  await api('/api/bank/sync');
+  conn = await BankConnection.findOne({ where: { bank: 'piraeus' } });
+  assert.equal(conn.status, 'pending'); assert.equal(conn.sca_type, 'SMS');
+  const healed = await (await fetch(base + '/api/bank/connections')).json();
+  assert.equal(healed.connections.find(c => c.bank === 'piraeus').sca_type, 'SMS');   // → the UI shows the code box
+  // but a bank that refused access stays an error
+  await BankConnection.update({ status: 'error', last_error: 'Η τράπεζα δεν έδωσε πρόσβαση (AccessDenied).' }, { where: { bank: 'piraeus' } });
+  await api('/api/bank/sync');
+  assert.equal((await BankConnection.findOne({ where: { bank: 'piraeus' } })).status, 'error');
+  await BankConnection.update({ status: 'pending', last_error: '' }, { where: { bank: 'piraeus' } });
+
   // a transient error while re-checking a pending connection must not turn the card red (the earlier NBG-A-106 case)
   process.env.MOCK_COMPLETE_FAIL = 'true';
   await api('/api/bank/sync');
