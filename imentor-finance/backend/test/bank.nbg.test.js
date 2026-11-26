@@ -41,6 +41,7 @@ test.before(async () => {
         { country: 'GR', displayName: 'Alpha Bank', bankBIC: 'CRBAGRAA', capabilities: { 'AIS-Bank-Account-Transactions': true } },
         { country: 'GR', displayName: 'Eurobank', bankBIC: 'EFGBGRAA', capabilities: { 'AIS-Bank-Account-Transactions': false } } ] });
       if (path === '/sandbox') { assert.equal(body.payload.sandboxId, 'sbx1'); assert.deepEqual(body.payload.consentApplicationIds, ['cid']); return send(200, { payload: { sandboxId: 'sbx1' } }); }
+      if (path === '/user/connections/add' && !/^[A-Za-z0-9_-]+$/.test(body.payload.State || '')) return send(400, { exception: { code: 'NBG-A-418', desc: 'Invalid Request: The field State accepts alpha-numeric characters, as well as dashes and underscores', sev: 'Error' } });
       if (path === '/user/connections/add') return send(200, { payload: { connectionLink: 'https://bank.example/login?x=1', connectionId: 'conn-1', bankBIC: h['x-subject-bank-bic'], country: 'GR', displayName: 'X' } });
       if (path === '/user/connections') return send(200, { payload: { clientUserId: 'imentor-finance', banks: behaviour.banks } });
       if (path === '/user/connections/update-sca-status') return send(200, { payload: { clientUserId: 'u', banks: [{ connectionId: body.payload.ConnectionId, bankBIC: h['x-subject-bank-bic'], status: 'Connected', validUntil: '2027-05-20' }] } });
@@ -164,4 +165,12 @@ test('create sandbox sends the sandbox id and our application id', async () => {
   const r = await P().createSandbox();
   assert.equal(r.sandboxId, 'sbx1');
   assert.equal(seen.at(-1).path, '/sandbox');
+});
+
+test('the real signed state is accepted by NBG (regression for NBG-A-418)', async () => {
+  const { signState } = require('../src/services/bankState');
+  process.env.JWT_SECRET = process.env.JWT_SECRET || 'x';
+  const r = await P().startConsent({ bank: 'alpha', redirectUri: 'https://finance.example/api/bank/callback', state: signState(7) });
+  assert.equal(r.consentId, 'conn-1');
+  await assert.rejects(P().startConsent({ bank: 'alpha', redirectUri: 'x', state: 'a.b.c' }), /NBG-A-418/);   // a dotted (JWT-style) state is what broke it
 });
