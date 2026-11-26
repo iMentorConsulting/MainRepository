@@ -115,6 +115,7 @@ const isConsentError = e => /consent|expired|connection.*(invalid|not found)|SCA
 
 module.exports = {
   name: 'nbg',
+  env: () => cfg().env,
   banks: ['nbg', 'alpha', 'piraeus', 'eurobank'],
   isConfigured() {
     const c = cfg();
@@ -179,6 +180,16 @@ module.exports = {
 
   // ── helpers for scripts/ (npm run nbg:banks | nbg:sandbox) ─────────────────────────────────
   async listBanks() { return call('/client/connections'); },
+  // One-click health check for the UI: token OK? which banks can we connect to? do our BICs match?
+  async diagnose() {
+    const banks = (await call('/client/connections')) || [];
+    const want = bics();
+    return {
+      env: cfg().env,
+      banks: banks.map(b => ({ name: b.displayName, bic: b.bankBIC, country: b.country, transactions: !!b.capabilities?.['AIS-Bank-Account-Transactions'] })),
+      mapping: Object.fromEntries(Object.entries(want).map(([k, bic]) => [k, { bic, available: banks.some(b => b.bankBIC === bic) }])),
+    };
+  },
   async createSandbox() {
     const c = cfg();
     return call('/sandbox', { payload: { sandboxId: c.sandboxId, requireNbgConsent: false, showCompletionPage: false, consentApplicationIds: [c.clientId] } });

@@ -36,6 +36,11 @@ test.before(async () => {
       assert.equal(body.header.application, 'cid');
       if (behaviour.apiError) return send(403, { exception: { code: 'E123', desc: 'Consent has expired', sev: 'Error' } });
 
+      if (path === '/client/connections') return send(200, { payload: [
+        { country: 'GR', displayName: 'National Bank of Greece', bankBIC: 'ETHNGRAA', capabilities: { 'AIS-Bank-Account-Transactions': true } },
+        { country: 'GR', displayName: 'Alpha Bank', bankBIC: 'CRBAGRAA', capabilities: { 'AIS-Bank-Account-Transactions': true } },
+        { country: 'GR', displayName: 'Eurobank', bankBIC: 'EFGBGRAA', capabilities: { 'AIS-Bank-Account-Transactions': false } } ] });
+      if (path === '/sandbox') { assert.equal(body.payload.sandboxId, 'sbx1'); assert.deepEqual(body.payload.consentApplicationIds, ['cid']); return send(200, { payload: { sandboxId: 'sbx1' } }); }
       if (path === '/user/connections/add') return send(200, { payload: { connectionLink: 'https://bank.example/login?x=1', connectionId: 'conn-1', bankBIC: h['x-subject-bank-bic'], country: 'GR', displayName: 'X' } });
       if (path === '/user/connections') return send(200, { payload: { clientUserId: 'imentor-finance', banks: behaviour.banks } });
       if (path === '/user/connections/update-sca-status') return send(200, { payload: { clientUserId: 'u', banks: [{ connectionId: body.payload.ConnectionId, bankBIC: h['x-subject-bank-bic'], status: 'Connected', validUntil: '2027-05-20' }] } });
@@ -143,4 +148,20 @@ test('BIC map can be overridden from the environment', () => {
   assert.equal(P()._internals.bics().eurobank, 'EFGBGRAA');
   assert.equal(P()._internals.bics().alpha, 'CRBAGRAA');
   delete process.env.NBG_BANK_BICS;
+});
+
+test('diagnose: lists NBG banks and flags which of our BICs are not offered', async () => {
+  const d = await P().diagnose();
+  assert.equal(d.env, 'sandbox');
+  assert.deepEqual(d.banks.map(b => b.bic), ['ETHNGRAA', 'CRBAGRAA', 'EFGBGRAA']);
+  assert.equal(d.mapping.nbg.available, true);
+  assert.equal(d.mapping.alpha.available, true);
+  assert.equal(d.mapping.piraeus.available, false);                   // not in the fake list
+  assert.equal(d.mapping.eurobank.available, false);                  // our default ERBKGRAA differs from the fake EFGBGRAA
+});
+
+test('create sandbox sends the sandbox id and our application id', async () => {
+  const r = await P().createSandbox();
+  assert.equal(r.sandboxId, 'sbx1');
+  assert.equal(seen.at(-1).path, '/sandbox');
 });

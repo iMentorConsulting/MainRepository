@@ -92,6 +92,7 @@ router.get('/connections', async (_, res) => {
     const rows = await BankConnection.findAll({ where: { provider: provider.name } });
     res.json({
       provider: provider.name,
+      env: provider.env ? provider.env() : '',
       configured: provider.isConfigured(),
       connections: provider.banks.map(bank => {
         const c = rows.find(r => r.bank === bank);
@@ -140,6 +141,24 @@ router.post('/sync', async (req, res) => {
   try {
     res.json(await syncAll({ psuIp: req.ip }));
   } catch (e) { res.status(500).json({ error: e.message }); }
+});
+
+// ── Provider diagnostics (admin buttons on the Τράπεζες page) ────────────────────────────────
+router.get('/provider/check', async (_, res) => {
+  try {
+    const provider = getProvider();
+    if (!provider.isConfigured()) return res.status(409).json({ error: 'Λείπουν τα NBG_* στοιχεία πρόσβασης στο Railway.' });
+    res.json(await provider.diagnose());
+  } catch (e) { res.status(502).json({ error: e.message }); }
+});
+
+router.post('/provider/sandbox', async (_, res) => {
+  try {
+    const provider = getProvider();
+    if (!provider.isConfigured()) return res.status(409).json({ error: 'Λείπουν τα NBG_* στοιχεία πρόσβασης στο Railway.' });
+    if (!provider.createSandbox || provider.env() === 'production') return res.status(409).json({ error: 'Το sandbox δημιουργείται μόνο στο περιβάλλον sandbox.' });
+    res.json(await provider.createSandbox());
+  } catch (e) { res.status(502).json({ error: e.message }); }
 });
 
 module.exports = router;

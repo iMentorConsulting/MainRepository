@@ -11,8 +11,14 @@ const h = s => parseInt(crypto.createHash('sha1').update(s).digest('hex').slice(
 
 module.exports = {
   name: 'mock',
+  env: () => 'mock',
   banks: ['nbg', 'alpha', 'piraeus', 'eurobank'],
   isConfigured: () => true,
+  async diagnose() {
+    const banks = ['nbg', 'alpha', 'piraeus', 'eurobank'];
+    return { env: 'mock', banks: banks.map(b => ({ name: b, bic: `MOCK-${b}`, country: 'GR', transactions: true })), mapping: Object.fromEntries(banks.map(b => [b, { bic: `MOCK-${b}`, available: true }])) };
+  },
+  async createSandbox() { return { sandboxId: 'mock' }; },
 
   async startConsent({ bank, redirectUri, state }) {
     const q = new URLSearchParams({ state, mock_consent: `mock-${bank}` });

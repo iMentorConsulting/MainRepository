@@ -34,7 +34,8 @@ Set-up checklist (details in the NBG portal guide):
 2. API PRODUCTS → Account Aggregation Platform → **Start using this API** → choose the app.
 3. Railway variables of the Finance service: `BANK_PROVIDER=nbg`, `NBG_CLIENT_ID`, `NBG_CLIENT_SECRET`, `NBG_ENV=sandbox`,
    `NBG_SANDBOX_ID` (see `backend/.env.example`). Never put the secret in code or chat.
-4. Sandbox only: `npm run nbg:sandbox` (or the portal's Try-it) once; `npm run nbg:banks` lists the BICs to verify.
+4. On the Τράπεζες page (real provider only): **Δημιουργία sandbox** once (sandbox environment), then **Έλεγχος σύνδεσης NBG**, which
+   verifies the credentials and shows whether our bank codes (BICs) match NBG's list. (CLI equivalents: `npm run nbg:sandbox`, `npm run nbg:banks`.)
 5. In the app: Τράπεζες → Σύνδεση on a bank (sandbox logins are in NBG's guide). Later switch `NBG_ENV=production`.
 
 Code: `services/bankProviders/` (`nbgAggregator.js` real, `mock.js` for tests), `bankSync.js`, `bankScheduler.js`,

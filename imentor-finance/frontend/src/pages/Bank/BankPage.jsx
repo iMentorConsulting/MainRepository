@@ -62,7 +62,7 @@ function OtpBox({ onSubmit, busy }) {
   );
 }
 
-function ConnectionsPanel({ info, onConnect, onOtp, busy }) {
+function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, diag, busy }) {
   if (!info) return null;
   const expiring = info.connections.filter(c => c.status === 'expired' || (c.status === 'active' && daysLeft(c.consent_expires_at) <= 7));
   return (
@@ -115,6 +115,30 @@ function ConnectionsPanel({ info, onConnect, onOtp, busy }) {
           );
         })}
       </div>
+
+      {info.configured && info.provider === 'nbg' && (
+        <div className="border-t border-slate-100 pt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400">Περιβάλλον NBG: <b>{info.env}</b></span>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onCheck}>Έλεγχος σύνδεσης NBG</button>
+            {info.env === 'sandbox' && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onSandbox}>Δημιουργία sandbox (μία φορά)</button>}
+          </div>
+          {diag && (
+            <div className="text-xs space-y-0.5">
+              {diag.error && <div className="text-rose-600 break-words">{diag.error}</div>}
+              {diag.mapping && Object.entries(diag.mapping).map(([bank, m]) => (
+                <div key={bank} className={m.available ? 'text-emerald-600' : 'text-rose-600'}>
+                  {m.available ? '✓' : '✗'} {bank} — {m.bic}{m.available ? '' : ' (δεν προσφέρεται με αυτόν τον κωδικό)'}
+                </div>
+              ))}
+              {diag.banks && diag.mapping && Object.values(diag.mapping).some(m => !m.available) && (
+                <div className="text-slate-500 break-words">Διαθέσιμες τράπεζες: {diag.banks.map(b => `${b.name} (${b.bic})`).join(', ')}</div>
+              )}
+              {diag.message && <div className="text-slate-600">{diag.message}</div>}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -133,6 +157,7 @@ export default function BankPage() {
   const [uploading, setUploading] = useState(false);
   const [connInfo, setConnInfo] = useState(null);
   const [syncing, setSyncing] = useState(false);
+  const [diag, setDiag] = useState(null);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -215,6 +240,16 @@ export default function BankPage() {
     }
   };
 
+  const checkProvider = async () => {
+    setDiag({ message: 'Έλεγχος…' });
+    try { setDiag((await api.get('/bank/provider/check')).data); }
+    catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία ελέγχου' }); }
+  };
+  const createSandbox = async () => {
+    try { await api.post('/bank/provider/sandbox'); setDiag({ message: '✓ Το sandbox δημιουργήθηκε. Πατήστε «Έλεγχος σύνδεσης NBG» και μετά «Σύνδεση» σε μια τράπεζα.' }); }
+    catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία δημιουργίας sandbox' }); }
+  };
+
   const syncNow = async () => {
     setSyncing(true);
     try {
@@ -272,7 +307,7 @@ export default function BankPage() {
         </button>
       </div>
 
-      <ConnectionsPanel info={connInfo} onConnect={connectBank} onOtp={submitOtp} busy={syncing} />
+      <ConnectionsPanel info={connInfo} onConnect={connectBank} onOtp={submitOtp} onCheck={checkProvider} onSandbox={createSandbox} diag={diag} busy={syncing} />
 
       {/* Import */}
       <div className="card p-4 flex flex-wrap items-center gap-3">
