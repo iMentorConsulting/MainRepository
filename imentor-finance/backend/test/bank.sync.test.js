@@ -31,3 +31,14 @@ test('sync window: wide on first run, short overlap afterwards', () => {
   assert.deepEqual(syncWindow({ last_sync_at: null }, now), { from: '2026-08-28', to: '2026-11-26' });
   assert.deepEqual(syncWindow({ last_sync_at: new Date(now - 3600e3) }, now), { from: '2026-11-19', to: '2026-11-26' });
 });
+
+test('pickIpv4 finds an IPv4 in the forwarded chain and ignores IPv6', () => {
+  const { pickIpv4, clientIp } = require('../src/services/clientIp');
+  assert.equal(pickIpv4('::ffff:203.0.113.7'), '203.0.113.7');
+  assert.equal(pickIpv4('2a02:587:1::1'), '');
+  assert.equal(pickIpv4('2a02:587:1::1', '198.51.100.4'), '198.51.100.4');
+  assert.equal(clientIp({ ips: ['2a02:587:1::1', '203.0.113.7'], ip: '2a02:587:1::1', headers: {} }), '203.0.113.7');
+  assert.equal(clientIp({ ip: '::ffff:10.1.2.3', headers: {} }), '10.1.2.3');
+  assert.equal(clientIp({ ip: '::1', headers: { 'x-forwarded-for': '2a02::1, 192.0.2.9' } }), '192.0.2.9');
+  assert.equal(clientIp({ ip: '::1', headers: {} }), '');
+});

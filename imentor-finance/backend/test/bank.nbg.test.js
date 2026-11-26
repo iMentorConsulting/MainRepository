@@ -13,6 +13,7 @@ test.before(async () => {
     req.on('data', c => raw += c);
     req.on('end', () => { try {
       const send = (status, obj) => { res.writeHead(status, { 'Content-Type': 'application/json' }); res.end(JSON.stringify(obj)); };
+      if (req.url === '/myip') { res.writeHead(200, { 'Content-Type': 'text/plain' }); return res.end('198.51.100.9\n'); }
       if (req.url === '/token') {
         tokenCalls++;
         const f = new URLSearchParams(raw);
@@ -72,6 +73,7 @@ test.before(async () => {
   const port = server.address().port;
   Object.assign(process.env, {
     NBG_ENV: 'sandbox', NBG_CLIENT_ID: 'cid', NBG_CLIENT_SECRET: 'sec', NBG_SANDBOX_ID: 'sbx1',
+    NBG_IP_LOOKUP: 'false', NBG_IP_LOOKUP_URL: `http://127.0.0.1:${port}/myip`,
     NBG_TOKEN_URL: `http://127.0.0.1:${port}/token`, NBG_BASE_URL: `http://127.0.0.1:${port}/api`,
   });
 });
@@ -225,4 +227,18 @@ test('probe: shows accounts and the transaction count / date range without stori
 test('sandbox and production use separate connection keys', () => {
   assert.equal(P().key(), 'nbg:sandbox');
   process.env.NBG_ENV = 'production'; assert.equal(P().key(), 'nbg:production'); process.env.NBG_ENV = 'sandbox';
+});
+
+test('customer IP: request IPv4 → pinned NBG_PSU_IP → this server\'s public IPv4 (NBG-A-106 regression)', async () => {
+  const ipHeader = () => seen.at(-1).h['x-fapi-customer-ip-address'];
+  const ask = ip => P().startConsent({ bank: 'alpha', redirectUri: 'x', state: 's', psuIp: ip });
+  P()._internals.resetTokenCache();
+  await ask('::ffff:203.0.113.7'); assert.equal(ipHeader(), '203.0.113.7');
+  await ask('2a02:587:1::1');      assert.equal(ipHeader(), undefined);                // IPv6 only, nothing to fall back to (lookup off)
+  process.env.NBG_PSU_IP = '192.0.2.55';
+  await ask('2a02:587:1::1');      assert.equal(ipHeader(), '192.0.2.55');             // pinned office IP
+  await ask('');                   assert.equal(ipHeader(), '192.0.2.55');
+  delete process.env.NBG_PSU_IP; process.env.NBG_IP_LOOKUP = 'true'; P()._internals.resetTokenCache();
+  await ask('');                   assert.equal(ipHeader(), '198.51.100.9');           // discovered public IPv4 of the server
+  process.env.NBG_IP_LOOKUP = 'false';
 });

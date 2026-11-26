@@ -15,6 +15,7 @@
 //                     NBG_CLIENT_USER_ID (default "imentor-finance"), NBG_PSU_IP (fallback customer IPv4)
 //                     NBG_BANK_BICS='{"alpha":"…"}' to override the default BICs, NBG_BASE_URL / NBG_TOKEN_URL (tests)
 const crypto = require('crypto');
+const { pickIpv4 } = require('../clientIp');
 
 const DEFAULT_BICS = { nbg: 'ETHNGRAA', alpha: 'CRBAGRAA', piraeus: 'PIRBGRAA', eurobank: 'ERBKGRAA' }; // verify with `npm run nbg:banks`
 const URLS = {
@@ -47,9 +48,19 @@ const bics = () => ({ ...DEFAULT_BICS, ...(process.env.NBG_BANK_BICS ? JSON.pars
 const bicOf = bank => { const b = bics()[bank]; if (!b) throw new Error(`Άγνωστη τράπεζα: ${bank}`); return b; };
 
 // the API wants the customer's IPv4: unwrap ::ffff:1.2.3.4, ignore real IPv6, fall back to NBG_PSU_IP
-function ipv4(ip, fallback) {
-  const m = String(ip || '').replace(/^::ffff:/, '').match(/^\d{1,3}(\.\d{1,3}){3}$/);
-  return m ? m[0] : (fallback || '');
+const ipv4 = (ip, fallback) => pickIpv4(ip, fallback);
+
+// Last resort for background runs with no known customer IP: this server's own public IPv4 (cached 6 h).
+// Set NBG_PSU_IP to pin it, or NBG_IP_LOOKUP=false to disable the lookup.
+let serverIpCache = { ip: '', exp: 0 };
+async function serverIpv4() {
+  if (process.env.NBG_IP_LOOKUP === 'false') return '';
+  if (serverIpCache.exp > Date.now()) return serverIpCache.ip;
+  try {
+    const r = await fetch(process.env.NBG_IP_LOOKUP_URL || 'https://api.ipify.org', { signal: AbortSignal.timeout(4000) });
+    serverIpCache = { ip: pickIpv4((await r.text()).trim()), exp: Date.now() + 6 * 3600e3 };
+  } catch { serverIpCache = { ip: '', exp: Date.now() + 60e3 }; }
+  return serverIpCache.ip;
 }
 
 let tokenCache = { token: '', exp: 0, key: '' };
@@ -80,7 +91,7 @@ async function call(path, { bank, payload = {}, ip = '', retry = true, method = 
     'X-Client-User-Id': c.clientUserId,
   };
   if (method !== 'GET') headers['Content-Type'] = 'application/json';
-  const cip = ipv4(ip, c.fixedIp);
+  const cip = ipv4(ip, c.fixedIp) || await serverIpv4();
   if (cip) headers['X-Fapi-Customer-Ip-Address'] = cip;
   if (bank) headers['X-Subject-Bank-Bic'] = bicOf(bank);
   if (c.env === 'sandbox' && c.sandboxId && sandboxHeader) headers['Sandbox_Id'] = c.sandboxId;
@@ -236,6 +247,6 @@ module.exports = {
     try { await call(`/sandbox/${encodeURIComponent(cfg().sandboxId)}`, { method: 'GET', sandboxHeader: false }); return true; }
     catch (e) { if (e.apiCode === 'NBG-S-006' || e.apiCode === 'NBG-S-001') return false; throw e; }
   },
-  _internals: { cfg, bics, ipv4, call, getToken, consentResult, resetTokenCache: () => { tokenCache = { token: '', exp: 0, key: '' }; } },
+  _internals: { cfg, bics, ipv4, call, getToken, consentResult, resetTokenCache: () => { tokenCache = { token: '', exp: 0, key: '' }; serverIpCache = { ip: '', exp: 0 }; } },
 };
 module.exports.NbgApiError = NbgApiError;

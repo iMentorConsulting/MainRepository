@@ -1,4 +1,5 @@
 const router = require('express').Router();
+const { clientIp } = require('../services/clientIp');
 const multer = require('multer');
 const { Op } = require('sequelize');
 const BankTransaction = require('../models/BankTransaction');
@@ -116,7 +117,7 @@ router.post('/connections', async (req, res) => {
     if (!provider.isConfigured()) return res.status(409).json({ error: 'Δεν έχουν ρυθμιστεί τα στοιχεία πρόσβασης του παρόχου (Railway variables).' });
     [conn, created] = await BankConnection.findOrCreate({ where: { provider: provider.key(), bank }, defaults: { status: 'pending' } });
     const redirectUri = `${req.protocol}://${req.get('host')}/api/bank/callback`;
-    const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id), psuIp: req.ip });
+    const { redirectUrl, consentId } = await provider.startConsent({ bank, redirectUri, state: signState(conn.id), psuIp: clientIp(req) });
     if (consentId) await conn.update({ consent_id: consentId });
     res.json({ redirect_url: redirectUrl });
   } catch (e) {
@@ -134,8 +135,8 @@ router.post('/connections/otp', async (req, res) => {
     const conn = await BankConnection.findOne({ where: { provider: provider.key(), bank } });
     if (!conn || conn.status !== 'pending') return res.status(404).json({ error: 'Δεν υπάρχει σύνδεση που να περιμένει κωδικό.' });
     if (!/^\d{4,10}$/.test(String(otp || ''))) return res.status(400).json({ error: 'Μη έγκυρος κωδικός OTP.' });
-    await applyConsentResult(conn, await provider.submitOtp({ connection: conn, otp, psuIp: req.ip }), req.ip);
-    if (conn.status === 'active') syncConnection(conn, { psuIp: req.ip }).catch(e => console.warn('[bank-otp] first sync failed:', e.message));
+    await applyConsentResult(conn, await provider.submitOtp({ connection: conn, otp, psuIp: clientIp(req) }), clientIp(req));
+    if (conn.status === 'active') syncConnection(conn, { psuIp: clientIp(req) }).catch(e => console.warn('[bank-otp] first sync failed:', e.message));
     res.json({ status: conn.status });
   } catch (e) { res.status(e.code === 'PROVIDER_NOT_READY' ? 503 : 400).json({ error: e.message }); }
 });
@@ -144,7 +145,7 @@ router.post('/connections/otp', async (req, res) => {
 router.post('/sync', async (req, res) => {
   try {
     const days = Math.min(Math.max(Number(req.body?.days) || 0, 0), 3650);
-    res.json(await syncAll({ psuIp: req.ip, days }));
+    res.json(await syncAll({ psuIp: clientIp(req), days }));
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
@@ -176,7 +177,7 @@ router.get('/provider/probe', async (req, res) => {
     if (!conn || conn.status !== 'active') return res.status(409).json({ error: 'Η τράπεζα δεν είναι συνδεδεμένη.' });
     const days = Math.min(Math.max(Number(req.query.days) || 365, 1), 3650);
     const iso = d => new Date(d).toISOString().slice(0, 10);
-    res.json(await provider.probe({ bank, from: iso(Date.now() - days * 86400000), to: iso(Date.now()), psuIp: req.ip || conn.psu_ip }));
+    res.json(await provider.probe({ bank, from: iso(Date.now() - days * 86400000), to: iso(Date.now()), psuIp: clientIp(req) || conn.psu_ip }));
   } catch (e) { res.status(502).json({ error: e.message }); }
 });
 

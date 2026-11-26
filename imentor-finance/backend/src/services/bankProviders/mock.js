@@ -34,6 +34,7 @@ module.exports = {
 
   // Piraeus behaves like the real bank: SMS OTP required (accepted code: 123456)
   async completeConsent({ connection, query }) {
+    if (process.env.MOCK_COMPLETE_FAIL === 'true') throw new Error("NBG /user/connections: Missing Header 'x-fapi-customer-ip-address' is required. (NBG-A-106)");
     const consentId = query.mock_consent || connection.consent_id;
     if (connection.bank === 'piraeus' && !global.__mockOtpDone?.has(consentId)) return { consentId, status: 'pending', scaType: 'SMS', expiresAt: null };
     return { consentId, status: 'active', scaType: '', expiresAt: new Date(Date.now() + 180 * 86400000) };

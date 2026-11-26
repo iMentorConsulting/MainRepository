@@ -113,6 +113,13 @@ test('Piraeus asks for an SMS OTP: pending → wrong code rejected → right cod
   const listed = await (await fetch(base + '/api/bank/connections')).json();
   assert.equal(listed.connections.find(c => c.bank === 'piraeus').sca_type, 'SMS');
 
+  // a transient error while re-checking a pending connection must not turn the card red (the earlier NBG-A-106 case)
+  process.env.MOCK_COMPLETE_FAIL = 'true';
+  await api('/api/bank/sync');
+  process.env.MOCK_COMPLETE_FAIL = 'false';
+  conn = await BankConnection.findOne({ where: { bank: 'piraeus' } });
+  assert.equal(conn.status, 'pending'); assert.match(conn.last_error, /NBG-A-106/);
+
   assert.equal((await api('/api/bank/connections/otp', { bank: 'piraeus', otp: 'abc' })).status, 400);        // malformed
   assert.equal((await api('/api/bank/connections/otp', { bank: 'piraeus', otp: '000000' })).status, 400);     // wrong code
   assert.equal((await api('/api/bank/connections/otp', { bank: 'alpha', otp: '123456' })).status, 404);       // nothing pending there

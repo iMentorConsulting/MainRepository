@@ -2,6 +2,7 @@
 const BankConnection = require('../models/BankConnection');
 const { ingest } = require('./bankIngest');
 const { getProvider } = require('./bankProviders');
+const { pickIpv4 } = require('./clientIp');
 
 const DAY = 86400000;
 const iso = d => new Date(d).toISOString().slice(0, 10);
@@ -16,7 +17,7 @@ async function applyConsentResult(conn, r, psuIp = '') {
     consent_expires_at: r.expiresAt || conn.consent_expires_at,
     sca_type: r.scaType || '',
     last_error: pending ? (r.scaType === 'SMS' ? 'Απαιτείται ο κωδικός OTP που στάλθηκε με SMS.' : 'Η σύνδεση ολοκληρώνεται…') : '',
-    ...(psuIp ? { psu_ip: psuIp } : {}),
+    ...(pickIpv4(psuIp) ? { psu_ip: pickIpv4(psuIp) } : {}),
   });
   return conn;
 }
@@ -27,7 +28,7 @@ async function refreshPending(provider, psuIp) {
   for (const c of pend) {
     if (!c.consent_id) continue;
     try { await applyConsentResult(c, await provider.completeConsent({ connection: c, query: {}, psuIp: psuIp || c.psu_ip })); }
-    catch (e) { await c.update({ status: 'error', last_error: e.message }); }
+    catch (e) { await c.update(/AccessDenied/.test(e.message) ? { status: 'error', last_error: e.message } : { last_error: e.message }); }  // transient problems keep the status
   }
 }
 
@@ -44,7 +45,7 @@ async function syncConnection(conn, { psuIp = '', deps = {}, now = Date.now(), d
     return { bank: conn.bank, ok: false, error: 'consent expired' };
   }
   try {
-    if (psuIp && psuIp !== conn.psu_ip) await conn.update({ psu_ip: psuIp });   // remember the latest interactive IP for scheduled runs
+    if (pickIpv4(psuIp) && pickIpv4(psuIp) !== conn.psu_ip) await conn.update({ psu_ip: pickIpv4(psuIp) });   // remember the latest interactive IP for scheduled runs
     const rows = await provider.fetchTransactions({ connection: conn, ...syncWindow(conn, now, days), psuIp: psuIp || conn.psu_ip });
     const res = await ingest(conn.bank, rows, { isTest: provider.env ? provider.env() !== 'production' : false, ...deps });
     await conn.update({ last_sync_at: new Date(now), last_error: '', status: 'active' });

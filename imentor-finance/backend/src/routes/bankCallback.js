@@ -1,6 +1,7 @@
 // Where the bank sends the user's browser back after they approve access.
 // PUBLIC route (the redirect carries no login token); it is protected by a signed, short-lived `state`.
 const router = require('express').Router();
+const { clientIp } = require('../services/clientIp');
 const { verifyState } = require('../services/bankState');
 const BankConnection = require('../models/BankConnection');
 const { getProvider } = require('../services/bankProviders');
@@ -18,10 +19,10 @@ router.get('/', async (req, res) => {
     if (!conn) return back(res, { bank_error: 'Μη έγκυρη ή ληγμένη αίτηση σύνδεσης. Δοκιμάστε ξανά.' });
     if (req.query.error) throw new Error(`Η τράπεζα απέρριψε την πρόσβαση (${req.query.error})`);
 
-    const r = await getProvider().completeConsent({ connection: conn, query: req.query, psuIp: req.ip });
-    await applyConsentResult(conn, r, req.ip);
+    const r = await getProvider().completeConsent({ connection: conn, query: req.query, psuIp: clientIp(req) });
+    await applyConsentResult(conn, r, clientIp(req));
     if (conn.status === 'active') {
-      syncConnection(conn, { psuIp: req.ip }).catch(e => console.warn('[bank-callback] first sync failed:', e.message)); // initial history, don't block the redirect
+      syncConnection(conn, { psuIp: clientIp(req) }).catch(e => console.warn('[bank-callback] first sync failed:', e.message)); // initial history, don't block the redirect
       return back(res, { bank_connected: conn.bank });
     }
     back(res, { bank_pending: conn.bank });
