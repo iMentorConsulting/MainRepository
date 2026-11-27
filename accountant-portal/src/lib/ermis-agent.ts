@@ -6,6 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from './prisma'
 import { sendEmail } from './email'
+import { buildAttachmentsText } from './program-attachments-text'
 import { notifyCaseManagement, notifyCaseManagementCommunication } from './case-management-sync'
 import { EligibilityQuestion } from './eligibility-questions'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from './business-profile'
@@ -30,6 +31,8 @@ const MAX_RESPONSE_TOKENS = 1_000
 // Hard per-conversation token budget (input+output, cumulative across turns)
 // to prevent runaway/abusive Claude spend on a single business+program chat.
 export const MAX_CONVERSATION_TOKENS = 300_000
+// Cap on program-document text given to Ερμής per conversation (same as the admin ask tool).
+const ERMIS_ATTACHMENT_MAX_CHARS = 120_000
 
 export interface ChatMessage {
   role: 'user' | 'assistant'
@@ -68,6 +71,8 @@ function buildSystemPrompt(program: {
   ermisInstructions: string | null
   acceptsNewBusiness?: boolean | null
   newBusinessNote?: string | null
+  attachmentUrls?: string[] | null
+  attachmentNames?: string[] | null
   minRegdate?: string | null
   maxRegdate?: string | null
   requiredDocuments?: { name: string; category: string; instructions: string | null }[]
@@ -463,6 +468,10 @@ export async function runErmisTurn(params: {
     maxRegdate?: string | null
     requiredDocuments?: { name: string; category: string; instructions: string | null }[]
     investmentPricingBrackets?: unknown
+    acceptsNewBusiness?: boolean | null
+    newBusinessNote?: string | null
+    attachmentUrls?: string[] | null
+    attachmentNames?: string[] | null
   }
   autoConfirmedReasons: string[]
   qualitativeQuestions?: EligibilityQuestion[]
@@ -504,6 +513,21 @@ export async function runErmisTurn(params: {
   const anthropic = new Anthropic({ apiKey })
   const system = buildSystemPrompt(params.program, params.businessName, params.autoConfirmedReasons, params.qualitativeQuestions || [], params.contextSummary, params.consultant, params.legalStatusDescr, params.businessRegdate, params.businessActivities, params.newBusinessClient)
 
+  // The program's own documents (announcement/invitation, KYA…) are the OFFICIAL source
+  // for facts like which areas count as mountainous. Sent as a second, CACHED system
+  // block so later turns of the same conversation re-read it at ~10% of the price.
+  const docsText = await buildAttachmentsText(params.program, ERMIS_ATTACHMENT_MAX_CHARS).catch(() => '')
+  const systemBlocks: Anthropic.TextBlockParam[] = [{ type: 'text', text: system }]
+  if (docsText) {
+    systemBlocks.push({
+      type: 'text',
+      text: `ΕΠΙΣΗΜΑ ΕΓΓΡΑΦΑ ΤΟΥ ΠΡΟΓΡΑΜΜΑΤΟΣ (πρόσκληση/οδηγοί — η ΜΟΝΗ αξιόπιστη πηγή για ειδικούς όρους):
+Για κάθε ζήτημα που εξαρτάται από τον επίσημο χαρακτηρισμό μιας περιοχής/οικισμού (π.χ. ορεινή, ημιορεινή, νησιωτική, περιοχή ειδικής ενίσχυσης, επιλέξιμη δημοτική/τοπική κοινότητα) ΧΡΗΣΙΜΟΠΟΙΗΣΕ ΜΟΝΟ αυτά τα έγγραφα και ΠΟΤΕ τη γενική γνώση σου για τη γεωγραφία. Αν ο οικισμός δεν αναφέρεται αυτούσιος, έλεγξε αν ανήκει σε κοινότητα του πίνακα με βάση το όνομα (π.χ. «Κάτω Ροδακινό» → κοινότητα «Ροδακίνου»). Αν ΔΕΝ βρίσκεις με σιγουριά την περιοχή στα έγγραφα, ΜΗΝ υποθέτεις και ΜΗΝ δηλώσεις τον πελάτη ανεπιλέξιμο — πες ότι ο χαρακτηρισμός θα επιβεβαιωθεί από σύμβουλο της I-MENTOR και συνέχισε τις υπόλοιπες ερωτήσεις.
+${docsText}`,
+      cache_control: { type: 'ephemeral' },
+    })
+  }
+
   const messages: Anthropic.MessageParam[] = params.isKickoff
     ? [{ role: 'user', content: 'Ξεκίνα εσύ τη συνομιλία.' }]
     : params.history.map(m => ({ role: m.role, content: m.text }))
@@ -513,12 +537,15 @@ export async function runErmisTurn(params: {
   const response = await anthropic.messages.create({
     model: 'claude-sonnet-4-6',
     max_tokens: MAX_RESPONSE_TOKENS,
-    system,
+    system: systemBlocks,
     ...(tools ? { tools, tool_choice: { type: 'auto' } } : {}),
     messages,
   })
 
-  let tokensUsedInput = response.usage?.input_tokens || 0
+  // Cached document tokens: writes bill at ~1.25×, reads at ~0.1× — count them that way so the
+  // per-conversation budget and cost estimate stay meaningful.
+  const inputTokensOf = (u: any) => (u?.input_tokens || 0) + Math.round((u?.cache_creation_input_tokens || 0) * 1.25) + Math.round((u?.cache_read_input_tokens || 0) * 0.1)
+  let tokensUsedInput = inputTokensOf(response.usage)
   let tokensUsedOutput = response.usage?.output_tokens || 0
 
   const toolUse = response.content.find(b => b.type === 'tool_use')
@@ -545,7 +572,7 @@ export async function runErmisTurn(params: {
     const followUp = await anthropic.messages.create({
       model: 'claude-sonnet-4-6',
       max_tokens: MAX_RESPONSE_TOKENS,
-      system,
+      system: systemBlocks,
       messages: [
         ...messages,
         { role: 'assistant', content: response.content },
@@ -559,7 +586,7 @@ export async function runErmisTurn(params: {
         },
       ],
     })
-    tokensUsedInput += followUp.usage?.input_tokens || 0
+    tokensUsedInput += inputTokensOf(followUp.usage)
     tokensUsedOutput += followUp.usage?.output_tokens || 0
     const text = followUp.content.find(b => b.type === 'text')
     return {

@@ -4,6 +4,7 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { buildEligibilityQuestions, parseEligibilityStorage } from '@/lib/eligibility-questions'
 import { resolveRegionFromZip } from '@/lib/greek-regions'
+import { buildAttachmentsText } from '@/lib/program-attachments-text'
 
 export const dynamic = 'force-dynamic'
 
@@ -17,37 +18,6 @@ function eur(n: number | null | undefined): string | null {
 }
 function pct(n: number | null | undefined): string | null {
   return n != null ? `${n.toLocaleString('el-GR')}%` : null
-}
-
-// Accepts either a legacy inline data: URL or — the normal case now — our
-// own "/api/programs/{id}/attachments/{fileId}" download route, in which
-// case the bytes are read straight from ProgramAttachmentFile (same
-// request, no HTTP round-trip) rather than fetched over the network.
-async function extractAttachmentText(url: string, name: string): Promise<string | null> {
-  let buffer: Buffer
-  if (url.startsWith('data:')) {
-    const commaIdx = url.indexOf(',')
-    if (commaIdx === -1) return null
-    buffer = Buffer.from(url.slice(commaIdx + 1), 'base64')
-  } else {
-    const match = url.match(/\/api\/programs\/[^/]+\/attachments\/([^/?]+)/)
-    if (!match) return null
-    const file = await prisma.programAttachmentFile.findUnique({ where: { id: match[1] } })
-    if (!file) return null
-    buffer = Buffer.from(file.data)
-  }
-  try {
-    const { PDFParse } = await import('pdf-parse')
-    const path = await import('path')
-    const { pathToFileURL } = await import('url')
-    PDFParse.setWorker(pathToFileURL(path.join(process.cwd(), 'node_modules/pdf-parse/dist/worker/pdf.worker.mjs')).href)
-    const parser = new PDFParse({ data: buffer })
-    const result = await parser.getText()
-    return result.text?.trim() || null
-  } catch (e: any) {
-    console.error(`[ProgramAsk] Failed to extract text from attachment "${name}":`, e?.message)
-    return null
-  }
 }
 
 async function buildProgramContext(program: any): Promise<string> {
@@ -143,22 +113,10 @@ async function buildProgramContext(program: any): Promise<string> {
   }
 
   // Attached documents, extracted to plain text.
-  if (program.attachmentUrls?.length > 0) {
-    let remaining = MAX_ATTACHMENT_CHARS
-    const attachmentSections: string[] = []
-    for (let i = 0; i < program.attachmentUrls.length; i++) {
-      if (remaining <= 0) break
-      const name = program.attachmentNames?.[i] || `Σχετικό αρχείο ${i + 1}`
-      const text = await extractAttachmentText(program.attachmentUrls[i], name)
-      if (!text) continue
-      const slice = text.slice(0, remaining)
-      remaining -= slice.length
-      attachmentSections.push(`\n=== Έγγραφο: ${name} ===\n${slice}${slice.length < text.length ? '\n[...περικοπή λόγω μήκους...]' : ''}`)
-    }
-    if (attachmentSections.length > 0) {
-      lines.push('\n\n--- Περιεχόμενο Συνημμένων Εγγράφων ---')
-      lines.push(...attachmentSections)
-    }
+  const attachmentsText = await buildAttachmentsText(program, MAX_ATTACHMENT_CHARS)
+  if (attachmentsText) {
+    lines.push('\n\n--- Περιεχόμενο Συνημμένων Εγγράφων ---')
+    lines.push(attachmentsText)
   }
 
   return lines.join('\n')
