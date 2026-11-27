@@ -15,6 +15,8 @@ const CM_CONSULTANT_BY_EMAIL: Record<string, string> = {
   'manos@i-mentor.gr': 'Βαρδιάμπασης Μάνος',
   'eleftheria@i-mentor.gr': 'Στριλιγκά Ελευθερία',
   'info@i-mentor.gr': 'Αποστολάκης Χάρης',
+  // Note: in Case Management this one is written first-name-first.
+  'zacharias@i-mentor.gr': 'Ζαχαρίας Φαρσάρης',
 }
 
 function lookupCmConsultant(email: string | null | undefined): string | null {
