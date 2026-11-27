@@ -2,8 +2,8 @@
 // quotes a cost (ΤΑΜΕΙΟ ΜΙΚΡΟΠΙΣΤΩΣΕΩΝ analysis, investment-based program
 // application/implementation fees), so they never drift apart.
 export const IMENTOR_BANK_ACCOUNTS: { bank: string; iban: string }[] = [
-  { bank: 'Τράπεζα Πειραιώς', iban: 'GR4501714330006433164381388' },
-  { bank: 'Alpha Bank', iban: 'GR2401407750775002330002138' },
+  { bank: 'Πειραιώς', iban: 'GR4501714330006433164381388' },
+  { bank: 'Alpha', iban: 'GR2401407750775002330002138' },
   { bank: 'Eurobank', iban: 'GR5802601680000060201330648' },
   { bank: 'Εθνική', iban: 'GR9101102050000091023497604' },
 ]
