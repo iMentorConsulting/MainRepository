@@ -303,6 +303,11 @@ class CaseCreatedWebhook(BaseModel):
     klados: Optional[str] = None
     activities: Optional[List[BusinessActivityIn]] = None
     matchedPrograms: Optional[List[MatchedProgramIn]] = None
+    # Optional explicit consultant chosen in LOGISTIS (any of these field names is accepted)
+    assignToConsultant: Optional[str] = None
+    consultant: Optional[str] = None
+    consultantName: Optional[str] = None
+    assignedConsultant: Optional[str] = None
 
 
 class DocumentUploadedWebhook(BaseModel):
@@ -566,6 +571,33 @@ def _auto_accept_portal_assignment(assignment, target_user, db: Session):
             log.warning("LOGISTIS Portal auto-accept push error for lead %s: %s", lead.id, _exc)
 
 
+# Consultants whose explicit assignment from LOGISTIS must be honoured (it overrides the
+# round-robin assignment rules).  Each entry = name tokens that must all appear in the
+# name LOGISTIS sends AND in the CM user's full_name (accent/case/order-insensitive).
+_PRIORITY_CONSULTANTS = [("ΖΑΧΑΡΙΑΣ", "ΦΑΡΣΑΡΗΣ")]
+
+
+def _norm_tokens(s: Optional[str]) -> set:
+    import unicodedata as _ud
+    t = "".join(c for c in _ud.normalize("NFD", s or "") if _ud.category(c) != "Mn").upper()
+    return {w for w in t.replace(",", " ").split() if w}
+
+
+def _find_priority_consultant(db, name: Optional[str]):
+    """Return the CMUser for a LOGISTIS-supplied consultant name when it is one of the
+    priority consultants; otherwise None (normal assignment rules apply)."""
+    toks = _norm_tokens(name)
+    if not toks:
+        return None
+    for pair in _PRIORITY_CONSULTANTS:
+        if set(pair) <= toks:
+            for u in db.query(CMUser).all():
+                if set(pair) <= _norm_tokens(u.full_name):
+                    return u
+            log.warning("[portal-webhook] priority consultant %r sent by LOGISTIS but no matching CM user", name)
+    return None
+
+
 def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
     assignment = CMPortalAssignment(
         case_number=payload.caseNumber,
@@ -617,6 +649,20 @@ def _handle_case_created(payload: CaseCreatedWebhook, db: Session) -> dict:
             req.case_number = payload.caseNumber
             req.cm_assignment_id = assignment.id
             db.commit()
+
+    # Explicit consultant from LOGISTIS (priority consultants) beats the assignment rules
+    _requested = (payload.assignToConsultant or payload.consultant
+                  or payload.consultantName or payload.assignedConsultant)
+    try:
+        _prio = _find_priority_consultant(db, _requested)
+        if _prio:
+            _auto_accept_portal_assignment(assignment, _prio, db)
+            log.info("[portal-webhook] case.created assignment_id=%s → explicit consultant %s (from LOGISTIS: %r)",
+                     assignment.id, _prio.full_name, _requested)
+            return {"message": "OK", "id": assignment.id, "auto_accepted": True,
+                    "assigned_to": _prio.full_name}
+    except Exception as _exc:
+        log.error("[portal-webhook] explicit-consultant assign failed for assignment %s: %s", assignment.id, _exc)
 
     # Auto-assign: if assignment rules are configured for this program, accept immediately
     _prog_cat_for_assign = _map_program_category(payload.programTitle)
@@ -776,15 +822,21 @@ def _handle_communication_logged(payload: CommunicationLoggedWebhook, db: Sessio
         assigned_name = None
         _effective_prog_cat = prog_cat or _map_program_category(payload.programTitle)
         try:
-            from routes.cm_lead_assignment import pick_consultant_from_rules
-            auto_consultant = pick_consultant_from_rules(_effective_prog_cat, db)
-            if auto_consultant:
-                assigned_id = auto_consultant.id
-                assigned_name = auto_consultant.full_name
-                log.info(
-                    "[portal-webhook] communication.logged: auto-assigned lead to %s via rules (prog_cat=%r)",
-                    assigned_name, _effective_prog_cat,
-                )
+            _prio = _find_priority_consultant(db, payload.assignToConsultant)
+            if _prio:
+                assigned_id = _prio.id
+                assigned_name = _prio.full_name
+                log.info("[portal-webhook] communication.logged: explicit consultant %s from LOGISTIS", assigned_name)
+            else:
+                from routes.cm_lead_assignment import pick_consultant_from_rules
+                auto_consultant = pick_consultant_from_rules(_effective_prog_cat, db)
+                if auto_consultant:
+                    assigned_id = auto_consultant.id
+                    assigned_name = auto_consultant.full_name
+                    log.info(
+                        "[portal-webhook] communication.logged: auto-assigned lead to %s via rules (prog_cat=%r)",
+                        assigned_name, _effective_prog_cat,
+                    )
         except Exception as _exc:
             log.error("[portal-webhook] communication.logged: auto-assign rules error: %s", _exc)
 

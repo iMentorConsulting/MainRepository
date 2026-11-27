@@ -48,7 +48,7 @@ SELF_BASE_URL = os.getenv("SELF_PUBLIC_BASE_URL", "https://consult.i-mentor.gr")
 _FEMININE_CONSULTANTS = {"ELEFTHERIA", "STELLA", "VALLIA", "SOFIA",
                          "ΕΛΕΥΘΕΡΙΑ", "ΣΤΕΛΛΑ", "ΒΑΛΙΑ", "ΒΑΛΛΙΑ", "ΣΟΦΙΑ",
                          "ΣΤΡΙΛΙΓΚΑ ΕΛΕΥΘΕΡΙΑ"}
-_MASCULINE_CONSULTANTS = {"HARIS", "CHRISTOS", "ΧΑΡΗΣ", "ΧΡΗΣΤΟΣ", "ΜΑΝΟΣ", "MANOS"}
+_MASCULINE_CONSULTANTS = {"HARIS", "CHRISTOS", "ΧΑΡΗΣ", "ΧΡΗΣΤΟΣ", "ΜΑΝΟΣ", "MANOS", "ΖΑΧΑΡΙΑΣ", "ΝΙΚΟΣ"}
 
 
 def _strip_gr_accents(s: str) -> str:
