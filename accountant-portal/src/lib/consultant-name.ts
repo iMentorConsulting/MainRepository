@@ -10,6 +10,7 @@ const CONSULTANT_NAME_MAP: Record<string, string> = {
   'Χρήστος': 'Πουλιδάκης Χρήστος',
   'Ελευθερία': 'Στριλιγκά Ελευθερία',
   'Βάλλια': 'Μποτσάκη Βάλλια',
+  'Ζαχαρίας': 'Φαρσάρης Ζαχαρίας',
 }
 
 export function resolveConsultantFullName(user: { name?: string | null; role?: string | null } | null | undefined): string | null {
@@ -32,6 +33,7 @@ const FIRST_NAME_ARTICLE: Record<string, 'Ο' | 'Η'> = {
   'χαρης': 'Ο',
   'ελευθερια': 'Η',
   'βαλλια': 'Η',
+  'ζαχαριας': 'Ο',
 }
 
 function plain(s: string): string {

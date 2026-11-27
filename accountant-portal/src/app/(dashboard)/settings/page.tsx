@@ -11,6 +11,30 @@ import Link from 'next/link'
 export default function SettingsPage() {
   const { data: session } = useSession()
 
+  // New consultant (σύμβουλος) account — the consultant sets their own password via emailed link.
+  const [consName, setConsName] = useState('')
+  const [consEmail, setConsEmail] = useState('')
+  const [consBusy, setConsBusy] = useState(false)
+  const [consResult, setConsResult] = useState<{ ok: boolean; text: string; link?: string } | null>(null)
+  async function createConsultant() {
+    setConsBusy(true)
+    setConsResult(null)
+    try {
+      const res = await fetch('/api/admin/consultants', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: consName, email: consEmail }) })
+      const d = await res.json()
+      if (res.ok) {
+        setConsResult({ ok: true, text: d.emailSent ? `Ο λογαριασμός δημιουργήθηκε και στάλθηκε email στο ${d.email}.` : `Ο λογαριασμός δημιουργήθηκε, αλλά το email ΔΕΝ στάλθηκε — δώστε τον σύνδεσμο χειροκίνητα.`, link: d.setPasswordUrl })
+        setConsName(''); setConsEmail('')
+      } else {
+        setConsResult({ ok: false, text: d.error || 'Σφάλμα' })
+      }
+    } catch {
+      setConsResult({ ok: false, text: 'Σφάλμα δικτύου' })
+    } finally {
+      setConsBusy(false)
+    }
+  }
+
   const [smtpTest, setSmtpTest] = useState<'idle' | 'loading' | 'ok' | 'fail'>('idle')
   const [smtpError, setSmtpError] = useState('')
   const [imentorLogoUrl, setImentorLogoUrl] = useState<string | null>(null)
@@ -303,6 +327,31 @@ export default function SettingsPage() {
         </CardContent>
       </Card>
       )}
+
+      {session?.user?.role === 'ADMIN' && <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Shield size={18} />
+            Νέος Σύμβουλος
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-500">Δημιουργεί λογαριασμό με ρόλο σύμβουλος. Ο σύμβουλος λαμβάνει email με σύνδεσμο για να ορίσει μόνος του τον κωδικό του. Γράψτε το όνομα ως «Επώνυμο Όνομα» (π.χ. Βαρδιάμπασης Μάνος).</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Input placeholder="Επώνυμο Όνομα" value={consName} onChange={e => setConsName(e.target.value)} />
+            <Input placeholder="email@i-mentor.gr" type="email" value={consEmail} onChange={e => setConsEmail(e.target.value)} />
+          </div>
+          <Button onClick={createConsultant} disabled={consBusy || !consName.trim() || !consEmail.trim()}>
+            {consBusy ? 'Δημιουργία…' : 'Δημιουργία συμβούλου'}
+          </Button>
+          {consResult && (
+            <div className={`text-sm rounded-lg px-3 py-2 ${consResult.ok ? 'bg-emerald-50 text-emerald-800' : 'bg-red-50 text-red-700'}`}>
+              {consResult.text}
+              {consResult.link && <div className="mt-1 break-all text-xs">Σύνδεσμος ορισμού κωδικού (72 ώρες): <span className="font-mono">{consResult.link}</span></div>}
+            </div>
+          )}
+        </CardContent>
+      </Card>}
 
       {session?.user?.role === 'ADMIN' && <Card>
         <CardHeader>
