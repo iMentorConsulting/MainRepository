@@ -26,7 +26,7 @@ const CustomTooltip = ({ active, payload, label }) => {
   );
 };
 
-function DrilldownModal({ agent, month, monthName, year, onClose }) {
+function BonusDrillModal({ agent, month, monthName, year, onClose }) {
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -78,21 +78,11 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
               {records.map(r => (
                 <tr key={r.id} className="tr">
                   <td className="td text-xs text-slate-500 whitespace-nowrap">{fmtDate(r.sale_date)}</td>
-                  <td className="td font-medium text-slate-800 max-w-[180px]">
-                    <div className="truncate">{r.customer_name}</div>
-                  </td>
-                  <td className="td text-xs text-slate-500 max-w-[140px]">
-                    <div className="truncate">{r.service_type || '—'}</div>
-                  </td>
-                  <td className="td text-right text-xs font-medium text-slate-700 whitespace-nowrap">
-                    {fmtFull(r.amount_application)}
-                  </td>
-                  <td className="td text-right text-xs font-medium text-slate-700 whitespace-nowrap">
-                    {fmtFull(r.amount_implementation)}
-                  </td>
-                  <td className="td text-right font-semibold text-emerald-600 whitespace-nowrap">
-                    {fmtFull(r.amount_collected)}
-                  </td>
+                  <td className="td font-medium text-slate-800 max-w-[180px]"><div className="truncate">{r.customer_name}</div></td>
+                  <td className="td text-xs text-slate-500 max-w-[140px]"><div className="truncate">{r.service_type || '—'}</div></td>
+                  <td className="td text-right text-xs font-medium text-slate-700 whitespace-nowrap">{fmtFull(r.amount_application)}</td>
+                  <td className="td text-right text-xs font-medium text-slate-700 whitespace-nowrap">{fmtFull(r.amount_implementation)}</td>
+                  <td className="td text-right font-semibold text-emerald-600 whitespace-nowrap">{fmtFull(r.amount_collected)}</td>
                   <td className="td text-right">
                     {r.bonus > 0
                       ? <span className="font-black text-indigo-600 whitespace-nowrap">{fmtFull(r.bonus)}</span>
@@ -110,7 +100,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
                 </tr>
               ))}
               {records.length === 0 && (
-                <tr><td colSpan={6} className="td text-center text-slate-400 py-6">Δεν βρέθηκαν εγγραφές</td></tr>
+                <tr><td colSpan={8} className="td text-center text-slate-400 py-6">Δεν βρέθηκαν εγγραφές</td></tr>
               )}
             </tbody>
             {records.length > 0 && (
@@ -143,11 +133,67 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
   );
 }
 
+function CommissionDrillModal({ agent, month, monthName, year, payrollData, onClose }) {
+  const pd = payrollData.find(p => p.agent === agent);
+  const mo = pd?.monthly?.find(m => m.month === month);
+  const rate = parseFloat(pd?.settings?.overachievement_rate ?? 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl p-4 space-y-3 text-sm" style={{ background: 'linear-gradient(135deg, rgba(139,92,246,0.08), rgba(109,40,217,0.08))', border: '1px solid rgba(139,92,246,0.2)' }}>
+        <div className="flex justify-between">
+          <span className="text-slate-500">Σύμβουλος</span>
+          <span className="font-bold text-slate-800">{agent}</span>
+        </div>
+        <div className="flex justify-between">
+          <span className="text-slate-500">Περίοδος</span>
+          <span className="font-semibold text-slate-700">{monthName} {year}</span>
+        </div>
+        <div className="border-t border-violet-100 pt-3 grid grid-cols-2 gap-3">
+          <div className="rounded-lg bg-white/60 p-3 text-center">
+            <div className="text-xs text-slate-400 mb-1">Σύνολο Είσπραξης</div>
+            <div className="text-lg font-black text-emerald-600">{fmtFull(mo?.sales ?? 0)}</div>
+          </div>
+          <div className="rounded-lg bg-white/60 p-3 text-center">
+            <div className="text-xs text-slate-400 mb-1">Στόχος μήνα</div>
+            <div className="text-lg font-black text-slate-700">{fmtFull(mo?.target ?? 0)}</div>
+          </div>
+          <div className="rounded-lg bg-white/60 p-3 text-center">
+            <div className="text-xs text-slate-400 mb-1">Διαφορά</div>
+            {mo && mo.sales > mo.target
+              ? <div className="text-lg font-black text-emerald-600">+{fmtFull(mo.sales - mo.target)}</div>
+              : <div className="text-lg font-black text-rose-500">{fmtFull((mo?.sales ?? 0) - (mo?.target ?? 0))}</div>}
+          </div>
+          <div className="rounded-lg bg-white/60 p-3 text-center">
+            <div className="text-xs text-slate-400 mb-1">% Υπέρβασης</div>
+            <div className="text-lg font-black text-violet-600">{rate}%</div>
+          </div>
+        </div>
+        <div className="rounded-lg bg-violet-50 border border-violet-200 p-3 mt-2">
+          <div className="text-xs text-violet-500 mb-1 font-medium">Υπολογισμός Μπόνους Υπέρβασης</div>
+          <div className="text-sm text-slate-700">
+            {rate}% × {fmtFull(mo?.sales ?? 0)} = <span className="font-black text-violet-700 text-base">{fmtFull(mo?.commission ?? 0)}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="text-xs text-slate-400 bg-slate-50 rounded-lg p-3">
+        Το μπόνους υπέρβασης χορηγείται μόνο όταν η Είσπραξη ξεπεράσει τον μηνιαίο στόχο και υπολογίζεται ως ποσοστό επί του συνόλου της Είσπραξης (όχι επί της διαφοράς).
+      </div>
+
+      <div className="flex justify-end pt-2 border-t border-slate-100">
+        <button className="btn-secondary" onClick={onClose}>Κλείσιμο</button>
+      </div>
+    </div>
+  );
+}
+
 export default function BonusReport() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState([]);
   const [payrollData, setPayrollData] = useState([]);
-  const [drill, setDrill] = useState(null); // { agent, month, monthName }
+  const [drill, setDrill] = useState(null);
+  const [commDrill, setCommDrill] = useState(null);
   const [noData, setNoData] = useState(false);
   const [availableYears, setAvailableYears] = useState([]);
 
@@ -162,17 +208,13 @@ export default function BonusReport() {
   useEffect(() => {
     setNoData(false);
     api.get(`/reports/bonus?year=${year}`)
-      .then(r => {
-        setData(r.data);
-        if (r.data.length === 0) setNoData(true);
-      })
+      .then(r => { setData(r.data); if (r.data.length === 0) setNoData(true); })
       .catch(() => setNoData(true));
     api.get(`/reports/payroll?year=${year}`)
       .then(r => setPayrollData(r.data || []))
       .catch(() => {});
   }, [year]);
 
-  // Build commission lookup: { agentName: { 'MM': commission } }
   const commissionLookup = {};
   for (const pd of payrollData) {
     if (!pd.settings?.overachievement_rate) continue;
@@ -186,16 +228,6 @@ export default function BonusReport() {
   const years = availableYears.length > 0
     ? availableYears
     : Array.from({ length: 6 }, (_, i) => new Date().getFullYear() - i);
-
-  const chartData = monthNames.map((name, i) => {
-    const month = String(i + 1).padStart(2, '0');
-    const row = { month: name };
-    data.forEach(agent => {
-      const m = agent.monthly.find(x => x.month === month);
-      row[agent.agent] = m?.bonus || 0;
-    });
-    return row;
-  });
 
   const grandTotal = data.reduce((s, a) => s + a.total, 0);
 
@@ -250,27 +282,11 @@ export default function BonusReport() {
         </div>
       )}
 
-      <div className="card p-6">
-        <h2 className="section-title">Μηνιαίο Bonus ανά Σύμβουλο — {year}</h2>
-        <ResponsiveContainer width="100%" height={320}>
-          <BarChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 0 }}>
-            <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
-            <XAxis dataKey="month" tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <YAxis tickFormatter={v => v.toLocaleString('el-GR')} tick={{ fontSize: 11, fill: '#94a3b8' }} axisLine={false} tickLine={false} />
-            <Tooltip content={<CustomTooltip />} />
-            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 12, paddingTop: 16 }} />
-            {data.map((agent, i) => (
-              <Bar key={agent.agent} dataKey={agent.agent} fill={PALETTE[i % PALETTE.length]} radius={[4, 4, 0, 0]} maxBarSize={40} />
-            ))}
-          </BarChart>
-        </ResponsiveContainer>
-      </div>
-
       <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-4">
-          <span className="text-xs text-slate-400">Κλικ σε κελί για ανάλυση πωλήσεων</span>
-          <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" />Bonus Αίτησης 5%</span>
-          <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-300" />Μπόνους Υπέρβασης</span>
+        <div className="px-4 py-3 border-b border-slate-100 flex flex-wrap items-center gap-4">
+          <span className="text-xs text-slate-400">Κλικ σε κελί για ανάλυση</span>
+          <span className="flex items-center gap-1.5 text-xs text-emerald-600"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" /> Bonus Αίτησης 5%</span>
+          <span className="flex items-center gap-1.5 text-xs text-violet-600"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-300" /> Μπόνους Υπέρβασης</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -285,67 +301,57 @@ export default function BonusReport() {
               {data.map((agent, i) => {
                 const agentComm = commissionLookup[agent.agent] || {};
                 const agentCommTotal = payrollData.find(p => p.agent === agent.agent)?.total_commission || 0;
-                const hasComm = agentCommTotal > 0;
                 return (
-                  <>
-                    {/* Row 1: Bonus Αίτησης */}
-                    <tr key={`${i}-b`} className={hasComm ? '' : 'tr'}>
-                      <td className="td" rowSpan={hasComm ? 1 : undefined}>
-                        <div className="flex items-center gap-2">
-                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
-                          <div>
-                            <span className="font-semibold text-slate-800">{agent.agent}</span>
-                            {hasComm && <div className="text-xs text-slate-400 leading-tight">Bonus Αίτησης</div>}
+                  <tr key={i} className="tr">
+                    <td className="td">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                        <span className="font-semibold text-slate-800">{agent.agent}</span>
+                      </div>
+                    </td>
+                    {agent.monthly.map((m, j) => {
+                      const month = m.month;
+                      const comm = agentComm[month] || 0;
+                      const hasBonus = m.bonus > 0;
+                      const hasComm = comm > 0;
+                      return (
+                        <td key={j} className="td text-center p-1">
+                          <div className="flex flex-col items-center gap-0.5">
+                            {hasBonus ? (
+                              <button
+                                onClick={() => setDrill({ agent: agent.agent, month, monthName: monthNames[j] })}
+                                className="text-xs font-semibold text-emerald-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors rounded px-1.5 py-0.5 whitespace-nowrap w-full">
+                                {fmt(m.bonus)}
+                              </button>
+                            ) : (
+                              <span className="text-slate-200 text-xs py-0.5">—</span>
+                            )}
+                            {hasComm ? (
+                              <button
+                                onClick={() => setCommDrill({ agent: agent.agent, month, monthName: monthNames[j] })}
+                                className="text-xs font-semibold text-violet-600 hover:bg-violet-50 transition-colors rounded px-1.5 py-0.5 whitespace-nowrap w-full">
+                                {fmt(comm)}
+                              </button>
+                            ) : (
+                              <span className="text-slate-100 text-xs py-0.5">—</span>
+                            )}
                           </div>
-                        </div>
-                      </td>
-                      {agent.monthly.map((m, j) => (
-                        <td key={j} className="td text-center p-0">
-                          {m.bonus > 0 ? (
-                            <button
-                              onClick={() => setDrill({ agent: agent.agent, month: m.month, monthName: monthNames[j] })}
-                              className="w-full h-full px-2 py-2 text-xs font-semibold text-emerald-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors rounded whitespace-nowrap">
-                              {fmt(m.bonus)}
-                            </button>
-                          ) : (
-                            <span className="text-slate-200 text-xs">—</span>
-                          )}
                         </td>
-                      ))}
-                      <td className="td text-right font-black text-indigo-600 whitespace-nowrap">{agent.total > 0 ? fmt(agent.total) : <span className="text-slate-200">—</span>}</td>
-                    </tr>
-                    {/* Row 2: Μπόνους Υπέρβασης (only if exists) */}
-                    {hasComm && (
-                      <tr key={`${i}-c`} className="bg-violet-50/40">
-                        <td className="td pb-3">
-                          <div className="flex items-center gap-2 pl-4">
-                            <div className="w-2.5 h-2.5 rounded-sm shrink-0 bg-violet-200 border border-violet-400" />
-                            <span className="text-xs text-violet-600 font-medium">Μπόνους Υπέρβασης</span>
-                          </div>
-                        </td>
-                        {monthNames.map((_, j) => {
-                          const month = String(j + 1).padStart(2, '0');
-                          const comm = agentComm[month] || 0;
-                          return (
-                            <td key={j} className="td text-center pb-3">
-                              {comm > 0
-                                ? <span className="text-xs font-semibold text-violet-600 whitespace-nowrap">{fmt(comm)}</span>
-                                : <span className="text-slate-200 text-xs">—</span>}
-                            </td>
-                          );
-                        })}
-                        <td className="td text-right font-black text-violet-600 whitespace-nowrap pb-3">{fmt(agentCommTotal)}</td>
-                      </tr>
-                    )}
-                  </>
+                      );
+                    })}
+                    <td className="td text-right">
+                      <div className="font-black text-indigo-600 whitespace-nowrap text-sm">{fmt(agent.total + agentCommTotal)}</div>
+                      {agent.total > 0 && agentCommTotal > 0 && (
+                        <div className="text-xs text-slate-400 whitespace-nowrap">{fmt(agent.total)} + <span className="text-violet-500">{fmt(agentCommTotal)}</span></div>
+                      )}
+                    </td>
+                  </tr>
                 );
               })}
               {data.length > 0 && (
                 <>
                   <tr className="bg-slate-50 border-t-2 border-slate-200">
-                    <td className="td font-bold text-slate-700">
-                      <div>Σύνολο Bonus Αίτησης</div>
-                    </td>
+                    <td className="td font-bold text-slate-600 text-xs">Σύνολο Bonus Αίτησης</td>
                     {monthNames.map((_, i) => {
                       const month = String(i + 1).padStart(2, '0');
                       const total = data.reduce((s, a) => s + (a.monthly.find(m => m.month === month)?.bonus || 0), 0);
@@ -355,16 +361,16 @@ export default function BonusReport() {
                         </td>
                       );
                     })}
-                    <td className="td text-right font-black text-indigo-700">{fmt(grandTotal)}</td>
+                    <td className="td text-right font-black text-indigo-700 text-xs">{fmt(grandTotal)}</td>
                   </tr>
                   {commissionTotal > 0 && (
-                    <tr className="bg-violet-50 border-t border-violet-100">
-                      <td className="td font-bold text-violet-700">Σύνολο Μπόνους Υπέρβασης</td>
+                    <tr className="bg-violet-50/60 border-t border-violet-100">
+                      <td className="td font-bold text-violet-700 text-xs">Σύνολο Μπόνους Υπέρβασης</td>
                       {monthNames.map((_, i) => {
                         const month = String(i + 1).padStart(2, '0');
                         const total = payrollData.reduce((s, pd) => {
-                          const m = pd.monthly?.find(x => x.month === month);
-                          return s + (m?.commission || 0);
+                          const mo = pd.monthly?.find(x => x.month === month);
+                          return s + (mo?.commission || 0);
                         }, 0);
                         return (
                           <td key={i} className={`td text-center text-xs whitespace-nowrap ${total > 0 ? 'font-bold text-violet-700' : 'text-slate-200'}`}>
@@ -372,7 +378,7 @@ export default function BonusReport() {
                           </td>
                         );
                       })}
-                      <td className="td text-right font-black text-violet-700">{fmt(commissionTotal)}</td>
+                      <td className="td text-right font-black text-violet-700 text-xs">{fmt(commissionTotal)}</td>
                     </tr>
                   )}
                   <tr className="bg-indigo-50 border-t-2 border-indigo-200">
@@ -381,8 +387,8 @@ export default function BonusReport() {
                       const month = String(i + 1).padStart(2, '0');
                       const bonusTotal = data.reduce((s, a) => s + (a.monthly.find(m => m.month === month)?.bonus || 0), 0);
                       const commTotal = payrollData.reduce((s, pd) => {
-                        const m = pd.monthly?.find(x => x.month === month);
-                        return s + (m?.commission || 0);
+                        const mo = pd.monthly?.find(x => x.month === month);
+                        return s + (mo?.commission || 0);
                       }, 0);
                       const total = bonusTotal + commTotal;
                       return (
@@ -407,8 +413,13 @@ export default function BonusReport() {
       </div>
 
       <Modal open={!!drill} onClose={() => setDrill(null)}
-        title={`Ανάλυση Bonus — ${drill?.agent} · ${drill?.monthName} ${year}`} size="xl">
-        {drill && <DrilldownModal agent={drill.agent} month={drill.month} monthName={drill.monthName} year={year} onClose={() => setDrill(null)} />}
+        title={`Ανάλυση Bonus Αίτησης — ${drill?.agent} · ${drill?.monthName} ${year}`} size="xl">
+        {drill && <BonusDrillModal agent={drill.agent} month={drill.month} monthName={drill.monthName} year={year} onClose={() => setDrill(null)} />}
+      </Modal>
+
+      <Modal open={!!commDrill} onClose={() => setCommDrill(null)}
+        title={`Μπόνους Υπέρβασης — ${commDrill?.agent} · ${commDrill?.monthName} ${year}`} size="md">
+        {commDrill && <CommissionDrillModal agent={commDrill.agent} month={commDrill.month} monthName={commDrill.monthName} year={year} payrollData={payrollData} onClose={() => setCommDrill(null)} />}
       </Modal>
     </div>
   );
