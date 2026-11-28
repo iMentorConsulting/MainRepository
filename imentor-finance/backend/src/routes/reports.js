@@ -616,8 +616,9 @@ router.get('/open-cases', async (req, res) => {
   } catch (e) { res.status(500).json({ error: e.message }); }
 });
 
-const OFEILES_AGENTS = ['ΣΟΦΙΑ', 'ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ'];
-const DEPT_NAMES = ['ΟΦΕΙΛΕΣ', 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
+const OFEILES_AGENTS    = ['ΣΟΦΙΑ', 'ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ'];
+const MIKROPIST_AGENTS  = ['ΕΛΕΥΘΕΡΙΑ', 'ΜΑΡΙΑ'];
+const DEPT_NAMES = ['ΟΦΕΙΛΕΣ', 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ', 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
 
 // Normalize Greek lookalike letters to ASCII for robust substring matching
 const nrmGr = s => {
@@ -632,8 +633,9 @@ const nrmGr = s => {
 // Pre-computed normalized keys for payroll employee matching
 const PAYROLL_CAT_KEY = nrmGr('ΜΙΣΘΟΔΟΣΙΑ');
 const LEGAL_CAT_KEY   = nrmGr('ΝΟΜΙΚΗ');
-const OFEILES_PAYROLL_KEYS = ['ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ', 'ΣΟΦΙΑ'].map(nrmGr);
-const EPICH_PAYROLL_KEYS   = ['ΕΛΕΥΘΕΡΙΑ', 'ΧΡΗΣΤΟΣ', 'ΚΑΡΑΤΖΗΣ', 'ΜΑΝΟΣ'].map(nrmGr);
+const OFEILES_PAYROLL_KEYS  = ['ΣΤΕΛΛΑ', 'ΒΑΛΛΙΑ', 'ΣΟΦΙΑ'].map(nrmGr);
+const MIKROPIST_PAYROLL_KEYS = ['ΕΛΕΥΘΕΡΙΑ', 'ΜΑΡΙΑ'].map(nrmGr);
+const EPICH_PAYROLL_KEYS    = ['ΧΡΗΣΤΟΣ', 'ΚΑΡΑΤΖΗΣ', 'ΜΑΝΟΣ', 'ΖΑΧΑΡΙΑΣ'].map(nrmGr);
 
 function getDeptForExpense(row, svcMap) {
   const cat = nrmGr(row.category || '');
@@ -641,8 +643,9 @@ function getDeptForExpense(row, svcMap) {
 
   // Rule 1: Payroll expenses → split by employee name
   if (cat.includes(PAYROLL_CAT_KEY)) {
-    if (OFEILES_PAYROLL_KEYS.some(k => sup.includes(k))) return 'ΟΦΕΙΛΕΣ';
-    if (EPICH_PAYROLL_KEYS.some(k => sup.includes(k))) return 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ';
+    if (OFEILES_PAYROLL_KEYS.some(k => sup.includes(k)))   return 'ΟΦΕΙΛΕΣ';
+    if (MIKROPIST_PAYROLL_KEYS.some(k => sup.includes(k))) return 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ';
+    if (EPICH_PAYROLL_KEYS.some(k => sup.includes(k)))     return 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ';
     return null; // unrecognized payroll → overhead
   }
 
@@ -661,14 +664,17 @@ router.get('/departmental', async (req, res) => {
     const expenseDate = sqlDateCond(req.query, 'date');
     const rep = { ...incomeDate.replacements, ...expenseDate.replacements };
 
-    const agentList = OFEILES_AGENTS.map(a => `'${a}'`).join(', ');
+    const ofeilesList   = OFEILES_AGENTS.map(a => `'${a}'`).join(', ');
+    const mikropistList = MIKROPIST_AGENTS.map(a => `'${a}'`).join(', ');
 
     // Fetch all data + service mapping in parallel
     const [incomeRows, expenseRows, serviceMaps] = await Promise.all([
       sequelize.query(`
         SELECT
-          CASE WHEN UPPER(TRIM(sales_agent)) = ANY(ARRAY[${agentList}])
+          CASE WHEN UPPER(TRIM(sales_agent)) = ANY(ARRAY[${ofeilesList}])
                THEN 'ΟΦΕΙΛΕΣ'
+               WHEN UPPER(TRIM(sales_agent)) = ANY(ARRAY[${mikropistList}])
+               THEN 'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ'
                ELSE 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'
           END AS department,
           COALESCE(SUM(amount_collected), 0) AS income,
@@ -703,13 +709,13 @@ router.get('/departmental', async (req, res) => {
     //    IKA/unmatched payroll → proportional split based on direct payroll ratio
     // 2. ΝΟΜΙΚΗ ΥΠΟΣΤΗΡΙΞΗ → always ΟΦΕΙΛΕΣ
     // 3. related_service mapping → mapped dept or overhead
-    const deptExpenses = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
-    const deptCounts   = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
-    const deptBreakdown = { 'ΟΦΕΙΛΕΣ': {}, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': {} };
+    const deptExpenses  = Object.fromEntries(DEPT_NAMES.map(d => [d, 0]));
+    const deptCounts    = Object.fromEntries(DEPT_NAMES.map(d => [d, 0]));
+    const deptBreakdown = Object.fromEntries(DEPT_NAMES.map(d => [d, {}]));
     let overheadTotal = 0;
     let overheadCount = 0;
     const overheadBreakdown = {};
-    const directPayroll = { 'ΟΦΕΙΛΕΣ': 0, 'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': 0 };
+    const directPayroll = Object.fromEntries(DEPT_NAMES.map(d => [d, 0]));
     let unmatchedPayroll = 0;
     let unmatchedPayrollCount = 0;
 
@@ -737,7 +743,7 @@ router.get('/departmental', async (req, res) => {
     }
 
     // Split IKA/unmatched payroll proportionally based on direct employee payroll ratio
-    const totalDirect = directPayroll['ΟΦΕΙΛΕΣ'] + directPayroll['ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ'];
+    const totalDirect = DEPT_NAMES.reduce((s, d) => s + directPayroll[d], 0);
     if (unmatchedPayroll !== 0) {
       for (const d of DEPT_NAMES) {
         const ratio = totalDirect > 0 ? directPayroll[d] / totalDirect : 0.5;
@@ -748,12 +754,12 @@ router.get('/departmental', async (req, res) => {
       }
     }
 
-    // Apply 50/50 overhead split
-    const half = overheadTotal / 2;
+    // Apply equal overhead split across all departments
+    const share = overheadTotal / DEPT_NAMES.length;
     for (const d of DEPT_NAMES) {
-      deptExpenses[d] += half;
+      deptExpenses[d] += share;
       for (const [cat, amt] of Object.entries(overheadBreakdown)) {
-        deptBreakdown[d][cat] = (deptBreakdown[d][cat] || 0) + amt / 2;
+        deptBreakdown[d][cat] = (deptBreakdown[d][cat] || 0) + amt / DEPT_NAMES.length;
       }
     }
 
