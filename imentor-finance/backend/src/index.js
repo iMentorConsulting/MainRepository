@@ -14,6 +14,7 @@ require('./models/AppSetting');
 require('./models/PayrollEmployeeSetting');
 require('./models/IncomingLead');
 require('./models/BankTransaction');
+require('./models/BankConnection');
 
 const authMiddleware = require('./middleware/auth');
 
@@ -62,6 +63,8 @@ app.use('/api/customers',          authMiddleware, require('./routes/customers')
 app.use('/api/service-agreements', authMiddleware, require('./routes/serviceAgreements'));
 app.use('/api/recurring-expenses', authMiddleware, require('./routes/recurringExpenses'));
 // Bank movements (CSV/MT940 import → new-credit Viber alert, notes, categories, invoice flag)
+// Bank consent redirect target: public (signed `state` protects it) and mounted BEFORE the authenticated /api/bank
+app.use('/api/bank/callback', require('./routes/bankCallback'));
 app.use('/api/bank',     authMiddleware, require('./routes/bank'));
 // Case management sync — own API-key auth, no user auth middleware
 app.use('/api/cm-sync',  require('./routes/cmSync'));
@@ -194,6 +197,14 @@ sequelize.sync({ alter: true }).then(async () => {
   } catch (e) {
     console.warn('[logistis-sync] Could not schedule sync:', e.message);
   }
+
+  // Sandbox and production consents are now separate rows ("nbg:sandbox" / "nbg:production"); every earlier "nbg" row is a sandbox one
+  try { await sequelize.query(`UPDATE bank_connections SET provider = 'nbg:sandbox' WHERE provider = 'nbg'`); }
+  catch (e) { console.warn('[bank-sync] provider key migration skipped:', e.message); }
+
+  // Scheduled bank fetch (every 10 min in working hours) + consent-expiry reminders
+  try { require('./services/bankScheduler').start(); }
+  catch (e) { console.warn('[bank-sync] Could not schedule:', e.message); }
 
   // Daily payroll target + achievement push at 09:00 Athens time
   try {

@@ -41,6 +41,122 @@ function InvoiceSelect({ tx, onSave }) {
   );
 }
 
+const STATUS = {
+  active:  { label: 'Ενεργή',    cls: 'badge-green'  },
+  expired: { label: 'Έληξε',     cls: 'badge-red'    },
+  pending: { label: 'Σε εξέλιξη', cls: 'badge-yellow' },
+  error:   { label: 'Σφάλμα',    cls: 'badge-red'    },
+  none:    { label: 'Μη συνδεδεμένη', cls: 'badge-gray' },
+};
+const daysLeft = d => d ? Math.ceil((new Date(d) - Date.now()) / 86400000) : null;
+const fmtDateTime = d => d ? new Date(d).toLocaleString('el-GR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }) : '—';
+
+function OtpBox({ onSubmit, busy }) {
+  const [code, setCode] = useState('');
+  return (
+    <div className="flex gap-1.5">
+      <input className="input !w-auto flex-1 min-w-0" inputMode="numeric" placeholder="Κωδικός SMS" value={code}
+        onChange={e => setCode(e.target.value.replace(/\D/g, ''))} />
+      <button className="btn btn-primary btn-sm" disabled={busy || code.length < 4} onClick={() => onSubmit(code)}>OK</button>
+    </div>
+  );
+}
+
+function ConnectionsPanel({ info, onConnect, onOtp, onCheck, onSandbox, onProbe, onHistory, onDeleteTest, testCount, diag, busy }) {
+  if (!info) return null;
+  const expiring = info.connections.filter(c => c.status === 'expired' || (c.status === 'active' && daysLeft(c.consent_expires_at) <= 7));
+  return (
+    <div className="card p-4 space-y-3">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-slate-600">Αυτόματη σύνδεση τραπεζών</span>
+        {info.provider === 'mock' && <span className="badge-orange">ΔΟΚΙΜΑΣΤΙΚΟ ΠΕΡΙΒΑΛΛΟΝ (mock)</span>}
+        {!info.configured && <span className="badge-gray">Αναμένεται ρύθμιση παρόχου</span>}
+      </div>
+
+      {expiring.length > 0 && (
+        <div className="rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-sm px-3 py-2">
+          {expiring.map(c => (
+            <div key={c.bank}>
+              <b>{c.label}</b>: {c.status === 'expired' ? 'η συγκατάθεση έχει λήξει' : `η συγκατάθεση λήγει σε ${daysLeft(c.consent_expires_at)} ημέρες`} — πατήστε «Ανανέωση σύνδεσης».
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!info.configured && (
+        <p className="text-xs text-slate-400">
+          Η σύνδεση θα ενεργοποιηθεί όταν προστεθούν τα στοιχεία πρόσβασης του παρόχου στο Railway (NBG_BASE_URL, NBG_CLIENT_ID, NBG_CLIENT_SECRET). Μέχρι τότε η εισαγωγή αρχείου λειτουργεί κανονικά.
+        </p>
+      )}
+
+      <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        {info.connections.map(c => {
+          const st = STATUS[c.status] || STATUS.none;
+          const left = daysLeft(c.consent_expires_at);
+          return (
+            <div key={c.bank} className="rounded-xl border border-slate-200 p-3 space-y-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-semibold text-slate-700 text-sm">{c.label}</span>
+                <span className={st.cls}>{st.label}</span>
+              </div>
+              <div className="text-xs text-slate-400">
+                {c.status === 'active' && <>Λήξη σε {left} ημέρες<br /></>}
+                Τελευταίος έλεγχος: {fmtDateTime(c.last_sync_at)}
+              </div>
+              {c.last_error && c.status !== 'active' && <div className="text-xs text-rose-600 break-words">{c.last_error}</div>}
+              {c.status === 'pending' && c.sca_type === 'SMS'
+                ? <OtpBox busy={busy} onSubmit={code => onOtp(c.bank, code)} />
+                : (
+                  <button className="btn btn-secondary btn-sm w-full" disabled={busy || !info.configured} onClick={() => onConnect(c.bank)}>
+                    {c.status === 'none' ? 'Σύνδεση' : 'Ανανέωση σύνδεσης'}
+                  </button>
+                )}
+            </div>
+          );
+        })}
+      </div>
+
+      {info.configured && info.provider === 'nbg' && (
+        <div className="border-t border-slate-100 pt-3 space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-xs text-slate-400">Περιβάλλον NBG: <b>{info.env}</b></span>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onCheck}>Έλεγχος σύνδεσης NBG</button>
+            {info.env === 'sandbox' && <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onSandbox}>Δημιουργία sandbox (μία φορά)</button>}
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onProbe}>Δοκιμαστική ανάκτηση (χωρίς αποθήκευση)</button>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={onHistory}>Εισαγωγή ιστορικού (10 έτη)</button>
+            {testCount > 0 && <button className="btn btn-danger btn-sm" disabled={busy} onClick={onDeleteTest}>Διαγραφή δοκιμαστικών ({testCount})</button>}
+          </div>
+          {diag && (
+            <div className="text-xs space-y-0.5">
+              {diag.error && <div className="text-rose-600 break-words">{diag.error}</div>}
+              {diag.customerIp && (
+                <div className={diag.customerIp.ip ? 'text-slate-600' : 'text-rose-600'}>
+                  IP πελάτη που στέλνεται στην NBG: <b>{diag.customerIp.ip || '—'}</b> ({diag.customerIp.source})
+                </div>
+              )}
+              {diag.sandbox && (
+                <div className={diag.sandbox.exists ? 'text-emerald-600' : 'text-rose-600'}>
+                  {diag.sandbox.exists ? '✓' : '✗'} sandbox «{diag.sandbox.id}» {diag.sandbox.exists ? 'υπάρχει' : (diag.sandbox.exists === false ? 'δεν υπάρχει: πατήστε «Δημιουργία sandbox»' : 'δεν ήταν δυνατός ο έλεγχος')}
+                </div>
+              )}
+              {diag.mapping && Object.entries(diag.mapping).map(([bank, m]) => (
+                <div key={bank} className={m.available ? 'text-emerald-600' : 'text-rose-600'}>
+                  {m.available ? '✓' : '✗'} {bank} — {m.bic}{m.available ? '' : ' (δεν προσφέρεται με αυτόν τον κωδικό)'}
+                </div>
+              ))}
+              {diag.banks && diag.mapping && Object.values(diag.mapping).some(m => !m.available) && (
+                <div className="text-slate-500 break-words">Διαθέσιμες τράπεζες: {diag.banks.map(b => `${b.name} (${b.bic})`).join(', ')}</div>
+              )}
+              {diag.lines && diag.lines.map((l, i) => <div key={i} className="text-slate-600 break-words">{l}</div>)}
+              {diag.message && <div className="text-slate-600">{diag.message}</div>}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function BankPage() {
   const [direction, setDirection] = useState('credit');
   const [bank, setBank] = useState('');
@@ -53,6 +169,9 @@ export default function BankPage() {
   const [loading, setLoading] = useState(true);
   const [importBank, setImportBank] = useState('alpha');
   const [uploading, setUploading] = useState(false);
+  const [connInfo, setConnInfo] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [diag, setDiag] = useState(null);
   const fileRef = useRef(null);
 
   const load = useCallback(async () => {
@@ -98,6 +217,105 @@ export default function BankPage() {
   // typing a note counts as having seen the row
   const saveSeen = (tx, patch) => save(tx, tx.seen ? patch : { ...patch, seen: true });
 
+
+  const loadConnections = useCallback(() => {
+    api.get('/bank/connections').then(r => setConnInfo(r.data)).catch(() => {});
+  }, []);
+  useEffect(() => { loadConnections(); }, [loadConnections]);
+
+  // the bank sends the browser back to /bank?bank_connected=... or ?bank_error=...
+  useEffect(() => {
+    const qs = new URLSearchParams(window.location.search);
+    if (qs.get('bank_connected')) toast.success('Η τράπεζα συνδέθηκε. Γίνεται η πρώτη ανάκτηση κινήσεων…');
+    if (qs.get('bank_pending')) toast('Σχεδόν έτοιμο: εισάγετε τον κωδικό SMS που λάβατε στην κάρτα της τράπεζας.', { duration: 8000 });
+    if (qs.get('bank_error')) toast.error(qs.get('bank_error'), { duration: 8000 });
+    if (qs.has('bank_connected') || qs.has('bank_pending') || qs.has('bank_error')) {
+      window.history.replaceState({}, '', '/bank');
+      setTimeout(() => { loadConnections(); load(); }, 2500);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const connectBank = async bank => {
+    try {
+      const { data } = await api.post('/bank/connections', { bank });
+      window.location.href = data.redirect_url;     // the bank's own login/consent page
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία έναρξης σύνδεσης');
+    }
+  };
+
+  const submitOtp = async (bank, otp) => {
+    try {
+      await api.post('/bank/connections/otp', { bank, otp });
+      toast.success('Η τράπεζα συνδέθηκε. Γίνεται η πρώτη ανάκτηση κινήσεων…');
+      loadConnections(); setTimeout(() => { loadConnections(); load(); }, 2500);
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία επιβεβαίωσης κωδικού');
+    }
+  };
+
+  const checkProvider = async () => {
+    setDiag({ message: 'Έλεγχος…' });
+    try { setDiag((await api.get('/bank/provider/check')).data); }
+    catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία ελέγχου' }); }
+  };
+  const createSandbox = async () => {
+    try { await api.post('/bank/provider/sandbox'); setDiag({ message: '✓ Το sandbox είναι έτοιμο. Πατήστε «Έλεγχος σύνδεσης NBG» για επιβεβαίωση και μετά «Σύνδεση» σε μια τράπεζα.' }); }
+    catch (e) { setDiag({ error: e.response?.data?.error || 'Αποτυχία δημιουργίας sandbox' }); }
+  };
+
+  const probeActive = async () => {
+    const active = (connInfo?.connections || []).filter(c => c.status === 'active');
+    if (!active.length) return setDiag({ error: 'Δεν υπάρχει ενεργή σύνδεση τράπεζας.' });
+    setDiag({ message: 'Ανάκτηση…' });
+    const lines = [];
+    for (const c of active) {
+      try {
+        const { data } = await api.get('/bank/provider/probe', { params: { bank: c.bank, days: 3650 } });
+        const t = data.transactions;
+        lines.push(`${c.label}: ${data.accounts.length} λογαριασμ${data.accounts.length === 1 ? 'ός' : 'οί'}` +
+          (data.accounts.length ? ` (${data.accounts.map(a => `${a.iban} ${a.balance ?? ''} ${a.currency || ''}`.trim()).join('; ')})` : '') +
+          ` · κινήσεις: ${t.count} (πιστώσεις ${t.credits}, χρεώσεις ${t.debits})` + (t.count ? ` · από ${t.from} έως ${t.to}` : ''));
+        t.sample.forEach(x => lines.push(`   ${x.date}  ${(x.cents / 100).toFixed(2)} €  ${x.counterparty || ''} ${x.description || ''}`.trim()));
+      } catch (e) { lines.push(`${c.label}: ${e.response?.data?.error || 'αποτυχία'}`); }
+    }
+    setDiag({ lines });
+  };
+  const importHistory = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/bank/sync', { days: 3650 });
+      const added = (data.results || []).reduce((n, r) => n + (r.new || 0), 0);
+      toast.success(`Ιστορικό: νέες κινήσεις ${added}`);
+      load(); loadConnections();
+    } catch (e) { toast.error(e.response?.data?.error || 'Αποτυχία εισαγωγής ιστορικού'); }
+    finally { setSyncing(false); }
+  };
+  const deleteTestData = async () => {
+    if (!window.confirm('Διαγραφή όλων των ΔΟΚΙΜΑΣΤΙΚΩΝ κινήσεων (sandbox); Οι πραγματικές κινήσεις δεν επηρεάζονται.')) return;
+    const { data } = await api.delete('/bank/test-data');
+    toast.success(`Διαγράφηκαν ${data.deleted} δοκιμαστικές κινήσεις`);
+    load();
+  };
+
+  const syncNow = async () => {
+    setSyncing(true);
+    try {
+      const { data } = await api.post('/bank/sync');
+      if (data.skipped) toast('Ο έλεγχος ήδη εκτελείται, δοκιμάστε σε λίγο.');
+      else if (!data.results.length) toast('Δεν υπάρχει ενεργή σύνδεση τράπεζας. Συνδέστε μια τράπεζα ή εισάγετε αρχείο.');
+      else {
+        const added = data.results.reduce((n, r) => n + (r.new || 0), 0);
+        const failed = data.results.filter(r => !r.ok);
+        if (added) toast.success(`Νέες κινήσεις: ${added}`); else if (!failed.length) toast('Καμία νέα κίνηση.');
+        failed.forEach(r => toast.error(`${r.bank}: ${r.error}`));
+      }
+      load(); loadConnections();
+    } catch (e) {
+      toast.error(e.response?.data?.error || 'Αποτυχία ανανέωσης');
+    } finally { setSyncing(false); }
+  };
+
   const markAllSeen = async () => {
     await api.post('/bank/mark-seen', { direction });
     load();
@@ -132,7 +350,12 @@ export default function BankPage() {
         <h1 className="text-xl font-bold text-slate-800 mr-2">Τράπεζες</h1>
         <span className="badge-yellow">Νέες πιστώσεις: {summary.new_credits}</span>
         <span className="badge-orange">Πιστώσεις χωρίς τιμολόγιο: {summary.credits_without_invoice}</span>
+        <button className="btn btn-primary btn-sm ml-auto" onClick={syncNow} disabled={syncing}>
+          {syncing ? 'Ανανέωση…' : '↻ Ανανέωση τώρα'}
+        </button>
       </div>
+
+      <ConnectionsPanel info={connInfo} onConnect={connectBank} onOtp={submitOtp} onCheck={checkProvider} onSandbox={createSandbox} onProbe={probeActive} onHistory={importHistory} onDeleteTest={deleteTestData} testCount={summary.test_count || 0} diag={diag} busy={syncing} />
 
       {/* Import */}
       <div className="card p-4 flex flex-wrap items-center gap-3">
@@ -196,7 +419,7 @@ export default function BankPage() {
                       <td className="td whitespace-nowrap">{banks[tx.bank] || tx.bank}</td>
                       <td className={`td text-right whitespace-nowrap font-semibold tabular-nums ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(tx.amount)}</td>
                       <td className="td">
-                        <div>{tx.counterparty || tx.description}</div>
+                        <div>{tx.counterparty || tx.description} {tx.is_test && <span className="badge-orange ml-1">ΔΟΚΙΜΑΣΤΙΚΟ</span>}</div>
                         {tx.counterparty && tx.description && <div className="text-xs text-slate-400">{tx.description}</div>}
                       </td>
                       <td className="td"><CategoryInput tx={tx} onSave={p => saveSeen(tx, p)} /></td>
@@ -217,7 +440,7 @@ export default function BankPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="text-xs text-slate-400">{fmtDate(tx.tx_date)} · {banks[tx.bank] || tx.bank}</div>
-                    <div className="font-medium text-slate-800 break-words">{tx.counterparty || tx.description}</div>
+                    <div className="font-medium text-slate-800 break-words">{tx.counterparty || tx.description} {tx.is_test && <span className="badge-orange ml-1">ΔΟΚΙΜΑΣΤΙΚΟ</span>}</div>
                     {tx.counterparty && tx.description && <div className="text-xs text-slate-400 break-words">{tx.description}</div>}
                   </div>
                   <div className={`font-bold whitespace-nowrap tabular-nums ${isCredit ? 'text-emerald-600' : 'text-rose-600'}`}>{fmt(tx.amount)}</div>

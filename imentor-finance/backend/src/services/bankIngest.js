@@ -5,7 +5,7 @@ const { Op } = require('sequelize');
 const BankTransaction = require('../models/BankTransaction');
 const { categorize } = require('./bankCategorize');
 
-const BANKS = { alpha: 'Alpha Bank', piraeus: 'Πειραιώς', eurobank: 'Eurobank' };
+const BANKS = { nbg: 'Εθνική Τράπεζα', alpha: 'Alpha Bank', piraeus: 'Πειραιώς', eurobank: 'Eurobank' };
 
 function formatEur(cents) {
   const sign = cents < 0 ? '-' : '';
@@ -15,15 +15,17 @@ function formatEur(cents) {
 }
 
 function fingerprint(bank, row, n) {
+  // a bank-supplied transaction id is the strongest identity: stable across overlapping fetches
+  if (row.external_id) return crypto.createHash('sha256').update(`${bank}|ext|${row.external_id}`).digest('hex');
   const desc = (row.description || '').toUpperCase().split(/\s+/).filter(Boolean).join(' ');
   return crypto.createHash('sha256')
     .update([bank, row.account || '', row.tx_date, row.cents, desc, n].join('|')).digest('hex');
 }
 
-function buildMessage(bank, rows, maxLines = 8) {
+function buildMessage(bank, rows, maxLines = 8, isTest = false) {
   const credits = rows.filter(r => r.cents > 0);
   const debits = rows.length - credits.length;
-  let head = `💰 ${BANKS[bank]}: ` + (credits.length === 1 ? 'νέα πίστωση' : `${credits.length} νέες πιστώσεις`);
+  let head = `${isTest ? '🧪 ΔΟΚΙΜΑΣΤΙΚΟ · ' : ''}💰 ${BANKS[bank]}: ` + (credits.length === 1 ? 'νέα πίστωση' : `${credits.length} νέες πιστώσεις`);
   if (debits) head += `, ${debits} νέες χρεώσεις`;
   const lines = [head];
   [...rows].sort((a, b) => Math.abs(b.cents) - Math.abs(a.cents)).slice(0, maxLines).forEach(r => {
@@ -52,18 +54,21 @@ async function ingest(bank, rows, deps = {}) {
     return { ...r, fp: fingerprint(bank, r, n) };
   });
 
+  // a feed may repeat the same bank transaction id inside one response: keep the first
+  const unique = [...new Map(prepared.map(p => [p.fp, p])).values()];
   const existing = new Set();
-  const fps = prepared.map(p => p.fp);
+  const fps = unique.map(p => p.fp);
   for (let i = 0; i < fps.length; i += 500) {
     const found = await BankTransaction.findAll({ where: { fingerprint: { [Op.in]: fps.slice(i, i + 500) } }, attributes: ['fingerprint'], raw: true });
     found.forEach(f => existing.add(f.fingerprint));
   }
-  const fresh = prepared.filter(p => !existing.has(p.fp));
+  const fresh = unique.filter(p => !existing.has(p.fp));
 
   const created = await BankTransaction.bulkCreate(fresh.map(p => ({
     bank, account: p.account || '', tx_date: p.tx_date, amount: (p.cents / 100).toFixed(2),
-    description: p.description || '', counterparty: p.counterparty || '',
+    description: p.description || '', counterparty: p.counterparty || '', counterparty_account: p.counterparty_account || '',
     direction: p.cents > 0 ? 'credit' : 'debit', fingerprint: p.fp,
+    is_test: !!deps.isTest,
     category: p.cents < 0 ? categorize(p.description, p.counterparty) : '',  // expense rules apply to debits only
   })), { returning: true });
 
@@ -75,7 +80,7 @@ async function ingest(bank, rows, deps = {}) {
   let notifyError = '';
   if (toNotify.length) {
     try {
-      const text = buildMessage(bank, toNotify.map(x => x.p));
+      const text = buildMessage(bank, toNotify.map(x => x.p), 8, !!deps.isTest);
       broadcast('new_bank_transactions', {
         bank, bank_label: BANKS[bank], count: toNotify.length,
         total_cents: toNotify.reduce((s, x) => s + (x.p.cents > 0 ? x.p.cents : 0), 0),

@@ -11,12 +11,14 @@ const BankTransaction = sequelize.define('BankTransaction', {
   currency:       { type: DataTypes.STRING(3), defaultValue: 'EUR' },
   description:    { type: DataTypes.TEXT, defaultValue: '' },
   counterparty:   { type: DataTypes.STRING, defaultValue: '' },
+  counterparty_account: { type: DataTypes.STRING, defaultValue: '' },   // payer/payee IBAN when the bank provides it (for invoice matching)
   direction:      { type: DataTypes.STRING(6), allowNull: false },       // credit | debit
   fingerprint:    { type: DataTypes.STRING(64), allowNull: false, unique: true },
   category:       { type: DataTypes.STRING, defaultValue: '' },
   note:           { type: DataTypes.TEXT, defaultValue: '' },
   invoice_issued: { type: DataTypes.BOOLEAN, allowNull: true },          // null = not marked yet
   income_id:      { type: DataTypes.INTEGER, allowNull: true },          // reserved for matching to Income / myDATA
+  is_test:        { type: DataTypes.BOOLEAN, defaultValue: false },        // sandbox / mock data: never mixed up with real money
   seen:           { type: DataTypes.BOOLEAN, defaultValue: false },
   notified:       { type: DataTypes.BOOLEAN, defaultValue: false },
 }, {
