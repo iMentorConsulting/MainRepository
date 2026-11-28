@@ -4,6 +4,7 @@ import { sendEmail, renderCampaignEmailHtml } from '@/lib/email'
 import { sendViberMessage } from '@/lib/viber'
 import { sendErmisWebhook } from '@/lib/ermis-webhook'
 import { buildBusinessProfilePayload, BUSINESS_PROFILE_SELECT } from '@/lib/business-profile'
+import { clientDisplayName } from '@/lib/ermis-program-payload'
 
 export const dynamic = 'force-dynamic'
 
@@ -32,16 +33,49 @@ function buildEmailHtml(opts: {
 }
 
 function buildViberText(opts: {
-  businessName: string
+  businessName: string | null
   programTitle: string
   ermisLink: string
   isEligible: boolean
 }): string {
   const { businessName, programTitle, ermisLink, isEligible } = opts
+  const greeting = `Γεια σας${businessName ? ` ${businessName}` : ''}! 👋`
   if (isEligible) {
-    return `Γεια σας ${businessName}! Η επιχείρησή σας φαίνεται *ΕΠΙΛΕΞΙΜΗ* για το πρόγραμμα "${programTitle}". Ολοκληρώστε τη συνομιλία με τον Ερμή για να σας παραπέμψουμε στον σύμβουλό μας: ${ermisLink}`
+    return [
+      greeting,
+      '',
+      `🎯 Η επιχείρησή σας φαίνεται *ΕΠΙΛΕΞΙΜΗ* για το πρόγραμμα «${programTitle}».`,
+      '',
+      '🤖 Ολοκληρώστε τη συνομιλία με τον *Ερμή* για να σας παραπέμψουμε στον σύμβουλό μας:',
+      ermisLink,
+    ].join('\n')
   }
-  return `Γεια σας ${businessName}! Θυμηθείτε να ολοκληρώσετε τη συνομιλία σας με τον Ερμή για το πρόγραμμα "${programTitle}". Οι απαντήσεις σας είναι αποθηκευμένες — συνεχίστε εδώ: ${ermisLink}`
+  return [
+    greeting,
+    '',
+    `⏳ Η συνομιλία σας με τον *Ερμή* για το πρόγραμμα «${programTitle}» δεν έχει ολοκληρωθεί.`,
+    '',
+    '✅ Οι απαντήσεις σας είναι αποθηκευμένες — συνεχίστε από εκεί που μείνατε (~2 λεπτά):',
+    ermisLink,
+    '',
+    'Αν δεν σας ενδιαφέρει πια, μπορείτε να αγνοήσετε αυτό το μήνυμα.',
+  ].join('\n')
+}
+
+// Reminders go out only in the daytime (Europe/Athens): the cron runs around the
+// clock and a "reminder" at 4:45 am is an intrusion. Skipped candidates stay
+// pending and are picked up by the first run inside the window.
+function isReminderWindowOpen(date = new Date()): boolean {
+  const hour = Number(new Intl.DateTimeFormat('en-GB', { hour: 'numeric', hour12: false, timeZone: 'Europe/Athens' }).format(date))
+  return hour >= 9 && hour < 21
+}
+
+// Safety net next to intentStatus (which depends on a classifier call that can fail):
+// if the client's last message clearly says they're out, never nudge them.
+function clientDeclined(chatLog: unknown): boolean {
+  const log = Array.isArray(chatLog) ? (chatLog as { role?: string; text?: string }[]) : []
+  const lastUser = [...log].reverse().find(m => m?.role === 'user' && typeof m.text === 'string')
+  return !!lastUser && /δεν\s+(με\s+)?ενδιαφέρει|ακύρωσ|ακυρώσ|μην\s+(με\s+)?(στείλ|ενοχλ)|διαγραφ|τέλος|σταματ/i.test(lastUser.text!)
 }
 
 export async function GET(request: NextRequest) {
@@ -58,6 +92,7 @@ export async function GET(request: NextRequest) {
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000)
   const appUrl = process.env.APP_URL || 'https://logistis.i-mentor.gr'
 
+  const windowOpen = isReminderWindowOpen(now)
   let email1Sent = 0
   let email1Failed = 0
   let viber2Sent = 0
@@ -75,10 +110,12 @@ export async function GET(request: NextRequest) {
       lastActivityAt: { lt: sixHoursAgo },
       reminder1SentAt: null,
       eligibilityStatus: { not: 'NOT_ELIGIBLE' },
+      // The client already ended the conversation ("δεν με ενδιαφέρει", "ακύρωσε την αίτηση").
+      OR: [{ intentStatus: null }, { intentStatus: { not: 'NOT_INTERESTED' } }],
     },
   })
 
-  if (reminder1Candidates.length > 0) {
+  if (windowOpen && reminder1Candidates.length > 0) {
     const businessIds = reminder1Candidates.map(t => t.businessId)
     const programIds = reminder1Candidates.map(t => t.programId)
 
@@ -91,6 +128,11 @@ export async function GET(request: NextRequest) {
     const progById = new Map(programs.map(p => [p.id, p]))
 
     for (const t of reminder1Candidates) {
+      if (clientDeclined(t.chatLog)) {
+        await prisma.businessMatchToken.update({ where: { id: t.id }, data: { reminder1SentAt: now, reminder2SentAt: now } })
+        console.log(`[ErmisReminders] reminder1 skipped (client declined): token ${t.token}`)
+        continue
+      }
       const biz = bizById.get(t.businessId)
       const prog = progById.get(t.programId)
       // CM sessions provide contactEmail at session creation; portal sessions use Business.email
@@ -105,7 +147,7 @@ export async function GET(request: NextRequest) {
       }
 
       const isEligible = t.eligibilityStatus === 'ELIGIBLE'
-      const businessName = biz?.onomasia || biz?.afm || t.token
+      const businessName = clientDisplayName(biz?.onomasia) || 'πελάτη'
       const ermisLink = `${appUrl}/e/${t.token}`
       const programTitle = prog?.title || ''
 
@@ -138,10 +180,11 @@ export async function GET(request: NextRequest) {
       reminder1SentAt: { not: null, lt: twentyFourHoursAgo },
       reminder2SentAt: null,
       eligibilityStatus: { not: 'NOT_ELIGIBLE' },
+      OR: [{ intentStatus: null }, { intentStatus: { not: 'NOT_INTERESTED' } }],
     },
   })
 
-  if (reminder2Candidates.length > 0) {
+  if (windowOpen && reminder2Candidates.length > 0) {
     const businessIds = reminder2Candidates.map(t => t.businessId)
     const programIds = reminder2Candidates.map(t => t.programId)
 
@@ -154,6 +197,11 @@ export async function GET(request: NextRequest) {
     const progById = new Map(programs.map(p => [p.id, p]))
 
     for (const t of reminder2Candidates) {
+      if (clientDeclined(t.chatLog)) {
+        await prisma.businessMatchToken.update({ where: { id: t.id }, data: { reminder2SentAt: now } })
+        console.log(`[ErmisReminders] reminder2 skipped (client declined): token ${t.token}`)
+        continue
+      }
       const biz = bizById.get(t.businessId)
       const prog = progById.get(t.programId)
       // CM sessions: contactPhone; portal sessions: viberPhone fallback to phone
@@ -168,14 +216,14 @@ export async function GET(request: NextRequest) {
       }
 
       const isEligible = t.eligibilityStatus === 'ELIGIBLE'
-      const businessName = biz?.onomasia || biz?.afm || t.token
+      const businessName = clientDisplayName(biz?.onomasia)
       const ermisLink = `${appUrl}/e/${t.token}`
       const programTitle = prog?.title || ''
 
       const result = await sendViberMessage({
         to: phone,
         text: buildViberText({ businessName, programTitle, ermisLink, isEligible }),
-        senderName: businessName,
+        senderName: businessName || 'iMentor Consulting',
       })
 
       await prisma.businessMatchToken.update({ where: { id: t.id }, data: { reminder2SentAt: now } })
