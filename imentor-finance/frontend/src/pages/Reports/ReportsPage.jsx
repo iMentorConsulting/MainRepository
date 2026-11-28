@@ -2013,6 +2013,7 @@ function TabDepartmental({ years }) {
 
   const DEPT_COLORS = {
     'ΟΦΕΙΛΕΣ': { bg: '#6366f1', light: 'rgba(99,102,241,0.08)' },
+    'ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ': { bg: '#f59e0b', light: 'rgba(245,158,11,0.08)' },
     'ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ': { bg: '#10b981', light: 'rgba(16,185,129,0.08)' },
   };
 
@@ -2051,7 +2052,7 @@ function TabDepartmental({ years }) {
         <div className="card p-5 mb-6 border border-slate-200">
           <div className="font-semibold text-slate-700 text-sm mb-1">Ανάθεση Υπηρεσίας σε Τμήμα</div>
           <p className="text-xs text-slate-400 mb-4">
-            Τα έξοδα με ΥΠΗΡΕΣΙΑ πηγαίνουν στο αντίστοιχο τμήμα. Τα έξοδα <strong>χωρίς ΥΠΗΡΕΣΙΑ</strong> ή με υπηρεσία που δεν έχει ανατεθεί θεωρούνται <strong>overhead</strong> και μοιράζονται 50/50.
+            Τα έξοδα με ΥΠΗΡΕΣΙΑ πηγαίνουν στο αντίστοιχο τμήμα. Τα έξοδα <strong>χωρίς ΥΠΗΡΕΣΙΑ</strong> ή με υπηρεσία που δεν έχει ανατεθεί θεωρούνται <strong>overhead</strong> και μοιράζονται ισόποσα στα 3 τμήματα.
           </p>
           <div className="divide-y divide-slate-100">
             {services.map(svc => (
@@ -2065,8 +2066,9 @@ function TabDepartmental({ years }) {
                     onChange={e => assignService(svc, e.target.value)}
                     disabled={saving === svc}
                   >
-                    <option value="">— Overhead (50/50) —</option>
+                    <option value="">— Overhead (ισόποση διανομή) —</option>
                     <option value="ΟΦΕΙΛΕΣ">ΟΦΕΙΛΕΣ</option>
+                    <option value="ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ">ΜΙΚΡΟΠΙΣΤΩΣΕΙΣ</option>
                     <option value="ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ">ΕΠΙΧΟΡΗΓΟΥΜΕΝΑ ΠΡΟΓΡΑΜΜΑΤΑ</option>
                   </select>
                 </div>
