@@ -146,6 +146,7 @@ function DrilldownModal({ agent, month, monthName, year, onClose }) {
 export default function BonusReport() {
   const [year, setYear] = useState(new Date().getFullYear());
   const [data, setData] = useState([]);
+  const [payrollData, setPayrollData] = useState([]);
   const [drill, setDrill] = useState(null); // { agent, month, monthName }
   const [noData, setNoData] = useState(false);
   const [availableYears, setAvailableYears] = useState([]);
@@ -166,7 +167,21 @@ export default function BonusReport() {
         if (r.data.length === 0) setNoData(true);
       })
       .catch(() => setNoData(true));
+    api.get(`/reports/payroll?year=${year}`)
+      .then(r => setPayrollData(r.data || []))
+      .catch(() => {});
   }, [year]);
+
+  // Build commission lookup: { agentName: { 'MM': commission } }
+  const commissionLookup = {};
+  for (const pd of payrollData) {
+    if (!pd.settings?.overachievement_rate) continue;
+    commissionLookup[pd.agent] = {};
+    for (const m of pd.monthly) {
+      if (m.commission > 0) commissionLookup[pd.agent][m.month] = m.commission;
+    }
+  }
+  const commissionTotal = payrollData.reduce((s, pd) => s + (pd.total_commission || 0), 0);
 
   const years = availableYears.length > 0
     ? availableYears
@@ -206,24 +221,31 @@ export default function BonusReport() {
 
       {data.length > 0 && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-          {data.map((agent, i) => (
-            <div key={i} className="card p-4">
-              <div className="flex items-center gap-3 mb-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0"
-                  style={{ background: PALETTE[i % PALETTE.length] }}>
-                  {(agent.agent || '?')[0]}
+          {data.map((agent, i) => {
+            const agentComm = payrollData.find(p => p.agent === agent.agent)?.total_commission || 0;
+            return (
+              <div key={i} className="card p-4">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl flex items-center justify-center text-sm font-black text-white shrink-0"
+                    style={{ background: PALETTE[i % PALETTE.length] }}>
+                    {(agent.agent || '?')[0]}
+                  </div>
+                  <div>
+                    <div className="text-sm font-bold text-slate-800 truncate max-w-[120px]">{agent.agent}</div>
+                    <div className="text-xs text-slate-400">Σύνολο {year}</div>
+                  </div>
                 </div>
-                <div>
-                  <div className="text-sm font-bold text-slate-800 truncate max-w-[120px]">{agent.agent}</div>
-                  <div className="text-xs text-slate-400">Σύνολο {year}</div>
-                </div>
+                <div className="text-xl font-black text-indigo-600">{fmt(agent.total + agentComm)}</div>
+                {agent.total > 0 && <div className="text-xs text-slate-400 mt-0.5">Αίτηση: {fmt(agent.total)}</div>}
+                {agentComm > 0 && <div className="text-xs text-violet-500 mt-0.5">Υπέρβαση: {fmt(agentComm)}</div>}
               </div>
-              <div className="text-xl font-black text-indigo-600">{fmt(agent.total)}</div>
-            </div>
-          ))}
+            );
+          })}
           <div className="card p-4 border-2 border-indigo-100 bg-indigo-50/30">
             <div className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Σύνολο</div>
-            <div className="text-xl font-black text-indigo-700">{fmt(grandTotal)}</div>
+            <div className="text-xl font-black text-indigo-700">{fmt(grandTotal + commissionTotal)}</div>
+            {grandTotal > 0 && <div className="text-xs text-slate-400 mt-0.5">Αίτηση: {fmt(grandTotal)}</div>}
+            {commissionTotal > 0 && <div className="text-xs text-violet-500 mt-0.5">Υπέρβαση: {fmt(commissionTotal)}</div>}
           </div>
         </div>
       )}
@@ -245,8 +267,10 @@ export default function BonusReport() {
       </div>
 
       <div className="card overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 text-xs text-slate-400">
-          Κλικ σε κελί για ανάλυση πωλήσεων
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-4">
+          <span className="text-xs text-slate-400">Κλικ σε κελί για ανάλυση πωλήσεων</span>
+          <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-emerald-100 border border-emerald-300" />Bonus Αίτησης 5%</span>
+          <span className="flex items-center gap-1.5 text-xs text-slate-400"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-violet-100 border border-violet-300" />Μπόνους Υπέρβασης</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
@@ -258,44 +282,118 @@ export default function BonusReport() {
               </tr>
             </thead>
             <tbody>
-              {data.map((agent, i) => (
-                <tr key={i} className="tr">
-                  <td className="td">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
-                      <span className="font-semibold text-slate-800">{agent.agent}</span>
-                    </div>
-                  </td>
-                  {agent.monthly.map((m, j) => (
-                    <td key={j} className="td text-center p-0">
-                      {m.bonus > 0 ? (
-                        <button
-                          onClick={() => setDrill({ agent: agent.agent, month: m.month, monthName: monthNames[j] })}
-                          className="w-full h-full px-2 py-2 text-xs font-semibold text-emerald-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors rounded whitespace-nowrap">
-                          {fmt(m.bonus)}
-                        </button>
-                      ) : (
-                        <span className="text-slate-200 text-xs">—</span>
-                      )}
-                    </td>
-                  ))}
-                  <td className="td text-right font-black text-indigo-600 whitespace-nowrap">{fmt(agent.total)}</td>
-                </tr>
-              ))}
-              {data.length > 0 && (
-                <tr className="bg-slate-50 border-t-2 border-slate-200">
-                  <td className="td font-bold text-slate-700">Σύνολο</td>
-                  {monthNames.map((_, i) => {
-                    const month = String(i + 1).padStart(2, '0');
-                    const total = data.reduce((s, a) => s + (a.monthly.find(m => m.month === month)?.bonus || 0), 0);
-                    return (
-                      <td key={i} className={`td text-center text-xs whitespace-nowrap ${total > 0 ? 'font-bold text-slate-700' : 'text-slate-200'}`}>
-                        {total > 0 ? fmt(total) : '—'}
+              {data.map((agent, i) => {
+                const agentComm = commissionLookup[agent.agent] || {};
+                const agentCommTotal = payrollData.find(p => p.agent === agent.agent)?.total_commission || 0;
+                const hasComm = agentCommTotal > 0;
+                return (
+                  <>
+                    {/* Row 1: Bonus Αίτησης */}
+                    <tr key={`${i}-b`} className={hasComm ? '' : 'tr'}>
+                      <td className="td" rowSpan={hasComm ? 1 : undefined}>
+                        <div className="flex items-center gap-2">
+                          <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: PALETTE[i % PALETTE.length] }} />
+                          <div>
+                            <span className="font-semibold text-slate-800">{agent.agent}</span>
+                            {hasComm && <div className="text-xs text-slate-400 leading-tight">Bonus Αίτησης</div>}
+                          </div>
+                        </div>
                       </td>
-                    );
-                  })}
-                  <td className="td text-right font-black text-indigo-700">{fmt(grandTotal)}</td>
-                </tr>
+                      {agent.monthly.map((m, j) => (
+                        <td key={j} className="td text-center p-0">
+                          {m.bonus > 0 ? (
+                            <button
+                              onClick={() => setDrill({ agent: agent.agent, month: m.month, monthName: monthNames[j] })}
+                              className="w-full h-full px-2 py-2 text-xs font-semibold text-emerald-700 hover:bg-indigo-50 hover:text-indigo-700 transition-colors rounded whitespace-nowrap">
+                              {fmt(m.bonus)}
+                            </button>
+                          ) : (
+                            <span className="text-slate-200 text-xs">—</span>
+                          )}
+                        </td>
+                      ))}
+                      <td className="td text-right font-black text-indigo-600 whitespace-nowrap">{agent.total > 0 ? fmt(agent.total) : <span className="text-slate-200">—</span>}</td>
+                    </tr>
+                    {/* Row 2: Μπόνους Υπέρβασης (only if exists) */}
+                    {hasComm && (
+                      <tr key={`${i}-c`} className="bg-violet-50/40">
+                        <td className="td pb-3">
+                          <div className="flex items-center gap-2 pl-4">
+                            <div className="w-2.5 h-2.5 rounded-sm shrink-0 bg-violet-200 border border-violet-400" />
+                            <span className="text-xs text-violet-600 font-medium">Μπόνους Υπέρβασης</span>
+                          </div>
+                        </td>
+                        {monthNames.map((_, j) => {
+                          const month = String(j + 1).padStart(2, '0');
+                          const comm = agentComm[month] || 0;
+                          return (
+                            <td key={j} className="td text-center pb-3">
+                              {comm > 0
+                                ? <span className="text-xs font-semibold text-violet-600 whitespace-nowrap">{fmt(comm)}</span>
+                                : <span className="text-slate-200 text-xs">—</span>}
+                            </td>
+                          );
+                        })}
+                        <td className="td text-right font-black text-violet-600 whitespace-nowrap pb-3">{fmt(agentCommTotal)}</td>
+                      </tr>
+                    )}
+                  </>
+                );
+              })}
+              {data.length > 0 && (
+                <>
+                  <tr className="bg-slate-50 border-t-2 border-slate-200">
+                    <td className="td font-bold text-slate-700">
+                      <div>Σύνολο Bonus Αίτησης</div>
+                    </td>
+                    {monthNames.map((_, i) => {
+                      const month = String(i + 1).padStart(2, '0');
+                      const total = data.reduce((s, a) => s + (a.monthly.find(m => m.month === month)?.bonus || 0), 0);
+                      return (
+                        <td key={i} className={`td text-center text-xs whitespace-nowrap ${total > 0 ? 'font-bold text-slate-700' : 'text-slate-200'}`}>
+                          {total > 0 ? fmt(total) : '—'}
+                        </td>
+                      );
+                    })}
+                    <td className="td text-right font-black text-indigo-700">{fmt(grandTotal)}</td>
+                  </tr>
+                  {commissionTotal > 0 && (
+                    <tr className="bg-violet-50 border-t border-violet-100">
+                      <td className="td font-bold text-violet-700">Σύνολο Μπόνους Υπέρβασης</td>
+                      {monthNames.map((_, i) => {
+                        const month = String(i + 1).padStart(2, '0');
+                        const total = payrollData.reduce((s, pd) => {
+                          const m = pd.monthly?.find(x => x.month === month);
+                          return s + (m?.commission || 0);
+                        }, 0);
+                        return (
+                          <td key={i} className={`td text-center text-xs whitespace-nowrap ${total > 0 ? 'font-bold text-violet-700' : 'text-slate-200'}`}>
+                            {total > 0 ? fmt(total) : '—'}
+                          </td>
+                        );
+                      })}
+                      <td className="td text-right font-black text-violet-700">{fmt(commissionTotal)}</td>
+                    </tr>
+                  )}
+                  <tr className="bg-indigo-50 border-t-2 border-indigo-200">
+                    <td className="td font-black text-indigo-800">Γενικό Σύνολο</td>
+                    {monthNames.map((_, i) => {
+                      const month = String(i + 1).padStart(2, '0');
+                      const bonusTotal = data.reduce((s, a) => s + (a.monthly.find(m => m.month === month)?.bonus || 0), 0);
+                      const commTotal = payrollData.reduce((s, pd) => {
+                        const m = pd.monthly?.find(x => x.month === month);
+                        return s + (m?.commission || 0);
+                      }, 0);
+                      const total = bonusTotal + commTotal;
+                      return (
+                        <td key={i} className={`td text-center text-xs whitespace-nowrap ${total > 0 ? 'font-black text-indigo-800' : 'text-slate-200'}`}>
+                          {total > 0 ? fmt(total) : '—'}
+                        </td>
+                      );
+                    })}
+                    <td className="td text-right font-black text-indigo-800">{fmt(grandTotal + commissionTotal)}</td>
+                  </tr>
+                </>
               )}
               {data.length === 0 && (
                 <tr><td colSpan={14} className="td text-center text-slate-400 py-10">
